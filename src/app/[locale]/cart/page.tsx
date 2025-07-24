@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, CreditCard, Heart, Gift, Truck, Shield, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { PointsRedemption } from '@/components/cart/points-redemption'
+import { CouponInput } from '@/components/cart/coupon-input'
 
 export default function CartPage() {
   const t = useTranslations('cart')
@@ -34,7 +35,12 @@ export default function CartPage() {
     getFinalTotalWithPoints,
     getPointsDiscount,
     getTotalPointsEarned,
-    pointsToRedeem
+    pointsToRedeem,
+    appliedCoupon,
+    applyCoupon,
+    removeCoupon,
+    getCouponDiscount,
+    getFinalTotalWithCouponAndPoints
   } = useCartStore()
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
 
@@ -87,6 +93,8 @@ export default function CartPage() {
   const finalTotal = getFinalTotal()
   const itemCount = getItemCount()
   const totalPointsEarned = getTotalPointsEarned()
+  const couponDiscount = getCouponDiscount()
+  const finalTotalWithCouponAndPoints = getFinalTotalWithCouponAndPoints()
 
   if (items.length === 0) {
     return (
@@ -331,10 +339,18 @@ export default function CartPage() {
                   <span className="text-sm text-gray-600">This order contains a gift</span>
                 </div>
 
+                {/* Coupon Input */}
+                <CouponInput
+                  orderTotal={finalTotal}
+                  appliedCoupon={appliedCoupon || undefined}
+                  onCouponApplied={applyCoupon}
+                  onCouponRemoved={removeCoupon}
+                />
+
                 {/* Points Redemption */}
                 {profile && (
                   <PointsRedemption
-                    userPointsBalance={profile.points_balance || 0}
+                    userPointsBalance={profile.points || 0}
                     onPointsChange={(points) => {
                       // Points are automatically updated in the cart store
                     }}
@@ -383,11 +399,25 @@ export default function CartPage() {
                     </div>
                   )}
 
+                  {/* Coupon Discount */}
+                  {appliedCoupon && couponDiscount > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Coupon Discount ({appliedCoupon.code}):</span>
+                      <span>-{formatPrice(couponDiscount)}</span>
+                    </div>
+                  )}
+
                   <Separator />
 
                   <div className="flex justify-between text-lg font-bold text-red-600">
                     <span>Order total:</span>
-                    <span>{formatPrice(pointsToRedeem > 0 ? getFinalTotalWithPoints() : finalTotal)}</span>
+                    <span>
+                      {formatPrice(
+                        (appliedCoupon && couponDiscount > 0) || pointsToRedeem > 0
+                          ? finalTotalWithCouponAndPoints
+                          : finalTotal
+                      )}
+                    </span>
                   </div>
                 </div>
 

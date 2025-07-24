@@ -212,14 +212,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </div>
           </div>
 
-          {/* Shipping Info */}
-          <div className="text-xs">
-            {product.price >= 3500 ? (
-              <span className="text-green-600 font-medium">Free shipping</span>
-            ) : (
-              <span className="text-muted-foreground">+ $5.00 shipping</span>
-            )}
-          </div>
+
 
           {/* Stock Status - Updated rules */}
           {product.stock_quantity === 1 && (

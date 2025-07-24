@@ -396,20 +396,7 @@ export default function ProductDetailPage() {
                 </span>
               </div>
 
-              {/* Shipping Info - Enhanced */}
-              <div className="text-sm sm:text-base">
-                {product.price >= 3500 ? (
-                  <div className="flex items-center text-green-700 bg-green-50 px-3 py-2 rounded-lg">
-                    <Truck className="h-5 w-5 mr-3 flex-shrink-0" />
-                    <span className="font-semibold">FREE delivery</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-gray-600 bg-white px-3 py-2 rounded-lg border">
-                    <Truck className="h-5 w-5 mr-3 flex-shrink-0" />
-                    <span className="font-medium">Standard delivery available</span>
-                  </div>
-                )}
-              </div>
+
             </div>
 
             <Separator />

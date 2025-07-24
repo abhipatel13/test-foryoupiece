@@ -18,6 +18,9 @@ export interface ExtendedTables {
       shipping_cost: number
       tax_amount: number
       discount_amount: number
+      coupon_id: string | null
+      coupon_code: string | null
+      coupon_discount_amount: number
       points_used: number
       points_earned: number
       total_amount: number
@@ -51,6 +54,9 @@ export interface ExtendedTables {
       shipping_cost?: number
       tax_amount?: number
       discount_amount?: number
+      coupon_id?: string | null
+      coupon_code?: string | null
+      coupon_discount_amount?: number
       points_used?: number
       points_earned?: number
       total_amount: number
@@ -84,6 +90,9 @@ export interface ExtendedTables {
       shipping_cost?: number
       tax_amount?: number
       discount_amount?: number
+      coupon_id?: string | null
+      coupon_code?: string | null
+      coupon_discount_amount?: number
       points_used?: number
       points_earned?: number
       total_amount?: number

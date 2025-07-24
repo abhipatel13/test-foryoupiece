@@ -33,7 +33,10 @@ export default function CheckoutPage() {
     pointsToRedeem,
     getPointsDiscount,
     getFinalTotalWithPoints,
-    clearPointsRedemption
+    clearPointsRedemption,
+    appliedCoupon,
+    getCouponDiscount,
+    getFinalTotalWithCouponAndPoints
   } = useCartStore()
   const [loading, setLoading] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -59,6 +62,8 @@ export default function CheckoutPage() {
   const itemCount = getItemCount()
   const pointsDiscount = getPointsDiscount()
   const finalTotalWithPoints = getFinalTotalWithPoints()
+  const couponDiscount = getCouponDiscount()
+  const finalTotalWithCouponAndPoints = getFinalTotalWithCouponAndPoints()
 
   if (!isAuthenticated) {
     return (
@@ -132,9 +137,12 @@ export default function CheckoutPage() {
         subtotal,
         shipping_cost: shippingFee,
         tax_amount: 0, // No tax calculation
-        discount_amount: pointsDiscount, // Use existing discount_amount column
+        discount_amount: pointsDiscount + couponDiscount, // Combined discounts
+        coupon_id: appliedCoupon?.id || null,
+        coupon_code: appliedCoupon?.code || null,
+        coupon_discount_amount: couponDiscount,
         points_used: pointsToRedeem, // Use existing points_used column
-        total_amount: finalTotalWithPoints,
+        total_amount: finalTotalWithCouponAndPoints,
         payment_method: 'qr_code',
         fulfillment_status: 'on_hold',
         shipping_address: {
@@ -426,10 +434,22 @@ export default function CheckoutPage() {
                         <span>-{formatPrice(pointsDiscount)}</span>
                       </div>
                     )}
+                    {appliedCoupon && couponDiscount > 0 && (
+                      <div className="flex justify-between text-blue-600">
+                        <span>Coupon Discount ({appliedCoupon.code})</span>
+                        <span>-{formatPrice(couponDiscount)}</span>
+                      </div>
+                    )}
                     <Separator />
                     <div className="flex justify-between text-lg font-bold text-red-600">
                       <span>Order Total</span>
-                      <span>{formatPrice(finalTotalWithPoints)}</span>
+                      <span>
+                        {formatPrice(
+                          (appliedCoupon && couponDiscount > 0) || pointsDiscount > 0
+                            ? finalTotalWithCouponAndPoints
+                            : finalTotal
+                        )}
+                      </span>
                     </div>
                   </div>
 

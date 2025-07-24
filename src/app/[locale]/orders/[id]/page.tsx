@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { orderQueries } from '@/lib/supabase/queries'
 import { formatPrice, formatDateTime } from '@/lib/utils'
+import { SHIPPING_CONFIG } from '@/shared/constants'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +18,10 @@ interface Order {
   id: string
   order_number: string
   total_amount: number
+  subtotal?: number
+  shipping_cost?: number
+  discount_amount?: number
+  points_used?: number
   payment_status: string
   fulfillment_status: string
   created_at: string
@@ -234,16 +239,25 @@ export default function OrderDetailsPage() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>{formatPrice(order.total_amount - 500 - Math.round(order.total_amount * 0.1))}</span>
+                <span>{formatPrice(order.subtotal || (order.total_amount - (order.shipping_cost || SHIPPING_CONFIG.STANDARD_FEE)))}</span>
               </div>
               <div className="flex justify-between">
                 <span>Shipping</span>
-                <span>{formatPrice(500)}</span>
+                <span>
+                  {(order.shipping_cost || SHIPPING_CONFIG.STANDARD_FEE) === 0 ? (
+                    <span className="text-green-700">FREE</span>
+                  ) : (
+                    formatPrice(order.shipping_cost || SHIPPING_CONFIG.STANDARD_FEE)
+                  )}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span>Tax</span>
-                <span>{formatPrice(Math.round(order.total_amount * 0.1))}</span>
-              </div>
+              {/* Points Discount (if applied) */}
+              {order.points_used > 0 && (
+                <div className="flex justify-between text-green-700">
+                  <span>Points Discount ({order.points_used.toLocaleString()} pts)</span>
+                  <span>-{formatPrice(order.discount_amount || 0)}</span>
+                </div>
+              )}
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>

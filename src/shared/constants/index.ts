@@ -45,6 +45,12 @@ export const PRODUCT_STATUS = {
   ARCHIVED: 'archived',
 } as const;
 
+export const SHIPPING_CONFIG = {
+  STANDARD_FEE: 1.50, // $1.50 USD standard shipping fee
+  FREE_SHIPPING_THRESHOLD: 4, // Free shipping for 4+ items
+  CURRENCY: 'USD',
+} as const;
+
 export const VALIDATION_RULES = {
   EMAIL: {
     MIN_LENGTH: 5,

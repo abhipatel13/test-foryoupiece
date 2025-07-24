@@ -27,7 +27,8 @@ import {
   EyeOff,
   UserCheck,
   ArrowLeft,
-  Crown
+  Crown,
+  Tag
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -351,6 +352,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       name: 'Users',
       href: `/${locale}/fyponly-admin/users`,
       icon: Users,
+      current: false
+    },
+    {
+      name: 'Coupons',
+      href: `/${locale}/fyponly-admin/coupons`,
+      icon: Tag,
       current: false
     },
     {

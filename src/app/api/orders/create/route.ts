@@ -158,6 +158,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Process coupon application if applicable
+    if (orderData.coupon_code && orderData.coupon_discount_amount > 0) {
+      console.log(`🎫 Processing coupon application: ${orderData.coupon_code}`);
+
+      try {
+        // Import coupon service
+        const { couponService } = await import('@/lib/services/coupon-service');
+
+        // Apply coupon to order (this will be done after order creation)
+        // For now, just validate the coupon
+        const validationResult = await couponService.validateCoupon(
+          orderData.coupon_code,
+          orderData.user_id,
+          orderData.subtotal + orderData.shipping_cost
+        );
+
+        if (!validationResult.isValid) {
+          console.error('❌ Coupon validation failed:', validationResult.errorMessage);
+          return NextResponse.json({
+            success: false,
+            error: validationResult.errorMessage || 'Invalid coupon'
+          }, { status: 400 });
+        }
+
+        console.log('✅ Coupon validation successful');
+      } catch (error: any) {
+        console.error('❌ Coupon validation error:', error);
+        return NextResponse.json({
+          success: false,
+          error: 'Coupon validation failed: ' + error.message
+        }, { status: 400 });
+      }
+    }
+
     // Create order with retry logic for duplicate key constraints
     let order;
     try {
@@ -263,6 +297,34 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.warn('⚠️ Failed to update points transaction reference:', error);
         // Non-critical error, don't fail the order
+      }
+    }
+
+    // Apply coupon to order if applicable
+    if (orderData.coupon_code && orderData.coupon_discount_amount > 0) {
+      try {
+        console.log(`🎫 Applying coupon ${orderData.coupon_code} to order ${order.id}`);
+
+        const { couponService } = await import('@/lib/services/coupon-service');
+
+        const applicationResult = await couponService.applyCouponToOrder(
+          orderData.coupon_code,
+          orderData.user_id,
+          order.id,
+          orderData.subtotal + orderData.shipping_cost
+        );
+
+        if (!applicationResult.success) {
+          console.error('❌ Coupon application failed:', applicationResult.errorMessage);
+          // Don't fail the order, but log the error
+          console.warn('⚠️ Order created successfully but coupon application failed');
+        } else {
+          console.log('✅ Coupon applied successfully to order');
+        }
+      } catch (error: any) {
+        console.error('❌ Coupon application error:', error);
+        // Don't fail the order, but log the error
+        console.warn('⚠️ Order created successfully but coupon application failed');
       }
     }
 

@@ -383,7 +383,6 @@ export default function ThankYouPage() {
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="font-medium text-blue-900 mb-2">Important:</h4>
                   <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Keep your order number for reference: <strong>{order.order_number}</strong></li>
                     <li>• Payment verification may take a few hours</li>
                     <li>• You'll receive a notification when your order is processed</li>
                     <li>• Contact support if you have any questions</li>

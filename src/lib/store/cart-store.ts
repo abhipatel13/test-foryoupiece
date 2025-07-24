@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { cartQueries } from '@/lib/supabase/queries'
 import { pointsToDollars, calculateOrderPoints } from '@/lib/utils'
+import { AppliedCoupon } from '@/types/coupon'
 
 export type CartItem = {
   id: string
@@ -23,6 +24,7 @@ type CartStore = {
   isLoading: boolean
   userId: string | null
   pointsToRedeem: number
+  appliedCoupon: AppliedCoupon | null
   addItem: (item: CartItem, stockQuantity?: number) => Promise<boolean>
   removeItem: (id: string, variant?: string) => Promise<void>
   updateQuantity: (id: string, quantity: number, variant?: string) => Promise<boolean>
@@ -48,6 +50,11 @@ type CartStore = {
   getFinalTotalWithPoints: () => number
   validatePointsRedemption: (points: number, userPointsBalance: number) => { isValid: boolean; message: string }
   clearPointsRedemption: () => void
+  // Coupon functions
+  applyCoupon: (coupon: AppliedCoupon) => void
+  removeCoupon: () => void
+  getCouponDiscount: () => number
+  getFinalTotalWithCouponAndPoints: () => number
 }
 
 // Helper function to normalize variant values consistently
@@ -108,6 +115,7 @@ export const useCartStore = create<CartStore>()(
       isLoading: false,
       userId: null,
       pointsToRedeem: 0,
+      appliedCoupon: null,
 
       setUserId: (userId, forceReload = false) => {
         const currentUserId = get().userId
@@ -302,7 +310,7 @@ export const useCartStore = create<CartStore>()(
 
       clearCart: async () => {
         const { userId } = get()
-        set({ items: [], pointsToRedeem: 0 })
+        set({ items: [], pointsToRedeem: 0, appliedCoupon: null })
 
         // Clear database cart if user is logged in
         if (userId) {
@@ -554,6 +562,28 @@ export const useCartStore = create<CartStore>()(
 
       clearPointsRedemption: () => {
         set({ pointsToRedeem: 0 })
+      },
+
+      // Coupon methods
+      applyCoupon: (coupon: AppliedCoupon) => {
+        set({ appliedCoupon: coupon })
+      },
+
+      removeCoupon: () => {
+        set({ appliedCoupon: null })
+      },
+
+      getCouponDiscount: () => {
+        const { appliedCoupon } = get()
+        return appliedCoupon?.discountAmount || 0
+      },
+
+      getFinalTotalWithCouponAndPoints: () => {
+        const { getFinalTotal, getPointsDiscount, getCouponDiscount } = get()
+        const total = getFinalTotal()
+        const pointsDiscount = getPointsDiscount()
+        const couponDiscount = getCouponDiscount()
+        return Math.max(0, total - pointsDiscount - couponDiscount)
       },
     }),
     {
