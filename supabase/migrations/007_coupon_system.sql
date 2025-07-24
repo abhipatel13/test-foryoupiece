@@ -169,8 +169,8 @@ BEGIN
     -- Check per-user usage limit
     IF v_coupon.per_user_usage_limit IS NOT NULL THEN
         SELECT COUNT(*) INTO v_user_usage_count
-        FROM coupon_usage
-        WHERE coupon_id = v_coupon.id AND user_id = p_user_id;
+        FROM coupon_usage cu
+        WHERE cu.coupon_id = v_coupon.id AND cu.user_id = p_user_id;
         
         IF v_user_usage_count >= v_coupon.per_user_usage_limit THEN
             RETURN QUERY SELECT FALSE, 'You have reached the usage limit for this coupon', NULL::UUID, 0::DECIMAL;
@@ -194,7 +194,7 @@ BEGIN
     END IF;
     
     -- Return valid result
-    RETURN QUERY SELECT TRUE, ''::TEXT, v_coupon.id, v_calculated_discount;
+    RETURN QUERY SELECT TRUE, ''::TEXT, v_coupon.id::UUID, v_calculated_discount;
 END;
 $$ LANGUAGE plpgsql;
 
