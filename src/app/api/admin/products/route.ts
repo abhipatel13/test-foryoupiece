@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Get products with filtering and pagination (Admin endpoint for testing)
  * GET /api/admin/products
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('🔍 Admin Products API called');
     
@@ -60,4 +61,4 @@ export async function GET(request: NextRequest) {
       error: 'Internal server error',
     }, { status: 500 });
   }
-}
+});

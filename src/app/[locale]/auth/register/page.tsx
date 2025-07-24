@@ -169,7 +169,7 @@ export default function RegisterPage() {
         <div className="text-center">
           <Link href="/" className="inline-flex items-center space-x-2 text-2xl font-bold text-gray-900">
             <span className="bg-black text-white px-2 py-1 rounded">FYP</span>
-            <span>ForYouPiece</span>
+            <span>Foryoupiece</span>
           </Link>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Create your account

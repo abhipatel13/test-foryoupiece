@@ -350,7 +350,7 @@ export default function CartPage() {
                 {/* Points Redemption */}
                 {profile && (
                   <PointsRedemption
-                    userPointsBalance={profile.points || 0}
+                    userPointsBalance={profile.points_balance || 0}
                     onPointsChange={(points) => {
                       // Points are automatically updated in the cart store
                     }}

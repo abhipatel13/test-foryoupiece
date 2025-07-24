@@ -22,7 +22,7 @@ import {
   Minus
 } from 'lucide-react'
 import { PointsService, UserPointsSummary, PointTransaction } from '@/lib/services/points-service'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, getCorrectUserTier } from '@/lib/utils'
 
 interface PointsDashboardProps {
   userId: string
@@ -240,18 +240,18 @@ export default function PointsDashboard({ userId }: PointsDashboardProps) {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center space-x-2 text-sm">
               <TrendingDown className="h-4 w-4 text-orange-500" />
-              <span>Points Used</span>
+              <span>Weekly Points Used</span>
             </CardTitle>
             <CardDescription className="text-xs">
-              Total points redeemed
+              Points redeemed this week
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600 mb-1">
-              {pointsSummary.points_used.toLocaleString()}
+              {pointsSummary.weekly_points_used.toLocaleString()}
             </div>
             <p className="text-xs text-gray-500">
-              Saved {formatPrice(pointsSummary.points_used / 1000)}
+              Saved {formatPrice(pointsSummary.weekly_points_used / 1000)} this week
             </p>
           </CardContent>
         </Card>

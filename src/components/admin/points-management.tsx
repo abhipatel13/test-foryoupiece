@@ -33,6 +33,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getCorrectUserTier } from '@/lib/utils'
 
 interface User {
   id: string
@@ -365,8 +366,8 @@ export default function PointsManagement() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{getFullName(user)}</span>
-                              <Badge className={tierColors[user.tier_level]}>
-                                {tierIcons[user.tier_level]} {user.tier_level}
+                              <Badge className={tierColors[getCorrectUserTier(user)]}>
+                                {tierIcons[getCorrectUserTier(user)]} {getCorrectUserTier(user)}
                               </Badge>
                             </div>
                             <p className="text-sm text-gray-600">{user.email}</p>

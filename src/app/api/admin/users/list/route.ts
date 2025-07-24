@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Admin User List API with Pagination and Search
  * GET /api/admin/users/list?page=1&limit=20&search=query
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('📋 Admin user list request received');
 
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
       error: 'Internal server error'
     }, { status: 500 });
   }
-}
+});
 
 // Helper function to get tier information
 function getTierInfo(tier: string) {

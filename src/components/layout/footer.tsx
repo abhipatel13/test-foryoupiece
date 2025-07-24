@@ -15,21 +15,21 @@ export function Footer() {
             <div className="flex items-center space-x-3">
               <Image
                 src="/favicon.jpg"
-                alt="ForYouPiece"
+                alt="Foryoupiece"
                 width={32}
                 height={32}
                 className="rounded-lg shadow-sm object-contain flex-shrink-0"
               />
               <Image
                 src="/logo.jpg"
-                alt="ForYouPiece"
+                alt="Foryoupiece"
                 width={80}
                 height={24}
                 className="object-contain flex-shrink-0"
               />
             </div>
             <p className="text-muted-foreground leading-relaxed max-w-sm">
-              Premium quality products delivered worldwide. Experience the best of craftsmanship and innovation with our curated selection.
+              Premium Japanese products delivered directly from Japan to Cambodia. Experience the highest quality and most comprehensive selection of authentic, curated products from Japan and worldwide.
             </p>
             <div className="flex space-x-2">
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-secondary">
@@ -112,17 +112,11 @@ export function Footer() {
         <div className="mt-12 pt-8 border-t border-border">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              © 2025 ForYouPiece. All rights reserved.
+              © 2025 Foryoupiece. All rights reserved.
             </p>
             <div className="flex items-center space-x-4 mt-4 md:mt-0">
               <span className="text-sm text-muted-foreground">Powered by</span>
-              <div className="flex items-center space-x-3">
-                <span className="text-sm font-medium text-foreground">Next.js</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-sm font-medium text-foreground">Supabase</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-sm font-medium text-foreground">Vercel</span>
-              </div>
+              <span className="text-sm font-medium text-foreground">Foryoupiece technology</span>
             </div>
           </div>
         </div>

@@ -91,7 +91,7 @@ function AdminLoginForm() {
         <div className="text-center">
           <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to ForYouPiece
+            Back to Foryoupiece
           </Link>
           <div className="flex items-center justify-center mb-4">
             <Shield className="h-8 w-8 text-red-600 mr-2" />
@@ -310,7 +310,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <p className="text-gray-600 mb-4">You don't have permission to access the admin panel.</p>
             <div className="space-y-2">
               <Button
-                onClick={() => router.push('/fypsadminlog')}
+                onClick={() => router.push(`/${locale}/auth/login`)}
                 className="w-full bg-red-600 hover:bg-red-700"
               >
                 Admin Login
@@ -458,7 +458,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <div className="flex justify-between h-16">
                 <div className="flex items-center">
                   <h1 className="text-lg font-semibold text-gray-900">
-                    ForYouPiece Admin Panel
+                    Foryoupiece Admin Panel
                   </h1>
                 </div>
                 <div className="flex items-center space-x-4">

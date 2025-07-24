@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Get admin dashboard statistics
  * GET /api/admin/dashboard-stats
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('📊 Fetching admin dashboard statistics...');
     
@@ -194,4 +195,4 @@ export async function GET(request: NextRequest) {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
+});

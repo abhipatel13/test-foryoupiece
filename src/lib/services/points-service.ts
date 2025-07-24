@@ -29,6 +29,7 @@ export interface UserPointsSummary {
   total_points_earned: number
   points_balance: number
   points_used: number
+  weekly_points_used: number
   current_rank: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'
   next_rank?: 'silver' | 'gold' | 'platinum' | 'diamond'
   points_to_next_rank?: number
@@ -467,6 +468,13 @@ export class PointsService {
       // Calculate actual totals from transactions
       let actualTotalEarned = 0
       let actualTotalRedeemed = 0
+      let weeklyPointsUsed = 0
+
+      // Calculate start of current week (Sunday)
+      const now = new Date()
+      const startOfWeek = new Date(now)
+      startOfWeek.setDate(now.getDate() - now.getDay())
+      startOfWeek.setHours(0, 0, 0, 0)
 
       if (transactions) {
         transactions.forEach((transaction: any) => {
@@ -474,6 +482,12 @@ export class PointsService {
             actualTotalEarned += transaction.points
           } else {
             actualTotalRedeemed += Math.abs(transaction.points)
+
+            // Check if transaction is from this week for weekly usage calculation
+            const transactionDate = new Date(transaction.created_at)
+            if (transactionDate >= startOfWeek) {
+              weeklyPointsUsed += Math.abs(transaction.points)
+            }
           }
         })
       }
@@ -518,6 +532,7 @@ export class PointsService {
         total_points_earned: totalPointsEarned,
         points_balance: Math.max(0, storedBalance), // Ensure non-negative
         points_used: pointsUsed,
+        weekly_points_used: weeklyPointsUsed,
         current_rank: currentRank,
         next_rank: nextRankInfo.nextRank as any,
         points_to_next_rank: nextRankInfo.pointsToNext,
@@ -535,6 +550,7 @@ export class PointsService {
           total_points_earned: 0,
           points_balance: 0,
           points_used: 0,
+          weekly_points_used: 0,
           current_rank: 'bronze',
           rank_progress_percentage: 0
         },

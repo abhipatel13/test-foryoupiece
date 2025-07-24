@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Star, Trophy, Gift, Calendar, Mail, Phone, User, Edit, MapPin, CreditCard, Save, Trash2, Package, Clock, Eye, ShoppingBag, X, Award } from 'lucide-react'
-import { formatDate, formatPrice } from '@/lib/utils'
+import { formatDate, formatPrice, getCorrectUserTier } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -395,13 +395,13 @@ export default function ProfilePage() {
             <CardContent className="space-y-4">
               <div className="text-center">
                 <div className="text-4xl mb-2">
-                  {getTierIcon(profile?.tier_level || 'bronze')}
+                  {getTierIcon(getCorrectUserTier(profile))}
                 </div>
-                <Badge 
-                  variant="outline" 
-                  className={`text-lg px-4 py-2 ${getTierColor(profile?.tier_level || 'bronze')}`}
+                <Badge
+                  variant="outline"
+                  className={`text-lg px-4 py-2 ${getTierColor(getCorrectUserTier(profile))}`}
                 >
-                  {profile?.tier_level?.toUpperCase() || 'BRONZE'}
+                  {getCorrectUserTier(profile).toUpperCase()}
                 </Badge>
               </div>
               

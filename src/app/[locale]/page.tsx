@@ -487,9 +487,9 @@ export default function HomePage() {
       <section className="bg-secondary/50 py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">Why Choose ForYouPiece?</h2>
+            <h2 className="text-3xl font-bold text-foreground mb-4">Why Choose Foryoupiece?</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Experience premium shopping with our commitment to quality, security, and customer satisfaction.
+              Experience premium Japanese products with our commitment to authenticity, quality, and exceptional customer service.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -517,9 +517,9 @@ export default function HomePage() {
               <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 transition-colors">
                 <Globe className="h-10 w-10 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Worldwide Shipping</h3>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Direct Japan Shipping</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Fast and reliable delivery to customers around the globe with real-time tracking and insurance coverage.
+                Products sourced directly from Japanese drug stores with multiple fast delivery options. Worldwide shipping coming soon.
               </p>
             </div>
           </div>

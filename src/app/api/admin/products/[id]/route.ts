@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Get a single product by ID (Admin)
  * GET /api/admin/products/[id]
  */
-export async function GET(
+export const GET = withAdminAuth(async (
   request: NextRequest,
+  { user, adminUser },
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
 
@@ -64,16 +66,17 @@ export async function GET(
       error: 'Internal server error',
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Update a product by ID (Admin)
  * PUT /api/admin/products/[id]
  */
-export async function PUT(
+export const PUT = withAdminAuth(async (
   request: NextRequest,
+  { user, adminUser },
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
 
@@ -210,16 +213,17 @@ export async function PUT(
       error: 'Internal server error',
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Delete a product by ID (Admin)
  * DELETE /api/admin/products/[id]
  */
-export async function DELETE(
+export const DELETE = withAdminAuth(async (
   request: NextRequest,
+  { user, adminUser },
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const { id } = await params;
 
@@ -273,4 +277,4 @@ export async function DELETE(
       error: 'Internal server error',
     }, { status: 500 });
   }
-}
+});

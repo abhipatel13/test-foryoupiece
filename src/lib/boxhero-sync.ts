@@ -7,6 +7,20 @@ import { boxHeroApi, type BoxHeroCategory } from './boxhero-api';
 import { CategoriesService, type Category } from './categories-service';
 
 /**
+ * Get the base URL for internal API calls
+ * Uses NEXT_PUBLIC_SITE_URL in production or localhost in development
+ */
+function getBaseUrl(): string {
+  // In production, use the public site URL
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+
+  // In development, default to localhost:3000
+  return 'http://localhost:3000';
+}
+
+/**
  * Map category names to appropriate emojis
  */
 function getCategoryEmoji(categoryName: string): string {
@@ -326,7 +340,8 @@ export class BoxHeroSyncService {
       console.log('🖼️ Fetching fresh category images...');
 
       // Trigger the category images API to refresh cache
-      const response = await fetch('/api/categories/random-images?refresh=true', {
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/categories/random-images?refresh=true`, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache'
@@ -359,7 +374,8 @@ export class BoxHeroSyncService {
 
       // The categories API already calculates real-time product counts
       // So we just need to ensure the cache is fresh
-      const response = await fetch('/api/boxhero/categories?refresh=true', {
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/boxhero/categories?refresh=true`, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache'

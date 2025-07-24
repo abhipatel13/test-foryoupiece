@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { getCorrectUserTier } from '@/lib/utils'
 
 interface User {
   id: string
@@ -302,8 +303,8 @@ export default function UsersPage() {
                       <h3 className="font-semibold text-gray-900 truncate">
                         {getFullName(user)}
                       </h3>
-                      <Badge className={tierColors[user.tier_level]}>
-                        {tierIcons[user.tier_level]} {user.tier_level}
+                      <Badge className={tierColors[getCorrectUserTier(user)]}>
+                        {tierIcons[getCorrectUserTier(user)]} {getCorrectUserTier(user)}
                       </Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
@@ -389,8 +390,8 @@ export default function UsersPage() {
                 <div className="flex items-center gap-2">
                   {selectedUser && getFullName(selectedUser)}
                   {selectedUser && (
-                    <Badge className={tierColors[selectedUser.tier_level]}>
-                      {tierIcons[selectedUser.tier_level]} {selectedUser.tier_level}
+                    <Badge className={tierColors[getCorrectUserTier(selectedUser)]}>
+                      {tierIcons[getCorrectUserTier(selectedUser)]} {getCorrectUserTier(selectedUser)}
                     </Badge>
                   )}
                 </div>

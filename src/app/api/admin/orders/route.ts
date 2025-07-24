@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Get all orders for admin dashboard
  * GET /api/admin/orders
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('📋 Admin Orders API called');
     
@@ -90,13 +91,13 @@ export async function GET(request: NextRequest) {
       orders: []
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Update order status (Admin)
  * PATCH /api/admin/orders
  */
-export async function PATCH(request: NextRequest) {
+export const PATCH = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('📝 Admin Order Update API called');
     
@@ -155,4 +156,4 @@ export async function PATCH(request: NextRequest) {
       error: 'Internal server error'
     }, { status: 500 });
   }
-}
+});

@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
 import { useCartStore } from '@/lib/store/cart-store'
+import { getCorrectUserTier } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -224,7 +225,7 @@ export function Header() {
                         </p>
                         <div className="flex items-center space-x-2 pt-1">
                           <Badge variant="secondary" className="text-xs">
-                            {profile?.tier_level}
+                            {getCorrectUserTier(profile)}
                           </Badge>
                           <div className="flex items-center space-x-1">
                             <Star className="h-3 w-3 text-yellow-500" />

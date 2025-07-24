@@ -289,7 +289,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <p className="text-gray-600 mb-4">You don&apos;t have permission to access the admin panel.</p>
             <div className="space-y-2">
               <Button
-                onClick={() => router.push('/fypsadminlog')}
+                onClick={() => router.push('/en/auth/login')}
                 className="w-full bg-red-600 hover:bg-red-700"
               >
                 Admin Login

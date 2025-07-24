@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ForYouPiece - Premium E-commerce",
-  description: "Discover premium quality products with our modern e-commerce platform featuring Telegram login, loyalty points, and seamless shopping experience.",
-  keywords: "premium products, e-commerce, online shopping, quality goods, Telegram login",
+  title: "Foryoupiece - Premium E-commerce",
+  description: "Discover premium Japanese products delivered directly from Japan to Cambodia. Experience authentic quality with our modern e-commerce platform featuring loyalty points and seamless shopping experience.",
+  keywords: "premium Japanese products, Japan to Cambodia shipping, authentic Japanese goods, e-commerce, online shopping, quality products",
   icons: {
     icon: '/favicon.jpg',
     shortcut: '/favicon.jpg',

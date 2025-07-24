@@ -144,6 +144,20 @@ export function getTierFromPoints(totalPointsEarned: number): string {
 }
 
 /**
+ * Get the correct user tier from profile data, prioritizing calculated tier over stored tier
+ * This ensures consistent tier display across all UI components
+ * @param profile - User profile data
+ * @returns Correct user tier
+ */
+export function getCorrectUserTier(profile: any): string {
+  if (!profile) return 'bronze'
+
+  // Use total_points_earned to calculate the correct tier
+  const totalPointsEarned = profile.total_points_earned || 0
+  return getTierFromPoints(totalPointsEarned)
+}
+
+/**
  * Get tier requirements and benefits
  */
 export function getTierInfo() {

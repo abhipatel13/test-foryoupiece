@@ -13,7 +13,7 @@ export type UserProfile = {
   first_name: string | null
   last_name: string | null
   avatar_url: string | null
-  points: number
+  points_balance: number
   tier: string
   created_at: string
   updated_at: string

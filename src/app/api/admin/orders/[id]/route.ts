@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Get specific order details for admin
  * GET /api/admin/orders/[id]
  */
-export async function GET(
+export const GET = withAdminAuth(async (
   request: NextRequest,
+  { user, adminUser },
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const orderId = params.id;
     console.log('📋 Admin Order Details API called for ID:', orderId);
@@ -124,16 +126,17 @@ export async function GET(
       error: 'Internal server error'
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Update specific order details (Admin)
  * PATCH /api/admin/orders/[id]
  */
-export async function PATCH(
+export const PATCH = withAdminAuth(async (
   request: NextRequest,
+  { user, adminUser },
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const orderId = params.id;
     console.log('📝 Admin Order Update API called for ID:', orderId);
@@ -205,4 +208,4 @@ export async function PATCH(
       error: 'Internal server error'
     }, { status: 500 });
   }
-}
+});

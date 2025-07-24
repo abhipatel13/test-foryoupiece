@@ -491,7 +491,7 @@ export default function ProductDetailPage() {
 
             {/* Enhanced Features - Enterprise Design */}
             <div className="space-y-6 pt-8 border-t-2 border-gray-100">
-              <h3 className="text-xl font-bold text-foreground">Why choose ForYouPiece?</h3>
+              <h3 className="text-xl font-bold text-foreground">Why choose Foryoupiece?</h3>
               <div className="grid grid-cols-1 gap-4">
                 <div className="flex items-start p-4 bg-white rounded-xl border-2 border-gray-100 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
                   <Truck className="h-6 w-6 mr-4 text-green-600 flex-shrink-0 mt-0.5" />
