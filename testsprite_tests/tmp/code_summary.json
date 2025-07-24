@@ -1,0 +1,413 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "Next.js 15.4.1",
+    "React 19.1.0",
+    "Tailwind CSS v4",
+    "Supabase PostgreSQL",
+    "Supabase Auth",
+    "TanStack Query",
+    "Zustand",
+    "Radix UI",
+    "Turbopack",
+    "BoxHero API",
+    "Puppeteer"
+  ],
+  "features": [
+    {
+      "name": "Authentication System",
+      "description": "Multi-authentication system supporting Google OAuth, Telegram Login Widget, and email/password authentication with admin role management",
+      "files": [
+        "src/app/api/auth/telegram/route.ts",
+        "src/app/auth/callback/route.ts",
+        "src/lib/hooks/use-auth.ts",
+        "src/application/use-cases/auth/LoginUser.ts",
+        "src/components/auth/"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Authentication API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/auth/telegram": {
+            "post": {
+              "summary": "Telegram authentication",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {"type": "string"},
+                        "first_name": {"type": "string"},
+                        "username": {"type": "string"},
+                        "auth_date": {"type": "number"},
+                        "hash": {"type": "string"}
+                      }
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Authentication successful"
+                }
+              }
+            }
+          },
+          "/auth/callback": {
+            "get": {
+              "summary": "OAuth callback handler",
+              "parameters": [
+                {
+                  "name": "code",
+                  "in": "query",
+                  "schema": {"type": "string"}
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Product Management",
+      "description": "Comprehensive product catalog management with CRUD operations, multi-language support, and inventory tracking",
+      "files": [
+        "src/app/api/products/route.ts",
+        "src/app/api/admin/products/",
+        "src/components/product/",
+        "src/app/[locale]/products/"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/api/products": {
+            "get": {
+              "summary": "Get products with filtering and pagination",
+              "parameters": [
+                {
+                  "name": "limit",
+                  "in": "query",
+                  "schema": {"type": "integer", "default": 20}
+                },
+                {
+                  "name": "offset",
+                  "in": "query", 
+                  "schema": {"type": "integer", "default": 0}
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "List of products",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "products": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {"type": "string"},
+                                "name_en": {"type": "string"},
+                                "name_ja": {"type": "string"},
+                                "price": {"type": "number"},
+                                "stock_quantity": {"type": "integer"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Admin Panel",
+      "description": "Secure admin dashboard with product management, order processing, user management, and analytics",
+      "files": [
+        "src/app/fyponly-admin/",
+        "src/app/[locale]/fyponly-admin/",
+        "src/components/admin/",
+        "src/app/fyponly-admin/layout.tsx"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/fyponly-admin": {
+            "get": {
+              "summary": "Admin dashboard",
+              "security": [{"AdminAuth": []}],
+              "responses": {
+                "200": {"description": "Admin dashboard"}
+              }
+            }
+          },
+          "/fyponly-admin/products": {
+            "get": {
+              "summary": "Admin product management",
+              "security": [{"AdminAuth": []}]
+            }
+          },
+          "/fyponly-admin/orders": {
+            "get": {
+              "summary": "Admin order management", 
+              "security": [{"AdminAuth": []}]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "BoxHero Integration",
+      "description": "Inventory synchronization with BoxHero API for real-time stock management and automated updates",
+      "files": [
+        "src/app/api/admin/boxhero-sync/route.ts",
+        "src/app/api/debug/boxhero-items/",
+        "src/app/api/test-sync/route.ts",
+        "src/infrastructure/services/BoxHeroSyncService.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/api/admin/boxhero-sync": {
+            "get": {
+              "summary": "BoxHero sync operations",
+              "parameters": [
+                {
+                  "name": "action",
+                  "in": "query",
+                  "schema": {
+                    "type": "string",
+                    "enum": ["test-connection", "history", "statistics"]
+                  }
+                }
+              ],
+              "responses": {
+                "200": {"description": "Sync operation result"}
+              }
+            },
+            "post": {
+              "summary": "Trigger inventory sync",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "syncType": {
+                          "type": "string",
+                          "enum": ["full", "incremental"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Inventory Management",
+      "description": "Stock tracking and inventory management with low stock alerts and automated updates",
+      "files": [
+        "src/app/api/inventory/route.ts",
+        "src/domain/entities/Inventory.ts",
+        "src/infrastructure/repositories/InventoryRepository.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/api/inventory": {
+            "get": {
+              "summary": "Get inventory status",
+              "responses": {
+                "200": {
+                  "description": "Inventory data",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "product_id": {"type": "string"},
+                                "stock_quantity": {"type": "integer"},
+                                "low_stock_threshold": {"type": "integer"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Order Management",
+      "description": "Complete order processing system with cart management, checkout, and order tracking",
+      "files": [
+        "src/app/api/orders/",
+        "src/app/[locale]/orders/",
+        "src/app/[locale]/cart/",
+        "src/app/[locale]/checkout/",
+        "src/components/order/",
+        "src/domain/entities/Order.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/api/orders": {
+            "get": {
+              "summary": "Get user orders",
+              "security": [{"UserAuth": []}],
+              "responses": {
+                "200": {"description": "List of orders"}
+              }
+            },
+            "post": {
+              "summary": "Create new order",
+              "security": [{"UserAuth": []}],
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "product_id": {"type": "string"},
+                              "quantity": {"type": "integer"},
+                              "price": {"type": "number"}
+                            }
+                          }
+                        },
+                        "total_amount": {"type": "number"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "User Management",
+      "description": "User profile management, authentication, and admin user role assignment",
+      "files": [
+        "src/app/[locale]/profile/",
+        "src/app/fyponly-admin/users/",
+        "src/domain/entities/User.ts",
+        "src/infrastructure/repositories/UserRepository.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/api/users": {
+            "get": {
+              "summary": "Get user profile",
+              "security": [{"UserAuth": []}],
+              "responses": {
+                "200": {"description": "User profile data"}
+              }
+            },
+            "patch": {
+              "summary": "Update user profile",
+              "security": [{"UserAuth": []}],
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "first_name": {"type": "string"},
+                        "last_name": {"type": "string"},
+                        "phone": {"type": "string"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Testing Infrastructure",
+      "description": "Comprehensive testing setup with API testing endpoints and service validation",
+      "files": [
+        "src/app/api/test/route.ts",
+        "src/app/api/test-service-role/route.ts",
+        "src/app/api/test-storage/route.ts",
+        "src/app/api/test-sync/route.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "paths": {
+          "/api/test": {
+            "get": {
+              "summary": "Basic API health check",
+              "responses": {
+                "200": {
+                  "description": "API is working",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {"type": "boolean"},
+                          "message": {"type": "string"},
+                          "timestamp": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/api/test-service-role": {
+            "get": {
+              "summary": "Test Supabase service role connection"
+            }
+          },
+          "/api/test-storage": {
+            "get": {
+              "summary": "Test Supabase storage functionality"
+            }
+          },
+          "/api/test-sync": {
+            "get": {
+              "summary": "Test BoxHero sync functionality"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

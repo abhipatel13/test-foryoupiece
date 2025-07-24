@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "backendAuthType": "basic token",
+  "backendUsername": "akito12350@gmail.com",
+  "backendPassword": "akiroaoyam1",
+  "executionArgs": {
+    "projectName": "foryoupiece-ecommerce",
+    "projectPath": "c:\\Users\\user\\OneDrive\\바탕 화면\\CODING\\Foryoupiecewebsitefast\\foryoupiece-ecommerce",
+    "testIds": [],
+    "additionalInstruction": "Test the ForYouPiece e-commerce application including landing page, authentication, product catalog, admin panel, and API endpoints",
+    "envs": {}
+  }
+}

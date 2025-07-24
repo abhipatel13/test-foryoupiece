@@ -1,0 +1,2 @@
+This is a test file for image upload functionality testing.
+It will be used to verify that the upload system works correctly.

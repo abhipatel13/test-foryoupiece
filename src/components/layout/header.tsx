@@ -1,0 +1,466 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { useTranslations } from 'next-intl'
+import { useAuth } from '@/lib/hooks/use-auth'
+import { useHydration } from '@/lib/hooks/use-hydration'
+import { useCartStore } from '@/lib/store/cart-store'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
+import { AuthForm } from '@/components/auth/auth-form'
+import { Input } from '@/components/ui/input'
+import {
+  ShoppingCart,
+  User,
+  Menu,
+  Heart,
+  Search,
+  LogOut,
+  Settings,
+  Package,
+  Star,
+  ChevronDown,
+  MapPin,
+  Globe
+} from 'lucide-react'
+
+export function Header() {
+  const t = useTranslations('navigation')
+  const { user, profile, signOut, isAuthenticated, loading } = useAuth()
+  const isHydrated = useHydration()
+  const { getItemCount, clearCartOnLogout } = useCartStore()
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  const [mounted, setMounted] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('all')
+
+  const cartItemCount = getItemCount()
+
+  // Categories for Amazon-style dropdown
+  const categories = [
+    { value: 'all', label: 'All Categories' },
+    { value: 'electronics', label: 'Electronics' },
+    { value: 'fashion', label: 'Fashion' },
+    { value: 'home', label: 'Home & Garden' },
+    { value: 'beauty', label: 'Beauty' },
+    { value: 'books', label: 'Books' },
+    { value: 'toys', label: 'Toys & Games' },
+    { value: 'sports', label: 'Sports' },
+  ]
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleAuthSuccess = () => {
+    setAuthDialogOpen(false)
+  }
+
+  const handleSignOut = async () => {
+    try {
+      // Save cart to database and clear local state on logout
+      await clearCartOnLogout()
+      await signOut()
+    } catch (error) {
+      console.error('Sign out error:', error)
+    }
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      // Navigate to search results - check for browser environment
+      if (typeof window !== 'undefined') {
+        window.location.href = `/products?search=${encodeURIComponent(searchQuery)}&category=${selectedCategory}`
+      }
+    }
+  }
+
+  return (
+    <>
+
+
+      {/* Modern Clean Header */}
+      <header className="sticky top-0 z-50 w-full modern-header">
+        {/* Main Header Bar */}
+        <div className="px-4">
+          <div className="flex h-16 items-center justify-between max-w-screen-2xl mx-auto">
+            {/* Logo */}
+            <Link href="/" className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors">
+              <div className="flex items-center space-x-2">
+                <Image
+                  src="/favicon.jpg"
+                  alt="ForYouPiece"
+                  width={32}
+                  height={32}
+                  className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                />
+                <Image
+                  src="/logo.jpg"
+                  alt="ForYouPiece"
+                  width={80}
+                  height={24}
+                  className="hidden sm:block object-contain flex-shrink-0"
+                />
+              </div>
+            </Link>
+
+            {/* Search Bar - Expanded for better visibility */}
+            <form onSubmit={handleSearch} className="flex-1 max-w-3xl mx-4 lg:mx-8">
+              <div className="flex modern-search-bar overflow-hidden shadow-sm">
+                {/* Category Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="h-11 px-4 bg-secondary hover:bg-accent text-foreground border-r border-border rounded-none rounded-l-lg"
+                    >
+                      <span className="hidden sm:inline text-sm font-medium">
+                        {categories.find(cat => cat.value === selectedCategory)?.label || 'All'}
+                      </span>
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    {categories.map((category) => (
+                      <DropdownMenuItem
+                        key={category.value}
+                        onClick={() => setSelectedCategory(category.value)}
+                        className="text-sm"
+                      >
+                        {category.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Search Input */}
+                <Input
+                  type="text"
+                  placeholder="Search for products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground"
+                />
+
+                {/* Search Button */}
+                <Button
+                  type="submit"
+                  className="h-11 px-5 modern-button-primary rounded-none rounded-r-lg"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+
+            {/* Language Switcher */}
+            <div className="hidden md:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground transition-colors">
+              <Globe className="h-4 w-4 mr-1" />
+              <span className="font-medium">EN</span>
+              <ChevronDown className="h-3 w-3 ml-1" />
+            </div>
+
+            {/* Account & Lists */}
+            {!isHydrated || loading ? (
+              // Show loading state to prevent flash of unauthenticated content during hydration
+              <div className="flex items-center text-foreground text-sm px-3 py-2 rounded-lg">
+                <div className="text-right mr-2">
+                  <div className="text-xs text-muted-foreground">Loading...</div>
+                  <div className="font-medium flex items-center">
+                    Account & Lists
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </div>
+                </div>
+              </div>
+            ) : isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+                    <div className="text-right mr-2">
+                      <div className="text-xs text-muted-foreground">Hello, {profile?.first_name || 'User'}</div>
+                      <div className="font-medium flex items-center">
+                        Account & Lists
+                        <ChevronDown className="h-3 w-3 ml-1" />
+                      </div>
+                    </div>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-64" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={profile?.avatar_url || ''} alt={profile?.first_name || ''} />
+                        <AvatarFallback>
+                          {profile?.first_name?.[0] || profile?.telegram_username?.[0] || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {profile?.first_name || profile?.telegram_username || 'User'}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {profile?.email || 'Telegram User'}
+                        </p>
+                        <div className="flex items-center space-x-2 pt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {profile?.tier_level}
+                          </Badge>
+                          <div className="flex items-center space-x-1">
+                            <Star className="h-3 w-3 text-yellow-500" />
+                            <span className="text-xs">{profile?.points_balance || 0} pts</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Your Account</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/orders">
+                      <Package className="mr-2 h-4 w-4" />
+                      <span>Your Orders</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/wishlist">
+                      <Heart className="mr-2 h-4 w-4" />
+                      <span>Your Wish List</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link href="/auth/login" className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Hello, sign in</div>
+                    <div className="font-medium flex items-center">
+                      Account & Lists
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </div>
+                  </div>
+                </Link>
+                <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs">
+                      Quick Login
+                    </Button>
+                  </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {authMode === 'login' ? 'Sign in to ForYouPiece' : 'Create Account'}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {authMode === 'login'
+                        ? 'Sign in to your account to continue shopping'
+                        : 'Create a new account to start shopping'
+                      }
+                    </DialogDescription>
+                  </DialogHeader>
+                  <AuthForm mode={authMode} onSuccess={handleAuthSuccess} />
+                  <div className="text-center text-sm text-gray-600">
+                    {authMode === 'login' ? (
+                      <span>
+                        New to ForYouPiece?{' '}
+                        <button
+                          onClick={() => setAuthMode('signup')}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Create your account
+                        </button>
+                      </span>
+                    ) : (
+                      <span>
+                        Already have an account?{' '}
+                        <button
+                          onClick={() => setAuthMode('login')}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Sign in
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </DialogContent>
+                </Dialog>
+              </div>
+            )}
+
+            {/* Cart */}
+            <Link href="/cart" className="flex items-center text-foreground hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+              <div className="relative mr-3">
+                <ShoppingCart className="h-6 w-6" />
+                {isHydrated && mounted && cartItemCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs bg-primary hover:bg-primary text-primary-foreground"
+                  >
+                    {cartItemCount}
+                  </Badge>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-muted-foreground">Cart</div>
+                <div className="font-medium">{isHydrated && mounted ? cartItemCount : 0}</div>
+              </div>
+            </Link>
+          </div>
+        </div>
+
+        {/* Secondary Navigation Bar */}
+        <div className="bg-secondary border-t border-border px-4">
+          <div className="flex h-12 items-center space-x-8 max-w-screen-2xl mx-auto">
+            <Button variant="ghost" className="text-foreground hover:text-primary text-sm h-9 px-4 hover:bg-accent">
+              <Menu className="h-4 w-4 mr-2" />
+              All Categories
+            </Button>
+            <nav className="hidden md:flex items-center space-x-8">
+              <Link
+                href="/products"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
+              >
+                Today's Deals
+              </Link>
+              <Link
+                href="/categories"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
+              >
+                Categories
+              </Link>
+              <Link
+                href="/products?featured=true"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
+              >
+                Featured
+              </Link>
+              <Link
+                href="/about"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
+              >
+                About
+              </Link>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu */}
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" className="md:hidden text-foreground hover:text-primary">
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+          <div className="flex flex-col space-y-6 pt-6">
+            {/* Mobile Search */}
+            <form onSubmit={handleSearch} className="flex modern-search-bar overflow-hidden">
+              <Input
+                type="text"
+                placeholder="Search for products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 h-11 border-0 rounded-l-lg focus-visible:ring-0 focus-visible:ring-offset-0 bg-background"
+              />
+              <Button
+                type="submit"
+                className="h-11 px-4 modern-button-primary rounded-none rounded-r-lg"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            </form>
+
+            {/* Mobile Navigation */}
+            <nav className="flex flex-col space-y-4">
+              <Link
+                href="/products"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+              >
+                All Products
+              </Link>
+              <Link
+                href="/categories"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+              >
+                Categories
+              </Link>
+              <Link
+                href="/products?featured=true"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+              >
+                Featured
+              </Link>
+              <Link
+                href="/about"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+              >
+                About
+              </Link>
+              {isAuthenticated && (
+                <>
+                  <hr className="my-2" />
+                  <Link
+                    href="/profile"
+                    className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                  >
+                    Your Account
+                  </Link>
+                  <Link
+                    href="/orders"
+                    className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                  >
+                    Your Orders
+                  </Link>
+                  <Link
+                    href="/wishlist"
+                    className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                  >
+                    Your Wish List
+                  </Link>
+                </>
+              )}
+            </nav>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  )
+}
