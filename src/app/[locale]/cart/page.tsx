@@ -108,7 +108,7 @@ export default function CartPage() {
                 Looks like you haven't added any items to your cart yet.
               </p>
               <Button asChild className="amazon-button-primary">
-                <Link href="/products">
+                <Link href="/en/products">
                   Continue Shopping
                 </Link>
               </Button>
@@ -359,7 +359,7 @@ export default function CartPage() {
 
                 {/* Proceed to Checkout */}
                 <Button asChild className="w-full amazon-button-primary h-12">
-                  <Link href="/checkout">
+                  <Link href="/en/checkout">
                     Proceed to checkout
                   </Link>
                 </Button>

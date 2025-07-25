@@ -42,14 +42,17 @@ import {
   Star,
   ChevronDown,
   MapPin,
-  Globe
+  Globe,
+  TrendingUp,
+  Percent,
+  Clock
 } from 'lucide-react'
 
 export function Header() {
   const t = useTranslations('navigation')
   const { user, profile, signOut, isAuthenticated, loading } = useAuth()
   const isHydrated = useHydration()
-  const { getItemCount, clearCartOnLogout } = useCartStore()
+  const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useCartStore()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [mounted, setMounted] = useState(false)
@@ -57,6 +60,7 @@ export function Header() {
   const [selectedCategory, setSelectedCategory] = useState('all')
 
   const cartItemCount = getItemCount()
+  const showCartCount = isHydrated && mounted && !cartLoading
 
   // Categories for Amazon-style dropdown
   const categories = [
@@ -94,6 +98,22 @@ export function Header() {
       // Navigate to search results - check for browser environment
       if (typeof window !== 'undefined') {
         window.location.href = `/products?search=${encodeURIComponent(searchQuery)}&category=${selectedCategory}`
+      }
+    }
+  }
+
+  const handleScrollToCategories = () => {
+    // Smooth scroll to categories section on the current page
+    const categoriesSection = document.getElementById('categories-section')
+    if (categoriesSection) {
+      categoriesSection.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      })
+    } else {
+      // If no categories section found on current page, navigate to home page with hash
+      if (typeof window !== 'undefined') {
+        window.location.href = '/#categories-section'
       }
     }
   }
@@ -269,7 +289,7 @@ export function Header() {
               </DropdownMenu>
             ) : (
               <div className="flex items-center space-x-2">
-                <Link href="/auth/login" className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+                <Link href="/en/auth/login" className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Hello, sign in</div>
                     <div className="font-medium flex items-center">
@@ -326,10 +346,10 @@ export function Header() {
             )}
 
             {/* Cart */}
-            <Link href="/cart" className="flex items-center text-foreground hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
               <div className="relative mr-3">
                 <ShoppingCart className="h-6 w-6" />
-                {isHydrated && mounted && cartItemCount > 0 && (
+                {showCartCount && cartItemCount > 0 && (
                   <Badge
                     variant="destructive"
                     className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs bg-primary hover:bg-primary text-primary-foreground"
@@ -340,7 +360,9 @@ export function Header() {
               </div>
               <div className="text-right">
                 <div className="text-xs text-muted-foreground">Cart</div>
-                <div className="font-medium">{isHydrated && mounted ? cartItemCount : 0}</div>
+                <div className="font-medium">
+                  {cartLoading ? '...' : (showCartCount ? cartItemCount : 0)}
+                </div>
               </div>
             </Link>
           </div>
@@ -349,35 +371,42 @@ export function Header() {
         {/* Secondary Navigation Bar */}
         <div className="bg-secondary border-t border-border px-4">
           <div className="flex h-12 items-center space-x-8 max-w-screen-2xl mx-auto">
-            <Button variant="ghost" className="text-foreground hover:text-primary text-sm h-9 px-4 hover:bg-accent">
-              <Menu className="h-4 w-4 mr-2" />
-              All Categories
-            </Button>
-            <nav className="hidden md:flex items-center space-x-8">
+            <nav className="flex items-center space-x-8">
               <Link
-                href="/products"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
+                href="/en/trending"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
               >
-                Today's Deals
+                <TrendingUp className="h-4 w-4" />
+                Trending Now
               </Link>
               <Link
-                href="/categories"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
+                href="/en/products?sale=true"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
               >
+                <Percent className="h-4 w-4" />
+                Deals and Discounts
+              </Link>
+              <Link
+                href="/en/products?recently_added=true"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                Recently Added
+              </Link>
+              <Link
+                href="/en/products?recommended=true"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
+              >
+                <Heart className="h-4 w-4" />
+                Recommended for You
+              </Link>
+              <button
+                onClick={handleScrollToCategories}
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 cursor-pointer"
+              >
+                <Menu className="h-4 w-4" />
                 Categories
-              </Link>
-              <Link
-                href="/products?featured=true"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-              >
-                Featured
-              </Link>
-              <Link
-                href="/about"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-              >
-                About
-              </Link>
+              </button>
             </nav>
           </div>
         </div>
@@ -412,46 +441,57 @@ export function Header() {
             {/* Mobile Navigation */}
             <nav className="flex flex-col space-y-4">
               <Link
-                href="/products"
-                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                href="/en/trending"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2 flex items-center gap-2"
               >
-                All Products
+                <TrendingUp className="h-4 w-4" />
+                Trending Now
               </Link>
               <Link
-                href="/categories"
-                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                href="/en/products?sale=true"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2 flex items-center gap-2"
               >
+                <Percent className="h-4 w-4" />
+                Deals and Discounts
+              </Link>
+              <Link
+                href="/en/products?recently_added=true"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2 flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                Recently Added
+              </Link>
+              <Link
+                href="/en/products?recommended=true"
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2 flex items-center gap-2"
+              >
+                <Heart className="h-4 w-4" />
+                Recommended for You
+              </Link>
+              <button
+                onClick={handleScrollToCategories}
+                className="text-sm font-medium transition-colors hover:text-gray-600 py-2 flex items-center gap-2 text-left"
+              >
+                <Menu className="h-4 w-4" />
                 Categories
-              </Link>
-              <Link
-                href="/products?featured=true"
-                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
-              >
-                Featured
-              </Link>
-              <Link
-                href="/about"
-                className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
-              >
-                About
-              </Link>
+              </button>
               {isAuthenticated && (
                 <>
                   <hr className="my-2" />
                   <Link
-                    href="/profile"
+                    href="/en/profile"
                     className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
                   >
                     Your Account
                   </Link>
                   <Link
-                    href="/orders"
+                    href="/en/orders"
                     className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
                   >
                     Your Orders
                   </Link>
                   <Link
-                    href="/wishlist"
+                    href="/en/wishlist"
                     className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
                   >
                     Your Wish List

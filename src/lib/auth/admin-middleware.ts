@@ -14,7 +14,7 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
   response?: NextResponse
 }> {
   try {
-    // Get the authenticated user
+    // Get the authenticated user with retry logic for session timing issues
     const supabase = await createClient()
 
     if (!supabase) {
@@ -29,10 +29,41 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
       }
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Try to get user with retry logic to handle session timing issues
+    let user = null
+    let authError = null
+    let retryCount = 0
+    const maxRetries = 3
+
+    while (retryCount < maxRetries && !user) {
+      const { data: { user: currentUser }, error: currentError } = await supabase.auth.getUser()
+
+      if (currentUser && !currentError) {
+        user = currentUser
+        break
+      }
+
+      authError = currentError
+      retryCount++
+
+      if (retryCount < maxRetries) {
+        // Wait a short time before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, retryCount - 1)))
+      }
+    }
 
     if (authError || !user) {
-      console.error('❌ Admin API authentication failed:', authError?.message || 'No user')
+      // Log detailed error information for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ Admin API authentication failed after retries:', {
+          error: authError?.message || 'No user',
+          retryCount,
+          endpoint: request.nextUrl.pathname,
+          method: request.method,
+          timestamp: new Date().toISOString()
+        })
+      }
+
       return {
         success: false,
         error: 'Authentication required',
@@ -45,16 +76,9 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
 
     // Check if user has admin privileges using service role client to bypass RLS
     const serviceClient = createServiceRoleClient()
-    const { data: adminUser, error: adminError } = await serviceClient
-      .from('admin_users')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single()
 
-    // Handle the case where no admin user is found (PGRST116 is "not found" error)
-    if (adminError && adminError.code !== 'PGRST116') {
-      console.error('❌ Error checking admin status:', adminError)
+    if (!serviceClient) {
+      console.error('❌ Failed to create service role client for admin check')
       return {
         success: false,
         error: 'Authentication system error',
@@ -64,9 +88,43 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
         }, { status: 500 })
       }
     }
-    
+
+    const { data: adminUser, error: adminError } = await serviceClient
+      .from('admin_users')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single()
+
+    // Handle the case where no admin user is found (PGRST116 is "not found" error)
+    if (adminError && adminError.code !== 'PGRST116') {
+      console.error('❌ Error checking admin status:', {
+        error: adminError,
+        userId: user.id,
+        email: user.email,
+        endpoint: request.nextUrl.pathname,
+        timestamp: new Date().toISOString()
+      })
+      return {
+        success: false,
+        error: 'Authentication system error',
+        response: NextResponse.json({
+          success: false,
+          error: 'Authentication system error'
+        }, { status: 500 })
+      }
+    }
+
     if (!adminUser) {
-      console.error('❌ Admin API access denied - user is not an admin:', user.email)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ Admin API access denied - user is not an admin:', {
+          userId: user.id,
+          email: user.email,
+          endpoint: request.nextUrl.pathname,
+          method: request.method,
+          timestamp: new Date().toISOString()
+        })
+      }
       return {
         success: false,
         error: 'Admin privileges required',
@@ -79,7 +137,16 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
 
     // Enhanced security check for super admin
     if (adminUser.role === 'super_admin' && user.email !== 'akito12350@gmail.com') {
-      console.error('❌ Super admin role mismatch - unauthorized access attempt:', user.email)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('❌ Super admin role mismatch - unauthorized access attempt:', {
+          userId: user.id,
+          email: user.email,
+          role: adminUser.role,
+          endpoint: request.nextUrl.pathname,
+          method: request.method,
+          timestamp: new Date().toISOString()
+        })
+      }
       return {
         success: false,
         error: 'Unauthorized super admin access',

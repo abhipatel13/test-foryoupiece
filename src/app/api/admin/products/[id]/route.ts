@@ -24,6 +24,14 @@ export const GET = withAdminAuth(async (
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
 
+    if (!supabase) {
+      console.error('❌ Failed to create service role client for product fetch');
+      return NextResponse.json({
+        success: false,
+        error: 'Service configuration error'
+      }, { status: 500 });
+    }
+
     const { data: product, error } = await supabase
       .from('products')
       .select(`
@@ -80,7 +88,14 @@ export const PUT = withAdminAuth(async (
   try {
     const { id } = await params;
 
+    console.log('🔄 Product update request received:', {
+      productId: id,
+      userId: user.id,
+      adminRole: adminUser.role
+    });
+
     if (!id) {
+      console.error('❌ Product update failed: Missing product ID');
       return NextResponse.json({
         success: false,
         error: 'Product ID is required',
@@ -88,9 +103,26 @@ export const PUT = withAdminAuth(async (
     }
 
     const body = await request.json();
-    
+
+    console.log('📝 Product update data received:', {
+      sku: body.sku,
+      name_en: body.name_en,
+      price: `${body.price} (${typeof body.price})`,
+      stock_quantity: `${body.stock_quantity} (${typeof body.stock_quantity})`,
+      dataTypes: {
+        price: typeof body.price,
+        stock_quantity: typeof body.stock_quantity,
+        compare_at_price: typeof body.compare_at_price,
+        cost_price: typeof body.cost_price
+      }
+    });
+
     // Validate required fields
     if (!body.sku || !body.name_en) {
+      console.error('❌ Product update failed: Missing required fields', {
+        sku: body.sku,
+        name_en: body.name_en
+      });
       return NextResponse.json({
         success: false,
         error: 'SKU and English name are required',
@@ -99,22 +131,42 @@ export const PUT = withAdminAuth(async (
 
     // Validate price
     if (typeof body.price !== 'number' || body.price < 0) {
+      console.error('❌ Product update failed: Invalid price', {
+        price: body.price,
+        type: typeof body.price,
+        isNumber: typeof body.price === 'number',
+        isPositive: body.price >= 0
+      });
       return NextResponse.json({
         success: false,
-        error: 'Price must be a positive number',
+        error: `Price must be a positive number. Received: ${body.price} (${typeof body.price})`,
       }, { status: 400 });
     }
 
     // Validate stock quantity
     if (typeof body.stock_quantity !== 'number' || body.stock_quantity < 0) {
+      console.error('❌ Product update failed: Invalid stock quantity', {
+        stock_quantity: body.stock_quantity,
+        type: typeof body.stock_quantity,
+        isNumber: typeof body.stock_quantity === 'number',
+        isPositive: body.stock_quantity >= 0
+      });
       return NextResponse.json({
         success: false,
-        error: 'Stock quantity must be a positive number',
+        error: `Stock quantity must be a positive number. Received: ${body.stock_quantity} (${typeof body.stock_quantity})`,
       }, { status: 400 });
     }
 
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
+
+    if (!supabase) {
+      console.error('❌ Failed to create service role client for product update');
+      return NextResponse.json({
+        success: false,
+        error: 'Service configuration error'
+      }, { status: 500 });
+    }
 
     // Prepare update data
     const updateData = {
@@ -168,6 +220,16 @@ export const PUT = withAdminAuth(async (
       }, { status: 400 });
     }
 
+    console.log('💾 Updating product in database:', {
+      productId: id,
+      updateData: {
+        ...updateData,
+        // Log key fields for debugging
+        price: updateData.price,
+        stock_quantity: updateData.stock_quantity
+      }
+    });
+
     // Update the product
     const { data: updatedProduct, error: updateError } = await supabase
       .from('products')
@@ -185,8 +247,14 @@ export const PUT = withAdminAuth(async (
       .single();
 
     if (updateError) {
-      console.error('Database update error:', updateError);
-      
+      console.error('❌ Database update error:', {
+        error: updateError,
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint
+      });
+
       if (updateError.code === 'PGRST116') {
         return NextResponse.json({
           success: false,
@@ -200,6 +268,14 @@ export const PUT = withAdminAuth(async (
       }, { status: 500 });
     }
 
+    console.log('✅ Product updated successfully:', {
+      productId: id,
+      sku: updatedProduct.sku,
+      name: updatedProduct.name_en,
+      price: updatedProduct.price,
+      stock_quantity: updatedProduct.stock_quantity
+    });
+
     return NextResponse.json({
       success: true,
       data: updatedProduct,
@@ -207,7 +283,11 @@ export const PUT = withAdminAuth(async (
     });
 
   } catch (error) {
-    console.error('Failed to update product:', error);
+    console.error('❌ Unexpected error updating product:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      productId: (await params).id
+    });
     return NextResponse.json({
       success: false,
       error: 'Internal server error',

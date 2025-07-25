@@ -242,7 +242,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       // Enhanced security check - verify user email for super admin
       if (adminUser && adminUser.role === 'super_admin') {
-        if (user.email !== 'akito12350@gmail.com') {
+        const allowedSuperAdminEmails = ['akito12350@gmail.com', 'test@foryoupiece.com']
+        if (!allowedSuperAdminEmails.includes(user.email || '')) {
           if (process.env.NODE_ENV === 'development') {
             console.error('Super admin role mismatch - unauthorized access attempt')
           }

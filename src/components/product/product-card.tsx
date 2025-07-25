@@ -99,7 +99,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/products/${product.sku}`} className="block">
+      <Link href={`/en/products/${product.sku}`} className="block">
         {/* Product Image */}
         <div className="relative aspect-square mb-4 bg-secondary rounded-xl overflow-hidden">
           {product.images.length > 0 ? (

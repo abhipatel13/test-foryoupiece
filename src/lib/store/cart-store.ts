@@ -44,6 +44,7 @@ type CartStore = {
   loadCartFromDatabase: () => Promise<void>
   validateStock: (id: string, requestedQuantity: number, currentStock?: number) => { isValid: boolean; message: string }
   getStockMessage: (stockQuantity: number) => string
+  cleanupInvalidQuantities: () => Promise<void>
   // Points redemption functions
   setPointsToRedeem: (points: number) => void
   getPointsDiscount: () => number
@@ -143,8 +144,8 @@ export const useCartStore = create<CartStore>()(
             console.log('👤 Same user but forcing cart reload from database')
           }
 
-          // Clear local cart first to avoid conflicts, then load from database
-          set({ items: [], isLoading: false }) // Reset loading state to allow cart loading
+          // Don't clear items immediately - keep them until database load completes
+          // This prevents the cart count from showing 0 temporarily
           get().loadCartFromDatabase()
         } else if (!userId && currentUserId) {
           // User logged out - local cart will be cleared by clearCartOnLogout
@@ -419,21 +420,30 @@ export const useCartStore = create<CartStore>()(
             image: item.product?.images?.[0] || '/placeholder-product.jpg',
             variant: normalizeVariant(item.variant_id),
             sku: item.product?.sku || undefined,
-            stockQuantity: item.product?.stock_quantity || undefined
+            stockQuantity: item.product?.stock_quantity || undefined,
+            points_rate: item.product?.points_rate || 1.00
           }))
 
           // Apply deduplication when loading from database
           const deduplicatedItems = deduplicateCartItems(items)
-          set({ items: deduplicatedItems })
+
+          // Update items atomically to prevent flickering
+          set({ items: deduplicatedItems, isLoading: false })
+
           console.log('✅ Cart loaded successfully:', {
             itemCount: deduplicatedItems.length,
             totalQuantity: deduplicatedItems.reduce((sum, item) => sum + item.quantity, 0)
           })
+
+          // Clean up any invalid quantities after loading
+          await get().cleanupInvalidQuantities()
         } catch (error) {
           console.error('❌ Failed to load cart from database:', error)
-          // Don't retry automatically to prevent infinite loops
-          set({ items: [] })
-        } finally {
+          // Only clear items if there was an error and we don't have any local items
+          const currentItems = get().items
+          if (currentItems.length === 0) {
+            set({ items: [] })
+          }
           set({ isLoading: false })
         }
       },
@@ -501,6 +511,46 @@ export const useCartStore = create<CartStore>()(
 
       getStockMessage: (stockQuantity) => {
         return getStockValidationMessage(stockQuantity)
+      },
+
+      cleanupInvalidQuantities: async () => {
+        const { items, userId } = get()
+        let hasChanges = false
+
+        const cleanedItems = items.map(item => {
+          if (item.stockQuantity !== undefined && item.quantity > item.stockQuantity) {
+            console.warn(`Cleaning up cart item ${item.name}: reducing quantity from ${item.quantity} to ${item.stockQuantity}`)
+            hasChanges = true
+            return {
+              ...item,
+              quantity: Math.max(1, item.stockQuantity) // Ensure at least 1, or remove if stock is 0
+            }
+          }
+          return item
+        }).filter(item => item.stockQuantity === undefined || item.stockQuantity > 0) // Remove items with 0 stock
+
+        if (hasChanges) {
+          set({ items: cleanedItems })
+
+          // Sync with database if user is logged in
+          if (userId) {
+            try {
+              // Clear and re-add all items to ensure database consistency
+              await cartQueries.clearCart(userId)
+              for (const item of cleanedItems) {
+                await cartQueries.addToCart({
+                  user_id: userId,
+                  product_id: item.id,
+                  variant_id: item.variant || null,
+                  quantity: item.quantity
+                })
+              }
+              console.log('Cart cleanup completed and synced with database')
+            } catch (error) {
+              console.error('Failed to sync cleaned cart with database:', error)
+            }
+          }
+        }
       },
 
       // Points redemption functions
@@ -588,13 +638,26 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'foryoupiece-cart',
+      version: 1, // Add version for better cache management
       onRehydrateStorage: () => (state) => {
         // Deduplicate items when loading from localStorage
         if (state?.items) {
           const deduplicatedItems = deduplicateCartItems(state.items)
           state.items = deduplicatedItems
         }
+        // Reset loading state on hydration to prevent stuck loading states
+        if (state) {
+          state.isLoading = false
+        }
       },
+      // Add better error handling for production environments
+      partialize: (state) => ({
+        items: state.items,
+        userId: state.userId,
+        pointsToRedeem: state.pointsToRedeem,
+        appliedCoupon: state.appliedCoupon,
+        // Don't persist loading state
+      }),
     }
   )
 )

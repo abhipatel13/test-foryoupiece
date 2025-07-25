@@ -112,10 +112,10 @@ export default function ProductDetailPage() {
     fetchProduct()
   }, [params.sku])
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product) return
 
-    addItem({
+    const success = await addItem({
       id: product.id,
       sku: product.sku,
       name: product.name_en,
@@ -124,10 +124,22 @@ export default function ProductDetailPage() {
       image: product.images[0] || '/placeholder-product.jpg',
       quantity: quantity,
       variant: selectedVariant || undefined,
+      stockQuantity: product.stock_quantity,
       points_rate: product.points_rate || 1.00
-    })
+    }, product.stock_quantity)
 
-    toast.success(`Added ${quantity} ${product.name_en} to cart`)
+    if (success) {
+      toast.success(`Added ${quantity} ${product.name_en} to cart`)
+    } else {
+      // Stock validation failed - show appropriate message
+      if (product.stock_quantity === 1) {
+        toast.error('You can only buy 1 of this item')
+      } else if (product.stock_quantity <= 0) {
+        toast.error('This item is currently out of stock')
+      } else {
+        toast.error(`You can only buy up to ${product.stock_quantity} of this item`)
+      }
+    }
   }
 
   const handleWishlist = () => {
@@ -190,7 +202,7 @@ export default function ProductDetailPage() {
             </div>
             <div className="space-y-3">
               <Button asChild className="w-full">
-                <Link href="/products">
+                <Link href="/en/products">
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Browse All Products
                 </Link>
@@ -215,12 +227,12 @@ export default function ProductDetailPage() {
           <nav className="text-sm text-muted-foreground">
             <Link href="/" className="accessible-link">Home</Link>
             <span className="mx-2">›</span>
-            <Link href="/products" className="accessible-link">Products</Link>
+            <Link href="/en/products" className="accessible-link">Products</Link>
             {product.category && (
               <>
                 <span className="mx-2">›</span>
-                <Link 
-                  href={`/products?category=${product.category.id}`} 
+                <Link
+                  href={`/en/products?category=${product.category.id}`}
                   className="accessible-link"
                 >
                   {product.category.name_en}
@@ -666,7 +678,7 @@ export default function ProductDetailPage() {
                 <p className="text-muted-foreground mt-2 text-base">Similar products from the same category</p>
               </div>
               <Link
-                href={`/products${product.category ? `?category=${product.category.id}` : ''}`}
+                href={`/en/products${product.category ? `?category=${product.category.id}` : ''}`}
                 className="text-blue-600 hover:text-blue-800 font-semibold text-base transition-colors duration-200 cursor-pointer hover:underline flex items-center"
               >
                 View all

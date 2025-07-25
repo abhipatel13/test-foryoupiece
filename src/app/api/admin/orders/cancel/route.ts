@@ -53,22 +53,43 @@ export async function POST(request: NextRequest) {
       userId: order.user_id
     });
 
-    // Cancel the order
-    const { data: cancelledOrder, error: cancelError } = await supabase
-      .from('orders')
-      .update({
-        fulfillment_status: 'cancelled',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', orderId)
-      .select()
-      .single();
+    // Cancel the order using RPC function to avoid trigger issues
+    console.log('🔧 Using helper RPC function to cancel order');
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('update_order_status', {
+        order_id: orderId,
+        new_payment_status: order.payment_status, // Keep current payment status
+        new_fulfillment_status: 'cancelled'
+      });
 
-    if (cancelError) {
-      console.error('❌ Error cancelling order:', cancelError);
+    if (rpcError) {
+      console.error('❌ RPC function error:', rpcError);
       return NextResponse.json({
         success: false,
-        error: cancelError.message
+        error: rpcError.message
+      }, { status: 500 });
+    }
+
+    if (!rpcResult) {
+      console.error('❌ RPC function returned false - cancel failed');
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to cancel order'
+      }, { status: 500 });
+    }
+
+    // Fetch the updated order data
+    const { data: cancelledOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select()
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) {
+      console.error('❌ Error fetching cancelled order:', fetchError);
+      return NextResponse.json({
+        success: false,
+        error: fetchError.message
       }, { status: 500 });
     }
 

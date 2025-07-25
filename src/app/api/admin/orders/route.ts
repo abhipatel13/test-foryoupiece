@@ -124,18 +124,58 @@ export const PATCH = withAdminAuth(async (request: NextRequest, { user, adminUse
       }, { status: 500 });
     }
 
-    // Determine which status field to update
-    const updateField = statusType === 'payment' ? 'payment_status' : 'fulfillment_status';
-    
+    // Get current order to preserve other status field
+    const { data: currentOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select('payment_status, fulfillment_status')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) {
+      console.error('❌ Error fetching current order:', fetchError);
+      return NextResponse.json({
+        success: false,
+        error: fetchError.message
+      }, { status: 500 });
+    }
+
+    // Use RPC function to safely update order status
+    console.log('🔧 Using helper RPC function to update order status');
+    const newPaymentStatus = statusType === 'payment' ? status : currentOrder.payment_status;
+    const newFulfillmentStatus = statusType === 'fulfillment' ? status : currentOrder.fulfillment_status;
+
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('update_order_status', {
+        order_id: orderId,
+        new_payment_status: newPaymentStatus,
+        new_fulfillment_status: newFulfillmentStatus
+      });
+
+    if (rpcError) {
+      console.error('❌ RPC function error:', rpcError);
+      return NextResponse.json({
+        success: false,
+        error: rpcError.message
+      }, { status: 500 });
+    }
+
+    if (!rpcResult) {
+      console.error('❌ RPC function returned false - update failed');
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to update order status'
+      }, { status: 500 });
+    }
+
+    // Fetch the updated order data
     const { data, error } = await supabase
       .from('orders')
-      .update({ [updateField]: status })
-      .eq('id', orderId)
       .select()
+      .eq('id', orderId)
       .single();
 
     if (error) {
-      console.error('❌ Error updating order:', error);
+      console.error('❌ Error fetching updated order:', error);
       return NextResponse.json({
         success: false,
         error: error.message

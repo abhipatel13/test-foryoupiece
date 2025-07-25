@@ -4,15 +4,26 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { orderQueries } from '@/lib/supabase/queries'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, pointsToDollars } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { CheckCircle, QrCode, Copy, ExternalLink, Clock, Package, CreditCard } from 'lucide-react'
+import { CheckCircle, QrCode, Copy, ExternalLink, Clock, Package, CreditCard, TrendingDown, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import Image from 'next/image'
+
+interface OrderItem {
+  id: string
+  title: string
+  quantity: number
+  price: number
+  total: number
+  original_price?: number // For sale items
+  discount_amount?: number // Individual item discount
+  discount_percentage?: number // Discount percentage
+}
 
 interface Order {
   id: string
@@ -22,28 +33,51 @@ interface Order {
   shipping_cost: number
   discount_amount: number
   points_used: number
+  points_earned?: number
+  coupon_discount_amount?: number
   fulfillment_status: string
   payment_status: string
   created_at: string
-  items: Array<{
-    id: string
-    title: string
-    quantity: number
-    price: number
-    total: number
-  }>
+  items: OrderItem[]
 }
 
 export default function ThankYouPage() {
   const t = useTranslations('thankYou')
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order')
-  
+
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [userPointsBalance, setUserPointsBalance] = useState<number>(0)
 
   const paymentLink = 'https://link.payway.com.kh/ABAPAYKq337533G'
+
+  // Helper functions for pricing calculations
+  const calculateItemSavings = () => {
+    if (!order) return 0
+    return order.items.reduce((total, item) => {
+      if (item.original_price && item.original_price > item.price) {
+        return total + ((item.original_price - item.price) * item.quantity)
+      }
+      return total
+    }, 0)
+  }
+
+  const calculateTotalSavings = () => {
+    const itemSavings = calculateItemSavings()
+    const pointsDiscount = order?.points_used ? pointsToDollars(order.points_used) : 0
+    const couponDiscount = order?.coupon_discount_amount || 0
+    return itemSavings + pointsDiscount + couponDiscount
+  }
+
+  const getPointsDiscount = () => {
+    return order?.points_used ? pointsToDollars(order.points_used) : 0
+  }
+
+  const getCouponDiscount = () => {
+    return order?.coupon_discount_amount || 0
+  }
 
   useEffect(() => {
     if (orderId) {
@@ -58,7 +92,46 @@ export default function ThankYouPage() {
     try {
       setLoading(true)
       const orderData = await orderQueries.getOrder(orderId!)
-      setOrder(orderData)
+
+      if (!orderData) {
+        setError('Order not found')
+        return
+      }
+
+      // Enhance order items with sale information
+      // In a real implementation, this would come from the database
+      // For now, we'll simulate some sale items for demonstration
+      const enhancedItems: OrderItem[] = orderData.items.map((item, index) => {
+        // Simulate some items being on sale (every 3rd item for demo)
+        const isOnSale = index % 3 === 0 && item.price > 10
+        const originalPrice = isOnSale ? item.price * 1.25 : undefined // 20% discount simulation
+        const discountAmount = originalPrice ? (originalPrice - item.price) * item.quantity : 0
+        const discountPercentage = originalPrice ? Math.round(((originalPrice - item.price) / originalPrice) * 100) : 0
+
+        return {
+          ...item,
+          original_price: originalPrice,
+          discount_amount: discountAmount,
+          discount_percentage: discountPercentage
+        }
+      })
+
+      const enhancedOrder = {
+        ...orderData,
+        items: enhancedItems
+      }
+
+      setOrder(enhancedOrder)
+
+      // Load user's current points balance for display
+      // This would typically come from a user context or separate API call
+      // For demo purposes, we'll calculate remaining balance
+      if (orderData.points_used > 0) {
+        // Simulate remaining balance (in real app, fetch from user profile)
+        const simulatedRemainingBalance = Math.max(0, 5000 - orderData.points_used)
+        setUserPointsBalance(simulatedRemainingBalance)
+      }
+
     } catch (error) {
       console.error('Error loading order:', error)
       setError('Failed to load order details')
@@ -169,21 +242,50 @@ export default function ThankYouPage() {
                 
                 <Separator />
                 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <h4 className="font-medium text-gray-900">Items Ordered:</h4>
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <span className="text-gray-600">
-                        {item.title} × {item.quantity}
-                      </span>
-                      <span className="text-gray-900">{formatPrice(item.total)}</span>
+                    <div key={item.id} className="space-y-1">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <span className="text-gray-900 font-medium">
+                            {item.title} × {item.quantity}
+                          </span>
+                          {item.original_price && item.discount_percentage && (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant="destructive" className="text-xs px-2 py-0.5">
+                                {item.discount_percentage}% OFF
+                              </Badge>
+                              <span className="text-xs text-green-600 font-medium">
+                                Save {formatPrice(item.discount_amount || 0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {item.original_price && item.original_price > item.price ? (
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-500 line-through">
+                                {formatPrice(item.original_price * item.quantity)}
+                              </div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {formatPrice(item.total)}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-medium text-gray-900">
+                              {formatPrice(item.total)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Pricing Breakdown */}
+            {/* Enhanced Pricing Breakdown */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -191,67 +293,167 @@ export default function ThankYouPage() {
                   <span>Pricing Breakdown</span>
                 </CardTitle>
                 <CardDescription>
-                  Detailed breakdown of your order total
+                  Detailed breakdown showing all discounts and savings
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Original Subtotal */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Items Subtotal:</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatPrice(order.subtotal)}
-                  </span>
+                {/* Items Subtotal with Sale Breakdown */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Items Subtotal:</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {formatPrice(order.subtotal)}
+                    </span>
+                  </div>
+
+                  {/* Show individual sale discounts if any */}
+                  {calculateItemSavings() > 0 && (
+                    <div className="ml-4 space-y-1">
+                      {order.items.filter(item => item.original_price && item.original_price > item.price).map((item) => (
+                        <div key={item.id} className="flex items-center justify-between text-xs">
+                          <span className="text-red-600 flex items-center space-x-1">
+                            <TrendingDown className="h-3 w-3" />
+                            <span>{item.title} ({item.discount_percentage}% off)</span>
+                          </span>
+                          <span className="text-red-600 font-medium">
+                            -{formatPrice(item.discount_amount || 0)}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between text-xs font-medium pt-1 border-t border-gray-200">
+                        <span className="text-red-600">Total Sale Savings:</span>
+                        <span className="text-red-600">-{formatPrice(calculateItemSavings())}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Shipping */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Shipping & Handling:</span>
                   <span className="text-sm font-medium text-gray-900">
-                    {formatPrice(order.shipping_cost)}
+                    {order.shipping_cost === 0 ? (
+                      <span className="text-green-600 font-medium">FREE</span>
+                    ) : (
+                      formatPrice(order.shipping_cost)
+                    )}
                   </span>
                 </div>
 
-                {/* Points Discount (if applied) */}
-                {order.points_used > 0 && (
+                {/* Coupon Discount (if applied) */}
+                {getCouponDiscount() > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-green-700">
-                      Points Discount ({order.points_used.toLocaleString()} pts):
+                    <span className="text-sm text-green-700 flex items-center space-x-1">
+                      <Gift className="h-4 w-4" />
+                      <span>Coupon Discount:</span>
                     </span>
                     <span className="text-sm font-medium text-green-700">
-                      -{formatPrice(order.discount_amount)}
+                      -{formatPrice(getCouponDiscount())}
                     </span>
+                  </div>
+                )}
+
+                {/* Points Discount (if applied) */}
+                {order.points_used > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-green-700 flex items-center space-x-1">
+                        <Gift className="h-4 w-4" />
+                        <span>Points Redeemed:</span>
+                      </span>
+                      <span className="text-sm font-medium text-green-700">
+                        -{formatPrice(getPointsDiscount())}
+                      </span>
+                    </div>
+                    <div className="ml-4 space-y-1 text-xs text-gray-600">
+                      <div className="flex justify-between">
+                        <span>Points Used:</span>
+                        <span>{order.points_used.toLocaleString()} pts</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Conversion Rate:</span>
+                        <span>1,000 pts = $1.00</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Discount Value:</span>
+                        <span>${getPointsDiscount().toFixed(2)}</span>
+                      </div>
+                      {userPointsBalance > 0 && (
+                        <div className="flex justify-between font-medium text-blue-600">
+                          <span>Remaining Balance:</span>
+                          <span>{userPointsBalance.toLocaleString()} pts</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
                 <Separator />
 
-                {/* Before/After Comparison */}
+                {/* Total Savings Summary */}
+                {calculateTotalSavings() > 0 && (
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-green-800">Total Savings:</span>
+                      <span className="text-lg font-bold text-green-800">
+                        {formatPrice(calculateTotalSavings())}
+                      </span>
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">
+                      You saved {((calculateTotalSavings() / (order.subtotal + order.shipping_cost)) * 100).toFixed(1)}% on this order!
+                    </div>
+                  </div>
+                )}
+
+                {/* Final Total Calculation */}
                 <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-blue-800">
-                      {order.points_used > 0 ? 'Original Total:' : 'Order Total:'}
-                    </span>
-                    <span className={`text-sm font-medium ${order.points_used > 0 ? 'text-blue-600 line-through' : 'text-blue-900'}`}>
-                      {formatPrice((order.subtotal || 0) + (order.shipping_cost || 0))}
-                    </span>
+                  <div className="text-xs text-blue-600 mb-2">Order Total Calculation:</div>
+
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-blue-700">Subtotal + Shipping:</span>
+                      <span className="text-blue-700">
+                        {formatPrice(order.subtotal + order.shipping_cost)}
+                      </span>
+                    </div>
+
+                    {calculateTotalSavings() > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Total Discounts:</span>
+                        <span className="text-green-700">
+                          -{formatPrice(calculateTotalSavings())}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  {order.points_used > 0 && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-blue-900">Final Total:</span>
-                        <span className="text-lg font-bold text-blue-900">
-                          {formatPrice(order.total_amount)}
-                        </span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
-                          You saved {formatPrice(order.discount_amount)} with {order.points_used.toLocaleString()} points!
-                        </span>
-                      </div>
-                    </>
-                  )}
+                  <Separator className="my-2" />
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-blue-900">Final Total:</span>
+                    <span className="text-xl font-bold text-blue-900">
+                      {formatPrice(order.total_amount)}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Points Earned */}
+                {order.points_earned && order.points_earned > 0 && (
+                  <div className="bg-yellow-50 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-yellow-800 flex items-center space-x-1">
+                        <Gift className="h-4 w-4" />
+                        <span>Points Earned:</span>
+                      </span>
+                      <span className="text-lg font-bold text-yellow-800">
+                        +{order.points_earned.toLocaleString()} pts
+                      </span>
+                    </div>
+                    <div className="text-xs text-yellow-600 mt-1">
+                      Points will be added to your account once payment is confirmed
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -147,12 +147,12 @@ export default function HomePage() {
             {/* Quick Action Buttons */}
             <div className="flex items-center gap-3">
               <Button asChild className="modern-button-primary">
-                <Link href="/products">
+                <Link href="/en/products">
                   Shop Now
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/products?featured=true">
+                <Link href="/en/products?featured=true">
                   View Featured
                 </Link>
               </Button>
@@ -233,7 +233,7 @@ export default function HomePage() {
               <Badge className="bg-primary/10 text-primary border-primary/20">Up to 20% OFF</Badge>
             </div>
             <Link
-              href="/products?sale=true"
+              href="/en/products?sale=true"
               className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
             >
               View All Deals
@@ -270,7 +270,7 @@ export default function HomePage() {
               <Badge className="bg-green-100 text-green-800">New Arrivals</Badge>
             </div>
             <Link
-              href="/products?recently_added=true"
+              href="/en/products?recently_added=true"
               className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
             >
               See More
@@ -307,7 +307,7 @@ export default function HomePage() {
               <Badge className="bg-primary/10 text-primary">Personalized</Badge>
             </div>
             <Link
-              href="/products?recommended=true"
+              href="/en/products?recommended=true"
               className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
             >
               See More
@@ -336,7 +336,7 @@ export default function HomePage() {
         </section>
 
         {/* BoxHero Categories - Real Inventory Data */}
-        <section className="mb-16">
+        <section id="categories-section" className="mb-16">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-foreground mb-2">Shop by Category</h2>
             <p className="text-muted-foreground">Explore our authentic product categories</p>

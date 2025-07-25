@@ -81,7 +81,7 @@ export default function CheckoutPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Your cart is empty</h1>
-          <Button onClick={() => router.push('/products')}>Continue Shopping</Button>
+          <Button onClick={() => router.push('/en/products')}>Continue Shopping</Button>
         </div>
       </div>
     )
@@ -199,7 +199,7 @@ export default function CheckoutPage() {
       clearPointsRedemption()
 
       toast.success('Order placed successfully!')
-      router.push(`/thank-you?order=${order.id}`)
+      router.push(`/en/thank-you?order=${order.id}`)
 
     } catch (error: any) {
       console.error('Order creation failed:', {

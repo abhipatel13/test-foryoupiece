@@ -13,6 +13,14 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     // Use service role client to bypass RLS
     const supabase = createServiceRoleClient();
 
+    if (!supabase) {
+      console.error('❌ Failed to create service role client for dashboard stats');
+      return NextResponse.json({
+        success: false,
+        error: 'Service configuration error'
+      }, { status: 500 });
+    }
+
     // Get total orders
     console.log('📦 Fetching total orders...');
     const { count: totalOrders, error: ordersError } = await supabase

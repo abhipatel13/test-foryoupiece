@@ -73,7 +73,11 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+          redirectTo: `${window.location.origin}/en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
         }
       })
 
@@ -109,7 +113,7 @@ export default function LoginPage() {
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Or{' '}
-            <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
               create a new account
             </Link>
           </p>
@@ -189,7 +193,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="text-sm">
-                  <Link href="/auth/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+                  <Link href="/en/auth/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
                     Forgot your password?
                   </Link>
                 </div>

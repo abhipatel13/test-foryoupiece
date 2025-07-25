@@ -158,6 +158,16 @@ export default function ProductEditPage() {
         return
       }
 
+      console.log('📤 Sending product update request:', {
+        productId: params.id,
+        formData: {
+          ...formData,
+          // Log data types for debugging
+          price: `${formData.price} (${typeof formData.price})`,
+          stock_quantity: `${formData.stock_quantity} (${typeof formData.stock_quantity})`,
+        }
+      })
+
       const response = await fetch(`/api/admin/products/${params.id}`, {
         method: 'PUT',
         headers: {
@@ -166,21 +176,51 @@ export default function ProductEditPage() {
         body: JSON.stringify(formData),
       })
 
+      console.log('📥 Product update response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+
       if (!response.ok) {
-        throw new Error('Failed to update product')
+        const errorText = await response.text()
+        console.error('❌ Product update failed - Response not OK:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        })
+
+        let errorMessage = 'Failed to update product'
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch (e) {
+          // If response is not JSON, use the text as error message
+          errorMessage = errorText || errorMessage
+        }
+
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
+      console.log('✅ Product update result:', result)
 
       if (!result.success) {
+        console.error('❌ Product update failed - Result not successful:', result)
         throw new Error(result.error || 'Failed to update product')
       }
 
       toast.success('Product updated successfully!')
       router.push(`/${params.locale}/fyponly-admin/products`)
     } catch (error) {
-      console.error('Error updating product:', error)
-      toast.error('Failed to update product')
+      console.error('❌ Error updating product:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        formData: formData
+      })
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update product'
+      toast.error(errorMessage)
     } finally {
       setSaving(false)
     }

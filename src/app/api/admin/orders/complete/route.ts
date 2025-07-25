@@ -52,39 +52,72 @@ export async function POST(request: NextRequest) {
       fulfillmentStatus: order.fulfillment_status
     });
 
-    // Streamlined completion: verify payment + mark as shipped (on the way)
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('orders')
-      .update({
-        payment_status: 'verified',
-        fulfillment_status: 'shipped',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', orderId)
-      .select()
-      .single();
+    // TEMPORARY WORKAROUND: Handle the database trigger error gracefully
+    console.log('🔧 Attempting order completion with error handling...');
 
-    if (updateError) {
-      console.error('❌ Error completing order:', updateError);
+    let updatedOrder;
+    try {
+      // Use the helper RPC function to safely update order status
+      console.log('🔧 Using helper RPC function to update order status');
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('update_order_status', {
+          order_id: orderId,
+          new_payment_status: 'verified',
+          new_fulfillment_status: 'shipped'
+        });
+
+      if (rpcError) {
+        console.error('❌ RPC function error:', rpcError);
+        throw rpcError;
+      }
+
+      if (!rpcResult) {
+        throw new Error('RPC function returned false - update failed');
+      }
+
+      // Fetch the updated order data
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select()
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Error fetching updated order:', fetchError);
+        throw fetchError;
+      }
+
+      updatedOrder = data;
+      console.log('✅ Order updated successfully in database using RPC function');
+    } catch (error: any) {
+      console.error('❌ Error completing order:', error);
       return NextResponse.json({
         success: false,
-        error: updateError.message
+        error: `Failed to complete order: ${error.message}`
       }, { status: 500 });
     }
 
-    console.log('✅ Order completed successfully:', updatedOrder.id);
+    console.log('✅ Order completed successfully:', updatedOrder?.id || orderId);
+    console.log('📊 Final order status:', {
+      paymentStatus: updatedOrder?.payment_status,
+      fulfillmentStatus: updatedOrder?.fulfillment_status
+    });
 
     // Award points for completed order (if payment was just verified)
-    if (order.payment_status !== 'verified') {
+    // Check if this order hasn't already awarded points (payment_status was not 'verified' before)
+    if (order.payment_status !== 'verified' && updatedOrder?.payment_status === 'verified') {
       try {
         console.log('💰 Awarding points for completed order');
-        
-        // Calculate points earned (10 points per $1)
+        console.log(`📊 Order total: $${order.total_amount}, User: ${order.user_id}`);
+
+        // Calculate points earned using correct formula: 10 points per $1 (1% cashback, 1000 points = $1)
         const pointsToAward = Math.floor(order.total_amount * 10);
-        
+
         if (pointsToAward > 0) {
+          console.log(`🎯 Calculating points: $${order.total_amount} × 10 = ${pointsToAward} points`);
+
           // Insert point transaction
-          await supabase
+          const { data: transaction, error: transactionError } = await supabase
             .from('point_transactions')
             .insert({
               user_id: order.user_id,
@@ -93,20 +126,45 @@ export async function POST(request: NextRequest) {
               reference_type: 'order',
               reference_id: order.id,
               description: `Points earned from order #${order.order_number}`
-            });
+            })
+            .select()
+            .single();
 
-          // Update user's points balance and total earned
-          await supabase.rpc('update_user_points', {
+          if (transactionError) {
+            console.error('❌ Failed to create points transaction:', transactionError);
+            throw transactionError;
+          }
+
+          // Update user's points balance and total earned using RPC function
+          const { error: updateError } = await supabase.rpc('update_user_points', {
             p_user_id: order.user_id,
             p_points: pointsToAward
           });
 
-          console.log(`✅ Awarded ${pointsToAward} points to user ${order.user_id}`);
+          if (updateError) {
+            console.error('❌ Failed to update user points balance:', updateError);
+            // Rollback the transaction
+            await supabase
+              .from('point_transactions')
+              .delete()
+              .eq('id', transaction.id);
+            throw updateError;
+          }
+
+          console.log(`✅ Successfully awarded ${pointsToAward} points to user ${order.user_id}`);
+          console.log(`💰 Points transaction ID: ${transaction.id}`);
+        } else {
+          console.log('⚠️ No points to award (order total is $0 or negative)');
         }
       } catch (pointsError) {
-        console.warn('⚠️ Failed to award points:', pointsError);
-        // Don't fail the order completion for points errors
+        console.error('❌ Failed to award points:', pointsError);
+        // Don't fail the order completion for points errors, but log it clearly
+        console.error('⚠️ CRITICAL: Points were not awarded for this order. Manual intervention may be required.');
       }
+    } else if (order.payment_status === 'verified') {
+      console.log('ℹ️ Order payment was already verified, skipping points award to prevent double-awarding');
+    } else {
+      console.log('ℹ️ Order payment status not verified after update, no points awarded');
     }
 
     return NextResponse.json({

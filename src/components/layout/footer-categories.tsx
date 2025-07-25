@@ -13,7 +13,7 @@ export function FooterCategories() {
     return (
       <ul className="space-y-3">
         <li>
-          <Link href="/products" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          <Link href="/en/products" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             All Products
           </Link>
         </li>
@@ -29,14 +29,14 @@ export function FooterCategories() {
   return (
     <ul className="space-y-3">
       <li>
-        <Link href="/products" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+        <Link href="/en/products" className="text-sm text-muted-foreground hover:text-primary transition-colors">
           All Products
         </Link>
       </li>
       {categories.slice(0, 4).map((category) => (
         <li key={category.slug}>
-          <Link 
-            href={`/products?category=${category.slug}`} 
+          <Link
+            href={`/en/products?category=${category.slug}`}
             className="text-sm text-muted-foreground hover:text-primary transition-colors"
           >
             {category.name}
