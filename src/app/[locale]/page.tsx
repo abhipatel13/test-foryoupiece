@@ -13,6 +13,7 @@ import { ShoppingBag, Users, Star, Zap, Globe, Shield, ChevronLeft, ChevronRight
 import { RecommendationEngine } from '@/lib/recommendation-engine';
 import { useBoxHeroCategories } from '@/hooks/use-boxhero-categories';
 import { useCategoryImages } from '@/hooks/use-category-images';
+import { useTrendingProducts } from '@/presentation/hooks/useTrendingProducts';
 
 interface Product {
   id: string
@@ -39,11 +40,13 @@ interface Product {
 export default function HomePage() {
   const t = useTranslations('navigation')
   const [allProducts, setAllProducts] = useState<Product[]>([])
-  const [trendingProducts, setTrendingProducts] = useState<Product[]>([])
   const [dealsProducts, setDealsProducts] = useState<Product[]>([])
   const [recentlyAddedProducts, setRecentlyAddedProducts] = useState<Product[]>([])
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Use the new trending products system
+  const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useTrendingProducts(10)
 
   // Fetch real categories from BoxHero inventory system
   const { categories: boxHeroCategories, loading: categoriesLoading } = useBoxHeroCategories()
@@ -102,10 +105,6 @@ export default function HomePage() {
 
         // Apply smart recommendation algorithms
         const userBehavior = RecommendationEngine.generateSimulatedUserBehavior(products)
-
-        // Get trending products using algorithm
-        const trending = RecommendationEngine.getTrendingProducts(products, 5)
-        setTrendingProducts(trending)
 
         // Get best deals
         const deals = RecommendationEngine.getDealsProducts(products, 6)
@@ -176,7 +175,7 @@ export default function HomePage() {
               <Badge className="bg-red-500 text-white animate-pulse">HOT</Badge>
             </div>
             <Link
-              href="/products?trending=true"
+              href="/en/trending"
               className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
             >
               View All Trending
@@ -184,9 +183,9 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {loading ? (
+          {trendingLoading ? (
             <div className="product-grid">
-              {[...Array(5)].map((_, i) => (
+              {[...Array(10)].map((_, i) => (
                 <div key={i} className="modern-product-card p-4 animate-pulse">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
                   <div className="h-4 bg-secondary rounded mb-2"></div>
@@ -195,10 +194,29 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+          ) : trendingError ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Unable to load trending products</p>
+            </div>
           ) : (
             <div className="product-grid">
-              {trendingProducts.map((product) => (
-                <ProductCard key={product.id} product={product} locale="en" />
+              {trendingData?.products?.map((product) => (
+                <ProductCard
+                  key={product.product_id}
+                  product={{
+                    id: product.product_id,
+                    sku: product.sku,
+                    name_en: product.name_en,
+                    name_ja: product.name_ja,
+                    price: product.price,
+                    compare_at_price: product.compare_at_price,
+                    images: product.images,
+                    stock_quantity: product.stock_quantity,
+                    is_featured: product.is_featured,
+                    category_name: product.category_name
+                  }}
+                  locale="en"
+                />
               ))}
             </div>
           )}
