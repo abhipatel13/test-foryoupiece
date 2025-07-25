@@ -39,6 +39,10 @@ interface Product {
   allow_backorder: boolean
   seo_title?: string
   seo_description?: string
+  is_trending: boolean
+  is_best_seller: boolean
+  trending_position?: number
+  best_seller_position?: number
   images: string[]
   created_at: string
   updated_at: string
@@ -77,6 +81,10 @@ export default function ProductEditPage() {
     allow_backorder: false,
     seo_title: '',
     seo_description: '',
+    is_trending: false,
+    is_best_seller: false,
+    trending_position: 0,
+    best_seller_position: 0,
     images: [],
   })
 
@@ -131,6 +139,10 @@ export default function ProductEditPage() {
         allow_backorder: productData.allow_backorder ?? false,
         seo_title: productData.seo_title || '',
         seo_description: productData.seo_description || '',
+        is_trending: productData.is_trending ?? false,
+        is_best_seller: productData.is_best_seller ?? false,
+        trending_position: productData.trending_position || 0,
+        best_seller_position: productData.best_seller_position || 0,
         images: productData.images || [],
       })
     } catch (error) {
@@ -155,6 +167,18 @@ export default function ProductEditPage() {
 
       if (formData.price < 0) {
         toast.error('Price must be positive')
+        return
+      }
+
+      // Validate compare_at_price constraint
+      if (formData.compare_at_price && formData.compare_at_price > 0 && formData.compare_at_price < formData.price) {
+        toast.error(`Compare at price ($${formData.compare_at_price}) must be greater than or equal to the regular price ($${formData.price})`)
+        return
+      }
+
+      // Validate cost_price
+      if (formData.cost_price && formData.cost_price < 0) {
+        toast.error('Cost price must be positive')
         return
       }
 
@@ -433,8 +457,16 @@ export default function ProductEditPage() {
                     placeholder="0.00"
                     value={formData.compare_at_price}
                     onChange={(e) => handleInputChange('compare_at_price', parseFloat(e.target.value) || 0)}
+                    className={
+                      formData.compare_at_price && formData.compare_at_price > 0 && formData.compare_at_price < formData.price
+                        ? 'border-red-500 focus:border-red-500'
+                        : ''
+                    }
                   />
                   <p className="text-sm text-gray-600">Original price for sale comparison</p>
+                  {formData.compare_at_price && formData.compare_at_price > 0 && formData.compare_at_price < formData.price && (
+                    <p className="text-sm text-red-600">Compare at price must be greater than or equal to regular price ($${formData.price})</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -618,6 +650,81 @@ export default function ProductEditPage() {
                     checked={formData.is_digital}
                     onCheckedChange={(checked) => handleInputChange('is_digital', checked)}
                   />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Product Categorization */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Product Categorization</CardTitle>
+              <CardDescription>
+                Mark products as trending or best sellers for special display
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Trending Product */}
+                <div className="space-y-4">
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Trending Product</Label>
+                      <p className="text-sm text-gray-600">
+                        Mark this product as trending
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.is_trending}
+                      onCheckedChange={(checked) => handleInputChange('is_trending', checked)}
+                    />
+                  </div>
+
+                  {formData.is_trending && (
+                    <div className="space-y-2">
+                      <Label htmlFor="trending_position">Trending Position</Label>
+                      <Input
+                        id="trending_position"
+                        type="number"
+                        min="1"
+                        placeholder="1"
+                        value={formData.trending_position}
+                        onChange={(e) => handleInputChange('trending_position', parseInt(e.target.value) || 0)}
+                      />
+                      <p className="text-sm text-gray-600">Lower numbers appear first (1 = top position)</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Best Seller Product */}
+                <div className="space-y-4">
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Best Seller</Label>
+                      <p className="text-sm text-gray-600">
+                        Mark this product as a best seller
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.is_best_seller}
+                      onCheckedChange={(checked) => handleInputChange('is_best_seller', checked)}
+                    />
+                  </div>
+
+                  {formData.is_best_seller && (
+                    <div className="space-y-2">
+                      <Label htmlFor="best_seller_position">Best Seller Position</Label>
+                      <Input
+                        id="best_seller_position"
+                        type="number"
+                        min="1"
+                        placeholder="1"
+                        value={formData.best_seller_position}
+                        onChange={(e) => handleInputChange('best_seller_position', parseInt(e.target.value) || 0)}
+                      />
+                      <p className="text-sm text-gray-600">Lower numbers appear first (1 = top position)</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>

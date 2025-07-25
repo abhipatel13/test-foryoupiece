@@ -9,11 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ProductCard } from '@/components/product/product-card'
 import { productQueries } from '@/lib/supabase/queries'
-import { ShoppingBag, Users, Star, Zap, Globe, Shield, ChevronLeft, ChevronRight, ArrowRight, TrendingUp, Percent, Clock, Eye, Heart } from 'lucide-react';
+import { ShoppingBag, Users, Star, Zap, Globe, Shield, ChevronLeft, ChevronRight, ArrowRight, TrendingUp, Percent, Clock, Eye, Heart, Award } from 'lucide-react';
 import { RecommendationEngine } from '@/lib/recommendation-engine';
 import { useBoxHeroCategories } from '@/hooks/use-boxhero-categories';
 import { useCategoryImages } from '@/hooks/use-category-images';
 import { useTrendingProducts } from '@/presentation/hooks/useTrendingProducts';
+import { useHomepageBestSellers } from '@/presentation/hooks/useBestSellerProducts';
 
 interface Product {
   id: string
@@ -47,6 +48,9 @@ export default function HomePage() {
 
   // Use the new trending products system
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useTrendingProducts(10)
+
+  // Use the best seller products system
+  const { data: bestSellerData, isLoading: bestSellerLoading, error: bestSellerError } = useHomepageBestSellers()
 
   // Fetch real categories from BoxHero inventory system
   const { categories: boxHeroCategories, loading: categoriesLoading } = useBoxHeroCategories()
@@ -222,7 +226,101 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 2. DEALS AND DISCOUNTS - Special offers */}
+        {/* 2. BEST SELLERS - Customer favorites that keep selling out */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-primary" />
+                <h2 className="text-2xl font-bold text-foreground">Best Sellers</h2>
+              </div>
+              <Badge className="bg-amber-100 text-amber-800 border-amber-200">Customer Favorites</Badge>
+            </div>
+            <Link
+              href="/en/best-sellers"
+              className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
+            >
+              View All Best Sellers
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {bestSellerLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="modern-product-card p-4 animate-pulse">
+                  <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
+                  <div className="h-4 bg-secondary rounded mb-2"></div>
+                  <div className="h-3 bg-secondary rounded mb-2"></div>
+                  <div className="h-4 bg-secondary rounded w-20"></div>
+                </div>
+              ))}
+            </div>
+          ) : bestSellerError ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Unable to load best sellers</p>
+            </div>
+          ) : bestSellerData.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No best sellers available at the moment</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {bestSellerData.map((product) => (
+                <div key={product.id} className="relative">
+                  {/* Best Seller Badge with Enhanced Top 3 Styling */}
+                  <div className="absolute top-2 left-2 z-10">
+                    <Badge className={`text-white shadow-lg font-bold ${
+                      product.best_seller_position === 1
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 ring-2 ring-yellow-300 text-lg px-3 py-1'
+                        : product.best_seller_position === 2
+                        ? 'bg-gradient-to-r from-gray-400 to-gray-600 ring-2 ring-gray-300 text-base px-2.5 py-1'
+                        : product.best_seller_position === 3
+                        ? 'bg-gradient-to-r from-amber-600 to-amber-800 ring-2 ring-amber-400 text-base px-2.5 py-1'
+                        : 'bg-amber-500'
+                    }`}>
+                      #{product.best_seller_position}
+                    </Badge>
+                  </div>
+                  {/* Enhanced Top 3 and Top 10 Special Styling */}
+                  <div className={`rounded-lg ${
+                    product.best_seller_position === 1
+                      ? 'ring-4 ring-yellow-400 ring-offset-4 shadow-2xl shadow-yellow-200'
+                      : product.best_seller_position === 2
+                      ? 'ring-3 ring-gray-400 ring-offset-3 shadow-xl shadow-gray-200'
+                      : product.best_seller_position === 3
+                      ? 'ring-3 ring-amber-500 ring-offset-3 shadow-xl shadow-amber-200'
+                      : product.best_seller_position <= 10
+                      ? 'ring-2 ring-amber-400 ring-offset-2'
+                      : ''
+                  }`}>
+                    <ProductCard
+                      product={{
+                        id: product.id,
+                        sku: product.sku,
+                        name_en: product.name_en,
+                        name_ja: product.name_ja,
+                        description_en: product.description_en,
+                        description_ja: product.description_ja,
+                        price: product.price,
+                        compare_at_price: product.compare_at_price,
+                        images: product.images,
+                        brand: product.brand,
+                        stock_quantity: product.stock_quantity,
+                        stock_status: product.stock_status,
+                        is_featured: product.is_featured,
+                        category: product.category
+                      }}
+                      locale="en"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* 3. DEALS AND DISCOUNTS - Special offers */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -261,7 +359,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 3. RECENTLY ADDED - New Arrivals from BoxHero */}
+        {/* 4. RECENTLY ADDED - New Arrivals from BoxHero */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -298,7 +396,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 4. RECOMMENDED FOR YOU - Personalized */}
+        {/* 5. RECOMMENDED FOR YOU - Personalized */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">

@@ -257,25 +257,25 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/profile">
+                    <Link href="/en/profile">
                       <User className="mr-2 h-4 w-4" />
                       <span>Your Account</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/orders">
+                    <Link href="/en/orders">
                       <Package className="mr-2 h-4 w-4" />
                       <span>Your Orders</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/wishlist">
+                    <Link href="/en/wishlist">
                       <Heart className="mr-2 h-4 w-4" />
                       <span>Your Wish List</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/settings">
+                    <Link href="/en/settings">
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </Link>

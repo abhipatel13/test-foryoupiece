@@ -157,6 +157,38 @@ export const PUT = withAdminAuth(async (
       }, { status: 400 });
     }
 
+    // Validate compare_at_price constraint (must be >= price)
+    if (body.compare_at_price !== null && body.compare_at_price !== undefined && body.compare_at_price !== 0) {
+      if (typeof body.compare_at_price !== 'number' || body.compare_at_price < body.price) {
+        console.error('❌ Product update failed: Invalid compare_at_price', {
+          price: body.price,
+          compare_at_price: body.compare_at_price,
+          type: typeof body.compare_at_price,
+          isValid: body.compare_at_price >= body.price
+        });
+        return NextResponse.json({
+          success: false,
+          error: `Compare at price must be greater than or equal to the regular price. Regular price: $${body.price}, Compare at price: $${body.compare_at_price}`,
+        }, { status: 400 });
+      }
+    }
+
+    // Validate cost_price
+    if (body.cost_price !== null && body.cost_price !== undefined && body.cost_price !== 0) {
+      if (typeof body.cost_price !== 'number' || body.cost_price < 0) {
+        console.error('❌ Product update failed: Invalid cost_price', {
+          cost_price: body.cost_price,
+          type: typeof body.cost_price,
+          isNumber: typeof body.cost_price === 'number',
+          isPositive: body.cost_price >= 0
+        });
+        return NextResponse.json({
+          success: false,
+          error: `Cost price must be a positive number. Received: ${body.cost_price} (${typeof body.cost_price})`,
+        }, { status: 400 });
+      }
+    }
+
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
 
@@ -178,8 +210,8 @@ export const PUT = withAdminAuth(async (
       short_description_en: body.short_description_en || null,
       short_description_ja: body.short_description_ja || null,
       price: body.price,
-      compare_at_price: body.compare_at_price || null,
-      cost_price: body.cost_price || null,
+      compare_at_price: (body.compare_at_price && body.compare_at_price > 0) ? body.compare_at_price : null,
+      cost_price: (body.cost_price && body.cost_price > 0) ? body.cost_price : null,
       stock_quantity: body.stock_quantity,
       low_stock_threshold: body.low_stock_threshold || 10,
       weight_grams: body.weight_grams || null,
@@ -194,6 +226,10 @@ export const PUT = withAdminAuth(async (
       allow_backorder: body.allow_backorder ?? false,
       seo_title: body.seo_title || null,
       seo_description: body.seo_description || null,
+      is_trending: body.is_trending ?? false,
+      is_best_seller: body.is_best_seller ?? false,
+      trending_position: body.trending_position || null,
+      best_seller_position: body.best_seller_position || null,
       updated_at: new Date().toISOString(),
     };
 
