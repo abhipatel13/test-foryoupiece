@@ -231,10 +231,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-primary" />
+                <Award className="h-5 w-5 text-foreground/70" />
                 <h2 className="text-2xl font-bold text-foreground">Best Sellers</h2>
               </div>
-              <Badge className="bg-amber-100 text-amber-800 border-amber-200">Customer Favorites</Badge>
+              <Badge variant="secondary" className="text-xs font-medium">Customer Favorites</Badge>
             </div>
             <Link
               href="/en/best-sellers"
@@ -268,32 +268,26 @@ export default function HomePage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
               {bestSellerData.map((product) => (
                 <div key={product.id} className="relative">
-                  {/* Best Seller Badge with Enhanced Top 3 Styling */}
-                  <div className="absolute top-2 left-2 z-10">
-                    <Badge className={`text-white shadow-lg font-bold ${
+                  {/* Minimalist Best Seller Ranking */}
+                  <div className="absolute top-3 left-3 z-10">
+                    <Badge className={`text-xs font-medium shadow-sm ${
                       product.best_seller_position === 1
-                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 ring-2 ring-yellow-300 text-lg px-3 py-1'
+                        ? 'bg-foreground text-background'
                         : product.best_seller_position === 2
-                        ? 'bg-gradient-to-r from-gray-400 to-gray-600 ring-2 ring-gray-300 text-base px-2.5 py-1'
+                        ? 'bg-foreground/80 text-background'
                         : product.best_seller_position === 3
-                        ? 'bg-gradient-to-r from-amber-600 to-amber-800 ring-2 ring-amber-400 text-base px-2.5 py-1'
-                        : 'bg-amber-500'
+                        ? 'bg-foreground/60 text-background'
+                        : 'bg-foreground/40 text-background'
                     }`}>
                       #{product.best_seller_position}
                     </Badge>
                   </div>
-                  {/* Enhanced Top 3 and Top 10 Special Styling */}
-                  <div className={`rounded-lg ${
-                    product.best_seller_position === 1
-                      ? 'ring-4 ring-yellow-400 ring-offset-4 shadow-2xl shadow-yellow-200'
-                      : product.best_seller_position === 2
-                      ? 'ring-3 ring-gray-400 ring-offset-3 shadow-xl shadow-gray-200'
-                      : product.best_seller_position === 3
-                      ? 'ring-3 ring-amber-500 ring-offset-3 shadow-xl shadow-amber-200'
-                      : product.best_seller_position <= 10
-                      ? 'ring-2 ring-amber-400 ring-offset-2'
+                  {/* Subtle emphasis for top performers */}
+                  <div className={`${
+                    product.best_seller_position <= 3
+                      ? 'ring-1 ring-foreground/10'
                       : ''
-                  }`}>
+                  } rounded-lg transition-all duration-200 hover:ring-1 hover:ring-foreground/20`}>
                     <ProductCard
                       product={{
                         id: product.id,

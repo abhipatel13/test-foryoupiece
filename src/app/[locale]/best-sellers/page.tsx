@@ -38,12 +38,12 @@ export default function BestSellersPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b">
+      <div className="bg-background border-b">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                <Award className="h-8 w-8 text-amber-600" />
+                <Award className="h-8 w-8 text-foreground/70" />
                 <div>
                   <h1 className="text-3xl font-bold text-foreground">Best Sellers</h1>
                   <p className="text-muted-foreground mt-1">
@@ -51,7 +51,7 @@ export default function BestSellersPage() {
                   </p>
                 </div>
               </div>
-              <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-sm">
+              <Badge variant="secondary" className="text-sm">
                 Customer Favorites
               </Badge>
             </div>
@@ -167,25 +167,29 @@ export default function BestSellersPage() {
           }`}>
             {bestSellerData.map((product) => (
               <div key={product.id} className="relative">
-                {/* Best Seller Position Badge */}
-                <div className="absolute top-2 left-2 z-10">
-                  <Badge className={`shadow-lg ${
-                    product.best_seller_position <= 3 
-                      ? 'bg-amber-500 text-white' 
+                {/* Minimalist Best Seller Position Badge */}
+                <div className="absolute top-3 left-3 z-10">
+                  <Badge className={`text-xs font-medium shadow-sm ${
+                    product.best_seller_position === 1
+                      ? 'bg-foreground text-background'
+                      : product.best_seller_position === 2
+                      ? 'bg-foreground/80 text-background'
+                      : product.best_seller_position === 3
+                      ? 'bg-foreground/60 text-background'
                       : product.best_seller_position <= 10
-                      ? 'bg-amber-400 text-white'
-                      : 'bg-amber-300 text-amber-900'
+                      ? 'bg-foreground/40 text-background'
+                      : 'bg-foreground/20 text-background'
                   }`}>
                     #{product.best_seller_position}
                   </Badge>
                 </div>
-                
-                {/* Special styling for top 10 */}
+
+                {/* Subtle emphasis for top performers */}
                 <div className={`${
-                  product.best_seller_position <= 10 
-                    ? 'ring-2 ring-amber-400 ring-offset-2' 
+                  product.best_seller_position <= 3
+                    ? 'ring-1 ring-foreground/10'
                     : ''
-                } rounded-lg`}>
+                } rounded-lg transition-all duration-200 hover:ring-1 hover:ring-foreground/20`}>
                   <ProductCard
                     product={{
                       id: product.id,

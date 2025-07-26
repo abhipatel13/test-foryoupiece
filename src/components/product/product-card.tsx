@@ -198,7 +198,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
               )}
               {discountPercentage && (
                 <span className="text-xs font-medium text-primary">
-                  Save ${((product.compare_at_price - product.price) / 100).toFixed(2)}
+                  Save {formatPrice(product.compare_at_price - product.price)}
                 </span>
               )}
             </div>

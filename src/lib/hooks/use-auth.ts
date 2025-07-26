@@ -331,42 +331,7 @@ export function useAuth() {
     return data
   }
 
-  const signInTemporary = async () => {
-    try {
-      // Create a temporary user session
-      const tempEmail = `temp_${Date.now()}@foryoupiece.temp`
-      const tempPassword = 'temp123456'
 
-      // Try to sign up with temporary credentials
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: tempEmail,
-        password: tempPassword,
-        options: {
-          data: {
-            first_name: 'Guest',
-            last_name: 'User',
-            is_temporary: true
-          }
-        }
-      })
-
-      if (signUpError) {
-        // If signup fails, try to sign in (user might already exist)
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: tempEmail,
-          password: tempPassword
-        })
-
-        if (signInError) throw signInError
-        return signInData
-      }
-
-      return signUpData
-    } catch (error) {
-      console.error('Temporary sign-in error:', error)
-      throw error
-    }
-  }
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
     if (!user) {
@@ -417,7 +382,6 @@ export function useAuth() {
     signUpWithEmail,
     signInWithTelegram,
     signInWithGoogle,
-    signInTemporary,
     changePassword,
     updateProfile,
     isAuthenticated: !!user,
