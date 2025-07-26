@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, RefreshCw, CheckCircle, XCircle, Clock, Database, Zap } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, RefreshCw, CheckCircle, XCircle, Clock, Database, Zap, Settings, Activity, BarChart3, History } from 'lucide-react';
+import { useEnhancedSync, useCacheInvalidation } from '@/hooks/useRealTimeRefresh';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface SyncResult {
   success: boolean;
@@ -26,6 +31,30 @@ export default function BoxHeroSyncPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
+  const queryClient = useQueryClient();
+
+  // Enhanced sync functionality
+  const {
+    isSyncing: isEnhancedSyncing,
+    syncHistory,
+    startEnhancedSync,
+    loadSyncHistory
+  } = useEnhancedSync();
+
+  const {
+    isInvalidating,
+    invalidateAll,
+    invalidateCategories,
+    invalidateProducts
+  } = useCacheInvalidation();
+
+  // Sync options for enhanced sync
+  const [syncOptions, setSyncOptions] = useState({
+    syncCategories: true,
+    syncImages: true,
+    syncProducts: false,
+    dryRun: false
+  });
 
   // Fetch sync status on component mount
   useEffect(() => {
@@ -64,8 +93,41 @@ export default function BoxHeroSyncPage() {
       });
       
       const result = await response.json();
-      setLastSyncResult(result);
-      
+
+      // Transform the result to match expected format
+      const transformedResult = {
+        success: result.success,
+        categoriesSynced: result.data?.categoriesSynced,
+        totalItemsProcessed: result.data?.totalItemsProcessed,
+        productsUpdated: result.data?.productsUpdated || 0,
+        productsSkipped: result.data?.productsSkipped || 0,
+        productItemsProcessed: result.data?.productItemsProcessed || 0,
+        duration: result.data?.duration,
+        error: result.error,
+        timestamp: result.data?.timestamp || new Date().toISOString()
+      };
+
+      setLastSyncResult(transformedResult);
+
+      // Trigger cache invalidation if sync was successful
+      if (result.success) {
+        console.log('🗑️ Invalidating React Query cache after successful BoxHero sync');
+
+        // Invalidate all product-related queries
+        await queryClient.invalidateQueries({ queryKey: ['products'] });
+        await queryClient.invalidateQueries({ queryKey: ['product'] });
+        await queryClient.invalidateQueries({ queryKey: ['categories'] });
+        await queryClient.invalidateQueries({ queryKey: ['inventory'] });
+
+        // IMPORTANT: Invalidate dashboard stats to show updated counts
+        await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+
+        console.log('✅ React Query cache invalidated successfully');
+        toast.success('Sync completed successfully! Product data refreshed.');
+      } else {
+        toast.error('Sync failed: ' + (result.error || 'Unknown error'));
+      }
+
       // Refresh sync status after sync
       await fetchSyncStatus();
       
@@ -89,14 +151,74 @@ export default function BoxHeroSyncPage() {
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
+  // Enhanced sync methods
+  const handleEnhancedSync = async () => {
+    try {
+      const result = await startEnhancedSync(syncOptions);
+
+      // Invalidate dashboard stats after enhanced sync
+      console.log('🗑️ Invalidating dashboard cache after enhanced sync...');
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+
+      toast.success(`Enhanced sync completed successfully!`);
+      // Refresh the regular sync status too
+      await fetchSyncStatus();
+    } catch (error) {
+      toast.error('Enhanced sync failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  const handleCacheInvalidation = async (type: string) => {
+    try {
+      switch (type) {
+        case 'all':
+          await invalidateAll();
+          break;
+        case 'categories':
+          await invalidateCategories();
+          break;
+        case 'products':
+          await invalidateProducts();
+          break;
+      }
+      toast.success(`${type} cache invalidated successfully`);
+    } catch (error) {
+      toast.error('Cache invalidation failed');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">BoxHero Sync Management</h1>
         <p className="text-muted-foreground">
-          Manually synchronize product categories from BoxHero inventory system to local database.
+          Comprehensive BoxHero inventory synchronization with basic and advanced features.
         </p>
       </div>
+
+      {/* Main Sync Interface with Tabs */}
+      <Tabs defaultValue="basic" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="basic" className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Basic Sync
+          </TabsTrigger>
+          <TabsTrigger value="enhanced" className="flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Enhanced Sync
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <History className="w-4 h-4" />
+            Sync History
+          </TabsTrigger>
+          <TabsTrigger value="cache" className="flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Cache Management
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="basic" className="mt-6">
+          <div className="space-y-6">
 
       {/* Sync Control Card */}
       <Card>
@@ -106,7 +228,7 @@ export default function BoxHeroSyncPage() {
             Manual Sync Control
           </CardTitle>
           <CardDescription>
-            Trigger a manual sync to update categories from BoxHero inventory
+            Trigger a manual sync to update categories, products, and stock quantities from BoxHero inventory
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -156,6 +278,15 @@ export default function BoxHeroSyncPage() {
                 <div className="text-sm text-muted-foreground">
                   <p>Categories synced: {lastSyncResult.categoriesSynced}</p>
                   <p>Total items processed: {lastSyncResult.totalItemsProcessed}</p>
+                  {(lastSyncResult.productsUpdated > 0 || lastSyncResult.productItemsProcessed > 0) && (
+                    <>
+                      <p>Products updated: {lastSyncResult.productsUpdated}</p>
+                      <p>Products processed: {lastSyncResult.productItemsProcessed}</p>
+                      {lastSyncResult.productsSkipped > 0 && (
+                        <p>Products skipped: {lastSyncResult.productsSkipped}</p>
+                      )}
+                    </>
+                  )}
                   <p>Duration: {formatDuration(lastSyncResult.duration || 0)}</p>
                 </div>
               ) : (
@@ -261,6 +392,178 @@ export default function BoxHeroSyncPage() {
           )}
         </CardContent>
       </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="enhanced" className="mt-6">
+          <div className="space-y-6">
+            {/* Enhanced Sync Configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Enhanced Sync Configuration
+                </CardTitle>
+                <CardDescription>
+                  Configure advanced sync options with detailed reporting
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={syncOptions.syncCategories}
+                      onChange={(e) => setSyncOptions(prev => ({ ...prev, syncCategories: e.target.checked }))}
+                      disabled={isEnhancedSyncing}
+                    />
+                    <span>Categories</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={syncOptions.syncImages}
+                      onChange={(e) => setSyncOptions(prev => ({ ...prev, syncImages: e.target.checked }))}
+                      disabled={isEnhancedSyncing}
+                    />
+                    <span>Images</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={syncOptions.syncProducts}
+                      onChange={(e) => setSyncOptions(prev => ({ ...prev, syncProducts: e.target.checked }))}
+                      disabled={isEnhancedSyncing}
+                    />
+                    <span>Products (Beta)</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={syncOptions.dryRun}
+                      onChange={(e) => setSyncOptions(prev => ({ ...prev, dryRun: e.target.checked }))}
+                      disabled={isEnhancedSyncing}
+                    />
+                    <span>Dry Run</span>
+                  </label>
+                </div>
+
+                <Button
+                  onClick={handleEnhancedSync}
+                  disabled={isEnhancedSyncing}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isEnhancedSyncing ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 mr-2" />
+                  )}
+                  {isEnhancedSyncing ? 'Enhanced Syncing...' : 'Start Enhanced Sync'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Enhanced Sync History</CardTitle>
+              <CardDescription>
+                Detailed history of enhanced sync operations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {syncHistory.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  No enhanced sync history available. Start your first enhanced sync above.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {syncHistory.slice(0, 10).map((sync: any) => (
+                    <div
+                      key={sync.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Badge variant={sync.status === 'completed' ? 'default' : 'destructive'}>
+                          {sync.status === 'completed' ? (
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                          ) : (
+                            <XCircle className="w-3 h-3 mr-1" />
+                          )}
+                          {sync.status}
+                        </Badge>
+                        <div>
+                          <p className="font-medium">
+                            {new Date(sync.startedAt).toLocaleString()}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {sync.triggeredBy} • {sync.duration ? `${(sync.duration / 1000).toFixed(1)}s` : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">
+                          {sync.metrics?.changes?.categoriesAdded || 0} categories
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {sync.metrics?.errors?.length || 0} errors
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cache" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Cache Management
+              </CardTitle>
+              <CardDescription>
+                Invalidate caches to ensure fresh data display
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCacheInvalidation('all')}
+                  disabled={isInvalidating}
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Clear All Cache
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCacheInvalidation('categories')}
+                  disabled={isInvalidating}
+                >
+                  <Database className="w-4 h-4 mr-2" />
+                  Categories Cache
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCacheInvalidation('products')}
+                  disabled={isInvalidating}
+                >
+                  <Database className="w-4 h-4 mr-2" />
+                  Products Cache
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

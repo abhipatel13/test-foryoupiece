@@ -3,13 +3,13 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
- * Get admin dashboard statistics
+ * Get admin dashboard statistics (REAL-TIME - NO CACHING)
  * GET /api/admin/dashboard-stats
  */
 export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
-    console.log('📊 Fetching admin dashboard statistics...');
-    
+    console.log('📊 Fetching REAL-TIME admin dashboard statistics...');
+
     // Use service role client to bypass RLS
     const supabase = createServiceRoleClient();
 
@@ -20,6 +20,13 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         error: 'Service configuration error'
       }, { status: 500 });
     }
+
+    // Add cache-busting headers to ensure fresh data
+    const headers = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
 
     // Get total orders
     console.log('📦 Fetching total orders...');
@@ -88,42 +95,78 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       console.error('❌ Error fetching low stock products:', lowStockError);
     }
 
-    // Get BoxHero sync information from local database only (NO AUTOMATIC API CALLS)
-    console.log('📊 Fetching BoxHero sync info from local database...');
+    // Get BoxHero sync information from MANUAL SYNC REPORTS ONLY (NO AUTO-CALCULATION)
+    console.log('📊 Fetching BoxHero sync info from manual sync reports ONLY...');
     let boxHeroSync = null;
     try {
-      // Get the most recent sync status from local database
-      const { data: syncStatus, error: syncError } = await supabase
-        .from('boxhero_sync_logs')
+      // Try to get from sync_reports table first (enhanced reporting)
+      const { data: syncReport, error: reportError } = await supabase
+        .from('sync_reports')
         .select('*')
-        .order('created_at', { ascending: false })
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (!syncError && syncStatus) {
+      if (!reportError && syncReport && syncReport.after_stats) {
+        // Use metrics from the enhanced sync report
+        const afterStats = syncReport.after_stats as any;
+        console.log('✅ Using BoxHero sync metrics from enhanced sync report:', {
+          uniqueProducts: afterStats.products || 0,
+          totalQuantity: afterStats.total_stock || 0,
+          lastSync: syncReport.completed_at,
+          syncStatus: syncReport.status
+        });
+
         boxHeroSync = {
-          uniqueProducts: 755, // Static value - updated only during manual sync
-          totalQuantity: 1258, // Static value - updated only during manual sync
-          syncStatus: syncStatus.status || 'UNKNOWN',
-          lastSync: syncStatus.created_at,
-          lastVerified: syncStatus.created_at
+          uniqueProducts: afterStats.products || 0,     // From actual BoxHero sync
+          totalQuantity: afterStats.total_stock || 0,   // From actual BoxHero sync
+          syncStatus: syncReport.status || 'COMPLETED',
+          lastSync: syncReport.completed_at,
+          lastVerified: syncReport.completed_at
         };
       } else {
-        // Fallback if no sync logs exist
-        boxHeroSync = {
-          uniqueProducts: 755,
-          totalQuantity: 1258,
-          syncStatus: 'MANUAL_ONLY',
-          lastSync: null,
-          lastVerified: null
-        };
+        // Fallback to basic sync_logs table
+        const { data: syncStatus, error: syncError } = await supabase
+          .from('sync_logs')
+          .select('*')
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!syncError && syncStatus) {
+          console.log('✅ Using BoxHero sync metrics from basic sync log (fallback):', {
+            totalItemsProcessed: syncStatus.total_items_processed || 0,
+            lastSync: syncStatus.created_at,
+            syncStatus: syncStatus.status
+          });
+
+          boxHeroSync = {
+            uniqueProducts: syncStatus.total_items_processed || 0, // Fallback: use total items as unique products
+            totalQuantity: 0, // Not available in basic sync logs
+            syncStatus: syncStatus.status || 'COMPLETED',
+            lastSync: syncStatus.created_at,
+            lastVerified: syncStatus.created_at
+          };
+        } else {
+          // No sync logs exist - show placeholder until first manual sync
+          console.log('⚠️ No BoxHero sync logs found - showing placeholder until first manual sync');
+          boxHeroSync = {
+            uniqueProducts: 0,
+            totalQuantity: 0,
+            syncStatus: 'NEVER_SYNCED',
+            lastSync: null,
+            lastVerified: null
+          };
+        }
       }
     } catch (error) {
-      console.error('❌ Error fetching BoxHero sync info from local database:', error);
+      console.error('❌ Error fetching BoxHero sync info from manual sync logs:', error);
       // Don't fail the entire dashboard if sync logs are unavailable
       boxHeroSync = {
-        uniqueProducts: 755,
-        totalQuantity: 1258,
+        uniqueProducts: 0,
+        totalQuantity: 0,
         syncStatus: 'ERROR',
         lastSync: null,
         lastVerified: null
@@ -179,7 +222,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       boxHeroSync: boxHeroSync
     };
 
-    console.log('✅ Dashboard stats compiled:', {
+    console.log('✅ REAL-TIME Dashboard stats compiled:', {
       totalOrders: stats.totalOrders,
       totalRevenue: stats.totalRevenue,
       totalProducts: stats.totalProducts,
@@ -187,13 +230,15 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       pendingOrders: stats.pendingOrders,
       lowStockProducts: stats.lowStockProducts,
       recentOrdersCount: stats.recentOrders.length,
-      topProductsCount: stats.topProducts.length
+      topProductsCount: stats.topProducts.length,
+      timestamp: new Date().toISOString()
     });
 
     return NextResponse.json({
       success: true,
-      data: stats
-    });
+      data: stats,
+      timestamp: new Date().toISOString()
+    }, { headers });
 
   } catch (error) {
     console.error('❌ Error fetching dashboard stats:', error);

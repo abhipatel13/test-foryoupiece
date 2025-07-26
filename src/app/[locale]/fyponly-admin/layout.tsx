@@ -28,7 +28,8 @@ import {
   UserCheck,
   ArrowLeft,
   Crown,
-  Tag
+  Tag,
+  Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
 

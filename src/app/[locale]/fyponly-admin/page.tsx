@@ -8,16 +8,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { 
-  TrendingUp, 
-  Package, 
-  ShoppingCart, 
-  Users, 
+import {
+  TrendingUp,
+  Package,
+  ShoppingCart,
+  Users,
   DollarSign,
   Eye,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  RefreshCw,
+  Zap,
+  Clock,
+  Activity
 } from 'lucide-react'
+import { useAdminDashboardRealTime } from '@/hooks/useRealTimeRefresh'
+import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface BoxHeroSync {
   uniqueProducts: number
@@ -40,17 +48,25 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    loadDashboardStats()
-  }, [])
-
-  const loadDashboardStats = async () => {
-    try {
-      console.log('📊 Loading dashboard stats from API...');
-      const response = await fetch('/api/admin/dashboard-stats');
+  // Use React Query for real-time dashboard stats
+  const {
+    data: stats,
+    isLoading: loading,
+    error,
+    refetch: refetchStats,
+    isFetching
+  } = useQuery({
+    queryKey: ['admin-dashboard-stats'],
+    queryFn: async () => {
+      console.log('🔄 Fetching dashboard stats via React Query...');
+      const response = await fetch('/api/admin/dashboard-stats', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -58,44 +74,132 @@ export default function AdminDashboard() {
 
       const result = await response.json();
 
-      if (result.success) {
-        console.log('✅ Dashboard stats loaded successfully:', result.data);
-        setStats(result.data);
-      } else {
+      if (!result.success) {
         throw new Error(result.error || 'Failed to load dashboard stats');
       }
+
+      console.log('✅ Dashboard stats loaded via React Query:', result.data);
+      return result.data;
+    },
+    staleTime: 0, // Always fetch fresh data
+    cacheTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    retry: 2
+  })
+
+  // Use real-time refresh capabilities
+  const {
+    isRefreshing,
+    lastRefresh,
+    autoRefreshEnabled,
+    toggleAutoRefresh,
+    refreshDashboard,
+    invalidateDashboard,
+    isInvalidating,
+    isSyncing,
+    syncAndRefresh,
+    syncHistory
+  } = useAdminDashboardRealTime()
+
+  // Handle errors
+  useEffect(() => {
+    if (error) {
+      console.error('❌ Dashboard stats error:', error);
+      toast.error('Failed to load dashboard stats');
+    }
+  }, [error])
+
+  // Enhanced refresh function with cache invalidation
+  const handleRefresh = async () => {
+    try {
+      console.log('🔄 Refreshing dashboard with cache invalidation...');
+
+      // Invalidate React Query cache
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+
+      // Also trigger manual refetch
+      await refetchStats();
+
+      // Refresh other dashboard components
+      await refreshDashboard();
+
+      toast.success('Dashboard refreshed successfully');
+      console.log('✅ Dashboard refresh completed');
     } catch (error) {
-      console.error('❌ Error loading dashboard stats:', error);
-      // Set fallback stats to prevent UI from breaking
-      setStats({
-        totalOrders: 0,
-        totalRevenue: 0,
-        totalProducts: 0,
-        totalUsers: 0,
-        pendingOrders: 0,
-        lowStockProducts: 0,
-        recentOrders: [],
-        topProducts: []
-      });
-    } finally {
-      setLoading(false)
+      console.error('❌ Dashboard refresh failed:', error);
+      toast.error('Failed to refresh dashboard');
     }
   }
 
-  if (loading) {
+  // Auto-refresh after BoxHero sync
+  const handleSyncAndRefresh = async () => {
+    try {
+      console.log('🔄 Starting BoxHero sync and dashboard refresh...');
+
+      // Perform sync
+      await syncAndRefresh();
+
+      // Force refresh dashboard stats
+      await handleRefresh();
+
+      toast.success('Sync completed and dashboard refreshed');
+    } catch (error) {
+      console.error('❌ Sync and refresh failed:', error);
+      toast.error('Sync failed');
+    }
+  }
+
+  // Enhanced sync function
+  const handleEnhancedSync = async () => {
+    try {
+      const result = await syncAndRefresh({
+        syncCategories: true,
+        syncImages: true,
+        syncProducts: false
+      })
+      toast.success(`Sync completed: ${result.summary.categoriesProcessed} categories processed`)
+    } catch (error) {
+      toast.error('Sync failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
+  }
+
+  // Cache invalidation function
+  const handleCacheInvalidation = async () => {
+    try {
+      console.log('🗑️ Invalidating dashboard cache...');
+
+      // Invalidate React Query cache
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+
+      // Also invalidate other admin caches
+      await invalidateDashboard();
+
+      // Force refetch
+      await refetchStats();
+
+      toast.success('Cache invalidated and dashboard refreshed');
+      console.log('✅ Cache invalidation completed');
+    } catch (error) {
+      console.error('❌ Cache invalidation failed:', error);
+      toast.error('Cache invalidation failed');
+    }
+  }
+
+  if (loading && !stats) {
     return (
       <div className="space-y-6">
         <div>
           <Skeleton className="h-8 w-64 mb-2" />
           <Skeleton className="h-4 w-96" />
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Skeleton className="h-96" />
           <Skeleton className="h-96" />
@@ -107,9 +211,92 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Welcome to your admin dashboard. Here's what's happening with your store today.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Welcome to your admin dashboard. Here's what's happening with your store today.</p>
+        </div>
+
+        {/* Real-time Controls */}
+        <div className="flex items-center gap-2">
+          {/* Real-time Status Indicator */}
+          {(isFetching || isRefreshing) && (
+            <div className="flex items-center text-sm text-blue-600 mr-2">
+              <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+              Updating...
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading || isRefreshing || isFetching}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${(isRefreshing || isFetching) ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCacheInvalidation}
+            disabled={isInvalidating}
+          >
+            <Zap className={`h-4 w-4 mr-2 ${isInvalidating ? 'animate-pulse' : ''}`} />
+            Clear Cache
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncAndRefresh}
+            disabled={isSyncing}
+          >
+            <Activity className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-pulse' : ''}`} />
+            Sync & Refresh
+          </Button>
+
+          <Button
+            variant={autoRefreshEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={toggleAutoRefresh}
+          >
+            <Clock className="h-4 w-4 mr-2" />
+            Auto Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Status Indicators */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {(isSyncing || isInvalidating || isFetching) && (
+            <Alert className="w-auto">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {isSyncing && "Enhanced sync in progress..."}
+                {isInvalidating && "Cache invalidation in progress..."}
+                {isFetching && "Fetching latest data..."}
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        {/* Data Freshness Indicator */}
+        <div className="text-sm text-gray-500 flex items-center gap-2">
+          {stats?.timestamp && (
+            <>
+              <Clock className="h-4 w-4" />
+              Last updated: {new Date(stats.timestamp).toLocaleTimeString()}
+            </>
+          )}
+          {autoRefreshEnabled && (
+            <Badge variant="secondary" className="ml-2">
+              Auto-refresh ON
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}

@@ -462,12 +462,8 @@ const adminQueries = {
   },
 
   async getDashboardStats() {
-    // Check cache first - dashboard stats can be cached for 2 minutes
-    const cacheKey = cacheKeys.dashboardStats()
-    const cachedStats = cache.get(cacheKey)
-    if (cachedStats) {
-      return cachedStats
-    }
+    // REAL-TIME DASHBOARD - NO CACHING for fresh data
+    console.log('📊 Fetching REAL-TIME dashboard stats (no cache)...');
 
     const supabase = createClient()
 
@@ -531,11 +527,17 @@ const adminQueries = {
       pendingOrders: pendingOrders || 0,
       lowStockProducts: lowStockProducts || 0,
       recentOrders: recentOrders || [],
-      topProducts: topProducts || []
+      topProducts: topProducts || [],
+      timestamp: new Date().toISOString()
     }
 
-    // Cache the stats for 2 minutes
-    cache.set(cacheKey, stats, 2 * 60 * 1000)
+    console.log('✅ REAL-TIME dashboard stats compiled (no cache):', {
+      totalOrders: stats.totalOrders,
+      pendingOrders: stats.pendingOrders,
+      totalProducts: stats.totalProducts,
+      lowStockProducts: stats.lowStockProducts,
+      timestamp: stats.timestamp
+    });
 
     return stats
   },
