@@ -563,34 +563,6 @@ export default function HomePage() {
         </section>
 
 
-
-
-
-        {/* Best Sellers */}
-        <section className="mb-16">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-foreground mb-2">Best Sellers</h2>
-            <p className="text-muted-foreground">Customer favorites that keep selling out</p>
-          </div>
-          {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="modern-product-card p-6 animate-pulse">
-                  <div className="aspect-square bg-secondary rounded-lg mb-4"></div>
-                  <div className="h-4 bg-secondary rounded mb-2"></div>
-                  <div className="h-3 bg-secondary rounded mb-2"></div>
-                  <div className="h-4 bg-secondary rounded w-20"></div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-              {allProducts.slice(18, 24).map((product) => (
-                <ProductCard key={product.id} product={product} locale="en" />
-              ))}
-            </div>
-          )}
-        </section>
       </div>
 
       {/* Features Section - Modern */}
