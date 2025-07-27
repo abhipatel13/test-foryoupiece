@@ -136,28 +136,35 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
     }
 
     // Enhanced security check for super admin
-    if (adminUser.role === 'super_admin' && user.email !== 'akito12350@gmail.com') {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ Super admin role mismatch - unauthorized access attempt:', {
-          userId: user.id,
-          email: user.email,
-          role: adminUser.role,
-          endpoint: request.nextUrl.pathname,
-          method: request.method,
-          timestamp: new Date().toISOString()
-        })
-      }
-      return {
-        success: false,
-        error: 'Unauthorized super admin access',
-        response: NextResponse.json({
+    if (adminUser.role === 'super_admin') {
+      const allowedSuperAdminEmails = [
+        process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+        process.env.NEXT_PUBLIC_ADMIN_EMAIL_BACKUP
+      ].filter(Boolean) // Remove undefined values
+
+      if (!allowedSuperAdminEmails.includes(user.email || '')) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ Super admin role mismatch - unauthorized access attempt:', {
+            userId: user.id,
+            email: user.email,
+            role: adminUser.role,
+            endpoint: request.nextUrl.pathname,
+            method: request.method,
+            timestamp: new Date().toISOString()
+          })
+        }
+        return {
           success: false,
-          error: 'Unauthorized access'
-        }, { status: 403 })
+          error: 'Unauthorized super admin access',
+          response: NextResponse.json({
+            success: false,
+            error: 'Unauthorized access'
+          }, { status: 403 })
+        }
       }
     }
 
-    // Log admin API access in development
+    // Log admin API access with security context
     if (process.env.NODE_ENV === 'development') {
       console.log('✅ Admin API access granted:', {
         userId: user.id,
@@ -165,6 +172,16 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
         role: adminUser.role,
         endpoint: request.nextUrl.pathname,
         method: request.method,
+        userAgent: request.headers.get('user-agent'),
+        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        timestamp: new Date().toISOString()
+      })
+    } else {
+      // In production, log only essential security information
+      console.log('✅ Admin API access:', {
+        userId: user.id.substring(0, 8) + '...',
+        role: adminUser.role,
+        endpoint: request.nextUrl.pathname,
         timestamp: new Date().toISOString()
       })
     }

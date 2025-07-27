@@ -73,15 +73,30 @@ function AdminLoginForm() {
   }
 
   const handleTempLogin = async () => {
+    // Security check: Only allow in development environment
+    if (process.env.NODE_ENV !== 'development') {
+      setError('Temporary login is disabled in production for security.')
+      toast.error('Feature disabled in production')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
-      await signInWithEmail('akito12350@gmail.com', 'temppassword123')
-      toast.success('Super admin access granted!')
+      // Get admin credentials from environment variables for security
+      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_TEMP_PASSWORD
+
+      if (!adminEmail || !adminPassword) {
+        throw new Error('Admin credentials not configured')
+      }
+
+      await signInWithEmail(adminEmail, adminPassword)
+      toast.success('Development admin access granted!')
     } catch (err: any) {
-      setError('Temporary login failed. Please use your admin credentials.')
-      toast.error('Temporary login failed')
+      setError('Development login failed. Please use your admin credentials.')
+      toast.error('Development login failed')
     } finally {
       setLoading(false)
     }
@@ -177,25 +192,28 @@ function AdminLoginForm() {
               </Button>
             </form>
 
-            {/* Temporary Login Section */}
-            <div className="border-t pt-4">
-              <div className="text-center mb-3">
-                <p className="text-sm text-gray-600 mb-2">For testing and demonstration:</p>
+            {/* Temporary Login Section - Development Only */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="border-t pt-4">
+                <div className="text-center mb-3">
+                  <p className="text-sm text-red-600 mb-2 font-semibold">⚠️ DEVELOPMENT ONLY</p>
+                  <p className="text-xs text-gray-600 mb-2">This feature is disabled in production</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={handleTempLogin}
+                  disabled={loading}
+                >
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  {loading ? 'Accessing...' : 'Development Admin Access'}
+                </Button>
+                <p className="text-xs text-red-500 mt-2 text-center">
+                  Uses configured admin credentials for development testing
+                </p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleTempLogin}
-                disabled={loading}
-              >
-                <UserCheck className="h-4 w-4 mr-2" />
-                {loading ? 'Accessing...' : 'Temporary Admin Access'}
-              </Button>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                Uses akito12350@gmail.com credentials for testing
-              </p>
-            </div>
+            )}
 
             {/* Security Notice */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
@@ -245,7 +263,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       // Enhanced security check - verify user email for super admin
       if (adminUser && adminUser.role === 'super_admin') {
-        const allowedSuperAdminEmails = ['akito12350@gmail.com', 'test@foryoupiece.com']
+        const allowedSuperAdminEmails = [
+          process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+          process.env.NEXT_PUBLIC_ADMIN_EMAIL_BACKUP
+        ].filter(Boolean) // Remove undefined values
+
         if (!allowedSuperAdminEmails.includes(user.email || '')) {
           if (process.env.NODE_ENV === 'development') {
             console.error('Super admin role mismatch - unauthorized access attempt')
@@ -421,7 +443,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   alt="ForYouPiece Admin"
                   width={32}
                   height={32}
-                  className="rounded-lg shadow-sm"
+                  className="rounded-lg shadow-sm object-contain"
+                  priority
                 />
                 <span className="font-bold text-xl">Admin</span>
               </div>

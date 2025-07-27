@@ -115,6 +115,7 @@ export function Header() {
                   width={32}
                   height={32}
                   className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                  priority
                 />
                 <Image
                   src="/logo.jpg"
@@ -122,6 +123,7 @@ export function Header() {
                   width={80}
                   height={24}
                   className="hidden sm:block object-contain flex-shrink-0"
+                  priority
                 />
               </div>
             </Link>

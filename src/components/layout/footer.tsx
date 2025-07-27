@@ -20,6 +20,7 @@ export function Footer() {
                 width={32}
                 height={32}
                 className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                priority
               />
               <Image
                 src="/logo.jpg"
@@ -27,6 +28,7 @@ export function Footer() {
                 width={80}
                 height={24}
                 className="object-contain flex-shrink-0"
+                priority
               />
             </div>
             <p className="text-muted-foreground leading-relaxed max-w-sm">

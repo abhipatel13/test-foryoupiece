@@ -5,14 +5,22 @@ import { SupabaseProductRepository } from '@/infrastructure/repositories/Supabas
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
-// API token for BoxHero
-const BOXHERO_API_TOKEN = 'a827b827-36f7-4e0e-b66b-db6990469aaa';
+// API token for BoxHero - loaded from environment variables
+const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
 
 /**
  * Test BoxHero connection
  */
 export async function GET(request: NextRequest) {
   try {
+    if (!BOXHERO_API_TOKEN) {
+      console.error('❌ BOXHERO_API_TOKEN environment variable is not set');
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
+    }
+
     const boxHeroService = new BoxHeroService(BOXHERO_API_TOKEN);
     const result = await boxHeroService.testConnection();
 
@@ -67,6 +75,14 @@ export async function POST(request: NextRequest) {
 
     // Debug: Log what we received
     console.log('🔍 API received:', { action, dryRun, updateExisting, addNew, syncStock });
+
+    if (!BOXHERO_API_TOKEN) {
+      console.error('❌ BOXHERO_API_TOKEN environment variable is not set');
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
+    }
 
     // Initialize services with service role client (bypasses RLS)
     const boxHeroService = new BoxHeroService(BOXHERO_API_TOKEN);

@@ -3,8 +3,8 @@ import { InventoryService } from '@/application/services/InventoryService';
 import { SupabaseProductRepository } from '@/infrastructure/repositories/SupabaseProductRepository';
 import { BoxHeroService } from '@/infrastructure/services/BoxHeroService';
 
-// API token for BoxHero
-const BOXHERO_API_TOKEN = 'a827b827-36f7-4e0e-b66b-db6990469aaa';
+// API token for BoxHero - loaded from environment variables
+const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
 
 /**
  * Record a sale and update inventory
@@ -20,6 +20,14 @@ export async function POST(request: NextRequest) {
         success: false,
         error: 'Product ID and quantity are required',
       }, { status: 400 });
+    }
+
+    if (!BOXHERO_API_TOKEN) {
+      console.error('❌ BOXHERO_API_TOKEN environment variable is not set');
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
     }
 
     // Initialize services

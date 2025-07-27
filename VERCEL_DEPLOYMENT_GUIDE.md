@@ -1,5 +1,7 @@
 # 🚀 Vercel Deployment Guide for ForYouPiece E-commerce
 
+⚠️ **SECURITY WARNING**: This documentation uses placeholder values only. Never commit real API keys, tokens, or credentials to version control. Use your actual production credentials when configuring Vercel environment variables.
+
 ## Critical Environment Variables for Vercel
 
 ### Required Environment Variables
@@ -8,21 +10,24 @@ Configure these in **Vercel Dashboard > Project Settings > Environment Variables
 
 | Variable Name | Value | Environment | Notes |
 |---------------|-------|-------------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://xhfmyghtcugcocchzgja.supabase.co` | All | ✅ Safe for client |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | All | ✅ Safe for client |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | All | ❌ Server-side only |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://your-project-id.supabase.co` | All | ✅ Safe for client |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `your_supabase_anon_key_here` | All | ✅ Safe for client |
+| `SUPABASE_SERVICE_ROLE_KEY` | `your_supabase_service_role_key_here` | All | ❌ Server-side only |
 | `NEXT_PUBLIC_SITE_URL` | `https://your-domain.vercel.app` | Production | ✅ Safe for client |
 | `NEXTAUTH_URL` | `https://your-domain.vercel.app` | Production | ❌ Server-side only |
 | `NEXTAUTH_SECRET` | `your-production-secret-key` | All | ❌ Server-side only |
-| `BOXHERO_API_TOKEN` | `a827b827-36f7-4e0e-b66b-db6990469aaa` | All | ❌ Server-side only |
+| `BOXHERO_API_TOKEN` | `your_boxhero_api_token_here` | All | ❌ Server-side only |
 
 ### Optional Variables (for full functionality):
 
 | Variable Name | Value | Environment | Notes |
 |---------------|-------|-------------|-------|
-| `TELEGRAM_BOT_TOKEN` | `8066090295:AAHmPDgCvuCA7qrQAF6lGFl1j-AGSZG0zio` | All | ❌ Server-side only |
-| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | `Authenticationfypbot` | All | ✅ Safe for client |
-| `NEXT_PUBLIC_TELEGRAM_BOT_ID` | `8066090295` | All | ✅ Safe for client |
+| `TELEGRAM_BOT_TOKEN` | `your_telegram_bot_token_here` | All | ❌ Server-side only |
+| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | `your_telegram_bot_username_here` | All | ✅ Safe for client |
+| `NEXT_PUBLIC_TELEGRAM_BOT_ID` | `your_telegram_bot_id_here` | All | ✅ Safe for client |
+| `NEXT_PUBLIC_ADMIN_EMAIL` | `your_admin_email_here` | All | ⚠️ Development only |
+| `NEXT_PUBLIC_ADMIN_TEMP_PASSWORD` | `your_admin_temp_password_here` | All | ⚠️ Development only |
+| `NEXT_PUBLIC_ADMIN_EMAIL_BACKUP` | `your_backup_admin_email_here` | All | ⚠️ Development only |
 
 ## 🔧 Deployment Fixes Applied
 

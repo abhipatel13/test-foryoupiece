@@ -1,5 +1,7 @@
 # 🔒 ForYouPiece E-commerce Security Guide
 
+⚠️ **SECURITY WARNING**: This documentation uses placeholder values only. Never commit real API keys, tokens, or credentials to version control. Always use environment variables for sensitive data.
+
 ## Environment Variables Security Configuration
 
 ### ✅ SAFE TO EXPOSE (NEXT_PUBLIC_ prefix)
@@ -8,7 +10,7 @@ These environment variables are designed to be publicly accessible and are safe 
 
 #### **NEXT_PUBLIC_SUPABASE_URL**
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://xhfmyghtcugcocchzgja.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
 ```
 - ✅ **Safe**: Supabase project URL is public by design
 - **Purpose**: Required for client-side Supabase connections
@@ -16,19 +18,19 @@ NEXT_PUBLIC_SUPABASE_URL=https://xhfmyghtcugcocchzgja.supabase.co
 
 #### **NEXT_PUBLIC_SUPABASE_ANON_KEY**
 ```bash
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 - ✅ **Safe**: Anonymous key is designed for public exposure
 - **Purpose**: Enables client-side authentication and public data access
-- **Protection**: 
+- **Protection**:
   - Cannot bypass Row Level Security (RLS) policies
   - Only allows access to data permitted by RLS rules
   - Cannot access admin functions or private user data
 
 #### **NEXT_PUBLIC_TELEGRAM_BOT_USERNAME & NEXT_PUBLIC_TELEGRAM_BOT_ID**
 ```bash
-NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=Authenticationfypbot
-NEXT_PUBLIC_TELEGRAM_BOT_ID=8066090295
+NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=your_telegram_bot_username_here
+NEXT_PUBLIC_TELEGRAM_BOT_ID=your_telegram_bot_id_here
 ```
 - ✅ **Safe**: Bot username and ID are public information
 - **Purpose**: Required for Telegram Login Widget integration
@@ -47,7 +49,7 @@ These environment variables contain sensitive information and must NEVER be pref
 
 #### **SUPABASE_SERVICE_ROLE_KEY**
 ```bash
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 ```
 - ❌ **CRITICAL**: Can bypass all Row Level Security policies
 - **Purpose**: Admin operations and database management
@@ -55,7 +57,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 #### **TELEGRAM_BOT_TOKEN**
 ```bash
-TELEGRAM_BOT_TOKEN=8066090295:AAHmPDgCvuCA7qrQAF6lGFl1j-AGSZG0zio
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 ```
 - ❌ **CRITICAL**: Can control your Telegram bot
 - **Purpose**: Send messages and manage bot functions
@@ -63,7 +65,7 @@ TELEGRAM_BOT_TOKEN=8066090295:AAHmPDgCvuCA7qrQAF6lGFl1j-AGSZG0zio
 
 #### **BOXHERO_API_TOKEN**
 ```bash
-BOXHERO_API_TOKEN=a827b827-36f7-4e0e-b66b-db6990469aaa
+BOXHERO_API_TOKEN=your_boxhero_api_token_here
 ```
 - ❌ **CRITICAL**: Full access to BoxHero inventory system
 - **Purpose**: Inventory synchronization and management
@@ -122,6 +124,8 @@ Admin access is protected by multiple layers:
 2. **Admin Role Check**: Must have entry in `admin_users` table with `is_active = true`
 3. **Permission Verification**: Role-based permissions for specific operations
 4. **Email Verification**: Super admin role requires specific email address
+5. **Environment-Based Security**: Development features are disabled in production
+6. **Enhanced Logging**: All admin access attempts are logged with security context
 
 ## 🚨 Security Best Practices
 

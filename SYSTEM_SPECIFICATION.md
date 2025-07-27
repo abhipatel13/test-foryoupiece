@@ -44,8 +44,8 @@
 
 ### Admin Authentication
 - **Route**: `/en/fyponly-admin` (obscured admin route)
-- **Super Admin Email**: `akito12350@gmail.com`
-- **Temporary Password**: `temppassword123`
+- **Super Admin Email**: Configured via `NEXT_PUBLIC_ADMIN_EMAIL` environment variable
+- **Temporary Password**: Configured via `NEXT_PUBLIC_ADMIN_TEMP_PASSWORD` environment variable
 - **Security Features**:
   - Role-based access control
   - Email verification for super admin
@@ -773,7 +773,7 @@ const nextConfig = {
 1. **User attempts admin access** → `/en/fyponly-admin`
 2. **Authentication check** → Must be logged in
 3. **Admin role verification** → Check `admin_users` table
-4. **Super admin verification** → Email must match `akito12350@gmail.com`
+4. **Super admin verification** → Email must match configured admin email
 5. **Access granted** → Admin dashboard loads
 6. **Access denied** → Redirect to login or error page
 
