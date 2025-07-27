@@ -51,6 +51,8 @@ export default function PointsResetCountdown() {
   } | null>(null)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
+  const [isRankLifetimeResetDialogOpen, setIsRankLifetimeResetDialogOpen] = useState(false)
+  const [isRankLifetimeResetting, setIsRankLifetimeResetting] = useState(false)
 
   // Load reset information
   const loadResetInfo = async () => {
@@ -81,12 +83,13 @@ export default function PointsResetCountdown() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          confirmReset: true
+          confirmReset: true,
+          resetType: 'manual'
         })
       })
 
       const data = await response.json()
-      
+
       if (data.success) {
         toast.success(
           `Points reset successful! ${data.data.usersAffected} users affected, ${data.data.totalPointsReset.toLocaleString()} points reset.`
@@ -101,6 +104,40 @@ export default function PointsResetCountdown() {
       toast.error('Failed to reset points')
     } finally {
       setIsResetting(false)
+    }
+  }
+
+  // Perform rank and lifetime points reset
+  const performRankLifetimeReset = async () => {
+    setIsRankLifetimeResetting(true)
+    try {
+      const response = await fetch('/api/admin/points/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          confirmReset: true,
+          resetType: 'admin_rank'
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(
+          `Rank & Lifetime Points reset successful! ${data.data.usersAffected} users affected, ${data.data.totalPointsReset.toLocaleString()} lifetime points reset. Usable points preserved.`
+        )
+        setIsRankLifetimeResetDialogOpen(false)
+        loadResetInfo() // Reload info
+      } else {
+        toast.error(data.error || 'Failed to reset ranks and lifetime points')
+      }
+    } catch (error) {
+      console.error('Rank lifetime reset error:', error)
+      toast.error('Failed to reset ranks and lifetime points')
+    } finally {
+      setIsRankLifetimeResetting(false)
     }
   }
 
@@ -356,6 +393,96 @@ export default function PointsResetCountdown() {
                     ) : (
                       <>
                         <AlertTriangle className="h-4 w-4 mr-2" />
+                        Confirm Reset
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin Rank & Lifetime Points Reset */}
+      {resetInfo.canPerformManualReset && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-purple-800">
+              <Crown className="h-5 w-5" />
+              Reset All User Ranks & Lifetime Points Tracking
+            </CardTitle>
+            <CardDescription className="text-purple-700">
+              Reset all user ranks to Bronze and reset lifetime points tracking to 0.
+              <strong className="text-purple-900"> Usable points balances are preserved.</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Dialog open={isRankLifetimeResetDialogOpen} onOpenChange={setIsRankLifetimeResetDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-purple-300 text-purple-800 hover:bg-purple-100">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reset All User Ranks & Lifetime Points Tracking (and change the name to Annually accumulated points)
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-purple-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    Confirm Rank & Lifetime Points Reset
+                  </DialogTitle>
+                  <DialogDescription>
+                    This will reset all user ranks to Bronze and reset lifetime points tracking to 0, while preserving usable points balances.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <Alert className="border-purple-200 bg-purple-50">
+                    <AlertTriangle className="h-4 w-4 text-purple-600" />
+                    <AlertDescription className="text-purple-800">
+                      <strong>IMPORTANT:</strong> This action resets rank progression but preserves user spending power.
+                      Users keep their usable points but lose their tier status and lifetime accumulation tracking.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-2 text-sm">
+                    <p><strong>This action will:</strong></p>
+                    <ul className="list-disc list-inside space-y-1 text-gray-600">
+                      <li>Reset all user tiers to Bronze</li>
+                      <li>Reset all lifetime points earned tracking to 0</li>
+                      <li><strong className="text-green-600">PRESERVE all usable points balances</strong></li>
+                      <li>Create a reset history record for audit</li>
+                      <li>Log the action with admin details</li>
+                      <li>Cannot be undone</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-green-800">
+                      <strong>✓ Safe for users:</strong> This reset preserves all usable points that users can spend,
+                      only resetting their rank progression and lifetime accumulation tracking.
+                    </p>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsRankLifetimeResetDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={performRankLifetimeReset}
+                    disabled={isRankLifetimeResetting}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {isRankLifetimeResetting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Resetting...
+                      </>
+                    ) : (
+                      <>
+                        <Crown className="h-4 w-4 mr-2" />
                         Confirm Reset
                       </>
                     )}

@@ -106,8 +106,8 @@ export default function AdminPointsPage() {
               { name: 'Bronze', icon: '🥉', points: '0+', color: 'bg-amber-50 border-amber-200' },
               { name: 'Silver', icon: '🥈', points: '5,000+', color: 'bg-gray-50 border-gray-200' },
               { name: 'Gold', icon: '🥇', points: '15,000+', color: 'bg-yellow-50 border-yellow-200' },
-              { name: 'Platinum', icon: '💎', points: '35,000+', color: 'bg-purple-50 border-purple-200' },
-              { name: 'Diamond', icon: '💠', points: '50,000+', color: 'bg-blue-50 border-blue-200' }
+              { name: 'Platinum', icon: '🏆', points: '35,000+', color: 'bg-slate-50 border-slate-200' },
+              { name: 'Diamond', icon: '💎', points: '50,000+', color: 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-300 shadow-lg ring-2 ring-blue-200 ring-opacity-30' }
             ].map((tier) => (
               <div key={tier.name} className={`p-4 rounded-lg border-2 ${tier.color}`}>
                 <div className="text-center">

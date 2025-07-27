@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Manual points reset request received');
+    console.log('🔄 Admin reset request received');
 
     // Use service role client for admin operations (authentication handled by middleware)
     const serviceClient = createServiceRoleClient();
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { confirmReset } = body;
+    const { confirmReset, resetType = 'manual' } = body;
 
     if (!confirmReset) {
       return NextResponse.json({
@@ -34,30 +34,47 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('⚠️ Performing manual points reset by admin');
+    // Admin user ID (in production, get from authenticated session)
+    const adminUserId = '80901357-6a94-4b8a-91d7-4f9b5e5fb44c';
 
-    // Call the database function to perform reset
-    const adminUserId = '80901357-6a94-4b8a-91d7-4f9b5e5fb44c'; // Current logged-in user
+    let resetResult, resetError;
 
-    const { data: resetResult, error: resetError } = await serviceClient
-      .rpc('perform_annual_points_reset', {
-        admin_user_id_param: adminUserId,
-        reset_type_param: 'manual'
-      });
+    if (resetType === 'admin_rank') {
+      console.log('⚠️ Performing admin rank and lifetime points reset');
+
+      const { data, error } = await serviceClient
+        .rpc('perform_admin_rank_lifetime_reset', {
+          admin_user_id_param: adminUserId
+        });
+
+      resetResult = data;
+      resetError = error;
+    } else {
+      console.log('⚠️ Performing manual points reset by admin');
+
+      const { data, error } = await serviceClient
+        .rpc('perform_manual_points_reset', {
+          admin_user_id_param: adminUserId
+        });
+
+      resetResult = data;
+      resetError = error;
+    }
 
     if (resetError) {
-      console.error('❌ Points reset failed:', resetError);
+      console.error('❌ Reset failed:', resetError);
       return NextResponse.json({
         success: false,
-        error: 'Failed to reset points: ' + resetError.message
+        error: 'Failed to perform reset: ' + resetError.message
       }, { status: 500 });
     }
 
     const result = resetResult[0];
 
-    console.log('✅ Points reset successful:', {
+    console.log('✅ Reset successful:', {
+      resetType,
       usersAffected: result.users_affected,
-      totalPointsReset: result.total_points_reset,
+      totalReset: resetType === 'rank_lifetime' ? result.total_lifetime_points_reset : result.total_points_reset,
       resetId: result.reset_id
     });
 
@@ -65,16 +82,16 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         usersAffected: result.users_affected,
-        totalPointsReset: result.total_points_reset,
+        totalPointsReset: resetType === 'admin_rank' ? result.total_lifetime_points_reset : result.total_points_reset,
         resetId: result.reset_id,
         resetDate: new Date().toISOString(),
-        resetType: 'manual',
+        resetType: resetType,
         adminUserId: 'admin'
       }
     });
 
   } catch (error) {
-    console.error('❌ Points reset error:', error);
+    console.error('❌ Reset error:', error);
     return NextResponse.json({
       success: false,
       error: 'Internal server error'

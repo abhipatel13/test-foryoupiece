@@ -6,6 +6,12 @@ import { Database } from './database.types'
  * This should only be used on the server side for admin operations
  */
 export function createServiceRoleClient() {
+  // Check if we're on the client side
+  if (typeof window !== 'undefined') {
+    console.warn('Service role client should not be used on client side')
+    return null as any
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 

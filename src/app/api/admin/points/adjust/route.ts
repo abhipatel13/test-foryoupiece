@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { createClient } from '@/lib/supabase/server';
+import { getTierFromPoints } from '@/lib/utils';
+import { TierRewardsService } from '@/lib/services/tier-rewards-service';
 
 /**
  * Admin Points Adjustment API
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Verify target user exists
     const { data: targetUser, error: userError } = await serviceClient
       .from('users')
-      .select('id, points_balance, tier_level, first_name, last_name, email')
+      .select('id, points_balance, total_points_earned, tier_level, first_name, last_name, email')
       .eq('id', userId)
       .single();
 
@@ -68,6 +70,34 @@ export async function POST(request: NextRequest) {
         error: 'User not found'
       }, { status: 404 });
     }
+
+    // Get current user data for tier calculation
+    const currentPointsBalance = targetUser.points_balance || 0;
+    const currentTotalEarned = targetUser.total_points_earned || 0;
+    const currentTier = targetUser.tier_level;
+
+    // Calculate new values
+    const newPointsBalance = Math.max(0, currentPointsBalance + pointsAdjustment);
+
+    // For positive adjustments (adding points), update total_points_earned
+    // For negative adjustments (removing points), don't reduce total_points_earned
+    const newTotalEarned = pointsAdjustment > 0
+      ? currentTotalEarned + pointsAdjustment
+      : currentTotalEarned;
+
+    // Calculate new tier based on updated total_points_earned
+    const newTier = getTierFromPoints(newTotalEarned);
+
+    console.log('🔄 Points adjustment calculation:', {
+      currentPointsBalance,
+      currentTotalEarned,
+      currentTier,
+      pointsAdjustment,
+      newPointsBalance,
+      newTotalEarned,
+      newTier,
+      tierChanged: currentTier !== newTier
+    });
 
     // Call the database function to adjust points
     // For now, use the current user as admin (in production, get from session)
@@ -104,18 +134,45 @@ export async function POST(request: NextRequest) {
       pointsAfter: result.points_after,
       newTier: result.new_tier,
       transactionId: result.transaction_id,
-      adjustmentId: result.adjustment_id
+      adjustmentId: result.adjustment_id,
+      tierChanged: currentTier !== newTier
     });
 
     // Get updated user information
     const { data: updatedUser, error: updatedUserError } = await serviceClient
       .from('users')
-      .select('id, points_balance, tier_level, first_name, last_name, email')
+      .select('id, points_balance, tier_level, total_points_earned, first_name, last_name, email')
       .eq('id', userId)
       .single();
 
     if (updatedUserError) {
       console.error('❌ Failed to fetch updated user:', updatedUserError);
+    }
+
+    // Check for tier upgrades and award rewards if tier changed
+    let tierRewardsResult = null;
+    if (currentTier !== result.new_tier && pointsAdjustment > 0) {
+      try {
+        console.log('🎁 Checking for tier rewards due to tier promotion:', {
+          userId,
+          oldTier: currentTier,
+          newTier: result.new_tier
+        });
+
+        const tierRewardsService = new TierRewardsService();
+        tierRewardsResult = await tierRewardsService.checkAndAwardTierUpgrade(userId);
+
+        if (tierRewardsResult.success) {
+          console.log('✅ Tier rewards awarded successfully:', {
+            rewardsCount: tierRewardsResult.rewardsAwarded.length,
+            errors: tierRewardsResult.errors
+          });
+        } else {
+          console.error('❌ Tier rewards failed:', tierRewardsResult.errors);
+        }
+      } catch (tierRewardsError) {
+        console.error('❌ Error processing tier rewards:', tierRewardsError);
+      }
     }
 
     return NextResponse.json({
@@ -124,13 +181,23 @@ export async function POST(request: NextRequest) {
         pointsBefore: result.points_before,
         pointsAfter: result.points_after,
         pointsChanged: pointsAdjustment,
+        oldTier: currentTier,
         newTier: result.new_tier,
+        tierChanged: currentTier !== newTier,
         transactionId: result.transaction_id,
         adjustmentId: result.adjustment_id,
         user: updatedUser || targetUser,
         dollarValueBefore: (result.points_before / 1000).toFixed(2),
         dollarValueAfter: (result.points_after / 1000).toFixed(2),
-        dollarValueChanged: (pointsAdjustment / 1000).toFixed(2)
+        dollarValueChanged: (pointsAdjustment / 1000).toFixed(2),
+        totalPointsEarnedBefore: currentTotalEarned,
+        totalPointsEarnedAfter: updatedUser?.total_points_earned || newTotalEarned,
+        tierRewards: tierRewardsResult ? {
+          success: tierRewardsResult.success,
+          rewardsAwarded: tierRewardsResult.rewardsAwarded,
+          rewardsCount: tierRewardsResult.rewardsAwarded.length,
+          errors: tierRewardsResult.errors
+        } : null
       }
     });
 

@@ -29,6 +29,8 @@ import {
   ArrowLeft,
   Crown,
   Tag,
+  Award,
+  Gift,
   Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -372,6 +374,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       name: 'Points Management',
       href: `/${locale}/fyponly-admin/points`,
       icon: Crown,
+      current: false
+    },
+    {
+      name: 'Tier Management',
+      href: `/${locale}/fyponly-admin/tiers`,
+      icon: Award,
+      current: false
+    },
+    {
+      name: 'Tier Rewards',
+      href: `/${locale}/fyponly-admin/tier-rewards`,
+      icon: Gift,
       current: false
     },
     {

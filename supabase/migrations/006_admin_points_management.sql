@@ -85,21 +85,21 @@ DECLARE
     current_year INTEGER;
 BEGIN
     current_year := EXTRACT(YEAR FROM NOW());
-    
+
     -- Check if reset already performed this year
     IF EXISTS (
-        SELECT 1 FROM points_reset_history 
+        SELECT 1 FROM points_reset_history
         WHERE reset_year = current_year AND reset_type = reset_type_param
     ) THEN
         RAISE EXCEPTION 'Points reset already performed for year %', current_year;
     END IF;
-    
+
     -- Calculate totals before reset
     SELECT COUNT(*), COALESCE(SUM(points_balance), 0)
     INTO users_count, points_total
-    FROM users 
+    FROM users
     WHERE points_balance > 0;
-    
+
     -- Create reset history record
     INSERT INTO points_reset_history (
         reset_year,
@@ -121,30 +121,30 @@ BEGIN
             'reset_by', COALESCE(admin_user_id_param::text, 'system')
         )
     ) RETURNING id INTO reset_record_id;
-    
+
     -- Mark all current user ranks as not current and set reset date
-    UPDATE user_ranks 
+    UPDATE user_ranks
     SET is_current = FALSE, reset_at = NOW()
     WHERE is_current = TRUE;
-    
+
     -- Reset all user points to 0 and tier to bronze
-    UPDATE users 
-    SET 
+    UPDATE users
+    SET
         points_balance = 0,
         tier_level = 'bronze',
         updated_at = NOW()
     WHERE points_balance > 0;
-    
+
     -- Create new bronze rank records for all users
     INSERT INTO user_ranks (user_id, rank, points_at_rank, achieved_at, is_current)
-    SELECT 
+    SELECT
         id,
         'bronze'::user_tier,
         0,
         NOW(),
         TRUE
     FROM users;
-    
+
     -- Return results
     RETURN QUERY SELECT users_count, points_total, reset_record_id;
 END;

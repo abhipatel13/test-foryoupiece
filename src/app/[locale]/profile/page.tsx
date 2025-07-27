@@ -11,12 +11,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Star, Trophy, Gift, Calendar, Mail, Phone, User, Edit, MapPin, CreditCard, Save, Trash2, Package, Clock, Eye, ShoppingBag, X, Award } from 'lucide-react'
-import { formatDate, formatPrice, getCorrectUserTier } from '@/lib/utils'
+import { formatDate, formatPrice, getCorrectUserTier, getTierStyling } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import PointsDashboard from '@/components/user/points-dashboard'
+import TierRewardsDisplay from '@/components/user/tier-rewards-display'
 
 
 
@@ -227,17 +228,14 @@ export default function ProfilePage() {
   }
 
   const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'platinum': return 'bg-purple-100 text-purple-800 border-purple-300'
-      case 'gold': return 'bg-yellow-100 text-yellow-800 border-yellow-300'
-      case 'silver': return 'bg-gray-100 text-gray-800 border-gray-300'
-      default: return 'bg-orange-100 text-orange-800 border-orange-300'
-    }
+    const tierStyling = getTierStyling(tier)
+    return tierStyling.premiumBadgeClass || tierStyling.badgeClass
   }
 
   const getTierIcon = (tier: string) => {
     switch (tier) {
-      case 'platinum': return '💎'
+      case 'diamond': return '💎'
+      case 'platinum': return '🏆'
       case 'gold': return '🥇'
       case 'silver': return '🥈'
       default: return '🥉'
@@ -420,6 +418,8 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
+          {/* Tier Rewards Display */}
+          <TierRewardsDisplay userId={profile?.id} userProfile={profile} />
 
         </div>
 
@@ -673,7 +673,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* Comprehensive Points Dashboard */}
-        {user && <PointsDashboard userId={user.id} />}
+        {user && <PointsDashboard userId={user.id} userProfile={profile} />}
       </div>
     </div>
   )

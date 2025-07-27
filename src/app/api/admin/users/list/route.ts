@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
+import { getTierFromPoints } from '@/lib/utils';
 
 /**
  * Admin User List API with Pagination and Search
@@ -40,6 +41,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         email,
         points_balance,
         tier_level,
+        total_points_earned,
         avatar_url,
         total_spent,
         total_orders,
@@ -69,13 +71,22 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     console.log(`✅ Retrieved ${users.length} users (${count} total)`);
 
     // Format users with additional computed fields
-    const formattedUsers = users.map(user => ({
-      ...user,
-      fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email.split('@')[0],
-      pointsValue: (user.points_balance / 1000).toFixed(2),
-      tierInfo: getTierInfo(user.tier_level),
-      searchRelevance: search.trim() ? calculateSearchRelevance(user, search.trim().toLowerCase()) : 0
-    }));
+    const formattedUsers = users.map(user => {
+      // Calculate correct tier based on total_points_earned
+      const totalPointsEarned = user.total_points_earned || 0;
+      const calculatedTier = getTierFromPoints(totalPointsEarned);
+
+      return {
+        ...user,
+        fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email.split('@')[0],
+        pointsValue: (user.points_balance / 1000).toFixed(2),
+        tierInfo: getTierInfo(calculatedTier), // Use calculated tier instead of stored tier
+        calculatedTier,
+        storedTier: user.tier_level,
+        tierMismatch: user.tier_level !== calculatedTier,
+        searchRelevance: search.trim() ? calculateSearchRelevance(user, search.trim().toLowerCase()) : 0
+      };
+    });
 
     // Sort by search relevance if searching, otherwise keep points order
     if (search.trim()) {

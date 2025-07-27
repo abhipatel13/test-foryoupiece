@@ -171,6 +171,59 @@ export function getTierInfo() {
 }
 
 /**
+ * Get tier-specific styling for UI components
+ * @param tier - User tier
+ * @returns Styling object with colors and CSS classes
+ */
+export function getTierStyling(tier: string) {
+  const tierInfo = getTierInfo()
+  const tierData = tierInfo[tier as keyof typeof tierInfo] || tierInfo.bronze
+
+  const stylingMap = {
+    bronze: {
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+      textColor: 'text-amber-700',
+      bgColor: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      premiumBadgeClass: 'bg-amber-100 text-amber-800 border-amber-200'
+    },
+    silver: {
+      badgeClass: 'bg-gray-100 text-gray-800 border-gray-300',
+      textColor: 'text-gray-700',
+      bgColor: 'bg-gray-50',
+      iconColor: 'text-gray-600',
+      premiumBadgeClass: 'bg-gray-100 text-gray-800 border-gray-300'
+    },
+    gold: {
+      badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      textColor: 'text-yellow-700',
+      bgColor: 'bg-yellow-50',
+      iconColor: 'text-yellow-600',
+      premiumBadgeClass: 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-yellow-300 shadow-sm'
+    },
+    platinum: {
+      badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
+      textColor: 'text-slate-700',
+      bgColor: 'bg-slate-50',
+      iconColor: 'text-slate-600',
+      premiumBadgeClass: 'bg-gradient-to-r from-slate-100 to-slate-200 text-slate-800 border-slate-300 shadow-md'
+    },
+    diamond: {
+      badgeClass: 'bg-gradient-to-r from-blue-100 via-cyan-100 to-blue-100 text-blue-900 border-blue-300 shadow-lg ring-2 ring-blue-200 ring-opacity-50',
+      textColor: 'text-blue-800',
+      bgColor: 'bg-gradient-to-br from-blue-50 to-cyan-50',
+      iconColor: 'text-blue-700',
+      premiumBadgeClass: 'bg-gradient-to-r from-blue-100 via-cyan-100 to-blue-100 text-blue-900 border-blue-300 shadow-lg ring-2 ring-blue-200 ring-opacity-50 animate-pulse'
+    }
+  }
+
+  return {
+    ...tierData,
+    ...stylingMap[tier as keyof typeof stylingMap] || stylingMap.bronze
+  }
+}
+
+/**
  * Convert points to dollar value (1000 points = $1)
  * @param points - Points amount
  * @returns Dollar value

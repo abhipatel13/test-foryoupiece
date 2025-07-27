@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware'
 import { cartQueries } from '@/lib/supabase/queries'
 import { pointsToDollars, calculateOrderPoints } from '@/lib/utils'
 import { AppliedCoupon } from '@/types/coupon'
+import { shippingService, type ShippingCalculationResult } from '@/lib/services/shipping-service'
 
 // Helper function to track cart behavior
 const trackCartBehavior = async (
@@ -51,6 +52,7 @@ type CartStore = {
   userId: string | null
   pointsToRedeem: number
   appliedCoupon: AppliedCoupon | null
+  shippingCalculation: ShippingCalculationResult | null
   addItem: (item: CartItem, stockQuantity?: number) => Promise<boolean>
   removeItem: (id: string, variant?: string) => Promise<void>
   updateQuantity: (id: string, quantity: number, variant?: string) => Promise<boolean>
@@ -82,6 +84,10 @@ type CartStore = {
   removeCoupon: () => void
   getCouponDiscount: () => number
   getFinalTotalWithCouponAndPoints: () => number
+  // Enhanced shipping functions
+  calculateShipping: () => Promise<void>
+  getShippingMessage: () => string
+  getShippingCalculation: () => ShippingCalculationResult | null
 }
 
 // Helper function to normalize variant values consistently
@@ -142,6 +148,7 @@ export const useCartStore = create<CartStore>()(
       isLoading: false,
       userId: null,
       pointsToRedeem: 0,
+      shippingCalculation: null,
       appliedCoupon: null,
 
       setUserId: (userId, forceReload = false) => {
@@ -173,9 +180,13 @@ export const useCartStore = create<CartStore>()(
           // Don't clear items immediately - keep them until database load completes
           // This prevents the cart count from showing 0 temporarily
           get().loadCartFromDatabase()
+          // Recalculate shipping for the new user
+          get().calculateShipping()
         } else if (!userId && currentUserId) {
           // User logged out - local cart will be cleared by clearCartOnLogout
           console.log('🚪 User logged out, cart will be handled by logout process')
+          // Reset shipping calculation on logout
+          set({ shippingCalculation: null })
         }
       },
 
@@ -407,9 +418,15 @@ export const useCartStore = create<CartStore>()(
       },
 
       getShippingFee: () => {
-        const { items } = get()
+        const { shippingCalculation, items } = get()
+
+        // Use enhanced shipping calculation if available
+        if (shippingCalculation) {
+          return shippingCalculation.shippingFee
+        }
+
+        // Fallback to basic quantity-based calculation
         const totalQuantity = items.reduce((count, item) => count + item.quantity, 0)
-        // Free shipping for 4+ items, otherwise $1.50
         return totalQuantity >= 4 ? 0 : 1.50
       },
 
@@ -668,10 +685,14 @@ export const useCartStore = create<CartStore>()(
       // Coupon methods
       applyCoupon: (coupon: AppliedCoupon) => {
         set({ appliedCoupon: coupon })
+        // Recalculate shipping when coupon is applied
+        get().calculateShipping()
       },
 
       removeCoupon: () => {
         set({ appliedCoupon: null })
+        // Recalculate shipping when coupon is removed
+        get().calculateShipping()
       },
 
       getCouponDiscount: () => {
@@ -685,6 +706,42 @@ export const useCartStore = create<CartStore>()(
         const pointsDiscount = getPointsDiscount()
         const couponDiscount = getCouponDiscount()
         return Math.max(0, total - pointsDiscount - couponDiscount)
+      },
+
+      // Enhanced shipping functions
+      calculateShipping: async () => {
+        const { items, userId, appliedCoupon } = get()
+        const itemCount = items.reduce((count, item) => count + item.quantity, 0)
+
+        try {
+          const shippingResult = await shippingService.calculateShipping({
+            itemCount,
+            userId: userId || undefined,
+            appliedCouponCode: appliedCoupon?.code
+          })
+
+          set({ shippingCalculation: shippingResult })
+        } catch (error) {
+          console.error('Error calculating shipping:', error)
+          // Fallback to basic calculation
+          set({
+            shippingCalculation: {
+              shippingFee: itemCount >= 4 ? 0 : 1.50,
+              isFreeShipping: itemCount >= 4,
+              freeShippingReason: itemCount >= 4 ? 'quantity' : 'none'
+            }
+          })
+        }
+      },
+
+      getShippingMessage: () => {
+        const { shippingCalculation } = get()
+        return shippingCalculation?.message || 'Standard shipping'
+      },
+
+      getShippingCalculation: () => {
+        const { shippingCalculation } = get()
+        return shippingCalculation
       },
     }),
     {
@@ -707,6 +764,7 @@ export const useCartStore = create<CartStore>()(
         userId: state.userId,
         pointsToRedeem: state.pointsToRedeem,
         appliedCoupon: state.appliedCoupon,
+        // Don't persist shippingCalculation as it should be recalculated
         // Don't persist loading state
       }),
     }

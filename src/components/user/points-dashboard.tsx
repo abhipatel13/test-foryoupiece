@@ -26,6 +26,13 @@ import { formatPrice, getCorrectUserTier } from '@/lib/utils'
 
 interface PointsDashboardProps {
   userId: string
+  userProfile?: any
+}
+
+interface PointsBreakdown {
+  earnedFromPurchases: number
+  bonusFromRewards: number
+  totalAvailable: number
 }
 
 const getRankIcon = (rank: string) => {
@@ -40,9 +47,9 @@ const getRankIcon = (rank: string) => {
 
 const getRankColor = (rank: string) => {
   switch (rank) {
-    case 'diamond': return 'bg-blue-100 text-blue-800 border-blue-200'
-    case 'platinum': return 'bg-purple-100 text-purple-800 border-purple-200'
-    case 'gold': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    case 'diamond': return 'bg-gradient-to-r from-blue-100 via-cyan-100 to-blue-100 text-blue-900 border-blue-300 shadow-lg ring-2 ring-blue-200 ring-opacity-50'
+    case 'platinum': return 'bg-gradient-to-r from-slate-100 to-slate-200 text-slate-800 border-slate-300 shadow-md'
+    case 'gold': return 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border-yellow-300 shadow-sm'
     case 'silver': return 'bg-gray-100 text-gray-800 border-gray-200'
     default: return 'bg-orange-100 text-orange-800 border-orange-200'
   }
@@ -58,9 +65,10 @@ const getTransactionIcon = (type: string) => {
   }
 }
 
-export default function PointsDashboard({ userId }: PointsDashboardProps) {
+export default function PointsDashboard({ userId, userProfile }: PointsDashboardProps) {
   const [pointsSummary, setPointsSummary] = useState<UserPointsSummary | null>(null)
   const [transactions, setTransactions] = useState<PointTransaction[]>([])
+  const [pointsBreakdown, setPointsBreakdown] = useState<PointsBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -69,6 +77,26 @@ export default function PointsDashboard({ userId }: PointsDashboardProps) {
   useEffect(() => {
     loadPointsData()
   }, [userId])
+
+  const calculatePointsBreakdown = (transactions: PointTransaction[], profile: any): PointsBreakdown => {
+    // After admin reset, use total_points_earned for purchase points (reflects reset state)
+    // and calculate bonus points from current transactions
+    const earnedFromPurchases = profile?.total_points_earned || 0
+    let bonusFromRewards = 0
+
+    // Calculate current bonus points from existing transactions
+    transactions.forEach(transaction => {
+      if (transaction.points > 0 && (transaction.transaction_type === 'bonus' || transaction.reference_type === 'tier_reward')) {
+        bonusFromRewards += transaction.points
+      }
+    })
+
+    return {
+      earnedFromPurchases,
+      bonusFromRewards,
+      totalAvailable: earnedFromPurchases + bonusFromRewards
+    }
+  }
 
   const loadPointsData = async () => {
     try {
@@ -84,6 +112,11 @@ export default function PointsDashboard({ userId }: PointsDashboardProps) {
       const { transactions, error: transactionError } = await pointsService.getUserPointHistory(userId, 20)
       if (transactionError) throw new Error(transactionError)
       setTransactions(transactions)
+
+      // Load all transactions for breakdown calculation
+      const { transactions: allTransactions, error: allTransactionError } = await pointsService.getUserPointHistory(userId, 1000)
+      if (allTransactionError) throw new Error(allTransactionError)
+      setPointsBreakdown(calculatePointsBreakdown(allTransactions, userProfile))
 
     } catch (err: any) {
       console.error('Error loading points data:', err)
@@ -159,6 +192,77 @@ export default function PointsDashboard({ userId }: PointsDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Points Breakdown */}
+      {pointsBreakdown && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Gift className="h-5 w-5 text-purple-500" />
+              <span>Points Breakdown</span>
+            </CardTitle>
+            <CardDescription>
+              Understanding your points sources
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Earned from Purchases */}
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-800">Earned from Purchases</h4>
+                    <p className="text-sm text-green-600">10 points per $1 spent</p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="text-2xl font-bold text-green-700">
+                    {pointsBreakdown.earnedFromPurchases.toLocaleString()}
+                  </div>
+                  <p className="text-sm text-green-600">
+                    Worth {formatPrice(pointsBreakdown.earnedFromPurchases / 1000)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bonus from Tier Rewards */}
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                    <Gift className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-purple-800">Bonus from Tier Rewards</h4>
+                    <p className="text-sm text-purple-600">Tier achievement bonuses</p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="text-2xl font-bold text-purple-700">
+                    {pointsBreakdown.bonusFromRewards.toLocaleString()}
+                  </div>
+                  <p className="text-sm text-purple-600">
+                    Worth {formatPrice(pointsBreakdown.bonusFromRewards / 1000)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Important:</strong> Only purchase points count toward tier ranking
+              </p>
+              <p className="text-xs text-gray-500">
+                Bonus reward points are added to your balance but don't affect your tier progression
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Unified Rank Status */}
       <Card>
