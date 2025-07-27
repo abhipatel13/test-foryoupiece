@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/hooks/use-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
 import { useCartStore } from '@/lib/store/cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
+import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -180,60 +181,14 @@ export function Header() {
                         <p className="text-xs leading-none text-muted-foreground">
                           {profile?.email || 'Telegram User'}
                         </p>
-                        <div className="flex items-center space-x-2 pt-1">
-                          {(() => {
-                            const userTier = getCorrectUserTier(profile)
-                            const tierStyling = getTierStyling(userTier)
-                            return (
-                              <Badge
-                                variant="outline"
-                                className={`text-xs font-semibold ${tierStyling.badgeClass}`}
-                              >
-                                {tierStyling.name}
-                              </Badge>
-                            )
-                          })()}
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-3 w-3 text-yellow-500" />
-                            <span className="text-xs font-medium">{profile?.points_balance || 0} pts</span>
-                          </div>
+                        {/* Enhanced Points Display */}
+                        <div className="pt-2 border-t border-gray-100 mt-2">
+                          <PointsBreakdownComponent
+                            userId={user?.id || ''}
+                            variant="header"
+                            showTierProgress={true}
+                          />
                         </div>
-                        {/* Tier Progress Indicator */}
-                        {(() => {
-                          const totalPointsEarned = profile?.total_points_earned || 0
-                          const currentTier = getTierFromPoints(totalPointsEarned)
-                          const tierThresholds = {
-                            bronze: { next: 'Silver', nextPoints: 5000 },
-                            silver: { next: 'Gold', nextPoints: 15000 },
-                            gold: { next: 'Platinum', nextPoints: 35000 },
-                            platinum: { next: 'Diamond', nextPoints: 50000 },
-                            diamond: { next: null, nextPoints: null }
-                          }
-
-                          const tierInfo = tierThresholds[currentTier as keyof typeof tierThresholds]
-                          if (!tierInfo?.next) return null
-
-                          const pointsToNext = tierInfo.nextPoints - totalPointsEarned
-                          const currentMin = currentTier === 'bronze' ? 0 :
-                                           currentTier === 'silver' ? 5000 :
-                                           currentTier === 'gold' ? 15000 : 35000
-                          const progress = ((totalPointsEarned - currentMin) / (tierInfo.nextPoints - currentMin)) * 100
-
-                          return (
-                            <div className="mt-2 pt-2 border-t border-gray-100">
-                              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                                <span>Next: {tierInfo.next}</span>
-                                <span>{pointsToNext.toLocaleString()} pts to go</span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div
-                                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full transition-all duration-300"
-                                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })()}
                       </div>
                     </div>
                   </DropdownMenuLabel>

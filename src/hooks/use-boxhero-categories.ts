@@ -52,19 +52,50 @@ export function useBoxHeroCategories(): UseBoxHeroCategoriesResult {
         timeoutId = window.setTimeout(() => controller?.abort(), 10000); // 10 second timeout
       }
 
-      const response = await fetch('/api/boxhero/categories', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        },
-        credentials: 'same-origin',
-        ...(controller && { signal: controller.signal })
-      });
+      // Retry logic for development 404 errors (Next.js compilation issues)
+      let response: Response;
+      let lastError: Error | null = null;
+      const maxRetries = 3;
 
-      if (timeoutId) window.clearTimeout(timeoutId);
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          response = await fetch('/api/boxhero/categories', {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            ...(controller && { signal: controller.signal })
+          });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          if (timeoutId) window.clearTimeout(timeoutId);
+
+          // If successful or non-404 error, break out of retry loop
+          if (response.ok || response.status !== 404) {
+            break;
+          }
+
+          // If 404 and not last attempt, wait and retry
+          if (response.status === 404 && attempt < maxRetries) {
+            console.log(`📂 Categories API returned 404, retrying... (${attempt}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+            continue;
+          }
+
+          // If 404 on last attempt, throw error
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        } catch (error) {
+          lastError = error as Error;
+          if (attempt === maxRetries) {
+            throw lastError;
+          }
+          console.log(`📂 Categories API error on attempt ${attempt}, retrying...`, error);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+
+      if (!response!.ok) {
+        throw new Error(`HTTP ${response!.status}: ${response!.statusText}`);
       }
 
       const data: BoxHeroCategoriesResponse = await response.json();

@@ -36,6 +36,38 @@ export interface UserPointsSummary {
   rank_progress_percentage: number
 }
 
+export interface PointsBreakdown {
+  total_available: number
+  earned_points: number
+  tier_reward_points: number
+  breakdown_by_source: {
+    orders: number
+    welcome_bonus: number
+    tier_rewards: number
+    admin_adjustments: number
+    other: number
+  }
+  tier_info: {
+    current_tier: string
+    tier_benefits: string[]
+    next_tier?: string
+    points_to_next?: number
+    progress_percentage: number
+  }
+}
+
+export interface CheckoutPointsInfo {
+  available_points: number
+  points_breakdown: PointsBreakdown
+  redemption_rules: {
+    minimum_points: number
+    increment: number
+    conversion_rate: number // points per dollar
+    max_redeemable: number
+  }
+  suggested_amounts: number[]
+}
+
 export interface RankThresholds {
   bronze: 0
   silver: 5000
@@ -528,9 +560,33 @@ export class PointsService {
         dataIntegrityIssues.push(`Rank mismatch: stored ${userData.tier_level}, calculated ${expectedRank}`)
       }
 
+      // Calculate tier reward points from transactions
+      let tierRewardPoints = 0
+      transactions.forEach((transaction) => {
+        if (transaction.points > 0 &&
+            ((transaction.transaction_type === 'bonus' && transaction.reference_type === 'admin_adjustment') ||
+             transaction.description?.includes('Tier reward'))) {
+          tierRewardPoints += transaction.points
+        }
+      })
+
+      // Calculate earned points (excluding tier rewards)
+      let earnedPoints = 0
+      transactions.forEach((transaction) => {
+        if (transaction.transaction_type === 'earned' ||
+            (transaction.transaction_type === 'bonus' && transaction.reference_type !== 'admin_adjustment') ||
+            (transaction.transaction_type === 'admin_adjustment' && !transaction.description?.includes('Tier reward'))) {
+          earnedPoints += transaction.points
+        } else if (transaction.transaction_type === 'redeemed') {
+          earnedPoints += transaction.points // Already negative
+        }
+      })
+
+      const totalAvailablePoints = earnedPoints + tierRewardPoints
+
       const summary: UserPointsSummary = {
         total_points_earned: totalPointsEarned,
-        points_balance: Math.max(0, storedBalance), // Ensure non-negative
+        points_balance: userData.points_balance, // Use database value as single source of truth
         points_used: pointsUsed,
         weekly_points_used: weeklyPointsUsed,
         current_rank: currentRank,
@@ -631,6 +687,305 @@ export class PointsService {
         ? Math.min(100, ((totalPointsEarned - currentTier.minPoints) / (currentTier.nextPoints - currentTier.minPoints)) * 100)
         : 100
     }
+  }
+
+  /**
+   * Get comprehensive points breakdown for checkout display
+   */
+  async getCheckoutPointsInfo(userId: string): Promise<{ info: CheckoutPointsInfo; error?: string }> {
+    try {
+      // Get user points summary
+      const { summary, error: summaryError } = await this.getUserPointsSummary(userId)
+      if (summaryError) throw new Error(summaryError)
+
+      // Get detailed points breakdown
+      const { breakdown, error: breakdownError } = await this.getPointsBreakdown(userId)
+      if (breakdownError) throw new Error(breakdownError)
+
+      // Calculate suggested redemption amounts using total available points
+      const availablePoints = breakdown.total_available
+      const suggestedAmounts = this.calculateSuggestedRedemptionAmounts(availablePoints)
+
+      const checkoutInfo: CheckoutPointsInfo = {
+        available_points: availablePoints,
+        points_breakdown: breakdown,
+        redemption_rules: {
+          minimum_points: 500,
+          increment: 10,
+          conversion_rate: 1000, // 1000 points = $1
+          max_redeemable: Math.floor(availablePoints / 10) * 10 // Round down to nearest 10
+        },
+        suggested_amounts: suggestedAmounts
+      }
+
+      return { info: checkoutInfo }
+    } catch (error: any) {
+      console.error('Error getting checkout points info:', error)
+      return {
+        info: {
+          available_points: 0,
+          points_breakdown: {
+            total_available: 0,
+            earned_points: 0,
+            tier_reward_points: 0,
+            breakdown_by_source: {
+              orders: 0,
+              welcome_bonus: 0,
+              tier_rewards: 0,
+              admin_adjustments: 0,
+              other: 0
+            },
+            tier_info: {
+              current_tier: 'bronze',
+              tier_benefits: [],
+              progress_percentage: 0
+            }
+          },
+          redemption_rules: {
+            minimum_points: 500,
+            increment: 10,
+            conversion_rate: 1000,
+            max_redeemable: 0
+          },
+          suggested_amounts: []
+        },
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Get detailed points breakdown by source and type
+   */
+  async getPointsBreakdown(userId: string): Promise<{ breakdown: PointsBreakdown; error?: string }> {
+    try {
+      // Get all user transactions
+      const { transactions, error: transactionError } = await this.getUserPointHistory(userId, 1000)
+      if (transactionError) throw new Error(transactionError)
+
+      // Get user profile for tier info
+      const { data: userData, error: userError } = await this.supabase
+        .from('users')
+        .select('points_balance, total_points_earned, tier_level')
+        .eq('id', userId)
+        .single()
+
+      if (userError) throw userError
+
+      // Calculate breakdown by source
+      let earnedFromOrders = 0
+      let welcomeBonus = 0
+      let tierRewards = 0
+      let adminAdjustments = 0
+      let other = 0
+      let totalTierRewardPoints = 0
+
+      transactions.forEach((transaction) => {
+        if (transaction.points > 0) { // Only count positive transactions for breakdown
+          switch (transaction.transaction_type) {
+            case 'earned':
+              if (transaction.reference_type === 'order') {
+                earnedFromOrders += transaction.points
+              } else {
+                other += transaction.points
+              }
+              break
+            case 'bonus':
+              if (transaction.reference_type === 'signup') {
+                welcomeBonus += transaction.points
+              } else if (transaction.reference_type === 'tier_reward' || transaction.description?.includes('Tier reward')) {
+                tierRewards += transaction.points
+                totalTierRewardPoints += transaction.points
+              } else {
+                other += transaction.points
+              }
+              break
+            case 'admin_adjustment':
+              adminAdjustments += transaction.points
+              break
+            default:
+              other += transaction.points
+              break
+          }
+        }
+      })
+
+      // Calculate tier info
+      const totalPointsEarned = userData.total_points_earned || 0
+      const currentTier = PointsService.calculateRank(totalPointsEarned)
+      const nextRankInfo = PointsService.getNextRankInfo(totalPointsEarned)
+      const tierBenefits = this.getTierBenefits(currentTier)
+
+      // Calculate earned points from transactions (excluding tier rewards)
+      let totalEarnedPoints = 0
+      let totalRedeemedPoints = 0
+      let totalRefundedPoints = 0
+
+      transactions.forEach((transaction) => {
+        if (transaction.transaction_type === 'earned' ||
+            (transaction.transaction_type === 'bonus' &&
+             transaction.reference_type !== 'admin_adjustment' &&
+             transaction.reference_type !== 'tier_reward' &&
+             !transaction.description?.includes('Tier reward'))) {
+          // Only add positive points to earned points (excluding tier rewards)
+          if (transaction.points > 0) {
+            totalEarnedPoints += transaction.points
+          }
+        } else if (transaction.transaction_type === 'redeemed') {
+          // Track redeemed points separately (they are negative)
+          totalRedeemedPoints += Math.abs(transaction.points)
+        } else if (transaction.transaction_type === 'refund') {
+          // Track refunded points separately (they are positive)
+          totalRefundedPoints += transaction.points
+        }
+      })
+
+      // Logic: When points are used, they come from earned points first, then tier rewards
+      // Net redeemed = total redeemed - total refunded
+      const netRedeemedPoints = Math.max(0, totalRedeemedPoints - totalRefundedPoints)
+
+      // Calculate remaining earned points after redemptions
+      const remainingEarnedPoints = Math.max(0, totalEarnedPoints - netRedeemedPoints)
+
+      // Calculate how much was taken from tier rewards (if earned points weren't enough)
+      const usedFromTierRewards = Math.max(0, netRedeemedPoints - totalEarnedPoints)
+      const remainingTierRewards = Math.max(0, totalTierRewardPoints - usedFromTierRewards)
+
+      // Calculate actual available points: remaining earned + remaining tier rewards
+      const actualAvailablePoints = remainingEarnedPoints + remainingTierRewards
+
+      const breakdown: PointsBreakdown = {
+        total_available: actualAvailablePoints,
+        earned_points: remainingEarnedPoints, // Remaining earned points after redemptions
+        tier_reward_points: remainingTierRewards, // Remaining tier rewards after redemptions
+        breakdown_by_source: {
+          orders: earnedFromOrders,
+          welcome_bonus: welcomeBonus,
+          tier_rewards: tierRewards,
+          admin_adjustments: adminAdjustments,
+          other: other
+        },
+        tier_info: {
+          current_tier: currentTier,
+          tier_benefits: tierBenefits,
+          next_tier: nextRankInfo.nextRank,
+          points_to_next: nextRankInfo.pointsToNext,
+          progress_percentage: nextRankInfo.progressPercentage
+        }
+      }
+
+      return { breakdown }
+    } catch (error: any) {
+      console.error('Error getting points breakdown:', error)
+      return {
+        breakdown: {
+          total_available: 0,
+          earned_points: 0,
+          tier_reward_points: 0,
+          breakdown_by_source: {
+            orders: 0,
+            welcome_bonus: 0,
+            tier_rewards: 0,
+            admin_adjustments: 0,
+            other: 0
+          },
+          tier_info: {
+            current_tier: 'bronze',
+            tier_benefits: [],
+            progress_percentage: 0
+          }
+        },
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Calculate suggested redemption amounts based on available points
+   */
+  private calculateSuggestedRedemptionAmounts(availablePoints: number): number[] {
+    const suggestions: number[] = []
+
+    if (availablePoints < 500) return suggestions
+
+    // Add common redemption amounts
+    const commonAmounts = [500, 1000, 2500, 5000, 10000, 25000, 50000]
+
+    for (const amount of commonAmounts) {
+      if (amount <= availablePoints && amount >= 500) {
+        suggestions.push(amount)
+      }
+    }
+
+    // Add 25%, 50%, 75%, and 100% of available points (rounded to nearest 10)
+    const percentages = [0.25, 0.5, 0.75, 1.0]
+    for (const percentage of percentages) {
+      const amount = Math.floor((availablePoints * percentage) / 10) * 10
+      if (amount >= 500 && !suggestions.includes(amount)) {
+        suggestions.push(amount)
+      }
+    }
+
+    // Sort and return unique values
+    return [...new Set(suggestions)].sort((a, b) => a - b).slice(0, 6) // Limit to 6 suggestions
+  }
+
+  /**
+   * Get tier-specific benefits
+   */
+  private getTierBenefits(tier: string): string[] {
+    const benefits: { [key: string]: string[] } = {
+      bronze: ['10 points per $1 spent', 'Welcome bonus'],
+      silver: ['10 points per $1 spent', 'Free shipping coupon on tier achievement'],
+      gold: ['10 points per $1 spent', '10,000 bonus points on tier achievement', 'Free shipping coupon'],
+      platinum: ['10 points per $1 spent', '20,000 bonus points on tier achievement', '$50 gift notification'],
+      diamond: ['10 points per $1 spent', 'Permanent free shipping', '$100 end-of-year bundle pack']
+    }
+
+    return benefits[tier] || benefits.bronze
+  }
+
+  /**
+   * Validate points redemption for checkout
+   */
+  validatePointsRedemption(pointsToRedeem: number, availablePoints: number, orderTotal: number): {
+    isValid: boolean
+    error?: string
+    maxRedeemable?: number
+  } {
+    if (pointsToRedeem < 0) {
+      return { isValid: false, error: 'Points to redeem cannot be negative' }
+    }
+
+    if (pointsToRedeem === 0) {
+      return { isValid: true }
+    }
+
+    if (pointsToRedeem < 500) {
+      return { isValid: false, error: 'Minimum redemption is 500 points' }
+    }
+
+    if (pointsToRedeem % 10 !== 0) {
+      return { isValid: false, error: 'Points must be redeemed in increments of 10' }
+    }
+
+    if (pointsToRedeem > availablePoints) {
+      return { isValid: false, error: 'Insufficient points balance' }
+    }
+
+    // Calculate maximum redeemable based on order total (can't exceed order value)
+    const maxRedeemableByOrder = Math.floor(orderTotal * 1000) // Convert dollars to points
+    const maxRedeemable = Math.min(availablePoints, maxRedeemableByOrder)
+
+    if (pointsToRedeem > maxRedeemable) {
+      return {
+        isValid: false,
+        error: 'Points redemption cannot exceed order total',
+        maxRedeemable: Math.floor(maxRedeemable / 10) * 10 // Round down to nearest 10
+      }
+    }
+
+    return { isValid: true }
   }
 }
 

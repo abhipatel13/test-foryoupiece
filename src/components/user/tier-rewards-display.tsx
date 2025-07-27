@@ -83,25 +83,58 @@ export default function TierRewardsDisplay({ userId, userProfile }: TierRewardsD
       const apiUrl = `/api/user/tier-rewards?userId=${userId}`
       console.log('📡 TierRewardsDisplay: Making API request to:', apiUrl)
 
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include' // Include cookies for authentication
-      })
+      // Retry logic for development 404 errors (Next.js compilation issues)
+      let response: Response;
+      let lastError: Error | null = null;
+      const maxRetries = 3;
 
-      console.log('📡 TierRewardsDisplay: API response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries())
-      })
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include' // Include cookies for authentication
+          })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+          console.log(`📡 TierRewardsDisplay: API response (attempt ${attempt}):`, {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries())
+          })
+
+          // If successful or non-404 error, break out of retry loop
+          if (response.ok || response.status !== 404) {
+            break;
+          }
+
+          // If 404 and not last attempt, wait and retry
+          if (response.status === 404 && attempt < maxRetries) {
+            console.log(`🔄 Tier rewards API returned 404, retrying... (${attempt}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+            continue;
+          }
+
+          // If 404 on last attempt, throw error
+          const errorData = await response.json().catch(() => ({}))
+          console.log('❌ TierRewardsDisplay: API error response:', errorData)
+          throw new Error(`Failed to fetch tier rewards: ${response.status} - ${errorData.error || response.statusText}`)
+        } catch (error) {
+          lastError = error as Error;
+          if (attempt === maxRetries) {
+            throw lastError;
+          }
+          console.log(`🔄 Tier rewards API error on attempt ${attempt}, retrying...`, error);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+
+      if (!response!.ok) {
+        const errorData = await response!.json().catch(() => ({}))
         console.log('❌ TierRewardsDisplay: API error response:', errorData)
-        throw new Error(`Failed to fetch tier rewards: ${response.status} - ${errorData.error || response.statusText}`)
+        throw new Error(`Failed to fetch tier rewards: ${response!.status} - ${errorData.error || response!.statusText}`)
       }
 
       const data = await response.json()

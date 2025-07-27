@@ -79,22 +79,24 @@ export default function PointsDashboard({ userId, userProfile }: PointsDashboard
   }, [userId])
 
   const calculatePointsBreakdown = (transactions: PointTransaction[], profile: any): PointsBreakdown => {
-    // After admin reset, use total_points_earned for purchase points (reflects reset state)
-    // and calculate bonus points from current transactions
-    const earnedFromPurchases = profile?.total_points_earned || 0
-    let bonusFromRewards = 0
+    // Use the actual points_balance from database as single source of truth
+    const totalAvailable = profile?.points_balance || 0
 
-    // Calculate current bonus points from existing transactions
+    // Calculate tier rewards from transactions
+    let bonusFromRewards = 0
     transactions.forEach(transaction => {
       if (transaction.points > 0 && (transaction.transaction_type === 'bonus' || transaction.reference_type === 'tier_reward')) {
         bonusFromRewards += transaction.points
       }
     })
 
+    // Calculate remaining earned points: total available - tier rewards
+    const earnedFromPurchases = Math.max(0, totalAvailable - bonusFromRewards)
+
     return {
-      earnedFromPurchases,
-      bonusFromRewards,
-      totalAvailable: earnedFromPurchases + bonusFromRewards
+      earnedFromPurchases: Math.max(0, earnedFromPurchases),
+      bonusFromRewards: Math.max(0, bonusFromRewards),
+      totalAvailable: Math.max(0, totalAvailable)
     }
   }
 

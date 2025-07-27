@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import PointsDashboard from '@/components/user/points-dashboard'
 import TierRewardsDisplay from '@/components/user/tier-rewards-display'
+import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 
 
 
@@ -382,41 +383,12 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Loyalty Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                <span>{t('currentTier')}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center">
-                <div className="text-4xl mb-2">
-                  {getTierIcon(getCorrectUserTier(profile))}
-                </div>
-                <Badge
-                  variant="outline"
-                  className={`text-lg px-4 py-2 ${getTierColor(getCorrectUserTier(profile))}`}
-                >
-                  {getCorrectUserTier(profile).toUpperCase()}
-                </Badge>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Available Points</span>
-                  <span className="font-medium text-blue-600">{(profile?.points_balance || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Orders</span>
-                  <span className="font-medium">{profile?.total_orders || 0}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Enhanced Loyalty Points Display */}
+          <PointsBreakdownComponent
+            userId={profile?.id || ''}
+            variant="full"
+            showTierProgress={true}
+          />
 
           {/* Tier Rewards Display */}
           <TierRewardsDisplay userId={profile?.id} userProfile={profile} />

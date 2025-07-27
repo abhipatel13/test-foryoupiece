@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { SaveInfoDialog } from '@/components/checkout/save-info-dialog'
+import { CheckoutPointsDisplay } from '@/components/checkout/checkout-points-display'
 import { MapPin, Package, Truck, ShoppingBag, QrCode } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -377,6 +378,18 @@ export default function CheckoutPage() {
                   />
                 </CardContent>
               </Card>
+
+              {/* Points Redemption */}
+              {isAuthenticated && user && (
+                <CheckoutPointsDisplay
+                  userId={user.id}
+                  orderTotal={finalTotalWithCouponAndPoints}
+                  onPointsChange={(points) => {
+                    // Points are automatically updated in the cart store
+                    // This callback can be used for additional UI updates if needed
+                  }}
+                />
+              )}
             </div>
 
             {/* Order Summary */}
