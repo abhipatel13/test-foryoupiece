@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { CategoriesService } from '@/lib/categories-service';
+import { CategoriesService } from '@/lib/categories-service'
+import { sortProductsByStockPriority } from '@/lib/utils';
 
 /**
  * Map category slugs to search keywords for product filtering
@@ -39,8 +40,9 @@ export async function GET(request: NextRequest) {
     const categorySlug = searchParams.get('category');
     const search = searchParams.get('search');
     const recentlyAdded = searchParams.get('recently_added') === 'true';
+    const deals = searchParams.get('deals') === 'true';
 
-    console.log('🎯 FIXED API Query params:', { limit, page, offset, categorySlug, search, recentlyAdded });
+    console.log('🎯 FIXED API Query params:', { limit, page, offset, categorySlug, search, recentlyAdded, deals });
 
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
@@ -98,8 +100,42 @@ export async function GET(request: NextRequest) {
       query = query.order('created_at', { ascending: false });
     }
 
-    const { data: products, error, count } = await query
+    // For deals filtering, we need to get all products first, then filter client-side
+    // because the filtering logic is complex (discount OR enhanced points)
+    let { data: products, error, count } = await query
       .range(offset, offset + limit - 1);
+
+    // Apply deals filtering if requested
+    if (deals && products) {
+      console.log(`🎯 DEALS API: Filtering for deals and discounts`);
+
+      // Filter products that have price discounts (compare_at_price > price)
+      // TODO: Add enhanced points support when points_rate field is added to products table
+      const dealsProducts = products.filter(product => {
+        // Check for price discount (compare_at_price > price)
+        const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
+        return hasDiscount;
+      });
+
+      // Sort deals by discount percentage (descending)
+      dealsProducts.sort((a, b) => {
+        // Calculate discount percentages
+        const aDiscountPercent = a.compare_at_price && a.compare_at_price > a.price
+          ? ((a.compare_at_price - a.price) / a.compare_at_price) * 100
+          : 0;
+        const bDiscountPercent = b.compare_at_price && b.compare_at_price > b.price
+          ? ((b.compare_at_price - b.price) / b.compare_at_price) * 100
+          : 0;
+
+        // Sort by discount percentage (descending)
+        return bDiscountPercent - aDiscountPercent;
+      });
+
+      products = dealsProducts;
+      count = dealsProducts.length;
+
+      console.log(`🎯 DEALS API: Filtered to ${products.length} deals products`);
+    }
 
     console.log(`🎯 FIXED API: Result - Products: ${products?.length || 0}, Total: ${count || 0}`);
 
@@ -111,12 +147,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Apply global stock-priority sorting while preserving existing sort logic
+    let sortedProducts = products || [];
+    if (sortedProducts.length > 0) {
+      // Define secondary sort function based on request type
+      const secondarySort = (a: any, b: any) => {
+        if (recentlyAdded) {
+          // For recently added: BoxHero sync timestamp first, then creation date
+          const aSync = a.boxhero_last_sync_at ? new Date(a.boxhero_last_sync_at).getTime() : 0;
+          const bSync = b.boxhero_last_sync_at ? new Date(b.boxhero_last_sync_at).getTime() : 0;
+          if (bSync !== aSync) return bSync - aSync;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        } else {
+          // Default: creation date descending
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      };
+
+      sortedProducts = sortProductsByStockPriority(sortedProducts, secondarySort);
+    }
+
     const totalPages = Math.ceil((count || 0) / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
     return NextResponse.json({
       success: true,
-      data: products || [],
+      data: sortedProducts,
       pagination: {
         total: count || 0,
         limit,

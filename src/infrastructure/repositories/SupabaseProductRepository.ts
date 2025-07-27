@@ -6,6 +6,7 @@ import { Product, ProductProps } from '@/domain/entities/Product';
 import { SKU } from '@/domain/value-objects/SKU';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/supabase/database.types';
+import { sortProductsByStockPriority } from '@/lib/utils';
 
 /**
  * Supabase implementation of IProductRepository
@@ -152,13 +153,20 @@ export class SupabaseProductRepository implements IProductRepository {
       }
 
       const products = (data || []).map(item => Product.fromPersistence(this.mapDatabaseToProductProps(item)));
+
+      // Apply global stock-priority sorting while preserving database sort order
+      const sortedProducts = sortProductsByStockPriority(products, (a, b) => {
+        // Preserve the original database sort order as secondary sort
+        return 0
+      });
+
       const total = count || 0;
       const hasMore = offset + limit < total;
 
       return {
         success: true,
         data: {
-          data: products,
+          data: sortedProducts,
           total,
           hasMore,
         },
@@ -188,7 +196,14 @@ export class SupabaseProductRepository implements IProductRepository {
       }
 
       const products = (data || []).map(item => Product.fromPersistence(this.mapDatabaseToProductProps(item)));
-      return { success: true, data: products };
+
+      // Apply global stock-priority sorting for search results
+      const sortedProducts = sortProductsByStockPriority(products, (a, b) => {
+        // Preserve search relevance order as secondary sort
+        return 0
+      });
+
+      return { success: true, data: sortedProducts };
     } catch (error) {
       if (error instanceof DomainError) {
         return { success: false, error };
@@ -214,7 +229,14 @@ export class SupabaseProductRepository implements IProductRepository {
       }
 
       const products = (data || []).map(item => Product.fromPersistence(this.mapDatabaseToProductProps(item)));
-      return { success: true, data: products };
+
+      // Apply global stock-priority sorting for featured products
+      const sortedProducts = sortProductsByStockPriority(products, (a, b) => {
+        // Preserve featured product order as secondary sort
+        return 0
+      });
+
+      return { success: true, data: sortedProducts };
     } catch (error) {
       if (error instanceof DomainError) {
         return { success: false, error };

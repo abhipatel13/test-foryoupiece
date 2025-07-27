@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { productQueries, categoryQueries } from '@/lib/supabase/queries'
+import { useAuth } from '@/lib/hooks/use-auth'
 import { ProductCard } from '@/components/product/product-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -47,6 +48,7 @@ interface Category {
 export default function ProductsPage() {
   const t = useTranslations('products')
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -60,6 +62,16 @@ export default function ProductsPage() {
 
   // Check if this is a "recently added" view
   const isRecentlyAddedView = searchParams.get('recently_added') === 'true'
+
+  // Check if this is a "recommended" view
+  const isRecommendedView = searchParams.get('recommended') === 'true'
+
+  // Check if this is a "deals" view
+  const isDealsView = searchParams.get('deals') === 'true'
+
+  // Check if this is a search view
+  const searchQuery = searchParams.get('search')?.trim()
+  const isSearchView = Boolean(searchQuery && searchQuery.length > 0)
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -124,53 +136,128 @@ export default function ProductsPage() {
 
   useEffect(() => {
     loadData()
-  }, [selectedCategory, currentPage])
+  }, [selectedCategory, currentPage, user?.id, isRecommendedView, searchQuery, isDealsView])
 
   const loadData = async () => {
     try {
       setLoading(true)
 
-      // Load categories
-      const categoriesData = await categoryQueries.getCategories()
-      setCategories(categoriesData)
-
-      // Build API URL with pagination and category filtering
-      const params = new URLSearchParams()
-      params.set('limit', itemsPerPage.toString())
-      params.set('page', currentPage.toString())
-
-      if (selectedCategory) {
-        params.set('category', selectedCategory)
+      // Load categories (not needed for recommendations or deals view)
+      if (!isRecommendedView && !isDealsView) {
+        const categoriesData = await categoryQueries.getCategories()
+        setCategories(categoriesData)
       }
 
-      // Add recently_added parameter if this is a recently added view
-      if (isRecentlyAddedView) {
-        params.set('recently_added', 'true')
-      }
+      // Handle search view differently
+      if (isSearchView) {
+        // Use search API for search results
+        const params = new URLSearchParams()
+        params.set('q', searchQuery!)
+        params.set('limit', itemsPerPage.toString())
+        params.set('include_suggestions', 'false')
+        params.set('include_history', 'false')
 
-      const apiUrl = `/api/products?${params.toString()}`
+        if (selectedCategory) {
+          params.set('category', selectedCategory)
+        }
 
-      const response = await fetch(apiUrl)
-      if (!response.ok) {
-        throw new Error('Failed to fetch products')
-      }
-      const apiData = await response.json()
-      if (!apiData.success) {
-        throw new Error(apiData.error || 'Failed to fetch products')
-      }
+        if (user?.id) {
+          params.set('user_id', user.id)
+        }
 
-      setProducts(apiData.data)
+        const response = await fetch(`/api/search?${params.toString()}`)
+        const apiData = await response.json()
 
-      // Update pagination info
-      if (apiData.pagination) {
-        setTotalItems(apiData.pagination.total)
-        setTotalPages(apiData.pagination.totalPages)
+        if (!apiData.success) {
+          throw new Error(apiData.error || 'Search failed')
+        }
+
+        setProducts(apiData.data.products || [])
+
+        // Set pagination info for search results (no pagination for now)
         setPaginationInfo({
-          startItem: apiData.pagination.startItem,
-          endItem: apiData.pagination.endItem,
-          hasMore: apiData.pagination.hasMore,
-          hasPrevious: apiData.pagination.hasPrevious
+          startItem: 1,
+          endItem: apiData.data.products?.length || 0,
+          hasMore: false,
+          hasPrevious: false
         })
+        setTotalItems(apiData.data.products?.length || 0)
+        setTotalPages(1)
+
+      } else if (isRecommendedView) {
+        // Use recommendations API for personalized results
+        const params = new URLSearchParams()
+        params.set('limit', '25') // Show 25 recommendations (between 20-30)
+        params.set('include_discounts', 'true')
+        params.set('exclude_purchased', 'true')
+
+        if (user?.id) {
+          params.set('user_id', user.id)
+        }
+
+        const response = await fetch(`/api/recommendations?${params.toString()}`)
+        const apiData = await response.json()
+
+        if (!apiData.success) {
+          throw new Error(apiData.error || 'Failed to fetch recommendations')
+        }
+
+        setProducts(apiData.data || [])
+
+        // Set pagination info for recommendations (no pagination needed)
+        setPaginationInfo({
+          startItem: 1,
+          endItem: apiData.data?.length || 0,
+          hasMore: false,
+          hasPrevious: false
+        })
+        setTotalItems(apiData.data?.length || 0)
+        setTotalPages(1)
+
+      } else {
+        // Regular products API for normal views
+        const params = new URLSearchParams()
+        params.set('limit', itemsPerPage.toString())
+        params.set('page', currentPage.toString())
+
+        if (selectedCategory) {
+          params.set('category', selectedCategory)
+        }
+
+        // Add recently_added parameter if this is a recently added view
+        if (isRecentlyAddedView) {
+          params.set('recently_added', 'true')
+        }
+
+        // Add deals parameter if this is a deals view
+        if (isDealsView) {
+          params.set('deals', 'true')
+        }
+
+        const apiUrl = `/api/products?${params.toString()}`
+
+        const response = await fetch(apiUrl)
+        if (!response.ok) {
+          throw new Error('Failed to fetch products')
+        }
+        const apiData = await response.json()
+        if (!apiData.success) {
+          throw new Error(apiData.error || 'Failed to fetch products')
+        }
+
+        setProducts(apiData.data)
+
+        // Update pagination info for regular products
+        if (apiData.pagination) {
+          setTotalItems(apiData.pagination.total)
+          setTotalPages(apiData.pagination.totalPages)
+          setPaginationInfo({
+            startItem: apiData.pagination.startItem,
+            endItem: apiData.pagination.endItem,
+            hasMore: apiData.pagination.hasMore,
+            hasPrevious: apiData.pagination.hasPrevious
+          })
+        }
       }
 
     } catch (err: any) {
@@ -225,7 +312,10 @@ export default function ProductsPage() {
         <div className="container mx-auto px-4 py-3">
           <div className="text-sm text-gray-600">
             <span>Home</span> &gt; <span className="text-gray-900">
-              {isRecentlyAddedView ? 'Recently Added' :
+              {isSearchView ? `Search Results for "${searchQuery}"` :
+               isRecommendedView ? 'Recommended for You' :
+               isRecentlyAddedView ? 'Recently Added' :
+               isDealsView ? 'Deals and Discounts' :
                selectedCategory ? categories.find(c => c.slug === selectedCategory)?.name_en || 'Products' : 'Products'}
             </span>
           </div>
@@ -236,11 +326,22 @@ export default function ProductsPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-medium text-gray-900 mb-2">
-            {isRecentlyAddedView ? 'Recently Added Products' : 'Products'}
+            {isSearchView ? `Search Results for "${searchQuery}"` :
+             isRecommendedView ? 'Recommended for You' :
+             isRecentlyAddedView ? 'Recently Added Products' :
+             isDealsView ? 'Deals and Discounts' : 'Products'}
           </h1>
           <p className="text-gray-600">
-            {isRecentlyAddedView ? (
+            {isSearchView ? (
+              `${products.length} products found for "${searchQuery}"`
+            ) : isRecommendedView ? (
+              user ?
+                `${products.length} personalized recommendations based on your purchase history` :
+                `${products.length} popular products (sign in for personalized recommendations)`
+            ) : isRecentlyAddedView ? (
               `${products.length} recently added products (sorted by newest first)`
+            ) : isDealsView ? (
+              `${products.length} products with special discounts and enhanced loyalty points`
             ) : totalItems > 0 ? (
               <>
                 Showing {paginationInfo.startItem}-{paginationInfo.endItem} of {totalItems} results
@@ -252,8 +353,9 @@ export default function ProductsPage() {
           </p>
         </div>
 
-        {/* Sort and Filter Bar */}
-        <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-lg shadow-sm">
+        {/* Sort and Filter Bar - Hidden for recommendations, search, and deals */}
+        {!isRecommendedView && !isSearchView && !isDealsView && (
+          <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-lg shadow-sm">
           <div className="flex items-center space-x-4">
             <Button
               variant="outline"
@@ -297,11 +399,13 @@ export default function ProductsPage() {
             </Button>
           </div>
         </div>
+        )}
 
         {/* Main Content */}
-        <div className="flex gap-6">
-          {/* Sidebar Filters - Amazon Style */}
-          <aside className={`w-64 space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+        <div className={`flex gap-6 ${isRecommendedView || isSearchView || isDealsView ? 'justify-center' : ''}`}>
+          {/* Sidebar Filters - Hidden for recommendations, search, and deals */}
+          {!isRecommendedView && !isSearchView && !isDealsView && (
+            <aside className={`w-64 space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
             {/* Categories Filter */}
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <h3 className="font-medium text-gray-900 mb-3">Categories</h3>
@@ -367,9 +471,10 @@ export default function ProductsPage() {
 
 
           </aside>
+          )}
 
           {/* Products Grid */}
-          <main className="flex-1">
+          <main className={`${isRecommendedView || isSearchView || isDealsView ? 'w-full max-w-6xl' : 'flex-1'}`}>
 
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -400,13 +505,17 @@ export default function ProductsPage() {
 
             {!loading && products.length === 0 && (
               <div className="text-center py-12 bg-white rounded-lg">
-                <p className="text-gray-500 text-lg">No products found.</p>
-                <p className="text-gray-400 text-sm mt-2">Try adjusting your filters or search terms.</p>
+                <p className="text-gray-500 text-lg">
+                  {isSearchView ? `No products found for "${searchQuery}"` : 'No products found.'}
+                </p>
+                <p className="text-gray-400 text-sm mt-2">
+                  {isSearchView ? 'Try different search terms or browse our categories.' : 'Try adjusting your filters or search terms.'}
+                </p>
               </div>
             )}
 
-            {/* Pagination */}
-            {!loading && totalPages > 1 && (
+            {/* Pagination - Hidden for recommendations, search, and deals */}
+            {!loading && !isRecommendedView && !isSearchView && !isDealsView && totalPages > 1 && (
               <div className="mt-8">
                 <Pagination
                   currentPage={currentPage}

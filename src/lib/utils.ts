@@ -180,6 +180,81 @@ export function pointsToDollars(points: number): number {
 }
 
 /**
+ * Global product sorting enhancement - prioritizes in-stock items
+ * Primary sort: In-stock items first, then out-of-stock/pre-order items
+ * Secondary sort: Maintains existing sorting logic within each group
+ *
+ * @param products - Array of products to sort
+ * @param secondarySort - Optional secondary sorting function to apply within stock groups
+ * @returns Sorted array with in-stock items prioritized
+ */
+export function sortProductsByStockPriority<T extends { stock_quantity: number }>(
+  products: T[],
+  secondarySort?: (a: T, b: T) => number
+): T[] {
+  if (!products || products.length === 0) {
+    return products
+  }
+
+  // Check if ALL products are out of stock - if so, return original order
+  const hasInStockItems = products.some(product => product.stock_quantity > 0)
+  if (!hasInStockItems) {
+    console.log('🔄 All products out of stock - maintaining original order')
+    return secondarySort ? [...products].sort(secondarySort) : products
+  }
+
+  // Separate products into in-stock and out-of-stock groups
+  const inStockProducts = products.filter(product => product.stock_quantity > 0)
+  const outOfStockProducts = products.filter(product => product.stock_quantity <= 0)
+
+  // Apply secondary sorting within each group if provided
+  if (secondarySort) {
+    inStockProducts.sort(secondarySort)
+    outOfStockProducts.sort(secondarySort)
+  }
+
+  // Combine: in-stock first, then out-of-stock
+  const sortedProducts = [...inStockProducts, ...outOfStockProducts]
+
+  console.log(`📦 Stock-priority sorting applied: ${inStockProducts.length} in-stock, ${outOfStockProducts.length} out-of-stock`)
+
+  return sortedProducts
+}
+
+/**
+ * Determine if a product is in stock
+ * @param product - Product with stock_quantity
+ * @returns Boolean indicating if product is in stock
+ */
+export function isProductInStock(product: { stock_quantity: number }): boolean {
+  return product.stock_quantity > 0
+}
+
+/**
+ * Get stock status display text for a product
+ * @param stockQuantity - Current stock quantity
+ * @returns Stock status text for display
+ */
+export function getStockStatusText(stockQuantity: number): string {
+  if (stockQuantity <= 0) return 'Available for preorder'
+  if (stockQuantity === 1) return '1 left'
+  if (stockQuantity === 2) return 'Few left'
+  return 'Fast delivery'
+}
+
+/**
+ * Get stock status color class for styling
+ * @param stockQuantity - Current stock quantity
+ * @returns CSS color class for stock status
+ */
+export function getStockStatusColor(stockQuantity: number): string {
+  if (stockQuantity <= 0) return 'text-blue-600'
+  if (stockQuantity === 1) return 'text-red-600'
+  if (stockQuantity === 2) return 'text-orange-600'
+  return 'text-green-600'
+}
+
+/**
  * Convert dollars to points (for display purposes)
  * @param dollars - Dollar amount
  * @returns Points equivalent

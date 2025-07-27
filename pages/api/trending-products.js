@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { sortProductsByStockPriority } from '../../src/lib/utils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -60,10 +61,17 @@ async function getTrendingProducts(req, res) {
       };
     }
 
+    // Apply global stock-priority sorting while preserving trending algorithm order
+    const sortedTrendingProducts = sortProductsByStockPriority(trendingProducts || [], (a, b) => {
+      // Preserve the original trending order as secondary sort
+      // (trending products are already sorted by trending score)
+      return 0
+    });
+
     return res.status(200).json({
       success: true,
-      products: trendingProducts || [],
-      count: trendingProducts?.length || 0,
+      products: sortedTrendingProducts,
+      count: sortedTrendingProducts.length,
       stats: systemStats
     });
 

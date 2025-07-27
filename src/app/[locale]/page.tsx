@@ -10,11 +10,13 @@ import { Badge } from '@/components/ui/badge'
 import { ProductCard } from '@/components/product/product-card'
 import { productQueries } from '@/lib/supabase/queries'
 import { ShoppingBag, Users, Star, Zap, Globe, Shield, ChevronLeft, ChevronRight, ArrowRight, TrendingUp, Percent, Clock, Eye, Heart, Award } from 'lucide-react';
-import { RecommendationEngine } from '@/lib/recommendation-engine';
+import { RecommendationEngine, getEnhancedDealsProducts } from '@/lib/recommendation-engine';
 import { useBoxHeroCategories } from '@/hooks/use-boxhero-categories';
 import { useCategoryImages } from '@/hooks/use-category-images';
 import { useTrendingProducts } from '@/presentation/hooks/useTrendingProducts';
 import { useHomepageBestSellers } from '@/presentation/hooks/useBestSellerProducts';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { sortProductsByStockPriority } from '@/lib/utils';
 
 interface Product {
   id: string
@@ -40,11 +42,13 @@ interface Product {
 
 export default function HomePage() {
   const t = useTranslations('navigation')
+  const { user } = useAuth()
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [dealsProducts, setDealsProducts] = useState<Product[]>([])
   const [recentlyAddedProducts, setRecentlyAddedProducts] = useState<Product[]>([])
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true)
 
   // Use the new trending products system
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useTrendingProducts(10)
@@ -101,26 +105,32 @@ export default function HomePage() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        // Fetch all products for smart recommendations
-        const allProductsResponse = await productQueries.getProducts({ limit: 50 })
-        const products = allProductsResponse.data || []
+        // Get recently added products which we know contains products with discounts
+        const allProductsForDeals = await productQueries.getRecentlyAddedProducts(50)
+        console.log(`🎯 Home Page: Fetched ${allProductsForDeals.length} recently added products for deals analysis`)
 
-        setAllProducts(products)
+        // Apply global stock-priority sorting to all products
+        const sortedProducts = sortProductsByStockPriority(allProductsForDeals, (a, b) => {
+          // Preserve original order as secondary sort
+          return 0
+        })
 
-        // Apply smart recommendation algorithms
-        const userBehavior = RecommendationEngine.generateSimulatedUserBehavior(products)
+        setAllProducts(sortedProducts)
 
-        // Get best deals
-        const deals = RecommendationEngine.getDealsProducts(products, 6)
+        // Apply smart recommendation algorithms for deals
+        const userBehavior = RecommendationEngine.generateSimulatedUserBehavior(sortedProducts)
+
+        // Get enhanced deals and discounts (includes sale prices and enhanced loyalty points)
+        const deals = getEnhancedDealsProducts(sortedProducts, 5)
         setDealsProducts(deals)
 
         // Get recently added products from BoxHero sync
         const recentlyAdded = await productQueries.getRecentlyAddedProducts(5)
-        setRecentlyAddedProducts(recentlyAdded)
-
-        // Get personalized recommendations
-        const recommended = RecommendationEngine.getPersonalizedRecommendations(products, userBehavior, 6)
-        setRecommendedProducts(recommended)
+        const sortedRecentlyAdded = sortProductsByStockPriority(recentlyAdded, (a, b) => {
+          // Preserve recently added order as secondary sort
+          return 0
+        })
+        setRecentlyAddedProducts(sortedRecentlyAdded)
 
       } catch (error) {
         console.error('Error fetching products:', error)
@@ -131,6 +141,49 @@ export default function HomePage() {
 
     fetchProducts()
   }, [])
+
+  // Separate effect for personalized recommendations
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        setRecommendationsLoading(true)
+
+        // Build API URL with user context
+        const params = new URLSearchParams()
+        params.set('limit', '5') // Home page shows 5 recommendations
+        params.set('include_discounts', 'true')
+        params.set('exclude_purchased', 'true')
+
+        if (user?.id) {
+          params.set('user_id', user.id)
+        }
+
+        const response = await fetch(`/api/recommendations?${params.toString()}`)
+        const data = await response.json()
+
+        if (data.success) {
+          setRecommendedProducts(data.data || [])
+          console.log('✅ Fetched personalized recommendations:', {
+            count: data.data?.length || 0,
+            algorithm: data.meta?.algorithm,
+            hasUserHistory: data.meta?.hasUserHistory
+          })
+        } else {
+          console.error('❌ Failed to fetch recommendations:', data.error)
+          // Fallback to empty array
+          setRecommendedProducts([])
+        }
+
+      } catch (error) {
+        console.error('❌ Error fetching recommendations:', error)
+        setRecommendedProducts([])
+      } finally {
+        setRecommendationsLoading(false)
+      }
+    }
+
+    fetchRecommendations()
+  }, [user?.id]) // Re-fetch when user changes
 
   return (
     <div className="min-h-screen bg-background">
@@ -325,7 +378,7 @@ export default function HomePage() {
               <Badge className="bg-primary/10 text-primary border-primary/20">Up to 20% OFF</Badge>
             </div>
             <Link
-              href="/en/products?sale=true"
+              href="/en/products?deals=true"
               className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
             >
               View All Deals
@@ -407,9 +460,9 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-              {[...Array(6)].map((_, i) => (
+          {recommendationsLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {[...Array(5)].map((_, i) => (
                 <div key={i} className="modern-product-card p-4 animate-pulse">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
                   <div className="h-4 bg-secondary rounded mb-2"></div>
@@ -418,11 +471,18 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+          ) : recommendedProducts.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {recommendedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} locale="en" />
               ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No recommendations available at the moment.</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {user ? 'Start shopping to get personalized recommendations!' : 'Sign in to get personalized recommendations!'}
+              </p>
             </div>
           )}
         </section>
@@ -471,7 +531,7 @@ export default function HomePage() {
                 return (
                   <Link
                     key={category.slug}
-                    href={`/products?category=${category.slug}`}
+                    href={`/en/products?category=${category.slug}`}
                     className="group"
                   >
                     <div className="modern-product-card p-4 text-center group-hover:scale-105 transition-transform">
@@ -537,7 +597,7 @@ export default function HomePage() {
                     ].map((category) => (
                       <Link
                         key={category.slug}
-                        href={`/products?category=${category.slug}`}
+                        href={`/en/products?category=${category.slug}`}
                         className="group"
                       >
                         <div className="modern-product-card p-4 text-center group-hover:scale-105 transition-transform">

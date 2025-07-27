@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'foryoupiece.com',
+      },
     ],
     // Performance optimizations for images
     formats: ['image/webp', 'image/avif'],

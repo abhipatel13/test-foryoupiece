@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog'
 import { AuthForm } from '@/components/auth/auth-form'
 import { Input } from '@/components/ui/input'
+import { EnhancedSearch } from '@/components/search/enhanced-search'
 import {
   ShoppingCart,
   User,
@@ -56,23 +57,8 @@ export function Header() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [mounted, setMounted] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
-
   const cartItemCount = getItemCount()
   const showCartCount = isHydrated && mounted && !cartLoading
-
-  // Categories for Amazon-style dropdown
-  const categories = [
-    { value: 'all', label: 'All Categories' },
-    { value: 'electronics', label: 'Electronics' },
-    { value: 'fashion', label: 'Fashion' },
-    { value: 'home', label: 'Home & Garden' },
-    { value: 'beauty', label: 'Beauty' },
-    { value: 'books', label: 'Books' },
-    { value: 'toys', label: 'Toys & Games' },
-    { value: 'sports', label: 'Sports' },
-  ]
 
   useEffect(() => {
     setMounted(true)
@@ -92,15 +78,7 @@ export function Header() {
     }
   }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      // Navigate to search results - check for browser environment
-      if (typeof window !== 'undefined') {
-        window.location.href = `/products?search=${encodeURIComponent(searchQuery)}&category=${selectedCategory}`
-      }
-    }
-  }
+
 
   const handleScrollToCategories = () => {
     // Smooth scroll to categories section on the current page
@@ -147,53 +125,12 @@ export function Header() {
               </div>
             </Link>
 
-            {/* Search Bar - Expanded for better visibility */}
-            <form onSubmit={handleSearch} className="flex-1 max-w-3xl mx-4 lg:mx-8">
-              <div className="flex modern-search-bar overflow-hidden shadow-sm">
-                {/* Category Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="h-11 px-4 bg-secondary hover:bg-accent text-foreground border-r border-border rounded-none rounded-l-lg"
-                    >
-                      <span className="hidden sm:inline text-sm font-medium">
-                        {categories.find(cat => cat.value === selectedCategory)?.label || 'All'}
-                      </span>
-                      <ChevronDown className="h-4 w-4 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    {categories.map((category) => (
-                      <DropdownMenuItem
-                        key={category.value}
-                        onClick={() => setSelectedCategory(category.value)}
-                        className="text-sm"
-                      >
-                        {category.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Search Input */}
-                <Input
-                  type="text"
-                  placeholder="Search for products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground"
-                />
-
-                {/* Search Button */}
-                <Button
-                  type="submit"
-                  className="h-11 px-5 modern-button-primary rounded-none rounded-r-lg"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </form>
+            {/* Enhanced Search Bar with Real-time Search */}
+            <EnhancedSearch
+              className="flex-1 max-w-3xl mx-4 lg:mx-8"
+              placeholder="Search for products..."
+              showCategoryFilter={true}
+            />
 
             {/* Language Switcher */}
             <div className="hidden md:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground transition-colors">
@@ -380,7 +317,7 @@ export function Header() {
                 Trending Now
               </Link>
               <Link
-                href="/en/products?sale=true"
+                href="/en/products?deals=true"
                 className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
               >
                 <Percent className="h-4 w-4" />
@@ -421,22 +358,11 @@ export function Header() {
         </SheetTrigger>
         <SheetContent side="right" className="w-[300px] sm:w-[400px]">
           <div className="flex flex-col space-y-6 pt-6">
-            {/* Mobile Search */}
-            <form onSubmit={handleSearch} className="flex modern-search-bar overflow-hidden">
-              <Input
-                type="text"
-                placeholder="Search for products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 h-11 border-0 rounded-l-lg focus-visible:ring-0 focus-visible:ring-offset-0 bg-background"
-              />
-              <Button
-                type="submit"
-                className="h-11 px-4 modern-button-primary rounded-none rounded-r-lg"
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            </form>
+            {/* Mobile Enhanced Search */}
+            <EnhancedSearch
+              placeholder="Search for products..."
+              showCategoryFilter={false}
+            />
 
             {/* Mobile Navigation */}
             <nav className="flex flex-col space-y-4">
@@ -448,7 +374,7 @@ export function Header() {
                 Trending Now
               </Link>
               <Link
-                href="/en/products?sale=true"
+                href="/en/products?deals=true"
                 className="text-sm font-medium transition-colors hover:text-gray-600 py-2 flex items-center gap-2"
               >
                 <Percent className="h-4 w-4" />

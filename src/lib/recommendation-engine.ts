@@ -3,6 +3,9 @@
  * Implements algorithms for trending products, personalized recommendations, and deal prioritization
  */
 
+import { UserBehaviorService, UserBehaviorData } from '@/lib/services/user-behavior-service'
+import { sortProductsByStockPriority } from '@/lib/utils'
+
 export interface Product {
   id: string;
   name_en: string;
@@ -18,6 +21,7 @@ export interface Product {
   purchase_count?: number;
   rating?: number;
   tags?: string[];
+  points_rate?: number; // Points rate percentage (e.g., 1.00 = 1%, 2.00 = 2%)
 }
 
 export interface UserBehavior {
@@ -29,6 +33,13 @@ export interface UserBehavior {
   categoryPreferences: Record<string, number>;
   brandPreferences: Record<string, number>;
   priceRange: { min: number; max: number };
+}
+
+export interface PersonalizedRecommendationOptions {
+  userId?: string;
+  limit?: number;
+  includeDiscounts?: boolean;
+  excludePurchased?: boolean;
 }
 
 /**
@@ -78,13 +89,19 @@ export function calculateTrendingScore(product: Product): number {
  * Get trending products based on algorithm
  */
 export function getTrendingProducts(products: Product[], limit: number = 5): Product[] {
-  return products
+  const trendingProducts = products
     .map(product => ({
       ...product,
       trendingScore: calculateTrendingScore(product)
     }))
     .sort((a, b) => b.trendingScore - a.trendingScore)
     .slice(0, limit);
+
+  // Apply global stock-priority sorting while preserving trending score ranking
+  return sortProductsByStockPriority(trendingProducts, (a, b) => {
+    // Secondary sort by trending score (descending)
+    return b.trendingScore - a.trendingScore
+  });
 }
 
 /**
@@ -101,7 +118,7 @@ export function getDiscountPercentage(product: Product): number | null {
  * Get products with best deals
  */
 export function getDealsProducts(products: Product[], limit: number = 6): Product[] {
-  return products
+  const dealsProducts = products
     .map(product => ({
       ...product,
       discountPercentage: getDiscountPercentage(product) || 0
@@ -109,6 +126,56 @@ export function getDealsProducts(products: Product[], limit: number = 6): Produc
     .filter(product => product.discountPercentage > 0)
     .sort((a, b) => b.discountPercentage - a.discountPercentage)
     .slice(0, limit);
+
+  // Apply global stock-priority sorting while preserving deal ranking
+  return sortProductsByStockPriority(dealsProducts, (a, b) => {
+    // Secondary sort by discount percentage (descending)
+    return b.discountPercentage - a.discountPercentage
+  });
+}
+
+/**
+ * Get enhanced deals and discounts products
+ * Currently focuses on products with sale prices (compare_at_price > price)
+ * Future enhancement: Add support for products with enhanced loyalty points when points_rate field is added to database
+ */
+export function getEnhancedDealsProducts(products: Product[], limit: number = 6): Product[] {
+  console.log(`🎯 Enhanced Deals: Processing ${products.length} products for deals`);
+
+  const dealsProducts = products
+    .map(product => {
+      const discountPercentage = getDiscountPercentage(product) || 0;
+      const hasDiscount = discountPercentage > 0;
+
+      // For now, only use price discounts since points_rate field doesn't exist in database
+      // TODO: Add enhanced points support when points_rate field is added to products table
+      const dealScore = hasDiscount ? discountPercentage : 0;
+
+      return {
+        ...product,
+        discountPercentage,
+        hasDiscount,
+        dealScore
+      };
+    })
+    .filter(product => product.hasDiscount) // Only include products with price discounts for now
+    .sort((a, b) => {
+      // Primary sort by discount percentage (descending)
+      return b.discountPercentage - a.discountPercentage;
+    })
+    .slice(0, limit);
+
+  console.log(`🎯 Enhanced Deals: Found ${dealsProducts.length} products with discounts`);
+
+  if (dealsProducts.length > 0) {
+    console.log(`🎯 Enhanced Deals: Top deal - ${dealsProducts[0].name_en} with ${dealsProducts[0].discountPercentage.toFixed(1)}% off`);
+  }
+
+  // Apply global stock-priority sorting while preserving deal ranking
+  return sortProductsByStockPriority(dealsProducts, (a, b) => {
+    // Secondary sort by discount percentage (descending)
+    return b.discountPercentage - a.discountPercentage;
+  });
 }
 
 /**
@@ -158,41 +225,417 @@ export function calculatePersonalizationScore(product: Product, userBehavior: Us
 }
 
 /**
+ * Enhanced personalization score based on real user purchase history
+ */
+export function calculateEnhancedPersonalizationScore(product: Product, userBehavior: UserBehaviorData): number {
+  let score = 0;
+
+  // Strong category preference boost based on purchase history
+  const categoryPreference = userBehavior.categoryPreferences[product.category || ''] || 0;
+  score += categoryPreference * 15; // Higher weight for purchase-based preferences
+
+  // Brand preference boost based on purchase history
+  const brandPreference = userBehavior.brandPreferences[product.brand || ''] || 0;
+  score += brandPreference * 12;
+
+  // Price range preference based on actual spending patterns
+  const { min, max } = userBehavior.priceRange;
+  if (product.price >= min && product.price <= max) {
+    score += 20; // Higher boost for price range match
+  } else if (product.price < min) {
+    // Small penalty for being too cheap (might indicate lower quality)
+    score -= (min - product.price) / 100;
+  } else {
+    // Larger penalty for being too expensive
+    score -= (product.price - max) / 50;
+  }
+
+  // Discount preference boost
+  if (userBehavior.preferredDiscounts && product.compare_at_price && product.compare_at_price > product.price) {
+    const discountPercent = ((product.compare_at_price - product.price) / product.compare_at_price) * 100;
+    score += discountPercent * 0.5; // Boost based on discount percentage
+  }
+
+  // Avoid already purchased products (stronger penalty)
+  const alreadyPurchased = userBehavior.purchaseHistory.some(p => p.productId === product.id);
+  if (alreadyPurchased) {
+    score -= 100; // Strong penalty to avoid recommending same products
+  }
+
+  // Boost for complementary products (same category as cart items)
+  if (userBehavior.cartItems.length > 0) {
+    score += 8; // Higher boost for cart complementarity
+  }
+
+  // Stock availability boost
+  if (product.stock_quantity > 0) {
+    score += 5;
+  } else {
+    score -= 50; // Strong penalty for out-of-stock items
+  }
+
+  // Featured product boost
+  if (product.is_featured) {
+    score += 3;
+  }
+
+  // Enhanced search history relevance boost
+  if (userBehavior.searchHistory && userBehavior.searchHistory.length > 0) {
+    let searchRelevanceScore = 0;
+
+    userBehavior.searchHistory.forEach(searchTerm => {
+      const searchLower = searchTerm.toLowerCase();
+      const nameLower = product.name_en?.toLowerCase() || '';
+      const brandLower = product.brand?.toLowerCase() || '';
+      const descLower = product.description_en?.toLowerCase() || '';
+      const categoryLower = product.category?.toLowerCase() || '';
+
+      // Exact matches get highest score
+      if (nameLower.includes(searchLower)) searchRelevanceScore += 15; // Increased from 8
+      if (brandLower.includes(searchLower)) searchRelevanceScore += 12; // Increased from 6
+      if (categoryLower.includes(searchLower)) searchRelevanceScore += 10; // New category matching
+      if (descLower.includes(searchLower)) searchRelevanceScore += 8; // Increased from 4
+
+      // Enhanced tag matches
+      if (product.tags && Array.isArray(product.tags)) {
+        product.tags.forEach((tag: string) => {
+          if (tag.toLowerCase().includes(searchLower)) {
+            searchRelevanceScore += 10; // Increased from 5
+          }
+        });
+      }
+
+      // Partial word matches for better relevance
+      const searchWords = searchLower.split(' ').filter(word => word.length >= 2);
+      searchWords.forEach(word => {
+        if (nameLower.includes(word)) searchRelevanceScore += 6;
+        if (brandLower.includes(word)) searchRelevanceScore += 4;
+        if (categoryLower.includes(word)) searchRelevanceScore += 3;
+        if (descLower.includes(word)) searchRelevanceScore += 2;
+
+        // Tag word matching
+        if (product.tags && Array.isArray(product.tags)) {
+          product.tags.forEach((tag: string) => {
+            if (tag.toLowerCase().includes(word)) {
+              searchRelevanceScore += 4;
+            }
+          });
+        }
+      });
+    });
+
+    // Apply search relevance with cap for balanced scoring
+    score += Math.min(searchRelevanceScore, 60); // Cap at 60 points
+
+    // Bonus for products matching multiple different search terms
+    const uniqueSearchTerms = [...new Set(userBehavior.searchHistory.map(term => term.toLowerCase()))];
+    if (uniqueSearchTerms.length > 1) {
+      let multiTermMatches = 0;
+      uniqueSearchTerms.forEach(term => {
+        if (nameLower.includes(term) || brandLower.includes(term) || categoryLower.includes(term)) {
+          multiTermMatches++;
+        }
+      });
+
+      if (multiTermMatches > 1) {
+        score += multiTermMatches * 3; // Bonus for matching multiple search interests
+      }
+    }
+  }
+
+  // Tag-based scoring for specific user preferences
+  if (product.tags && userBehavior.purchaseHistory.length > 0) {
+    const userTags = userBehavior.purchaseHistory.flatMap(p => p.tags || []);
+    const commonTags = product.tags.filter(tag =>
+      userTags.some(userTag =>
+        userTag.toLowerCase().includes(tag.toLowerCase()) ||
+        tag.toLowerCase().includes(userTag.toLowerCase())
+      )
+    );
+    score += commonTags.length * 2;
+  }
+
+  return Math.max(0, score);
+}
+
+/**
  * Get personalized recommendations
  */
 export function getPersonalizedRecommendations(
-  products: Product[], 
-  userBehavior: UserBehavior, 
+  products: Product[],
+  userBehavior: UserBehavior,
   limit: number = 6
 ): Product[] {
-  return products
+  const personalizedProducts = products
     .map(product => ({
       ...product,
       personalizationScore: calculatePersonalizationScore(product, userBehavior)
     }))
     .sort((a, b) => b.personalizationScore - a.personalizationScore)
     .slice(0, limit);
+
+  // Apply global stock-priority sorting while preserving personalization score ranking
+  return sortProductsByStockPriority(personalizedProducts, (a, b) => {
+    // Secondary sort by personalization score (descending)
+    return b.personalizationScore - a.personalizationScore
+  });
+}
+
+/**
+ * Get enhanced personalized recommendations based on real user data
+ */
+export async function getEnhancedPersonalizedRecommendations(
+  products: Product[],
+  options: PersonalizedRecommendationOptions = {}
+): Promise<Product[]> {
+  const { userId, limit = 6, includeDiscounts = false, excludePurchased = true } = options;
+
+  // If no user ID provided, return random in-stock products
+  if (!userId) {
+    const randomProducts = products
+      .filter(product => product.stock_quantity > 0)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, limit);
+
+    // Apply global stock-priority sorting to random products
+    return sortProductsByStockPriority(randomProducts, (a, b) => {
+      // Preserve random order as secondary sort
+      return 0
+    });
+  }
+
+  try {
+    const behaviorService = new UserBehaviorService();
+    const userBehavior = await behaviorService.analyzeUserBehavior(userId);
+
+    // Enhanced search-based recommendations for users with search history
+    if (userBehavior.searchHistory.length > 0) {
+      console.log(`🔍 Using enhanced search-based recommendations (${userBehavior.searchHistory.length} search terms)`);
+
+      // Score products based on comprehensive search history analysis
+      const searchScoredProducts = products
+        .filter(product => product.stock_quantity > 0)
+        .map(product => {
+          let searchScore = 0;
+          let matchedTerms = 0;
+
+          userBehavior.searchHistory.forEach(searchTerm => {
+            const searchLower = searchTerm.toLowerCase();
+            const nameLower = product.name_en?.toLowerCase() || '';
+            const brandLower = product.brand?.toLowerCase() || '';
+            const descLower = product.description_en?.toLowerCase() || '';
+            const categoryLower = product.category?.toLowerCase() || '';
+            let termMatched = false;
+
+            // Exact matches get highest score
+            if (nameLower.includes(searchLower)) {
+              searchScore += 15;
+              termMatched = true;
+            }
+            if (brandLower.includes(searchLower)) {
+              searchScore += 12;
+              termMatched = true;
+            }
+            if (categoryLower.includes(searchLower)) {
+              searchScore += 10;
+              termMatched = true;
+            }
+            if (descLower.includes(searchLower)) {
+              searchScore += 8;
+              termMatched = true;
+            }
+
+            // Enhanced tag matches
+            if (product.tags && Array.isArray(product.tags)) {
+              product.tags.forEach((tag: string) => {
+                if (tag.toLowerCase().includes(searchLower)) {
+                  searchScore += 10;
+                  termMatched = true;
+                }
+              });
+            }
+
+            // Partial word matches for better coverage
+            const searchWords = searchLower.split(' ').filter(word => word.length >= 2);
+            searchWords.forEach(word => {
+              if (nameLower.includes(word)) {
+                searchScore += 5;
+                termMatched = true;
+              }
+              if (brandLower.includes(word)) {
+                searchScore += 4;
+                termMatched = true;
+              }
+              if (categoryLower.includes(word)) {
+                searchScore += 3;
+                termMatched = true;
+              }
+            });
+
+            if (termMatched) matchedTerms++;
+          });
+
+          // Bonus for products matching multiple search terms
+          if (matchedTerms > 1) {
+            searchScore += matchedTerms * 5;
+          }
+
+          // Additional scoring factors
+          if (product.is_featured) searchScore += 3;
+          if (product.compare_at_price && product.compare_at_price > product.price) {
+            searchScore += 2; // Discount bonus
+          }
+
+          return { ...product, searchScore, matchedTerms };
+        })
+        .filter(product => product.searchScore > 0)
+        .sort((a, b) => {
+          // Sort by search score first, then by matched terms, then by stock
+          if (b.searchScore !== a.searchScore) return b.searchScore - a.searchScore;
+          if (b.matchedTerms !== a.matchedTerms) return b.matchedTerms - a.matchedTerms;
+          return b.stock_quantity - a.stock_quantity;
+        });
+
+      console.log(`📊 Found ${searchScoredProducts.length} search-relevant products`);
+
+      // For users with no purchase history, prioritize search-based results
+      if (userBehavior.purchaseHistory.length === 0) {
+        if (searchScoredProducts.length >= limit) {
+          const searchResults = searchScoredProducts.slice(0, limit);
+          // Apply global stock-priority sorting to search results
+          return sortProductsByStockPriority(searchResults, (a, b) => {
+            // Secondary sort by search score (descending)
+            return b.searchScore - a.searchScore
+          });
+        }
+
+        // Fill remaining slots with popular/featured products
+        const remainingProducts = products
+          .filter(product =>
+            product.stock_quantity > 0 &&
+            !searchScoredProducts.find(sp => sp.id === product.id)
+          )
+          .sort((a, b) => {
+            // Prioritize featured products, then by stock quantity
+            if (a.is_featured && !b.is_featured) return -1;
+            if (!a.is_featured && b.is_featured) return 1;
+            return b.stock_quantity - a.stock_quantity;
+          })
+          .slice(0, limit - searchScoredProducts.length);
+
+        const combinedResults = [...searchScoredProducts, ...remainingProducts];
+        // Apply global stock-priority sorting to combined results
+        return sortProductsByStockPriority(combinedResults, (a, b) => {
+          // Secondary sort: search results first, then featured products
+          const aIsSearch = searchScoredProducts.find(sp => sp.id === a.id);
+          const bIsSearch = searchScoredProducts.find(sp => sp.id === b.id);
+          if (aIsSearch && !bIsSearch) return -1;
+          if (!aIsSearch && bIsSearch) return 1;
+          return 0;
+        });
+      }
+
+      // For users with purchase history, blend search and purchase-based recommendations
+      console.log('🔄 Blending search history with purchase history for recommendations');
+    }
+
+    // If user has no purchase history and no search history, return random in-stock products
+    if (userBehavior.purchaseHistory.length === 0) {
+      const randomProducts = products
+        .filter(product => product.stock_quantity > 0)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, limit);
+
+      // Apply global stock-priority sorting to random products
+      return sortProductsByStockPriority(randomProducts, (a, b) => {
+        // Preserve random order as secondary sort
+        return 0
+      });
+    }
+
+    // Filter products based on options
+    let filteredProducts = products.filter(product => product.stock_quantity > 0);
+
+    if (excludePurchased) {
+      const purchasedProductIds = userBehavior.purchaseHistory.map(p => p.productId);
+      filteredProducts = filteredProducts.filter(product =>
+        !purchasedProductIds.includes(product.id)
+      );
+    }
+
+    if (includeDiscounts) {
+      // Prioritize products with discounts if user prefers them
+      if (userBehavior.preferredDiscounts) {
+        filteredProducts = filteredProducts.sort((a, b) => {
+          const aDiscount = getDiscountPercentage(a) || 0;
+          const bDiscount = getDiscountPercentage(b) || 0;
+          return bDiscount - aDiscount;
+        });
+      }
+    }
+
+    // Calculate enhanced personalization scores and sort
+    const scoredProducts = filteredProducts
+      .map(product => ({
+        ...product,
+        personalizationScore: calculateEnhancedPersonalizationScore(product, userBehavior)
+      }))
+      .sort((a, b) => b.personalizationScore - a.personalizationScore)
+      .slice(0, limit);
+
+    // Apply global stock-priority sorting while preserving personalization scores
+    return sortProductsByStockPriority(scoredProducts, (a, b) => {
+      // Secondary sort by personalization score (descending)
+      return b.personalizationScore - a.personalizationScore
+    });
+
+  } catch (error) {
+    console.error('Error getting enhanced personalized recommendations:', error);
+    // Fallback to random products
+    const fallbackProducts = products
+      .filter(product => product.stock_quantity > 0)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, limit);
+
+    // Apply global stock-priority sorting to fallback products
+    return sortProductsByStockPriority(fallbackProducts, (a, b) => {
+      // Preserve random order as secondary sort
+      return 0
+    });
+  }
 }
 
 /**
  * Get recently viewed products (simulated for demo)
  */
 export function getRecentlyViewedProducts(
-  products: Product[], 
-  userBehavior: UserBehavior, 
+  products: Product[],
+  userBehavior: UserBehavior,
   limit: number = 5
 ): Product[] {
   if (!userBehavior.viewedProducts.length) {
     // Return random products if no viewing history
-    return products
+    const randomProducts = products
       .sort(() => Math.random() - 0.5)
       .slice(0, limit);
+
+    // Apply global stock-priority sorting to random products
+    return sortProductsByStockPriority(randomProducts, (a, b) => {
+      // Preserve random order as secondary sort
+      return 0
+    });
   }
-  
-  return products
+
+  const recentlyViewedProducts = products
     .filter(product => userBehavior.viewedProducts.includes(product.id))
     .slice(-limit) // Get most recent
     .reverse();
+
+  // Apply global stock-priority sorting while preserving viewing order
+  return sortProductsByStockPriority(recentlyViewedProducts, (a, b) => {
+    // Preserve recently viewed order as secondary sort
+    return 0
+  });
 }
 
 /**
@@ -245,8 +688,10 @@ export class RecommendationEngine {
   static getTrendingProducts = getTrendingProducts;
   static getDealsProducts = getDealsProducts;
   static getPersonalizedRecommendations = getPersonalizedRecommendations;
+  static getEnhancedPersonalizedRecommendations = getEnhancedPersonalizedRecommendations;
   static getRecentlyViewedProducts = getRecentlyViewedProducts;
   static generateSimulatedUserBehavior = generateSimulatedUserBehavior;
   static calculateTrendingScore = calculateTrendingScore;
+  static calculateEnhancedPersonalizationScore = calculateEnhancedPersonalizationScore;
   static getDiscountPercentage = getDiscountPercentage;
 }
