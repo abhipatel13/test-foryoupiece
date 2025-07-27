@@ -111,7 +111,8 @@ export class UserBehaviorService {
    */
   async analyzeUserBehavior(userId: string): Promise<UserBehaviorData> {
     const purchaseHistory = await this.getUserPurchaseHistory(userId)
-    
+    const categoryViews = await this.getUserCategoryViews(userId)
+
     // Calculate category preferences based on purchase frequency and recency
     const categoryPreferences: Record<string, number> = {}
     const brandPreferences: Record<string, number> = {}
@@ -152,6 +153,16 @@ export class UserBehaviorService {
       }
     })
 
+    // Enhance category preferences with browsing behavior
+    // Add category view data to preferences (with lower weight than purchases)
+    Object.entries(categoryViews).forEach(([categoryId, viewScore]) => {
+      // Convert category ID to category name if needed
+      // For now, use the ID directly - this could be enhanced with a category lookup
+      const categoryKey = categoryId
+      categoryPreferences[categoryKey] =
+        (categoryPreferences[categoryKey] || 0) + (viewScore * 0.3) // 30% weight for views vs purchases
+    })
+
     // Get cart items for current session
     const cartItems = await this.getCurrentCartItems(userId)
 
@@ -166,7 +177,7 @@ export class UserBehaviorService {
       },
       preferredDiscounts: hasDiscountPurchases,
       searchHistory: await this.getUserSearchHistory(userId),
-      viewedProducts: [], // TODO: Implement view tracking
+      viewedProducts: await this.getUserViewedProducts(userId),
       cartItems
     }
   }
@@ -247,6 +258,76 @@ export class UserBehaviorService {
     } catch (error) {
       console.error('Error in getUserSearchHistory:', error)
       return []
+    }
+  }
+
+  /**
+   * Get user's viewed products from behavior tracking
+   */
+  private async getUserViewedProducts(userId: string): Promise<string[]> {
+    try {
+      const { data: viewedProducts, error } = await this.serviceClient
+        .from('user_behavior_tracking')
+        .select('product_id, created_at')
+        .eq('user_id', userId)
+        .eq('behavior_type', 'product_view')
+        .not('product_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50) // Get last 50 viewed products
+
+      if (error) {
+        console.error('Error fetching viewed products:', error)
+        return []
+      }
+
+      // Return unique product IDs in order of most recent views
+      const uniqueProductIds = [...new Set(viewedProducts?.map(item => item.product_id) || [])]
+
+      console.log(`📊 Found ${uniqueProductIds.length} unique viewed products for user ${userId}`)
+      return uniqueProductIds
+    } catch (error) {
+      console.error('Error in getUserViewedProducts:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get user's category browsing behavior
+   */
+  private async getUserCategoryViews(userId: string): Promise<Record<string, number>> {
+    try {
+      const { data: categoryViews, error } = await this.serviceClient
+        .from('user_behavior_tracking')
+        .select('category_id, created_at')
+        .eq('user_id', userId)
+        .eq('behavior_type', 'category_view')
+        .not('category_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(100) // Get last 100 category views
+
+      if (error) {
+        console.error('Error fetching category views:', error)
+        return {}
+      }
+
+      // Count category views with recency weighting
+      const categoryViewCounts: Record<string, number> = {}
+
+      categoryViews?.forEach(view => {
+        const daysSinceView = Math.floor(
+          (Date.now() - new Date(view.created_at).getTime()) / (1000 * 60 * 60 * 24)
+        )
+        const recencyWeight = Math.max(0.1, 1 - (daysSinceView / 30)) // More recent = higher weight
+
+        categoryViewCounts[view.category_id] =
+          (categoryViewCounts[view.category_id] || 0) + recencyWeight
+      })
+
+      console.log(`📊 Found category views for ${Object.keys(categoryViewCounts).length} categories`)
+      return categoryViewCounts
+    } catch (error) {
+      console.error('Error in getUserCategoryViews:', error)
+      return {}
     }
   }
 

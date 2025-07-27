@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useCartStore } from '@/lib/store/cart-store'
+import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
 import { productQueries } from '@/lib/supabase/queries'
 import { formatPrice } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -62,6 +63,7 @@ export default function ProductDetailPage() {
   const t = useTranslations('products')
   const { isAuthenticated } = useAuth()
   const { addItem } = useCartStore()
+  const { trackProductView, isReady } = useBehaviorTracking()
   
   const [product, setProduct] = useState<Product | null>(null)
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
@@ -111,6 +113,19 @@ export default function ProductDetailPage() {
 
     fetchProduct()
   }, [params.sku])
+
+  // Track product view when auth is ready and product is loaded
+  useEffect(() => {
+    if (isReady && product) {
+      trackProductView(product.id, {
+        source: 'product_detail_page',
+        sku: product.sku,
+        category: product.category?.name_en,
+        brand: product.brand,
+        price: product.price
+      })
+    }
+  }, [isReady, product, trackProductView])
 
   const handleAddToCart = async () => {
     if (!product) return

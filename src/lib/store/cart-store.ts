@@ -6,6 +6,32 @@ import { cartQueries } from '@/lib/supabase/queries'
 import { pointsToDollars, calculateOrderPoints } from '@/lib/utils'
 import { AppliedCoupon } from '@/types/coupon'
 
+// Helper function to track cart behavior
+const trackCartBehavior = async (
+  behaviorType: 'cart_add' | 'cart_remove',
+  userId: string | null,
+  productId: string,
+  metadata?: Record<string, any>
+) => {
+  if (!userId) return // Only track for authenticated users
+
+  try {
+    await fetch('/api/behavior/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        behaviorType,
+        productId,
+        sessionId: `session_${userId}_${Date.now()}`,
+        metadata
+      })
+    })
+  } catch (error) {
+    console.error('Failed to track cart behavior:', error)
+  }
+}
+
 export type CartItem = {
   id: string
   name: string
@@ -225,6 +251,15 @@ export const useCartStore = create<CartStore>()(
                 ? updatedItems[existingItemIndex].quantity
                 : item.quantity
             })
+
+            // Track cart add behavior
+            await trackCartBehavior('cart_add', userId, item.id, {
+              quantity: item.quantity,
+              price: item.price,
+              name: item.name,
+              variant: item.variant,
+              source: 'cart_store'
+            })
           } catch (error) {
             console.error('Failed to sync cart with database:', error)
             return false
@@ -236,6 +271,11 @@ export const useCartStore = create<CartStore>()(
       
       removeItem: async (id, variant) => {
         const { items, userId } = get()
+
+        // Find the item being removed for tracking
+        const itemToRemove = items.find(
+          (item) => item.id === id && normalizeVariant(item.variant) === normalizeVariant(variant)
+        )
 
         // Log for debugging
         console.log('Removing item:', { id, variant, currentItemCount: items.length })
@@ -253,11 +293,22 @@ export const useCartStore = create<CartStore>()(
         if (userId) {
           try {
             const cartItem = await cartQueries.getCartItems(userId)
-            const itemToRemove = cartItem.find(
+            const dbItemToRemove = cartItem.find(
               (item) => item.product_id === id && item.variant_id === variant
             )
-            if (itemToRemove) {
-              await cartQueries.removeFromCart(itemToRemove.id)
+            if (dbItemToRemove) {
+              await cartQueries.removeFromCart(dbItemToRemove.id)
+
+              // Track cart remove behavior
+              if (itemToRemove) {
+                await trackCartBehavior('cart_remove', userId, id, {
+                  quantity: itemToRemove.quantity,
+                  price: itemToRemove.price,
+                  name: itemToRemove.name,
+                  variant: itemToRemove.variant,
+                  source: 'cart_store'
+                })
+              }
             }
           } catch (error) {
             console.error('Failed to remove item from database:', error)

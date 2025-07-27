@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useCartStore } from '@/lib/store/cart-store'
+import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
 import { formatPrice } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +43,7 @@ interface ProductCardProps {
 export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
   const t = useTranslations('products')
   const { addItem } = useCartStore()
+  const { trackProductView, isReady } = useBehaviorTracking()
   const [isHovered, setIsHovered] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
 
@@ -89,6 +91,19 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
     toast.success('Added to wishlist')
   }
 
+  const handleProductClick = () => {
+    // Track product view when user clicks on product card (only if auth is ready)
+    if (isReady) {
+      trackProductView(product.id, {
+        source: 'product_card',
+        sku: product.sku,
+        category: product.category?.name_en,
+        brand: product.brand,
+        price: product.price
+      })
+    }
+  }
+
   const discountPercentage = product.compare_at_price && product.compare_at_price > product.price
     ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
     : null
@@ -99,7 +114,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/en/products/${product.sku}`} className="block">
+      <Link href={`/en/products/${product.sku}`} className="block" onClick={handleProductClick}>
         {/* Product Image */}
         <div className="relative aspect-square mb-4 bg-secondary rounded-xl overflow-hidden">
           {product.images.length > 0 ? (
