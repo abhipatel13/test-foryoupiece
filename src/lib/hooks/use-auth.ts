@@ -57,48 +57,48 @@ export function useAuth() {
         console.log('Loading user profile for userId:', userId)
       }
       const profile = await userQueries.getProfile(userId)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Profile loaded successfully:', profile)
+
+      if (profile) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Profile loaded successfully:', profile)
+        }
+        stableSetProfile(profile)
+        return
       }
-      stableSetProfile(profile)
+
+      // Profile doesn't exist, try to create one
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Profile not found, attempting to create one...')
+      }
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const newProfile = await userQueries.createProfile({
+          id: user.id,
+          email: user.email || null,
+          first_name: user.user_metadata?.first_name || null,
+          last_name: user.user_metadata?.last_name || null,
+          phone: user.user_metadata?.phone || null,
+          points_balance: 100, // Welcome bonus
+          tier_level: 'bronze'
+        })
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Profile created successfully:', newProfile)
+        }
+        stableSetProfile(newProfile)
+        return
+      }
+
+      // If we can't create a profile, set to null
+      stableSetProfile(null)
     } catch (error: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error loading user profile:', {
+        console.error('Error loading or creating user profile:', {
           message: error?.message,
           code: error?.code,
           details: error?.details,
           hint: error?.hint
         })
-      }
-
-      // If profile doesn't exist (PGRST116 error), try to create one
-      if (error?.code === 'PGRST116' || error?.message?.includes('No rows found')) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Profile not found, attempting to create one...')
-        }
-        try {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            const newProfile = await userQueries.createProfile({
-              id: user.id,
-              email: user.email || null,
-              first_name: user.user_metadata?.first_name || null,
-              last_name: user.user_metadata?.last_name || null,
-              phone: user.user_metadata?.phone || null,
-              points_balance: 100, // Welcome bonus
-              tier_level: 'bronze'
-            })
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Profile created successfully:', newProfile)
-            }
-            stableSetProfile(newProfile)
-            return
-          }
-        } catch (createError: any) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error creating profile:', createError)
-          }
-        }
       }
 
       // Don't throw here to prevent auth flow from breaking
@@ -123,7 +123,12 @@ export function useAuth() {
           stableSetUser(session.user)
           stableSetUserId(session.user.id)
           // Load profile for authenticated user
-          await loadUserProfile(session.user.id)
+          try {
+            await loadUserProfile(session.user.id)
+          } catch (profileError) {
+            console.error('❌ Error loading profile during initialization:', profileError)
+            // Don't break the auth flow if profile loading fails
+          }
         } else if (user) {
           // If we have a persisted user but no session, clear the user
           console.log('❌ No active session found, clearing persisted user data')
@@ -181,7 +186,12 @@ export function useAuth() {
           stableSetUser(session.user)
           stableSetUserId(session.user.id)
           // Load profile for newly signed in user
-          await loadUserProfile(session.user.id)
+          try {
+            await loadUserProfile(session.user.id)
+          } catch (profileError) {
+            console.error('❌ Error loading profile during sign in:', profileError)
+            // Don't break the auth flow if profile loading fails
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('🚪 User signed out, clearing auth state')
           stableClearUser()

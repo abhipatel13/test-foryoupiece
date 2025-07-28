@@ -40,6 +40,16 @@ const userQueries = {
           userId: userId
         })
       }
+
+      // If profile doesn't exist (PGRST116 error), return null instead of throwing
+      if (error.code === 'PGRST116' || error.message?.includes('No rows found')) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Profile not found for userId:', userId)
+        }
+        return null
+      }
+
+      // For other database errors, still throw
       throw error
     }
 
@@ -51,7 +61,7 @@ const userQueries = {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Profile query returned null/undefined data')
       }
-      throw new Error('Profile not found')
+      return null
     }
 
     // Cache the result for 5 minutes
