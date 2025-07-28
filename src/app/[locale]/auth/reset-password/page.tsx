@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -22,198 +22,81 @@ export default function ResetPasswordPage() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [isValidToken, setIsValidToken] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+
   const supabase = createClient()
 
-  useEffect(() => {
-    const validateTokens = async () => {
-      try {
-        setInitialLoading(true)
-        setError('')
+  const handleResetValidation = useCallback(async () => {
+    console.log('🔍 Starting password reset validation...')
 
-        // Check for error parameters from Supabase
-        const error = searchParams.get('error')
-        const errorCode = searchParams.get('error_code')
-        const errorDescription = searchParams.get('error_description')
+    try {
+      // Check if user has a valid session (should be established by callback route)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-        if (error) {
-          console.log('❌ Error parameters detected:', { error, errorCode, errorDescription })
-
-          if (errorCode === 'otp_expired') {
-            setError('Your password reset link has expired. Please request a new password reset.')
-          } else if (error === 'access_denied') {
-            setError('Access denied. Please request a new password reset.')
-          } else {
-            setError('Invalid or expired reset link. Please request a new password reset.')
-          }
-          setInitialLoading(false)
-          return
-        }
-
-        // Check if user already has an active session (from auth callback)
-        const sessionParam = searchParams.get('session')
-        if (sessionParam === 'active') {
-          console.log('🔑 Active session detected from callback')
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
-            console.log('✅ Valid session found for password reset')
-            setInitialLoading(false)
-            return // User can proceed to reset password
-          }
-        }
-
-        // Check for tokens in URL parameters
-        let accessToken = searchParams.get('access_token') || searchParams.get('token')
-        let refreshToken = searchParams.get('refresh_token')
-        let type = searchParams.get('type')
-
-        // Also check for the specific token parameter that Supabase might use
-        const resetToken = searchParams.get('token')
-
-        console.log('🔍 Token Detection:', {
-          accessToken: accessToken ? 'present' : 'missing',
-          refreshToken: refreshToken ? 'present' : 'missing',
-          resetToken: resetToken ? 'present' : 'missing',
-          type: type
-        })
-
-        // Also check URL hash for tokens (Supabase sometimes uses hash fragments)
-        if (typeof window !== 'undefined' && window.location.hash) {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1))
-          accessToken = accessToken || hashParams.get('access_token') || hashParams.get('token')
-          refreshToken = refreshToken || hashParams.get('refresh_token')
-          type = type || hashParams.get('type')
-
-          console.log('🔍 Hash Parameters:', {
-            hash: window.location.hash,
-            hashAccessToken: hashParams.get('access_token') ? 'present' : 'missing',
-            hashRefreshToken: hashParams.get('refresh_token') ? 'present' : 'missing',
-            hashType: hashParams.get('type'),
-            allHashParams: Object.fromEntries(hashParams.entries())
-          })
-        }
-
-        console.log('🔍 URL Parameters:', {
-          accessToken: accessToken ? 'present' : 'missing',
-          refreshToken: refreshToken ? 'present' : 'missing',
-          type: type,
-          sessionParam: sessionParam,
-          allParams: Object.fromEntries(searchParams.entries()),
-          hash: typeof window !== 'undefined' ? window.location.hash : 'N/A'
-        })
-
-        // Handle different Supabase URL formats
-        if ((type === 'recovery' && accessToken) || resetToken) {
-          // This is the format Supabase uses for password recovery
-          console.log('🔑 Processing recovery token...')
-
-          try {
-            // Use the token we found (either accessToken or resetToken)
-            const tokenToUse = accessToken || resetToken
-            console.log('🔑 Using token for verification:', tokenToUse ? 'present' : 'missing')
-
-            // Try multiple approaches to handle the token
-            let sessionSet = false
-
-            // Method 1: Try exchangeCodeForSession (for newer Supabase versions)
-            try {
-              console.log('🔄 Trying exchangeCodeForSession...')
-              const { data, error } = await supabase.auth.exchangeCodeForSession(tokenToUse)
-
-              if (!error && data.session) {
-                console.log('✅ Session exchanged successfully via exchangeCodeForSession')
-                sessionSet = true
-              } else {
-                console.log('❌ exchangeCodeForSession failed:', error?.message)
-              }
-            } catch (exchangeError) {
-              console.log('❌ exchangeCodeForSession exception:', exchangeError)
-            }
-
-            // Method 2: Try verifyOtp if exchangeCodeForSession failed
-            if (!sessionSet) {
-              try {
-                console.log('🔄 Trying verifyOtp...')
-                const { data, error } = await supabase.auth.verifyOtp({
-                  token_hash: tokenToUse,
-                  type: 'recovery'
-                })
-
-                if (!error && data.session) {
-                  console.log('✅ Recovery token verified successfully via verifyOtp')
-                  sessionSet = true
-                } else {
-                  console.log('❌ verifyOtp failed:', error?.message)
-                }
-              } catch (verifyError) {
-                console.log('❌ verifyOtp exception:', verifyError)
-              }
-            }
-
-            // Method 3: Try setSession as final fallback
-            if (!sessionSet) {
-              try {
-                console.log('🔄 Trying setSession fallback...')
-                const { error } = await supabase.auth.setSession({
-                  access_token: tokenToUse,
-                  refresh_token: refreshToken || '',
-                })
-
-                if (!error) {
-                  console.log('✅ Session set successfully via setSession fallback')
-                  sessionSet = true
-                } else {
-                  console.log('❌ setSession failed:', error?.message)
-                }
-              } catch (sessionError) {
-                console.log('❌ setSession exception:', sessionError)
-              }
-            }
-
-            // If none of the methods worked, show error
-            if (!sessionSet) {
-              console.log('❌ All token verification methods failed')
-              setError('Invalid or expired reset link. Please request a new password reset.')
-            }
-          } catch (generalError) {
-            console.error('❌ General token processing error:', generalError)
-            setError('An error occurred while validating your reset link. Please try again.')
-          }
-        } else if (accessToken && refreshToken) {
-          // Standard token format
-          console.log('🔑 Processing standard tokens...')
-
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
-
-          if (error) {
-            console.error('Session error:', error)
-            if (error.message.includes('expired') || error.message.includes('invalid')) {
-              setError('Your password reset link has expired. Please request a new password reset.')
-            } else {
-              setError('Invalid or expired reset link. Please request a new password reset.')
-            }
-          } else {
-            console.log('✅ Session set successfully')
-          }
-        } else {
-          console.log('❌ No valid tokens found in URL')
-          setError('Invalid or expired reset link. Please request a new password reset.')
-        }
-      } catch (err) {
-        console.error('Token validation error:', err)
-        setError('An error occurred while validating your reset link. Please try again.')
-      } finally {
+      if (sessionError) {
+        console.error('❌ Session error:', sessionError)
+        setError('Failed to verify authentication. Please try clicking the reset link again.')
         setInitialLoading(false)
+        return
       }
+
+      if (session) {
+        console.log('✅ Valid session found for password reset:', {
+          userId: session.user.id,
+          email: session.user.email
+        })
+        setIsValidToken(true)
+        setSessionReady(true)
+        setInitialLoading(false)
+        return
+      }
+
+      // No session found - user needs to use a valid reset link
+      console.log('❌ No valid session found')
+      setError('No valid authentication session found. Please click the reset link from your email.')
+      setInitialLoading(false)
+
+    } catch (err) {
+      console.error('❌ Unexpected error:', err)
+      setError('An error occurred while validating your session.')
+      setInitialLoading(false)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    // Ensure we only run once
+    let mounted = true
+
+    if (mounted) {
+      handleResetValidation()
     }
 
-    validateTokens()
-  }, [supabase, searchParams])
+    return () => {
+      mounted = false
+    }
+  }, []) // Empty dependency array - run only once on mount
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔄 Auth state change:', { event, userId: session?.user?.id })
+
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        console.log('✅ Password recovery session established')
+        setIsValidToken(true)
+        setSessionReady(true)
+        setInitialLoading(false)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+
+
 
   const validatePassword = (password: string): string | null => {
     if (password.length < 8) {
@@ -257,24 +140,31 @@ export default function ResetPasswordPage() {
     }
 
     try {
+      console.log('🔄 Updating password...')
+
+      // Update the user's password using Supabase
       const { error } = await supabase.auth.updateUser({
         password: password
       })
 
       if (error) {
+        console.log('❌ Password update failed:', error)
         setError(error.message)
         toast.error('Password reset failed: ' + error.message)
+        setLoading(false)
         return
       }
 
+      console.log('✅ Password updated successfully')
       setSuccess(true)
       toast.success('Password updated successfully!')
-      
+
       // Redirect to login after a short delay
       setTimeout(() => {
         router.push('/en/auth/login?message=password_reset_success')
       }, 2000)
     } catch (err) {
+      console.error('❌ Password reset error:', err)
       setError('An unexpected error occurred')
       toast.error('An unexpected error occurred')
     } finally {
@@ -392,13 +282,37 @@ export default function ResetPasswordPage() {
 
             {/* Error Alert */}
             {error && !initialLoading && (
+              <div className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+                <Link href="/en/auth/forgot-password">
+                  <Button className="w-full">
+                    Request New Reset Link
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+              </div>
+            )}
+
+            {/* Session Not Ready Alert */}
+            {!initialLoading && !error && !sessionReady && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>Session could not be established. Please try clicking the reset link again.</AlertDescription>
               </Alert>
             )}
 
-            {!initialLoading && !error && (
+            {/* Success Alert */}
+            {!initialLoading && !error && sessionReady && isValidToken && (
+              <Alert className="mb-6">
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>Reset link validated successfully. You can now set your new password.</AlertDescription>
+              </Alert>
+            )}
+
+            {!initialLoading && !error && sessionReady && isValidToken && (
               <form onSubmit={handlePasswordReset} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="password">New password</Label>

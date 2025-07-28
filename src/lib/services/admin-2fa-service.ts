@@ -39,25 +39,12 @@ export class Admin2FAService {
 
   /**
    * Check if an IP address is trusted for a user
+   * DISABLED: Always return false to disable IP-based restrictions
    */
   async isTrustedIP(userId: string, ipAddress: string): Promise<boolean> {
-    try {
-      const { data, error } = await this.supabase
-        .rpc('is_trusted_ip', {
-          user_id: userId,
-          ip_addr: ipAddress
-        })
-
-      if (error) {
-        console.error('Error checking trusted IP:', error)
-        return false
-      }
-
-      return data || false
-    } catch (error) {
-      console.error('Exception checking trusted IP:', error)
-      return false
-    }
+    // IP-based restrictions are disabled for development/production compatibility
+    console.log('🔄 IP Trust Check: Disabled (always returns false)')
+    return false
   }
 
   /**
@@ -71,8 +58,8 @@ export class Admin2FAService {
   ): Promise<Admin2FASession | null> {
     try {
       const sessionToken = crypto.randomBytes(32).toString('hex')
-      const isTrustedIp = await this.isTrustedIP(userId, ipAddress)
-      const requires2fa = !isTrustedIp || this.shouldRequire2FA(ipAddress, userAgent)
+      const isTrustedIp = false // Always false - IP restrictions disabled
+      const requires2fa = true // Always require 2FA for admin access
       
       // Session expires in 1 hour
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()

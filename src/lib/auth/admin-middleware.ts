@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import {
+  checkAdminRateLimit,
+  createRateLimitResponse,
+  getClientIdentifier,
+  getUserIdentifier,
+  createRateLimitHeaders
+} from '@/lib/rate-limiting/admin-rate-limiter'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 /**
@@ -205,22 +212,105 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
 }
 
 /**
- * Wrapper function to protect admin API routes
+ * Wrapper function to protect admin API routes with rate limiting
  * Usage: export const GET = withAdminAuth(async (request, { user, adminUser }) => { ... })
  */
 export function withAdminAuth<T extends any[]>(
-  handler: (request: NextRequest, context: { user: any; adminUser: any }, ...args: T) => Promise<NextResponse>
+  handler: (request: NextRequest, context: { user: any; adminUser: any }, ...args: T) => Promise<NextResponse>,
+  options: { rateLimitType?: 'admin_api' | 'admin_access' | 'admin_bulk_operations' | 'admin_boxhero_sync' } = {}
 ) {
   return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
+    // Apply rate limiting first
+    const rateLimitType = options.rateLimitType || 'admin_api'
+    const clientIdentifier = getClientIdentifier(request)
+
+    const rateLimitResult = await checkAdminRateLimit(clientIdentifier, rateLimitType)
+
+    if (!rateLimitResult.allowed) {
+      console.log(`🚫 Admin API: Rate limit exceeded for ${rateLimitType}:`, clientIdentifier)
+      return createRateLimitResponse(rateLimitResult)
+    }
+
+    // Then verify admin authentication
     const authResult = await verifyAdminAuth(request)
-    
+
     if (!authResult.success) {
       return authResult.response!
     }
 
-    return handler(request, { 
-      user: authResult.user!, 
-      adminUser: authResult.adminUser! 
+    // Execute the handler and add rate limit headers to the response
+    const response = await handler(request, {
+      user: authResult.user!,
+      adminUser: authResult.adminUser!
+    }, ...args)
+
+    // Add rate limit headers to successful responses
+    const rateLimitHeaders = createRateLimitHeaders(rateLimitResult)
+    Object.entries(rateLimitHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+
+    return response
+  }
+}
+
+/**
+ * Specialized wrapper for admin dashboard access with user-specific rate limiting
+ * Usage: export const GET = withAdminDashboardAuth(async (request, { user, adminUser }) => { ... })
+ */
+export function withAdminDashboardAuth<T extends any[]>(
+  handler: (request: NextRequest, context: { user: any; adminUser: any }, ...args: T) => Promise<NextResponse>
+) {
+  return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
+    // First verify admin authentication to get user info
+    const authResult = await verifyAdminAuth(request)
+
+    if (!authResult.success) {
+      return authResult.response!
+    }
+
+    // Apply user-specific rate limiting for dashboard access
+    const userIdentifier = getUserIdentifier(authResult.user!.id, request)
+    const rateLimitResult = await checkAdminRateLimit(userIdentifier, 'admin_access')
+
+    if (!rateLimitResult.allowed) {
+      console.log('🚫 Admin Dashboard: Rate limit exceeded for user:', authResult.user!.id)
+      return createRateLimitResponse(rateLimitResult)
+    }
+
+    // Execute the handler and add rate limit headers to the response
+    const response = await handler(request, {
+      user: authResult.user!,
+      adminUser: authResult.adminUser!
+    }, ...args)
+
+    // Add rate limit headers to successful responses
+    const rateLimitHeaders = createRateLimitHeaders(rateLimitResult)
+    Object.entries(rateLimitHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value)
+    })
+
+    return response
+  }
+}
+
+/**
+ * Legacy wrapper function without rate limiting (for backward compatibility)
+ * Usage: export const GET = withAdminAuthLegacy(async (request, { user, adminUser }) => { ... })
+ */
+export function withAdminAuthLegacy<T extends any[]>(
+  handler: (request: NextRequest, context: { user: any; adminUser: any }, ...args: T) => Promise<NextResponse>
+) {
+  return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
+    const authResult = await verifyAdminAuth(request)
+
+    if (!authResult.success) {
+      return authResult.response!
+    }
+
+    return handler(request, {
+      user: authResult.user!,
+      adminUser: authResult.adminUser!
     }, ...args)
   }
 }

@@ -7,12 +7,39 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type')
   const redirectTo = searchParams.get('redirectTo') ?? '/'
 
+  // Check for error parameters from Supabase verification
+  const error = searchParams.get('error')
+  const errorCode = searchParams.get('error_code')
+  const errorDescription = searchParams.get('error_description')
+
   console.log('🔄 Auth callback received:', {
     code: code ? 'present' : 'missing',
     type: type,
     redirectTo: redirectTo,
+    error: error,
+    errorCode: errorCode,
+    errorDescription: errorDescription,
     allParams: Object.fromEntries(searchParams.entries())
   })
+
+  // Handle error cases from Supabase verification
+  if (error) {
+    console.log('❌ Supabase verification error received:', { error, errorCode, errorDescription })
+
+    if (errorCode === 'otp_expired' || error === 'access_denied') {
+      console.log('🔑 Password reset token expired, redirecting to forgot password')
+
+      // Determine redirect based on the original redirectTo parameter
+      if (redirectTo.includes('/en/auth/admin-reset-password')) {
+        return NextResponse.redirect(`${origin}/en/auth/admin-forgot-password?error=expired_link`)
+      } else {
+        return NextResponse.redirect(`${origin}/en/auth/forgot-password?error=expired_link`)
+      }
+    }
+
+    // For other errors, redirect to login
+    return NextResponse.redirect(`${origin}/en/auth/login?error=auth_error&details=${encodeURIComponent(errorDescription || error)}`)
+  }
 
   if (code) {
     const supabase = await createClient()
@@ -24,51 +51,54 @@ export async function GET(request: NextRequest) {
     try {
       // Handle password recovery differently from regular auth
       if (type === 'recovery') {
-        console.log('🔑 Password recovery callback detected, using session-based approach')
+        console.log('🔑 Password recovery callback detected, using verifyOtp approach')
 
-        // Try to establish session immediately for both admin and user password resets
+        // For password recovery, use verifyOtp instead of exchangeCodeForSession
         try {
-          console.log('🔄 Attempting to exchange code for session in callback...')
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          console.log('🔄 Attempting to verify OTP for password recovery...')
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: code,
+            type: 'recovery'
+          })
 
           if (!error && data.session) {
-            console.log('✅ Session established successfully in callback:', {
+            console.log('✅ Password recovery session established successfully:', {
               userId: data.session.user.id,
               email: data.session.user.email
             })
 
-            // For admin password reset, redirect with session active
+            // Redirect directly to the appropriate reset page with session established
             if (redirectTo.includes('/en/auth/admin-reset-password')) {
-              console.log('🔐 Admin password reset detected, redirecting with active session')
-              return NextResponse.redirect(`${origin}/en/auth/admin-reset-password?session=active`)
+              console.log('🔐 Admin password reset verified, redirecting to admin reset page')
+              return NextResponse.redirect(`${origin}/en/auth/admin-reset-password`)
             }
 
-            // Regular user password reset with active session
-            console.log('👤 Regular user password reset detected, redirecting with active session')
-            return NextResponse.redirect(`${origin}/en/auth/reset-password?session=active`)
+            // Regular user password reset
+            console.log('👤 Regular user password reset verified, redirecting to reset page')
+            return NextResponse.redirect(`${origin}/en/auth/reset-password`)
           } else {
-            console.log('❌ Session exchange failed in callback:', error?.message)
+            console.log('❌ Password recovery verification failed:', error?.message)
 
-            // Fallback to token-based approach
+            // Redirect to error page or back to forgot password
             if (redirectTo.includes('/en/auth/admin-reset-password')) {
-              console.log('🔐 Admin password reset fallback, redirecting with token')
-              return NextResponse.redirect(`${origin}/en/auth/admin-reset-password?token=${code}&type=recovery`)
+              console.log('🔐 Admin password reset failed, redirecting to admin forgot password')
+              return NextResponse.redirect(`${origin}/en/auth/admin-forgot-password?error=invalid_link`)
             }
 
-            console.log('👤 Regular user password reset fallback, redirecting with token')
-            return NextResponse.redirect(`${origin}/en/auth/reset-password?token=${code}&type=recovery`)
+            console.log('👤 Regular user password reset failed, redirecting to forgot password')
+            return NextResponse.redirect(`${origin}/en/auth/forgot-password?error=invalid_link`)
           }
-        } catch (sessionError) {
-          console.log('❌ Session exchange exception in callback:', sessionError)
+        } catch (verifyError) {
+          console.log('❌ Password recovery verification exception:', verifyError)
 
-          // Fallback to token-based approach
+          // Redirect to error page
           if (redirectTo.includes('/en/auth/admin-reset-password')) {
-            console.log('🔐 Admin password reset exception fallback, redirecting with token')
-            return NextResponse.redirect(`${origin}/en/auth/admin-reset-password?token=${code}&type=recovery`)
+            console.log('🔐 Admin password reset exception, redirecting to admin forgot password')
+            return NextResponse.redirect(`${origin}/en/auth/admin-forgot-password?error=invalid_link`)
           }
 
-          console.log('👤 Regular user password reset exception fallback, redirecting with token')
-          return NextResponse.redirect(`${origin}/en/auth/reset-password?token=${code}&type=recovery`)
+          console.log('👤 Regular user password reset exception, redirecting to forgot password')
+          return NextResponse.redirect(`${origin}/en/auth/forgot-password?error=invalid_link`)
         }
       }
 

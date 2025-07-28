@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { adminQueries } from '@/lib/supabase/queries'
+import {
+  checkAdminRateLimit,
+  createRateLimitResponse,
+  getClientIdentifier,
+  createRateLimitHeaders,
+  checkAndSendLoginAttemptAlert
+} from '@/lib/rate-limiting/admin-rate-limiter'
 
 export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting for admin login attempts
+    const clientIdentifier = getClientIdentifier(request)
+    const rateLimitResult = await checkAdminRateLimit(clientIdentifier, 'admin_login')
+
+    if (!rateLimitResult.allowed) {
+      console.log('🚫 Admin Login: Rate limit exceeded for client:', clientIdentifier)
+      return createRateLimitResponse(rateLimitResult)
+    }
+
     const { email, password } = await request.json()
 
     if (!email || !password) {
@@ -25,6 +41,10 @@ export async function POST(request: NextRequest) {
 
     if (authError || !authData.user) {
       console.log('❌ Admin Login: Authentication failed:', authError?.message)
+
+      // Check if we should send email notification for failed attempts
+      await checkAndSendLoginAttemptAlert(clientIdentifier, request, email)
+
       return NextResponse.json({
         success: false,
         error: 'Invalid email or password'
@@ -48,9 +68,12 @@ export async function POST(request: NextRequest) {
 
     if (adminError || !adminUser) {
       console.log('❌ Admin Login: User is not an admin:', authData.user.id)
-      
+
       // Sign out the user since they're not an admin
       await supabase.auth.signOut()
+
+      // Check if we should send email notification for failed admin access attempts
+      await checkAndSendLoginAttemptAlert(clientIdentifier, request, email)
 
       return NextResponse.json({
         success: false,
@@ -60,71 +83,10 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Admin Login: Admin privileges confirmed for user:', authData.user.id, 'role:', adminUser.role)
 
-    // Check if user has MFA factors enrolled
-    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
-    
-    if (factorsError) {
-      console.log('❌ Admin Login: Error checking MFA factors:', factorsError)
-      return NextResponse.json({
-        success: false,
-        error: 'Error checking authentication factors'
-      }, { status: 500 })
-    }
+    // Admin login successful - no 2FA required
+    console.log('✅ Admin Login: Authentication successful')
 
-    console.log('🔍 Admin Login: MFA factors:', factors)
-
-    // Check if user has any verified factors
-    const hasVerifiedFactors = factors.totp.length > 0 || factors.phone.length > 0
-
-    if (!hasVerifiedFactors) {
-      // No MFA enrolled - require enrollment for admin users
-      console.log('⚠️ Admin Login: No MFA factors enrolled, requiring enrollment')
-      
-      return NextResponse.json({
-        success: true,
-        requiresMfaEnrollment: true,
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          role: adminUser.role
-        },
-        message: 'MFA enrollment required for admin access'
-      })
-    }
-
-    // Check current assurance level
-    const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    
-    if (aalError) {
-      console.log('❌ Admin Login: Error checking assurance level:', aalError)
-      return NextResponse.json({
-        success: false,
-        error: 'Error checking authentication level'
-      }, { status: 500 })
-    }
-
-    console.log('🔍 Admin Login: Current assurance level:', aal)
-
-    if (aal.currentLevel === 'aal1') {
-      // User needs to complete MFA challenge
-      console.log('⚠️ Admin Login: MFA challenge required')
-      
-      return NextResponse.json({
-        success: true,
-        requiresMfaChallenge: true,
-        factors: factors,
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          role: adminUser.role
-        },
-        message: 'Multi-factor authentication required'
-      })
-    }
-
-    // User is fully authenticated with MFA (aal2)
-    console.log('✅ Admin Login: Full authentication successful with MFA')
-    
+    const rateLimitHeaders = createRateLimitHeaders(rateLimitResult)
     return NextResponse.json({
       success: true,
       user: {
@@ -133,7 +95,7 @@ export async function POST(request: NextRequest) {
         role: adminUser.role
       },
       message: 'Admin login successful'
-    })
+    }, { headers: rateLimitHeaders })
 
   } catch (error) {
     console.error('❌ Admin Login: Exception:', error)

@@ -5,7 +5,6 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/lib/hooks/use-auth'
-import { adminQueries } from '@/lib/supabase/queries'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +36,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import Admin2FAForm from '@/components/admin/Admin2FAForm'
+import AdminMfaEnrollment from '@/components/admin/AdminMfaEnrollment'
+import AdminMfaChallenge from '@/components/admin/AdminMfaChallenge'
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -48,9 +48,10 @@ function AdminLoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [show2FA, setShow2FA] = useState(false)
-  const [sessionToken, setSessionToken] = useState('')
-  const [userEmail, setUserEmail] = useState('')
+  const [showMfaEnrollment, setShowMfaEnrollment] = useState(false)
+  const [showMfaChallenge, setShowMfaChallenge] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [mfaFactors, setMfaFactors] = useState<any>(null)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
@@ -83,8 +84,8 @@ function AdminLoginForm() {
     setError(null)
 
     try {
-      // Use the new 2FA-enabled admin login API
-      const response = await fetch('/api/admin/2fa/initiate', {
+      // Use the new Supabase MFA-enabled admin login API
+      const response = await fetch('/api/admin/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,14 +104,19 @@ function AdminLoginForm() {
         return
       }
 
-      if (result.requires2fa) {
-        // Show 2FA form
-        setSessionToken(result.sessionToken)
-        setUserEmail(formData.email)
-        setShow2FA(true)
+      if (result.requiresMfaEnrollment) {
+        // Show MFA enrollment form
+        setCurrentUser(result.user)
+        setShowMfaEnrollment(true)
+        toast.info(result.message)
+      } else if (result.requiresMfaChallenge) {
+        // Show MFA challenge form
+        setCurrentUser(result.user)
+        setMfaFactors(result.factors)
+        setShowMfaChallenge(true)
         toast.info(result.message)
       } else {
-        // Direct login success (trusted IP)
+        // Direct login success (already has MFA and is authenticated)
         toast.success(result.message)
         // The user should now be authenticated, trigger a page refresh
         window.location.reload()
@@ -124,16 +130,17 @@ function AdminLoginForm() {
     }
   }
 
-  const handle2FASuccess = (userData: any) => {
+  const handleMfaSuccess = () => {
     toast.success('Admin access granted!')
     // Trigger page refresh to update authentication state
     window.location.reload()
   }
 
-  const handle2FABack = () => {
-    setShow2FA(false)
-    setSessionToken('')
-    setUserEmail('')
+  const handleMfaBack = () => {
+    setShowMfaEnrollment(false)
+    setShowMfaChallenge(false)
+    setCurrentUser(null)
+    setMfaFactors(null)
     setFormData({ email: '', password: '' })
     setError(null)
   }
@@ -146,8 +153,8 @@ function AdminLoginForm() {
 
 
 
-  // Show 2FA form if required
-  if (show2FA) {
+  // Show MFA enrollment form if required
+  if (showMfaEnrollment) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
@@ -157,11 +164,32 @@ function AdminLoginForm() {
               Back to Foryoupiece
             </Link>
           </div>
-          <Admin2FAForm
-            sessionToken={sessionToken}
-            email={userEmail}
-            onVerificationSuccess={handle2FASuccess}
-            onBack={handle2FABack}
+          <AdminMfaEnrollment
+            user={currentUser}
+            onEnrollmentSuccess={handleMfaSuccess}
+            onBack={handleMfaBack}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Show MFA challenge form if required
+  if (showMfaChallenge) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to Foryoupiece
+            </Link>
+          </div>
+          <AdminMfaChallenge
+            user={currentUser}
+            factors={mfaFactors}
+            onChallengeSuccess={handleMfaSuccess}
+            onBack={handleMfaBack}
           />
         </div>
       </div>
@@ -302,6 +330,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const params = useParams()
   const locale = params.locale as string || 'en'
   const [isAdmin, setIsAdmin] = useState(false)
+  const [adminUser, setAdminUser] = useState<any>(null)
   const [checkingAdmin, setCheckingAdmin] = useState(true)
   const [adminCheckComplete, setAdminCheckComplete] = useState(false)
 
@@ -323,42 +352,33 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     }
 
     try {
-      const adminUser = await adminQueries.getAdminUser(user.id)
+      // Use client-side API call to check admin status
+      const response = await fetch('/api/admin/check-status')
+      const result = await response.json()
 
-      // Enhanced security check - verify user email for super admin
-      if (adminUser && adminUser.role === 'super_admin') {
-        const allowedSuperAdminEmails = [
-          process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-          process.env.NEXT_PUBLIC_ADMIN_EMAIL_BACKUP
-        ].filter(Boolean) // Remove undefined values
+      if (response.ok && result.isAdmin) {
+        setIsAdmin(true)
+        setAdminUser(result.user)
 
-        if (!allowedSuperAdminEmails.includes(user.email || '')) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Super admin role mismatch - unauthorized access attempt')
-          }
-          setIsAdmin(false)
-          setCheckingAdmin(false)
-          setAdminCheckComplete(true)
-          return
+        // Log admin access only in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Admin access granted:', {
+            userId: result.user.id,
+            email: result.user.email,
+            role: result.user.role,
+            timestamp: new Date().toISOString()
+          })
         }
-      }
-
-      setIsAdmin(!!adminUser)
-
-      // Log admin access only in development
-      if (adminUser && process.env.NODE_ENV === 'development') {
-        console.log('Admin access granted:', {
-          userId: user.id,
-          email: user.email,
-          role: adminUser.role,
-          timestamp: new Date().toISOString()
-        })
+      } else {
+        setIsAdmin(false)
+        setAdminUser(null)
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error checking admin status:', error)
       }
       setIsAdmin(false)
+      setAdminUser(null)
     } finally {
       setCheckingAdmin(false)
       setAdminCheckComplete(true)

@@ -115,16 +115,16 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       { status: 500 }
     )
   }
-})
+}, { rateLimitType: 'admin_boxhero_sync' })
 
 /**
  * DELETE /api/admin/boxhero/enhanced-sync/[id]
  * Cancel a running sync (if possible)
  */
-export async function DELETE(
+export const DELETE = withAdminAuth(async (
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { user, adminUser }
+) => {
   try {
     // This would implement sync cancellation
     // For now, return not implemented
@@ -148,4 +148,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
+}, { rateLimitType: 'admin_boxhero_sync' })

@@ -61,12 +61,11 @@ export default function AdminForgotPasswordPage() {
     setError('')
 
     try {
-      // Use the callback approach for admin password reset
-      const callbackUrl = `${window.location.origin}/en/auth/callback?type=recovery&redirectTo=/en/auth/admin-reset-password`
-      console.log('📧 Sending admin password reset email with callback URL:', callbackUrl)
-      
+      // Use Supabase's built-in password reset flow for admin
+      console.log('📧 Sending admin password reset email using Supabase built-in flow')
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: callbackUrl,
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/admin-reset-password`,
       })
 
       if (error) {

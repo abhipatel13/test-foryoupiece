@@ -269,4 +269,4 @@ export const POST = withAdminAuth(async (
       error: 'Internal server error',
     }, { status: 500 });
   }
-});
+}, { rateLimitType: 'admin_bulk_operations' });

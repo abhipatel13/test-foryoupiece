@@ -28,7 +28,7 @@ export default function AdminResetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    const validateTokens = async () => {
+    const validateSession = async () => {
       try {
         setInitialLoading(true)
         setError('')
@@ -37,10 +37,10 @@ export default function AdminResetPasswordPage() {
         const error = searchParams.get('error')
         const errorCode = searchParams.get('error_code')
         const errorDescription = searchParams.get('error_description')
-        
+
         if (error) {
           console.log('❌ Admin reset error parameters detected:', { error, errorCode, errorDescription })
-          
+
           if (errorCode === 'otp_expired') {
             setError('Your admin password reset link has expired. Please request a new password reset.')
           } else if (error === 'access_denied') {
@@ -52,258 +52,124 @@ export default function AdminResetPasswordPage() {
           return
         }
 
-        // Check if user already has an active session (from auth callback)
-        const sessionParam = searchParams.get('session')
-        if (sessionParam === 'active') {
-          console.log('🔑 Active admin session detected from callback')
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
-            console.log('✅ Valid admin session found for password reset:', {
-              userId: session.user.id,
-              email: session.user.email
-            })
+        // Check for code parameter (Supabase redirects with code)
+        const code = searchParams.get('code')
+
+        console.log('🔍 Checking for admin password reset code...', {
+          hasCode: !!code,
+          code: code ? 'present' : 'missing'
+        })
+
+        // If we have a code parameter, exchange it for a session using PKCE flow
+        if (code) {
+          console.log('🔑 Found admin reset code, exchanging for session...')
+
+          try {
+            // Exchange the PKCE code for a session
+            const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+            if (exchangeError) {
+              console.log('❌ Failed to exchange admin PKCE code for session:', exchangeError.message)
+              setError('Invalid or expired admin reset link. Please request a new password reset.')
+              setInitialLoading(false)
+              return
+            }
+
+            if (data.session) {
+              console.log('✅ Admin session established from PKCE code exchange:', {
+                userId: data.session.user.id,
+                email: data.session.user.email
+              })
+              setInitialLoading(false)
+              return
+            } else {
+              console.log('❌ Admin PKCE code exchange succeeded but no session returned')
+              setError('Failed to establish admin session. Please try clicking the reset link again.')
+              setInitialLoading(false)
+              return
+            }
+          } catch (exchangeError) {
+            console.log('❌ Admin PKCE code exchange error:', exchangeError)
+            setError('Invalid or expired admin reset link. Please request a new password reset.')
             setInitialLoading(false)
-            return // User can proceed to reset password
-          } else {
-            console.log('❌ Session parameter present but no active session found')
+            return
           }
         }
 
-        // Check for tokens in URL parameters
-        let accessToken = searchParams.get('access_token')
-        let refreshToken = searchParams.get('refresh_token')
-        let type = searchParams.get('type')
+        // Check for hash fragments (alternative Supabase approach)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
 
-        // Check for the recovery token from callback
-        const recoveryToken = searchParams.get('token')
-
-        console.log('🔍 Admin Token Detection:', {
-          accessToken: accessToken ? 'present' : 'missing',
-          refreshToken: refreshToken ? 'present' : 'missing',
-          recoveryToken: recoveryToken ? 'present' : 'missing',
+        console.log('🔍 Checking for admin password reset tokens in hash...', {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
           type: type
         })
-        
-        // Also check URL hash for tokens (Supabase sometimes uses hash fragments)
-        if (typeof window !== 'undefined' && window.location.hash) {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1))
-          accessToken = accessToken || hashParams.get('access_token')
-          refreshToken = refreshToken || hashParams.get('refresh_token')
-          type = type || hashParams.get('type')
 
-          console.log('🔍 Admin Hash Parameters:', {
-            hash: window.location.hash,
-            hashAccessToken: hashParams.get('access_token') ? 'present' : 'missing',
-            hashRefreshToken: hashParams.get('refresh_token') ? 'present' : 'missing',
-            hashType: hashParams.get('type'),
-            allHashParams: Object.fromEntries(hashParams.entries())
-          })
-        }
+        // If we have tokens in the hash, set the session
+        if (accessToken && refreshToken && type === 'recovery') {
+          console.log('🔑 Found admin recovery tokens in URL hash, setting session...')
 
-        console.log('🔍 Admin URL Parameters:', {
-          accessToken: accessToken ? 'present' : 'missing',
-          refreshToken: refreshToken ? 'present' : 'missing',
-          recoveryToken: recoveryToken ? 'present' : 'missing',
-          type: type,
-          sessionParam: sessionParam,
-          allParams: Object.fromEntries(searchParams.entries()),
-          hash: typeof window !== 'undefined' ? window.location.hash : 'N/A'
-        })
-
-        // Handle recovery token from callback - use same robust approach as user reset
-        if ((type === 'recovery' && recoveryToken) || recoveryToken) {
-          console.log('🔑 Processing admin recovery token from callback...')
-
-          try {
-            // Use the token we found
-            const tokenToUse = recoveryToken
-            console.log('🔑 Using admin token for verification:', tokenToUse ? 'present' : 'missing')
-
-            // Try multiple approaches to handle the token (same as user reset)
-            let sessionSet = false
-
-            // Method 1: Try exchangeCodeForSession (for newer Supabase versions)
-            try {
-              console.log('🔄 Trying admin exchangeCodeForSession...')
-              const { data, error } = await supabase.auth.exchangeCodeForSession(tokenToUse)
-
-              if (!error && data.session) {
-                console.log('✅ Admin session exchanged successfully via exchangeCodeForSession')
-                console.log('🔐 Admin session established:', {
-                  userId: data.session.user.id,
-                  email: data.session.user.email
-                })
-                sessionSet = true
-              } else {
-                console.log('❌ Admin exchangeCodeForSession failed:', error?.message)
-              }
-            } catch (exchangeError) {
-              console.log('❌ Admin exchangeCodeForSession exception:', exchangeError)
-            }
-
-            // Method 2: Try verifyOtp if exchangeCodeForSession failed
-            if (!sessionSet) {
-              try {
-                console.log('🔄 Trying admin verifyOtp...')
-                const { data, error } = await supabase.auth.verifyOtp({
-                  token_hash: tokenToUse,
-                  type: 'recovery'
-                })
-
-                if (!error && data.session) {
-                  console.log('✅ Admin recovery token verified successfully via verifyOtp')
-                  console.log('🔐 Admin session established:', {
-                    userId: data.session.user.id,
-                    email: data.session.user.email
-                  })
-                  sessionSet = true
-                } else {
-                  console.log('❌ Admin verifyOtp failed:', error?.message)
-                }
-              } catch (verifyError) {
-                console.log('❌ Admin verifyOtp exception:', verifyError)
-              }
-            }
-
-            // Method 3: Try setSession as final fallback (if we have refresh token)
-            if (!sessionSet && refreshToken) {
-              try {
-                console.log('🔄 Trying admin setSession fallback...')
-                const { error } = await supabase.auth.setSession({
-                  access_token: tokenToUse,
-                  refresh_token: refreshToken,
-                })
-
-                if (!error) {
-                  console.log('✅ Admin session set successfully via setSession fallback')
-                  sessionSet = true
-                } else {
-                  console.log('❌ Admin setSession failed:', error?.message)
-                }
-              } catch (sessionError) {
-                console.log('❌ Admin setSession exception:', sessionError)
-              }
-            }
-
-            // If none of the methods worked, show error
-            if (!sessionSet) {
-              console.log('❌ All admin token verification methods failed')
-              setError('Invalid or expired admin reset link. Please request a new password reset.')
-            }
-          } catch (generalError) {
-            console.error('❌ General admin token processing error:', generalError)
-            setError('An error occurred while validating your admin reset link. Please try again.')
-          }
-        }
-        // Handle different Supabase URL formats for legacy tokens
-        else if ((type === 'recovery' && accessToken)) {
-          // This is the format Supabase uses for legacy password recovery
-          console.log('🔑 Processing admin legacy recovery token...')
-
-          try {
-            // Use the access token for legacy format
-            console.log('🔑 Using admin access token for verification:', accessToken ? 'present' : 'missing')
-            
-            // Try multiple approaches to handle the token (same as user reset)
-            let sessionSet = false
-
-            // Method 1: Try exchangeCodeForSession (for newer Supabase versions)
-            try {
-              console.log('🔄 Trying admin exchangeCodeForSession for legacy token...')
-              const { data, error } = await supabase.auth.exchangeCodeForSession(accessToken)
-
-              if (!error && data.session) {
-                console.log('✅ Admin legacy session exchanged successfully via exchangeCodeForSession')
-                sessionSet = true
-              } else {
-                console.log('❌ Admin legacy exchangeCodeForSession failed:', error?.message)
-              }
-            } catch (exchangeError) {
-              console.log('❌ Admin legacy exchangeCodeForSession exception:', exchangeError)
-            }
-
-            // Method 2: Try verifyOtp if exchangeCodeForSession failed
-            if (!sessionSet) {
-              try {
-                console.log('🔄 Trying admin verifyOtp for legacy token...')
-                const { data, error } = await supabase.auth.verifyOtp({
-                  token_hash: accessToken,
-                  type: 'recovery'
-                })
-
-                if (!error && data.session) {
-                  console.log('✅ Admin legacy recovery token verified successfully via verifyOtp')
-                  sessionSet = true
-                } else {
-                  console.log('❌ Admin legacy verifyOtp failed:', error?.message)
-                }
-              } catch (verifyError) {
-                console.log('❌ Admin legacy verifyOtp exception:', verifyError)
-              }
-            }
-
-            // Method 3: Try setSession as fallback for legacy tokens
-            if (!sessionSet && refreshToken) {
-              try {
-                console.log('🔄 Trying admin setSession fallback for legacy token...')
-                const { error } = await supabase.auth.setSession({
-                  access_token: accessToken,
-                  refresh_token: refreshToken,
-                })
-
-                if (!error) {
-                  console.log('✅ Admin session set successfully via setSession fallback')
-                  sessionSet = true
-                } else {
-                  console.log('❌ Admin setSession failed:', error?.message)
-                }
-              } catch (sessionError) {
-                console.log('❌ Admin setSession exception:', sessionError)
-              }
-            }
-            
-            // If none of the methods worked, show error
-            if (!sessionSet) {
-              console.log('❌ All admin token verification methods failed')
-              setError('Invalid or expired admin reset link. Please request a new password reset.')
-            }
-          } catch (generalError) {
-            console.error('❌ General admin token processing error:', generalError)
-            setError('An error occurred while validating your admin reset link. Please try again.')
-          }
-        } else if (accessToken && refreshToken) {
-          // Standard token format
-          console.log('🔑 Processing standard admin tokens...')
-
-          const { error } = await supabase.auth.setSession({
+          const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
-            refresh_token: refreshToken,
+            refresh_token: refreshToken
           })
 
-          if (error) {
-            console.error('Admin session error:', error)
-            if (error.message.includes('expired') || error.message.includes('invalid')) {
-              setError('Your admin password reset link has expired. Please request a new password reset.')
-            } else {
-              setError('Invalid or expired admin reset link. Please request a new password reset.')
-            }
-          } else {
-            console.log('✅ Admin session set successfully')
+          if (sessionError) {
+            console.log('❌ Failed to set admin session from tokens:', sessionError.message)
+            setError('Invalid or expired admin reset link. Please request a new password reset.')
+            setInitialLoading(false)
+            return
           }
-        } else {
-          console.log('❌ No valid admin tokens found in URL')
-          setError('Invalid or expired admin reset link. Please request a new password reset.')
+
+          if (data.session) {
+            console.log('✅ Admin session established from recovery tokens:', {
+              userId: data.session.user.id,
+              email: data.session.user.email
+            })
+            setInitialLoading(false)
+            return
+          }
         }
-      } catch (error) {
-        console.error('Admin token validation error:', error)
-        setError('An error occurred while validating your reset link. Please try again.')
-      } finally {
+
+        // Check if user already has a valid session
+        console.log('🔍 Checking for existing admin session...')
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          console.log('❌ Admin session error:', sessionError.message)
+          setError('Invalid or expired admin reset link. Please request a new password reset.')
+          setInitialLoading(false)
+          return
+        }
+
+        if (!session) {
+          console.log('❌ No valid admin session found and no recovery tokens')
+          setError('Invalid or expired admin reset link. Please request a new password reset.')
+          setInitialLoading(false)
+          return
+        }
+
+        console.log('✅ Valid admin session found for password reset:', {
+          userId: session.user.id,
+          email: session.user.email
+        })
+        setInitialLoading(false)
+      } catch (err) {
+        console.error('❌ Admin session validation error:', err)
+        setError('An error occurred while validating your admin reset link.')
         setInitialLoading(false)
       }
     }
 
-    validateTokens()
-  }, [searchParams, supabase])
+    validateSession()
+  }, [searchParams, supabase.auth])
+
+
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -327,67 +193,54 @@ export default function AdminResetPasswordPage() {
     setError('')
 
     try {
-      // Check if we have a valid session first
+      // Check if this is the super admin who might have MFA enabled
       const { data: { session } } = await supabase.auth.getSession()
+      const userEmail = session?.user?.email || ''
+      const isSuperAdmin = userEmail === 'akito12350@gmail.com'
 
-      if (!session) {
-        console.log('❌ No active session found, attempting to re-verify token...')
+      if (isSuperAdmin) {
+        // Check if super admin has MFA enabled and needs AAL2 session
+        console.log('🔍 Checking super admin MFA status before password update...')
+        const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
 
-        // Try to re-verify the token if no session exists (same robust approach as user reset)
-        const recoveryToken = searchParams.get('token')
-        if (recoveryToken) {
-          console.log('🔄 Attempting to re-verify admin token for password update...')
+        if (aalError) {
+          console.log('❌ Error checking super admin AAL:', aalError)
+          setError('Authentication error occurred')
+          toast.error('Authentication error occurred')
+          return
+        }
 
-          let sessionRestored = false
+        console.log('🔍 Current super admin AAL status:', aalData)
 
-          // Method 1: Try exchangeCodeForSession
-          try {
-            console.log('🔄 Trying exchangeCodeForSession for password update...')
-            const { data, error } = await supabase.auth.exchangeCodeForSession(recoveryToken)
+        // If super admin has MFA enrolled but current level is aal1, they need to complete MFA
+        if (aalData.nextLevel === 'aal2' && aalData.currentLevel === 'aal1') {
+          console.log('⚠️ Super admin has MFA enabled but needs to complete MFA challenge for password reset')
 
-            if (!error && data.session) {
-              console.log('✅ Admin session restored via exchangeCodeForSession')
-              sessionRestored = true
-            } else {
-              console.log('❌ exchangeCodeForSession failed for password update:', error?.message)
-            }
-          } catch (exchangeError) {
-            console.log('❌ exchangeCodeForSession exception for password update:', exchangeError)
-          }
+          // Check if super admin has MFA factors
+          const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
 
-          // Method 2: Try verifyOtp if exchangeCodeForSession failed
-          if (!sessionRestored) {
-            try {
-              console.log('🔄 Trying verifyOtp for password update...')
-              const { data, error: verifyError } = await supabase.auth.verifyOtp({
-                token_hash: recoveryToken,
-                type: 'recovery'
-              })
-
-              if (!verifyError && data.session) {
-                console.log('✅ Admin token re-verified successfully via verifyOtp')
-                sessionRestored = true
-              } else {
-                console.log('❌ verifyOtp failed for password update:', verifyError?.message)
-              }
-            } catch (verifyError) {
-              console.log('❌ verifyOtp exception for password update:', verifyError)
-            }
-          }
-
-          if (!sessionRestored) {
-            console.log('❌ All token re-verification methods failed')
-            setError('Your session has expired. Please request a new password reset link.')
+          if (factorsError) {
+            console.log('❌ Error listing super admin MFA factors:', factorsError)
+            setError('Unable to verify super admin MFA status')
+            toast.error('Unable to verify super admin MFA status')
             return
           }
 
-          console.log('✅ Token re-verified successfully, proceeding with password update')
-        } else {
-          setError('Auth session missing. Please request a new password reset link.')
-          return
+          console.log('🔍 Super admin MFA factors found:', factors)
+
+          if (factors.totp && factors.totp.length > 0) {
+            // Super admin has TOTP factors, show MFA challenge
+            setError('Multi-factor authentication is required to reset your super admin password. Your account has MFA enabled, which requires additional verification to change passwords. Please temporarily disable MFA to reset your password.')
+            toast.error('Super admin MFA verification required for password reset')
+            return
+          }
         }
+      } else {
+        // Regular admin users don't have MFA
+        console.log('🔍 Regular admin user, no MFA check needed')
       }
 
+      // Proceed with admin password update
       console.log('🔄 Updating admin password...')
       const { error } = await supabase.auth.updateUser({
         password: password
@@ -395,6 +248,19 @@ export default function AdminResetPasswordPage() {
 
       if (error) {
         console.error('❌ Admin password update failed:', error)
+
+        // Check if this is the AAL2 error (should only happen for super admin with MFA)
+        if (error.message.includes('AAL2 session is required')) {
+          if (isSuperAdmin) {
+            setError('Multi-factor authentication is required to reset your super admin password. Your account has MFA enabled, which requires additional verification to change passwords. Please temporarily disable MFA to reset your password.')
+            toast.error('Super admin MFA verification required for password reset')
+          } else {
+            setError('Unexpected MFA error. Please contact support.')
+            toast.error('Unexpected MFA error')
+          }
+          return
+        }
+
         setError(error.message)
         toast.error('Admin password reset failed: ' + error.message)
         return

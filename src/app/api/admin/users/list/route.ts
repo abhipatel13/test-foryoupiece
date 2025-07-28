@@ -122,7 +122,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       error: 'Internal server error'
     }, { status: 500 });
   }
-});
+}, { rateLimitType: 'admin_bulk_operations' });
 
 // Helper function to get tier information
 function getTierInfo(tier: string) {

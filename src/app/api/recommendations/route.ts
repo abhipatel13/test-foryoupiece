@@ -27,18 +27,25 @@ export async function GET(request: NextRequest) {
       .from('products')
       .select(`
         id,
+        sku,
         name_en,
+        name_ja,
+        description_en,
+        description_ja,
         price,
         compare_at_price,
         stock_quantity,
+        stock_status,
         is_featured,
         brand,
         images,
         created_at,
         tags,
+        points_rate,
         category:categories(
           id,
           name_en,
+          name_ja,
           slug
         )
       `)
@@ -57,16 +64,27 @@ export async function GET(request: NextRequest) {
     // Transform products to match the expected interface
     const transformedProducts = products?.map(product => ({
       id: product.id,
+      sku: product.sku,
       name_en: product.name_en,
+      name_ja: product.name_ja,
+      description_en: product.description_en,
+      description_ja: product.description_ja,
       price: product.price,
       compare_at_price: product.compare_at_price,
       stock_quantity: product.stock_quantity,
+      stock_status: product.stock_status,
       is_featured: product.is_featured,
-      category: product.category?.name_en,
       brand: product.brand,
       images: product.images || [],
       created_at: product.created_at,
-      tags: product.tags || []
+      tags: product.tags || [],
+      points_rate: product.points_rate,
+      category: product.category ? {
+        id: product.category.id,
+        name_en: product.category.name_en,
+        name_ja: product.category.name_ja,
+        slug: product.category.slug
+      } : null
     })) || []
 
     console.log(`📦 Fetched ${transformedProducts.length} products for recommendations`)

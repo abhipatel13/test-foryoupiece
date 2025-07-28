@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Star, Trophy, Gift, Calendar, Mail, Phone, User, Edit, MapPin, CreditCard, Save, Trash2, Package, Clock, Eye, ShoppingBag, X, Award } from 'lucide-react'
+import { Star, Trophy, Gift, Calendar, Mail, Phone, User, Edit, MapPin, CreditCard, Save, Trash2, Package, Clock, Eye, ShoppingBag, X, Award, Shield } from 'lucide-react'
 import { formatDate, formatPrice, getCorrectUserTier, getTierStyling } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,7 @@ import Link from 'next/link'
 import PointsDashboard from '@/components/user/points-dashboard'
 import TierRewardsDisplay from '@/components/user/tier-rewards-display'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
+import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog'
 
 
 
@@ -394,6 +395,35 @@ export default function ProfilePage() {
           <TierRewardsDisplay userId={profile?.id} userProfile={profile} />
 
         </div>
+
+        {/* Account Security */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Shield className="h-5 w-5 text-blue-500" />
+              <span>Account Security</span>
+            </CardTitle>
+            <CardDescription>
+              Manage your account security settings and password
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <h4 className="font-medium text-gray-900">Password</h4>
+                <p className="text-sm text-gray-500">
+                  Change your account password to keep your account secure
+                </p>
+              </div>
+              <ChangePasswordDialog>
+                <Button variant="outline" size="sm">
+                  <Shield className="h-4 w-4 mr-2" />
+                  Change Password
+                </Button>
+              </ChangePasswordDialog>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Address & Payment Information */}
         <Card className="mb-8">

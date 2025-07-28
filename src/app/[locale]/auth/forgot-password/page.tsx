@@ -53,12 +53,11 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      // Try the callback approach first
-      const callbackUrl = `${window.location.origin}/en/auth/callback?type=recovery&redirectTo=/en/auth/reset-password`
-      console.log('📧 Sending password reset email with callback URL:', callbackUrl)
+      // Use Supabase's built-in password reset flow
+      console.log('📧 Sending password reset email using Supabase built-in flow')
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: callbackUrl,
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
       })
 
       if (error) {

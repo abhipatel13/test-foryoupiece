@@ -20,6 +20,19 @@ export async function POST(request: NextRequest) {
 
     console.log('🔐 MFA Enroll: Starting enrollment for user:', user.id, 'type:', factorType)
 
+    // Restrict MFA enrollment to super admin only (akito12350@gmail.com)
+    const allowedMfaEmails = ['akito12350@gmail.com']
+
+    if (!allowedMfaEmails.includes(user.email || '')) {
+      console.log('❌ MFA Enroll: MFA enrollment restricted to super admin only:', user.email)
+      return NextResponse.json({
+        success: false,
+        error: 'MFA enrollment is restricted to super admin accounts only. Regular users do not need MFA for security and password reset simplicity.'
+      }, { status: 403 })
+    }
+
+    console.log('✅ MFA Enroll: Super admin email verified, proceeding with enrollment')
+
     if (factorType === 'phone') {
       if (!phone) {
         return NextResponse.json({
