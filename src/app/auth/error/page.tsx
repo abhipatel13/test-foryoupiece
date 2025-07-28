@@ -7,8 +7,9 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Suspense } from 'react'
 
-export default function AuthErrorPage() {
+function AuthErrorContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
   const message = searchParams.get('message')
@@ -167,5 +168,42 @@ export default function AuthErrorPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function AuthErrorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="text-center">
+            <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
+              <div className="flex items-center space-x-2">
+                <Image
+                  src="/favicon.jpg"
+                  alt="Foryoupiece"
+                  width={32}
+                  height={32}
+                  className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                  priority
+                />
+                <Image
+                  src="/logo.jpg"
+                  alt="Foryoupiece"
+                  width={80}
+                  height={24}
+                  className="object-contain flex-shrink-0"
+                  priority
+                />
+              </div>
+            </Link>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">Loading...</h2>
+            <p className="mt-2 text-sm text-gray-600">Processing authentication error</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <AuthErrorContent />
+    </Suspense>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { orderQueries } from '@/lib/supabase/queries'
@@ -41,7 +41,7 @@ interface Order {
   items: OrderItem[]
 }
 
-export default function ThankYouPage() {
+function ThankYouPageContent() {
   const t = useTranslations('thankYou')
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order')
@@ -610,5 +610,24 @@ export default function ThankYouPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ThankYouPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">Loading Order Details...</h1>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <ThankYouPageContent />
+    </Suspense>
   )
 }

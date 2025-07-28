@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { productQueries, categoryQueries } from '@/lib/supabase/queries'
@@ -45,7 +45,7 @@ interface Category {
   slug: string
 }
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const t = useTranslations('products')
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -531,5 +531,30 @@ export default function ProductsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Loading Products...</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-lg shadow-sm p-4">
+                  <Skeleton className="h-48 w-full mb-4" />
+                  <Skeleton className="h-4 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <ProductsPageContent />
+    </Suspense>
   )
 }
