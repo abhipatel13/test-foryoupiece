@@ -746,16 +746,60 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'foryoupiece-cart',
-      version: 1, // Add version for better cache management
-      onRehydrateStorage: () => (state) => {
-        // Deduplicate items when loading from localStorage
-        if (state?.items) {
-          const deduplicatedItems = deduplicateCartItems(state.items)
-          state.items = deduplicatedItems
+      version: 1,
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        // Handle migration from older versions
+        if (version === 0) {
+          // Reset state for version 0 to 1 migration
+          return {
+            items: [],
+            isLoading: false,
+            pointsToRedeem: 0,
+            appliedCoupon: null,
+            shippingCalculation: null,
+            userId: null,
+          }
         }
-        // Reset loading state on hydration to prevent stuck loading states
-        if (state) {
-          state.isLoading = false
+        return persistedState
+      }, // Add version for better cache management
+      onRehydrateStorage: () => (state) => {
+        try {
+          // Deduplicate items when loading from localStorage
+          if (state?.items && Array.isArray(state.items)) {
+            const deduplicatedItems = deduplicateCartItems(state.items)
+            state.items = deduplicatedItems
+          } else {
+            // Reset to empty array if items is not valid
+            if (state) {
+              state.items = []
+            }
+          }
+          // Reset loading state on hydration to prevent stuck loading states
+          if (state) {
+            state.isLoading = false
+            // Ensure other states have safe defaults
+            if (!state.pointsToRedeem) {
+              state.pointsToRedeem = 0
+            }
+            if (!state.appliedCoupon) {
+              state.appliedCoupon = null
+            }
+            if (!state.shippingCalculation) {
+              state.shippingCalculation = null
+            }
+          }
+        } catch (error) {
+          console.warn('Cart store hydration error:', error)
+          // Reset to safe defaults on hydration error
+          if (state) {
+            state.items = []
+            state.isLoading = false
+            state.pointsToRedeem = 0
+            state.appliedCoupon = null
+            state.shippingCalculation = null
+            // Keep userId if it exists
+          }
         }
       },
       // Add better error handling for production environments

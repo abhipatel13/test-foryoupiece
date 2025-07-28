@@ -25,15 +25,19 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
-  UserCheck,
   ArrowLeft,
   Crown,
   Tag,
   Award,
   Gift,
-  Zap
+  Zap,
+  AlertCircle,
+  Lock,
+  Mail
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import Admin2FAForm from '@/components/admin/Admin2FAForm'
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -44,10 +48,34 @@ function AdminLoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [show2FA, setShow2FA] = useState(false)
+  const [sessionToken, setSessionToken] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   })
+
+  // Check for password reset success message and pre-populate email
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('message') === 'password_reset_success') {
+        setShowSuccessMessage(true)
+        toast.success('Password reset successful! Please log in with your new password.')
+
+        // Pre-populate admin email if available
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+        if (adminEmail) {
+          setFormData(prev => ({ ...prev, email: adminEmail }))
+        }
+
+        // Clean up the URL
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,8 +83,38 @@ function AdminLoginForm() {
     setError(null)
 
     try {
-      await signInWithEmail(formData.email, formData.password)
-      toast.success('Admin login successful!')
+      // Use the new 2FA-enabled admin login API
+      const response = await fetch('/api/admin/2fa/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        setError(result.error || 'Login failed')
+        toast.error(result.error || 'Login failed')
+        return
+      }
+
+      if (result.requires2fa) {
+        // Show 2FA form
+        setSessionToken(result.sessionToken)
+        setUserEmail(formData.email)
+        setShow2FA(true)
+        toast.info(result.message)
+      } else {
+        // Direct login success (trusted IP)
+        toast.success(result.message)
+        // The user should now be authenticated, trigger a page refresh
+        window.location.reload()
+      }
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to sign in'
       setError(errorMessage)
@@ -66,40 +124,48 @@ function AdminLoginForm() {
     }
   }
 
+  const handle2FASuccess = (userData: any) => {
+    toast.success('Admin access granted!')
+    // Trigger page refresh to update authentication state
+    window.location.reload()
+  }
+
+  const handle2FABack = () => {
+    setShow2FA(false)
+    setSessionToken('')
+    setUserEmail('')
+    setFormData({ email: '', password: '' })
+    setError(null)
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
     if (error) setError(null)
   }
 
-  const handleTempLogin = async () => {
-    // Security check: Only allow in development environment
-    if (process.env.NODE_ENV !== 'development') {
-      setError('Temporary login is disabled in production for security.')
-      toast.error('Feature disabled in production')
-      return
-    }
 
-    setLoading(true)
-    setError(null)
 
-    try {
-      // Get admin credentials from environment variables for security
-      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_TEMP_PASSWORD
-
-      if (!adminEmail || !adminPassword) {
-        throw new Error('Admin credentials not configured')
-      }
-
-      await signInWithEmail(adminEmail, adminPassword)
-      toast.success('Development admin access granted!')
-    } catch (err: any) {
-      setError('Development login failed. Please use your admin credentials.')
-      toast.error('Development login failed')
-    } finally {
-      setLoading(false)
-    }
+  // Show 2FA form if required
+  if (show2FA) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to Foryoupiece
+            </Link>
+          </div>
+          <Admin2FAForm
+            sessionToken={sessionToken}
+            email={userEmail}
+            onVerificationSuccess={handle2FASuccess}
+            onBack={handle2FABack}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -131,6 +197,15 @@ function AdminLoginForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
+            {/* Success Alert */}
+            {showSuccessMessage && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                <p className="text-sm text-green-700">
+                  ✅ Password reset successful! Please log in with your new password.
+                </p>
+              </div>
+            )}
+
             {/* Error Alert */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -192,28 +267,17 @@ function AdminLoginForm() {
               </Button>
             </form>
 
-            {/* Temporary Login Section - Development Only */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="border-t pt-4">
-                <div className="text-center mb-3">
-                  <p className="text-sm text-red-600 mb-2 font-semibold">⚠️ DEVELOPMENT ONLY</p>
-                  <p className="text-xs text-gray-600 mb-2">This feature is disabled in production</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={handleTempLogin}
-                  disabled={loading}
-                >
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  {loading ? 'Accessing...' : 'Development Admin Access'}
-                </Button>
-                <p className="text-xs text-red-500 mt-2 text-center">
-                  Uses configured admin credentials for development testing
-                </p>
-              </div>
-            )}
+            {/* Forgot Password Link */}
+            <div className="text-center">
+              <Link
+                href="/en/auth/admin-forgot-password"
+                className="text-sm text-red-600 hover:text-red-700 hover:underline"
+              >
+                Forgot your admin password?
+              </Link>
+            </div>
+
+
 
             {/* Security Notice */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">

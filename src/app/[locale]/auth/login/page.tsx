@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -94,9 +95,7 @@ export default function LoginPage() {
   }
 
   const handleTelegramLogin = () => {
-    toast.info('Telegram login is only available in production with a public domain')
-    // Telegram login would be implemented here for production
-    // Currently disabled for localhost development
+    toast.info('Telegram login is currently unavailable. Please use Google or email login.')
   }
 
   return (
@@ -104,9 +103,25 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center space-x-2 text-2xl font-bold text-gray-900">
-            <span className="bg-black text-white px-2 py-1 rounded">FYP</span>
-            <span>Foryoupiece</span>
+          <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
+            <div className="flex items-center space-x-2">
+              <Image
+                src="/favicon.jpg"
+                alt="Foryoupiece"
+                width={32}
+                height={32}
+                className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                priority
+              />
+              <Image
+                src="/logo.jpg"
+                alt="Foryoupiece"
+                width={80}
+                height={24}
+                className="object-contain flex-shrink-0"
+                priority
+              />
+            </div>
           </Link>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Sign in to your account
@@ -247,29 +262,10 @@ export default function LoginPage() {
                   <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
                 </svg>
                 Continue with Telegram
-                <span className="ml-2 text-xs text-gray-500">(Production only)</span>
               </Button>
             </div>
 
-            {/* Guest Login for Testing */}
-            <div className="pt-4 border-t">
-              <p className="text-xs text-gray-500 text-center mb-3">
-                For testing purposes
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={() => {
-                  setEmail('test@foryoupiece.com')
-                  setPassword('testpassword123')
-                  toast.info('Test credentials filled in')
-                }}
-                disabled={loading}
-              >
-                Fill Test Credentials
-              </Button>
-            </div>
+
           </CardContent>
         </Card>
 
@@ -277,11 +273,11 @@ export default function LoginPage() {
         <div className="text-center text-sm text-gray-600">
           <p>
             By signing in, you agree to our{' '}
-            <Link href="/terms" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/terms" className="font-medium text-blue-600 hover:text-blue-500">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/privacy" className="font-medium text-blue-600 hover:text-blue-500">
               Privacy Policy
             </Link>
           </p>

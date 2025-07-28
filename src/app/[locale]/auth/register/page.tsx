@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -171,9 +172,25 @@ export default function RegisterPage() {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center space-x-2 text-2xl font-bold text-gray-900">
-            <span className="bg-black text-white px-2 py-1 rounded">FYP</span>
-            <span>Foryoupiece</span>
+          <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
+            <div className="flex items-center space-x-2">
+              <Image
+                src="/favicon.jpg"
+                alt="Foryoupiece"
+                width={32}
+                height={32}
+                className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                priority
+              />
+              <Image
+                src="/logo.jpg"
+                alt="Foryoupiece"
+                width={80}
+                height={24}
+                className="object-contain flex-shrink-0"
+                priority
+              />
+            </div>
           </Link>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Create your account
@@ -337,11 +354,11 @@ export default function RegisterPage() {
         <div className="text-center text-sm text-gray-600">
           <p>
             By creating an account, you agree to our{' '}
-            <Link href="/terms" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/terms" className="font-medium text-blue-600 hover:text-blue-500">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/privacy" className="font-medium text-blue-600 hover:text-blue-500">
               Privacy Policy
             </Link>
           </p>

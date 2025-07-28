@@ -37,7 +37,6 @@ export function GoogleLogin({
       // Note: The actual success toast will be shown after redirect
       // since OAuth redirects to a callback URL
     } catch (error: any) {
-      console.error('Google sign-in error:', error)
       const errorMessage = error.message || 'Failed to sign in with Google'
       toast.error(errorMessage)
       
@@ -111,7 +110,6 @@ export function GoogleLoginCompact({
         onSuccess()
       }
     } catch (error: any) {
-      console.error('Google sign-in error:', error)
       const errorMessage = error.message || 'Failed to sign in with Google'
       toast.error(errorMessage)
       

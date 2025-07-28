@@ -438,13 +438,17 @@ const orderQueries = {
 // Admin queries
 const adminQueries = {
   async getAdminUser(userId: string) {
+    console.log('🔍 getAdminUser: Starting query for userId:', userId)
+
     // Check cache first
     const cacheKey = cacheKeys.adminUser(userId)
     const cachedAdmin = cache.get(cacheKey)
     if (cachedAdmin) {
+      console.log('✅ getAdminUser: Found cached admin:', cachedAdmin)
       return cachedAdmin
     }
 
+    console.log('🔍 getAdminUser: No cache found, querying database...')
     const supabase = createClient()
     const { data, error } = await supabase
       .from('admin_users')
@@ -453,11 +457,17 @@ const adminQueries = {
       .eq('is_active', true)
       .single()
 
-    if (error && error.code !== 'PGRST116') throw error
+    console.log('🔍 getAdminUser: Database query result:', { data, error })
+
+    if (error && error.code !== 'PGRST116') {
+      console.log('❌ getAdminUser: Database error:', error)
+      throw error
+    }
 
     // Cache the result for 10 minutes (admin status doesn't change frequently)
     cache.set(cacheKey, data, 10 * 60 * 1000)
 
+    console.log('✅ getAdminUser: Returning result:', data)
     return data
   },
 

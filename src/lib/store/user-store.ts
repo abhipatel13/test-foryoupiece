@@ -91,12 +91,47 @@ export const useUserStore = create<UserStore>()(
     }),
     {
       name: 'foryoupiece-user',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        // Handle migration from older versions
+        if (version === 0) {
+          // Reset state for version 0 to 1 migration
+          return {
+            user: null,
+            profile: null,
+            isLoading: false,
+            isHydrated: false,
+          }
+        }
+        return persistedState
+      },
       onRehydrateStorage: () => (state) => {
-        // Mark as hydrated when rehydration is complete
-        if (state) {
-          state.isHydrated = true
+        try {
+          // Mark as hydrated when rehydration is complete
+          if (state) {
+            state.isHydrated = true
+            // Ensure loading state is reset on hydration
+            if (state.isLoading === undefined) {
+              state.isLoading = false
+            }
+          }
+        } catch (error) {
+          console.warn('User store hydration error:', error)
+          // Reset to safe defaults on hydration error
+          if (state) {
+            state.user = null
+            state.profile = null
+            state.isLoading = false
+            state.isHydrated = true
+          }
         }
       },
+      // Add error handling for storage operations
+      partialize: (state) => ({
+        user: state.user,
+        profile: state.profile,
+        // Don't persist loading or hydration states
+      }),
     }
   )
 )

@@ -49,8 +49,6 @@ export function TelegramLogin({
     // Define the callback function
     ;(window as any)[callbackName] = async (user: any) => {
       try {
-        console.log('Telegram auth data received:', user)
-
         // Verify the authentication data
         if (!user.id || !user.first_name) {
           throw new Error('Invalid Telegram authentication data')
@@ -66,7 +64,6 @@ export function TelegramLogin({
 
         toast.success('Successfully signed in with Telegram!')
       } catch (error: any) {
-        console.error('Telegram authentication error:', error)
         toast.error(error.message || 'Failed to sign in with Telegram')
       }
     }
