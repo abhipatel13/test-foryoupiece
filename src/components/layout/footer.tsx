@@ -8,9 +8,9 @@ export function Footer() {
   const t = useTranslations('navigation')
 
   return (
-    <footer className="bg-background border-t border-border">
-      <div className="container mx-auto px-4 py-16 max-w-screen-2xl">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+    <footer className="bg-background border-t border-border overflow-x-hidden">
+      <div className="container mx-auto px-2 sm:px-4 py-8 sm:py-16 max-w-screen-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12">
           {/* Company Info - Modern */}
           <div className="space-y-6">
             <div className="flex items-center space-x-3">

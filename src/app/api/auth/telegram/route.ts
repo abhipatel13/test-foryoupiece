@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
           first_name: telegramData.first_name,
           last_name: telegramData.last_name,
           avatar_url: telegramData.photo_url,
-          points_balance: 100, // Welcome bonus
+          points_balance: 1000, // Welcome bonus
           tier_level: 'bronze'
         })
         .select()
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
         .from('point_transactions')
         .insert({
           user_id: authData.user.id,
-          points: 100,
+          points: 1000,
           transaction_type: 'bonus',
           reference_type: 'signup',
           description: 'Welcome bonus for new Telegram user'

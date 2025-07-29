@@ -32,7 +32,9 @@ import {
   Zap,
   AlertCircle,
   Lock,
-  Mail
+  Mail,
+  Menu,
+  X
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -197,19 +199,19 @@ function AdminLoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-6 sm:py-12 px-3 sm:px-4 lg:px-6 xl:px-8">
+      <div className="max-w-md w-full space-y-6 sm:space-y-8">
+        {/* Header - Mobile-First Responsive */}
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
-            <ArrowLeft className="h-4 w-4 mr-1" />
+          <Link href="/" className="inline-flex items-center text-xs sm:text-sm text-gray-600 hover:text-gray-900 mb-3 sm:mb-4">
+            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
             Back to Foryoupiece
           </Link>
-          <div className="flex items-center justify-center mb-4">
-            <Shield className="h-8 w-8 text-red-600 mr-2" />
-            <h2 className="text-3xl font-bold text-gray-900">Admin Access</h2>
+          <div className="flex items-center justify-center mb-3 sm:mb-4">
+            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 mr-2" />
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Access</h2>
           </div>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-xs sm:text-sm text-gray-600">
             Secure administrator login portal
           </p>
         </div>
@@ -241,10 +243,10 @@ function AdminLoginForm() {
               </div>
             )}
 
-            {/* Admin Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Admin Login Form - Mobile-First Responsive */}
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
               <div>
-                <Label htmlFor="email">Administrator Email</Label>
+                <Label htmlFor="email" className="text-sm">Administrator Email</Label>
                 <Input
                   id="email"
                   name="email"
@@ -254,12 +256,12 @@ function AdminLoginForm() {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="Enter admin email"
-                  className="mt-1"
+                  className="mt-1 h-10 sm:h-11"
                 />
               </div>
 
               <div>
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm">Password</Label>
                 <div className="relative mt-1">
                   <Input
                     id="password"
@@ -270,7 +272,7 @@ function AdminLoginForm() {
                     value={formData.password}
                     onChange={handleInputChange}
                     placeholder="Enter admin password"
-                    className="pr-10"
+                    className="pr-10 h-10 sm:h-11"
                   />
                   <button
                     type="button"
@@ -288,7 +290,7 @@ function AdminLoginForm() {
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700"
+                className="w-full bg-red-600 hover:bg-red-700 h-10 sm:h-11 text-sm sm:text-base"
                 disabled={loading}
               >
                 {loading ? 'Authenticating...' : 'Access Admin Panel'}
@@ -328,7 +330,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const params = useParams()
-  const locale = params.locale as string || 'en'
+  const locale = params.locale as string
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false) || 'en'
   const [isAdmin, setIsAdmin] = useState(false)
   const [adminUser, setAdminUser] = useState<any>(null)
   const [checkingAdmin, setCheckingAdmin] = useState(true)
@@ -412,23 +415,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-3 sm:px-4">
         <Card className="w-full max-w-md border-red-200">
-          <CardContent className="p-6 text-center">
-            <Shield className="h-12 w-12 mx-auto mb-4 text-red-500" />
-            <h2 className="text-xl font-semibold mb-2 text-red-800">Access Denied</h2>
-            <p className="text-gray-600 mb-4">You don't have permission to access the admin panel.</p>
+          <CardContent className="p-4 sm:p-6 text-center">
+            <Shield className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-red-500" />
+            <h2 className="text-lg sm:text-xl font-semibold mb-2 text-red-800">Access Denied</h2>
+            <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">You don't have permission to access the admin panel.</p>
             <div className="space-y-2">
               <Button
                 onClick={() => router.push(`/${locale}/auth/login`)}
-                className="w-full bg-red-600 hover:bg-red-700"
+                className="w-full bg-red-600 hover:bg-red-700 h-10 sm:h-11 text-sm sm:text-base"
               >
                 Admin Login
               </Button>
               <Button
                 variant="outline"
                 onClick={() => router.push('/')}
-                className="w-full"
+                className="w-full h-10 sm:h-11 text-sm sm:text-base"
               >
                 Go Home
               </Button>
@@ -517,7 +520,79 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="flex">
-        {/* Sidebar */}
+        {/* Mobile menu overlay */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setMobileMenuOpen(false)} />
+          </div>
+        )}
+
+        {/* Mobile sidebar */}
+        <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out md:hidden ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <div className="flex flex-col flex-grow pt-5 overflow-y-auto border-r">
+            <div className="flex items-center justify-between flex-shrink-0 px-4">
+              <div className="flex items-center space-x-2">
+                <Image
+                  src="/favicon.jpg"
+                  alt="ForYouPiece Admin"
+                  width={32}
+                  height={32}
+                  className="rounded-lg shadow-sm object-contain"
+                  priority
+                />
+                <span className="font-bold text-lg sm:text-xl">Admin</span>
+              </div>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 flex-grow flex flex-col">
+              <nav className="flex-1 px-2 pb-4 space-y-1">
+                {navigation.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    >
+                      <Icon className="mr-3 flex-shrink-0 h-5 w-5" />
+                      {item.name}
+                    </Link>
+                  )
+                })}
+              </nav>
+            </div>
+
+            <div className="flex-shrink-0 p-4">
+              <Separator className="mb-4" />
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    Admin User
+                  </p>
+                  <Badge variant="secondary" className="text-xs">
+                    Administrator
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop sidebar */}
         <div className="hidden md:flex md:w-64 md:flex-col">
           <div className="flex flex-col flex-grow pt-5 bg-white overflow-y-auto border-r">
             <div className="flex items-center flex-shrink-0 px-4">
@@ -533,7 +608,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <span className="font-bold text-xl">Admin</span>
               </div>
             </div>
-            
+
             <div className="mt-5 flex-grow flex flex-col">
               <nav className="flex-1 px-2 pb-4 space-y-1">
                 {navigation.map((item) => {
@@ -573,19 +648,26 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="flex flex-col flex-1">
-          {/* Top bar */}
+        {/* Main content - Mobile-First Responsive */}
+        <div className="flex flex-col flex-1 w-full md:w-auto">
+          {/* Top bar - Mobile-First Responsive */}
           <div className="bg-white shadow-sm border-b">
-            <div className="px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between h-16">
-                <div className="flex items-center">
-                  <h1 className="text-lg font-semibold text-gray-900">
+            <div className="px-3 sm:px-4 lg:px-6 xl:px-8">
+              <div className="flex justify-between items-center h-14 sm:h-16">
+                <div className="flex items-center space-x-3">
+                  {/* Mobile menu button */}
+                  <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="md:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                  <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                     Foryoupiece Admin Panel
                   </h1>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <Button asChild variant="outline" size="sm">
+                <div className="flex items-center space-x-2 sm:space-x-4">
+                  <Button asChild variant="outline" size="sm" className="text-xs sm:text-sm">
                     <Link href="/">
                       View Store
                     </Link>
@@ -595,8 +677,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </div>
 
-          {/* Page content */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          {/* Page content - Mobile-First Responsive */}
+          <main className="flex-1 p-3 sm:p-4 lg:p-6 xl:p-8">
             {children}
           </main>
         </div>

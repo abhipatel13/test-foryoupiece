@@ -223,32 +223,33 @@ export default function CheckoutPage() {
 
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('title')}</h1>
-          <p className="text-gray-600">Complete your order information</p>
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">{t('title')}</h1>
+          <p className="text-sm sm:text-base text-gray-600">Complete your order information</p>
         </div>
 
         <form onSubmit={handleSubmitOrder}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Checkout Form */}
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+            {/* Checkout Form - Mobile-First Responsive */}
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Shipping Address */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <MapPin className="h-5 w-5" />
+                <CardHeader className="pb-3 sm:pb-6">
+                  <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                    <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>{t('shippingAddress')}</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
+                <CardContent className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label htmlFor="firstName" className="text-sm">First Name</Label>
                       <Input
                         id="firstName"
                         required
+                        className="h-10 sm:h-11"
                         value={shippingAddress.firstName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -256,11 +257,12 @@ export default function CheckoutPage() {
                         })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label htmlFor="lastName" className="text-sm">Last Name</Label>
                       <Input
                         id="lastName"
                         required
+                        className="h-10 sm:h-11"
                         value={shippingAddress.lastName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -270,13 +272,14 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label htmlFor="email" className="text-sm">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         required
+                        className="h-10 sm:h-11"
                         value={shippingAddress.email}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -284,12 +287,13 @@ export default function CheckoutPage() {
                         })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label htmlFor="phone" className="text-sm">Phone</Label>
                       <Input
                         id="phone"
                         type="tel"
                         required
+                        className="h-10 sm:h-11"
                         value={shippingAddress.phone}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -299,11 +303,12 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="address1">Address Line 1</Label>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="address1" className="text-sm">Address Line 1</Label>
                     <Input
                       id="address1"
                       required
+                      className="h-10 sm:h-11"
                       value={shippingAddress.address1}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
@@ -312,10 +317,11 @@ export default function CheckoutPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="address2">Address Line 2 (Optional)</Label>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="address2" className="text-sm">Address Line 2 (Optional)</Label>
                     <Input
                       id="address2"
+                      className="h-10 sm:h-11"
                       value={shippingAddress.address2}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
@@ -324,11 +330,12 @@ export default function CheckoutPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="abaBankName">ABA Bank Name *</Label>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="abaBankName" className="text-sm">ABA Bank Name *</Label>
                     <Input
                       id="abaBankName"
                       required
+                      className="h-10 sm:h-11"
                       placeholder="Taravatey Than"
                       value={shippingAddress.abaBankName}
                       onChange={(e) => setShippingAddress({
@@ -340,23 +347,23 @@ export default function CheckoutPage() {
                 </CardContent>
               </Card>
 
-              {/* Payment Method */}
+              {/* Payment Method - Mobile Responsive */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <QrCode className="h-5 w-5" />
+                <CardHeader className="pb-3 sm:pb-6">
+                  <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                    <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>Payment Method</span>
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm">
                     Your order will be placed and you'll receive payment instructions
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg bg-blue-50">
-                    <QrCode className="h-6 w-6 text-blue-600" />
+                  <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg bg-blue-50">
+                    <QrCode className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
                     <div>
-                      <div className="font-medium text-blue-900">QR Code Payment</div>
-                      <div className="text-sm text-blue-700">
+                      <div className="font-medium text-blue-900 text-sm sm:text-base">QR Code Payment</div>
+                      <div className="text-xs sm:text-sm text-blue-700">
                         Pay via QR code after order confirmation
                       </div>
                     </div>
@@ -364,10 +371,10 @@ export default function CheckoutPage() {
                 </CardContent>
               </Card>
 
-              {/* Order Notes */}
+              {/* Order Notes - Mobile Responsive */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Order Notes (Optional)</CardTitle>
+                <CardHeader className="pb-3 sm:pb-6">
+                  <CardTitle className="text-base sm:text-lg">Order Notes (Optional)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Textarea
@@ -375,6 +382,7 @@ export default function CheckoutPage() {
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     rows={3}
+                    className="text-sm sm:text-base resize-none"
                   />
                 </CardContent>
               </Card>
@@ -392,25 +400,25 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            {/* Order Summary */}
+            {/* Order Summary - Mobile-First Responsive */}
             <div className="lg:col-span-1">
-              <Card className="sticky top-4">
-                <CardHeader>
-                  <CardTitle>{t('orderSummary')}</CardTitle>
+              <Card className="lg:sticky lg:top-4">
+                <CardHeader className="pb-3 sm:pb-6">
+                  <CardTitle className="text-base sm:text-lg">{t('orderSummary')}</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Order Items */}
-                  <div className="space-y-3">
+                <CardContent className="space-y-3 sm:space-y-4">
+                  {/* Order Items - Mobile Responsive */}
+                  <div className="space-y-2 sm:space-y-3">
                     {items.map((item) => (
-                      <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between text-sm">
-                        <div className="flex-1">
-                          <p className="font-medium">{item.name}</p>
+                      <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between text-xs sm:text-sm">
+                        <div className="flex-1 pr-2">
+                          <p className="font-medium line-clamp-2">{item.name}</p>
                           {item.variant && (
-                            <p className="text-gray-500">{item.variant}</p>
+                            <p className="text-gray-500 text-xs">{item.variant}</p>
                           )}
-                          <p className="text-gray-500">Qty: {item.quantity}</p>
+                          <p className="text-gray-500 text-xs">Qty: {item.quantity}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
                         </div>
                       </div>
@@ -419,13 +427,13 @@ export default function CheckoutPage() {
 
                   <Separator />
 
-                  {/* Totals */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
+                  {/* Totals - Mobile Responsive */}
+                  <div className="space-y-1 sm:space-y-2">
+                    <div className="flex justify-between text-xs sm:text-sm">
                       <span>Subtotal ({itemCount} items)</span>
                       <span>{formatPrice(subtotal)}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-xs sm:text-sm">
                       <span>Shipping & handling</span>
                       <span>
                         {shippingFee === 0 ? (
@@ -436,25 +444,25 @@ export default function CheckoutPage() {
                       </span>
                     </div>
                     {totalSavings > 0 && (
-                      <div className="flex justify-between text-green-700">
+                      <div className="flex justify-between text-green-700 text-xs sm:text-sm">
                         <span>Total Savings</span>
                         <span>-{formatPrice(totalSavings)}</span>
                       </div>
                     )}
                     {pointsDiscount > 0 && (
-                      <div className="flex justify-between text-orange-600">
+                      <div className="flex justify-between text-orange-600 text-xs sm:text-sm">
                         <span>Points Discount ({pointsToRedeem} pts)</span>
                         <span>-{formatPrice(pointsDiscount)}</span>
                       </div>
                     )}
                     {appliedCoupon && couponDiscount > 0 && (
-                      <div className="flex justify-between text-blue-600">
+                      <div className="flex justify-between text-blue-600 text-xs sm:text-sm">
                         <span>Coupon Discount ({appliedCoupon.code})</span>
                         <span>-{formatPrice(couponDiscount)}</span>
                       </div>
                     )}
                     <Separator />
-                    <div className="flex justify-between text-lg font-bold text-red-600">
+                    <div className="flex justify-between text-base sm:text-lg font-bold text-red-600">
                       <span>Order Total</span>
                       <span>
                         {formatPrice(
@@ -468,14 +476,13 @@ export default function CheckoutPage() {
 
                   <Button
                     type="submit"
-                    className="w-full"
-                    size="lg"
+                    className="w-full h-10 sm:h-12 text-sm sm:text-base"
                     disabled={loading}
                   >
                     {loading ? 'Processing...' : 'Place Order'}
                   </Button>
 
-                  <div className="text-sm text-blue-600 text-center bg-blue-50 p-2 rounded">
+                  <div className="text-xs sm:text-sm text-blue-600 text-center bg-blue-50 p-2 rounded">
                     After placing your order, you'll receive payment instructions via QR code
                   </div>
 

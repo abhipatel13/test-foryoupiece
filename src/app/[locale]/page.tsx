@@ -299,9 +299,9 @@ export default function HomePage() {
           </div>
 
           {bestSellerLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="product-grid-compact">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="modern-product-card p-4 animate-pulse">
+                <div key={i} className="modern-product-card p-4 animate-pulse loading-shimmer">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
                   <div className="h-4 bg-secondary rounded mb-2"></div>
                   <div className="h-3 bg-secondary rounded mb-2"></div>
@@ -318,9 +318,9 @@ export default function HomePage() {
               <p className="text-muted-foreground">No best sellers available at the moment</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="product-grid-compact">
               {bestSellerData.map((product) => (
-                <div key={product.id} className="relative">
+                <div key={product.id} className="relative hover-lift">
                   {/* Minimalist Best Seller Ranking */}
                   <div className="absolute top-3 left-3 z-10">
                     <Badge className={`text-xs font-medium shadow-sm ${
@@ -340,7 +340,7 @@ export default function HomePage() {
                     product.best_seller_position <= 3
                       ? 'ring-1 ring-foreground/10'
                       : ''
-                  } rounded-lg transition-all duration-200 hover:ring-1 hover:ring-foreground/20`}>
+                  } rounded-lg transition-all duration-200 hover:ring-1 hover:ring-foreground/20 modern-product-card`}>
                     <ProductCard
                       product={{
                         id: product.id,
@@ -387,9 +387,9 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="product-grid-compact">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="modern-product-card p-4 animate-pulse">
+                <div key={i} className="modern-product-card p-4 animate-pulse loading-shimmer">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
                   <div className="h-4 bg-secondary rounded mb-2"></div>
                   <div className="h-3 bg-secondary rounded mb-2"></div>
@@ -398,9 +398,11 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="product-grid-compact">
               {dealsProducts.map((product) => (
-                <ProductCard key={product.id} product={product} locale="en" />
+                <div key={product.id} className="hover-lift modern-product-card">
+                  <ProductCard product={product} locale="en" />
+                </div>
               ))}
             </div>
           )}
@@ -424,9 +426,9 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="product-grid">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="modern-product-card p-4 animate-pulse">
+                <div key={i} className="modern-product-card p-4 animate-pulse loading-shimmer">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
                   <div className="h-4 bg-secondary rounded mb-2"></div>
                   <div className="h-3 bg-secondary rounded mb-2"></div>
@@ -435,9 +437,11 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="product-grid">
               {recentlyAddedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} locale="en" />
+                <div key={product.id} className="hover-lift modern-product-card">
+                  <ProductCard product={product} locale="en" />
+                </div>
               ))}
             </div>
           )}
@@ -461,9 +465,9 @@ export default function HomePage() {
           </div>
 
           {recommendationsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="product-grid">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="modern-product-card p-4 animate-pulse">
+                <div key={i} className="modern-product-card p-4 animate-pulse loading-shimmer">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
                   <div className="h-4 bg-secondary rounded mb-2"></div>
                   <div className="h-3 bg-secondary rounded mb-2"></div>
@@ -472,9 +476,11 @@ export default function HomePage() {
               ))}
             </div>
           ) : recommendedProducts.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="product-grid">
               {recommendedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} locale="en" />
+                <div key={product.id} className="hover-lift modern-product-card">
+                  <ProductCard product={product} locale="en" />
+                </div>
               ))}
             </div>
           ) : (

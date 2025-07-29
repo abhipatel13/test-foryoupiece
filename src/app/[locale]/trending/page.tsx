@@ -70,9 +70,9 @@ export default function TrendingPage() {
           </div>
         )}
 
-        {/* Unified Products Grid */}
+        {/* Unified Products Grid - Mobile-First Responsive */}
         {!trendingLoading && !trendingError && trendingData?.products && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
             {trendingData.products.map((product) => (
               <ProductCard
                 key={product.product_id}

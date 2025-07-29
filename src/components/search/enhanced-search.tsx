@@ -248,13 +248,13 @@ export function EnhancedSearch({
   const hasHistory = searchHistory.length > 0 && showHistory
 
   return (
-    <div ref={searchRef} className={cn("relative", className)}>
-      <form 
+    <div ref={searchRef} className={cn("relative w-full", className)}>
+      <form
         onSubmit={(e) => {
           e.preventDefault()
           handleSearch(query)
-        }} 
-        className="flex modern-search-bar overflow-hidden shadow-sm"
+        }}
+        className="flex modern-search-bar overflow-hidden shadow-sm w-full min-w-0 enterprise-shadow"
       >
         {/* Category Dropdown */}
         {showCategoryFilter && (
@@ -262,11 +262,12 @@ export function EnhancedSearch({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-11 px-4 bg-secondary hover:bg-accent text-foreground border-r border-border rounded-none rounded-l-lg"
+                className="h-11 px-2 sm:px-4 lg:px-6 bg-secondary hover:bg-accent text-foreground border-r border-border rounded-none rounded-l-lg flex-shrink-0 cursor-pointer transition-all duration-200 hover:shadow-sm"
               >
-                <span className="hidden sm:inline text-sm font-medium">
+                <span className="hidden sm:inline text-sm font-medium truncate">
                   {categories.find(cat => cat.value === selectedCategory)?.label || 'All'}
                 </span>
+                <span className="sm:hidden text-sm font-medium">All</span>
                 <ChevronDown className="h-4 w-4 ml-1" />
               </Button>
             </DropdownMenuTrigger>
@@ -292,14 +293,14 @@ export function EnhancedSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleInputFocus}
-          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground"
+          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground w-full min-w-0 text-sm lg:text-base px-3 lg:px-4"
         />
 
         {/* Search Button */}
         <Button
           type="submit"
           disabled={isLoading}
-          className="h-11 px-5 modern-button-primary rounded-none rounded-r-lg"
+          className="h-11 px-3 sm:px-5 lg:px-6 modern-button-primary rounded-none rounded-r-lg flex-shrink-0 cursor-pointer"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -311,7 +312,7 @@ export function EnhancedSearch({
 
       {/* Search Dropdown */}
       {isOpen && (hasResults || hasSuggestions || hasHistory) && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg enterprise-shadow-lg z-50 max-h-96 overflow-y-auto">
           {/* Search History */}
           {hasHistory && (
             <div className="p-3 border-b border-border">

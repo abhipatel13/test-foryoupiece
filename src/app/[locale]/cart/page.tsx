@@ -121,10 +121,10 @@ export default function CartPage() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      {/* Breadcrumb */}
+      {/* Breadcrumb - Mobile Responsive */}
       <div className="bg-white border-b">
-        <div className="container mx-auto px-4 py-3 max-w-screen-2xl">
-          <div className="text-sm text-gray-600">
+        <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-3 max-w-screen-2xl">
+          <div className="text-xs sm:text-sm text-gray-600">
             <Link href="/" className="hover:text-gray-900">Home</Link>
             {' > '}
             <span className="text-gray-900">Shopping Cart</span>
@@ -132,146 +132,152 @@ export default function CartPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6 max-w-screen-2xl">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-medium text-gray-900 mb-2">Shopping Cart</h1>
-          <p className="text-gray-600">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-screen-2xl">
+        {/* Header - Mobile Responsive */}
+        <div className="mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-medium text-gray-900 mb-1 sm:mb-2">Shopping Cart</h1>
+          <p className="text-sm sm:text-base text-gray-600">
             {getItemCount()} {getItemCount() === 1 ? 'item' : 'items'}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Cart Items - Amazon Style */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+          {/* Cart Items - Mobile-First Responsive */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-lg shadow-sm">
-              {/* Select All Header */}
-              <div className="p-4 border-b flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+              {/* Select All Header - Mobile Responsive */}
+              <div className="p-3 sm:p-4 border-b flex items-center justify-between">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   <Checkbox />
-                  <span className="text-sm">Select all items</span>
+                  <span className="text-xs sm:text-sm">Select all items</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleClearCart} className="text-red-600 hover:text-red-700">
+                <Button variant="ghost" size="sm" onClick={handleClearCart} className="text-red-600 hover:text-red-700 text-xs sm:text-sm px-2 sm:px-3">
                   Delete
                 </Button>
               </div>
 
-              {/* Cart Items */}
+              {/* Cart Items - Mobile-First Layout */}
               <div className="divide-y">
                 {items.map((item) => (
-                  <div key={generateCartItemKey(item.id, item.variant)} className="p-4">
-                    <div className="flex items-start space-x-4">
-                      {/* Checkbox */}
-                      <div className="pt-2">
-                        <Checkbox />
-                      </div>
+                  <div key={generateCartItemKey(item.id, item.variant)} className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                      {/* Mobile: Top Row - Checkbox, Image, Basic Info */}
+                      <div className="flex items-start space-x-3 sm:contents">
+                        {/* Checkbox */}
+                        <div className="pt-1 sm:pt-2">
+                          <Checkbox />
+                        </div>
 
-                      {/* Product Image */}
-                      <div className="relative w-24 h-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                        <Image
-                          src={item.image}
-                          alt={item.name}
-                          fill
-                          className="object-contain p-2"
-                          sizes="96px"
-                        />
-                      </div>
+                        {/* Product Image - Mobile Responsive */}
+                        <div className="relative w-16 h-16 sm:w-24 sm:h-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            fill
+                            className="object-contain p-1 sm:p-2"
+                            sizes="(max-width: 640px) 64px, 96px"
+                          />
+                        </div>
 
-                      {/* Product Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="space-y-2">
-                          <h3 className="text-sm font-medium text-gray-900 line-clamp-2">
-                            {item.name}
-                          </h3>
+                        {/* Product Info - Mobile Layout */}
+                        <div className="flex-1 min-w-0 sm:contents">
+                          <div className="space-y-1 sm:space-y-2 sm:flex-1 sm:min-w-0">
+                            <h3 className="text-xs sm:text-sm font-medium text-gray-900 line-clamp-2">
+                              {item.name}
+                            </h3>
 
-                          {/* Stock Status */}
-                          <div className="flex items-center text-sm text-green-700">
-                            <span>In Stock</span>
-                          </div>
-
-                          {/* Gift Option */}
-                          <div className="flex items-center space-x-2 text-sm">
-                            <Checkbox />
-                            <Gift className="h-4 w-4 text-gray-400" />
-                            <span className="text-gray-600">This is a gift</span>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center space-x-4 text-sm">
-                            {/* Quantity Selector */}
-                            <div className="flex items-center space-x-2">
-                              <span className="text-gray-600">Qty:</span>
-                              <Select
-                                value={item.quantity.toString()}
-                                onValueChange={(value) => handleQuantityChange(item.id, parseInt(value), item.variant)}
-                              >
-                                <SelectTrigger className="w-16 h-8">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[...Array(Math.min(item.stockQuantity || 10, 10))].map((_, i) => (
-                                    <SelectItem key={i + 1} value={(i + 1).toString()}>
-                                      {i + 1}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {/* Stock limit message */}
-                              {item.stockQuantity && item.stockQuantity <= 5 && (
-                                <span className="text-xs text-orange-600">
-                                  Max: {item.stockQuantity}
-                                </span>
-                              )}
+                            {/* Stock Status */}
+                            <div className="flex items-center text-xs sm:text-sm text-green-700">
+                              <span>In Stock</span>
                             </div>
 
-                            <Separator orientation="vertical" className="h-4" />
-
-                            <button
-                              onClick={() => handleRemoveItem(item.id, item.variant)}
-                              className="text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              Delete
-                            </button>
-
-                            <Separator orientation="vertical" className="h-4" />
-
-                            <button className="text-blue-600 hover:text-blue-800 hover:underline">
-                              Save for later
-                            </button>
-
-                            <Separator orientation="vertical" className="h-4" />
-
-                            <button className="text-blue-600 hover:text-blue-800 hover:underline">
-                              Compare with similar items
-                            </button>
+                            {/* Gift Option - Hide on very small screens */}
+                            <div className="hidden xs:flex items-center space-x-2 text-xs sm:text-sm">
+                              <Checkbox />
+                              <Gift className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                              <span className="text-gray-600">This is a gift</span>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Price */}
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">
-                          {formatPrice(item.price * item.quantity)}
+                      {/* Mobile: Bottom Section - Actions and Price */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+                        {/* Actions - Mobile Responsive */}
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
+                          {/* Quantity Selector */}
+                          <div className="flex items-center space-x-1 sm:space-x-2">
+                            <span className="text-gray-600">Qty:</span>
+                            <Select
+                              value={item.quantity.toString()}
+                              onValueChange={(value) => handleQuantityChange(item.id, parseInt(value), item.variant)}
+                            >
+                              <SelectTrigger className="w-12 h-7 sm:w-16 sm:h-8 text-xs sm:text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[...Array(Math.min(item.stockQuantity || 10, 10))].map((_, i) => (
+                                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                                    {i + 1}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {/* Stock limit message */}
+                            {item.stockQuantity && item.stockQuantity <= 5 && (
+                              <span className="text-xs text-orange-600">
+                                Max: {item.stockQuantity}
+                              </span>
+                            )}
+                          </div>
+
+                          <Separator orientation="vertical" className="h-3 sm:h-4 hidden sm:block" />
+
+                          <button
+                            onClick={() => handleRemoveItem(item.id, item.variant)}
+                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            Delete
+                          </button>
+
+                          <Separator orientation="vertical" className="h-3 sm:h-4 hidden sm:block" />
+
+                          <button className="text-blue-600 hover:text-blue-800 hover:underline hidden sm:inline">
+                            Save for later
+                          </button>
+
+                          <Separator orientation="vertical" className="h-3 sm:h-4 hidden lg:block" />
+
+                          <button className="text-blue-600 hover:text-blue-800 hover:underline hidden lg:inline">
+                            Compare with similar items
+                          </button>
                         </div>
-                        <div className="text-sm space-y-1">
-                          {item.originalPrice && item.originalPrice > item.price ? (
-                            <>
-                              <div className="text-gray-500 line-through">
-                                {formatPrice(item.originalPrice)} each
-                              </div>
-                              <div className="text-green-700 font-medium">
+
+                        {/* Price - Mobile Responsive */}
+                        <div className="text-right sm:text-right">
+                          <div className="text-base sm:text-lg font-bold text-gray-900">
+                            {formatPrice(item.price * item.quantity)}
+                          </div>
+                          <div className="text-xs sm:text-sm space-y-1">
+                            {item.originalPrice && item.originalPrice > item.price ? (
+                              <>
+                                <div className="text-gray-500 line-through">
+                                  {formatPrice(item.originalPrice)} each
+                                </div>
+                                <div className="text-green-700 font-medium">
+                                  {formatPrice(item.price)} each
+                                </div>
+                                <div className="text-red-600 text-xs">
+                                  You save {formatPrice((item.originalPrice - item.price) * item.quantity)}
+                                  {' '}({Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF)
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-gray-600">
                                 {formatPrice(item.price)} each
                               </div>
-                              <div className="text-red-600 text-xs">
-                                You save {formatPrice((item.originalPrice - item.price) * item.quantity)}
-                                {' '}({Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF)
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-gray-600">
-                              {formatPrice(item.price)} each
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -281,33 +287,33 @@ export default function CartPage() {
             </div>
           </div>
 
-          {/* Order Summary - Amazon Style */}
+          {/* Order Summary - Mobile-First Responsive */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-4 sticky top-4">
-              <div className="space-y-4">
-                {/* Shipping Banner */}
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 lg:sticky lg:top-4">
+              <div className="space-y-3 sm:space-y-4">
+                {/* Shipping Banner - Mobile Responsive */}
                 {shippingFee === 0 ? (
-                  <div className="bg-green-50 border border-green-200 rounded p-3">
+                  <div className="bg-green-50 border border-green-200 rounded p-2 sm:p-3">
                     <div className="flex items-center text-green-700">
-                      <Truck className="h-4 w-4 mr-2" />
-                      <span className="text-sm font-medium">
+                      <Truck className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                      <span className="text-xs sm:text-sm font-medium">
                         Your order qualifies for FREE Delivery (4+ items)
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded p-2 sm:p-3">
                     <div className="flex items-center text-blue-700">
-                      <Truck className="h-4 w-4 mr-2" />
-                      <span className="text-sm font-medium">
+                      <Truck className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                      <span className="text-xs sm:text-sm font-medium">
                         Add {4 - itemCount} more item{4 - itemCount !== 1 ? 's' : ''} for FREE Delivery
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* Subtotal */}
-                <div className="text-lg">
+                {/* Subtotal - Mobile Responsive */}
+                <div className="text-base sm:text-lg">
                   <span className="text-gray-700">Subtotal ({itemCount} items): </span>
                   <span className="font-bold">{formatPrice(subtotal)}</span>
                 </div>

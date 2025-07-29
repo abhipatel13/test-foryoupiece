@@ -79,9 +79,30 @@ export function useAuth() {
           first_name: user.user_metadata?.first_name || null,
           last_name: user.user_metadata?.last_name || null,
           phone: user.user_metadata?.phone || null,
-          points_balance: 100, // Welcome bonus
+          points_balance: 1000, // Welcome bonus - 1000 points
           tier_level: 'bronze'
         })
+
+        // Add welcome bonus points transaction
+        try {
+          await supabase
+            .from('point_transactions')
+            .insert({
+              user_id: user.id,
+              points: 1000,
+              transaction_type: 'bonus',
+              reference_type: 'signup',
+              description: 'Welcome bonus for new user'
+            })
+
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Welcome bonus transaction created for user:', user.id)
+          }
+        } catch (transactionError) {
+          console.error('Error creating welcome bonus transaction:', transactionError)
+          // Don't throw here to allow profile creation to complete
+        }
+
         if (process.env.NODE_ENV === 'development') {
           console.log('Profile created successfully:', newProfile)
         }
@@ -267,7 +288,7 @@ export function useAuth() {
           first_name: userData?.first_name || null,
           last_name: userData?.last_name || null,
           phone: userData?.phone || null,
-          points_balance: 100, // Welcome bonus
+          points_balance: 1000, // Welcome bonus
           tier_level: 'bronze'
         })
         
@@ -276,7 +297,7 @@ export function useAuth() {
           .from('point_transactions')
           .insert({
             user_id: data.user.id,
-            points: 100,
+            points: 1000,
             transaction_type: 'bonus',
             reference_type: 'signup',
             description: 'Welcome bonus for new user'

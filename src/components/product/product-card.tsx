@@ -110,115 +110,122 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
 
   return (
     <div
-      className="modern-product-card p-6 group relative"
+      className="modern-product-card p-3 sm:p-4 lg:p-6 group relative w-full min-w-0"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <Link href={`/en/products/${product.sku}`} className="block" onClick={handleProductClick}>
-        {/* Product Image */}
-        <div className="relative aspect-square mb-4 bg-secondary rounded-xl overflow-hidden">
+        {/* Product Image - Mobile-First Responsive */}
+        <div className="relative aspect-square mb-3 sm:mb-4 bg-secondary rounded-lg sm:rounded-xl overflow-hidden">
           {product.images.length > 0 ? (
             <Image
               src={product.images[0]}
               alt={productName}
               fill
-              className={`object-contain p-6 transition-all duration-300 ${
+              className={`object-contain p-3 sm:p-4 lg:p-6 transition-all duration-300 ${
                 isHovered ? 'scale-110' : 'scale-100'
               } ${imageLoading ? 'blur-sm' : 'blur-0'}`}
               onLoad={() => setImageLoading(false)}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              <Package className="h-16 w-16" />
+              <Package className="h-8 w-8 sm:h-12 sm:w-12 lg:h-16 lg:w-16" />
             </div>
           )}
 
-          {/* Professional badges */}
-          <div className="absolute top-3 left-3 flex flex-col space-y-1">
+          {/* Professional badges - Mobile Optimized */}
+          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex flex-col space-y-1">
             {/* Discount Percentage */}
             {discountPercentage && (
-              <Badge className="bg-primary text-primary-foreground text-xs font-medium shadow-sm">
+              <Badge className="bg-primary text-primary-foreground text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1">
                 -{discountPercentage}% OFF
               </Badge>
             )}
 
             {/* Critical Stock Indicator - Only show for very low stock */}
             {product.stock_quantity === 1 && (
-              <Badge className="bg-red-100 text-red-800 text-xs font-medium shadow-sm">
+              <Badge className="bg-red-100 text-red-800 text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1">
                 1 left
               </Badge>
             )}
             {product.stock_quantity === 2 && (
-              <Badge className="bg-orange-100 text-orange-800 text-xs font-medium shadow-sm">
+              <Badge className="bg-orange-100 text-orange-800 text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1">
                 Few left
               </Badge>
             )}
 
             {/* Featured Badge */}
             {product.is_featured && (
-              <Badge className="bg-primary/10 text-primary text-xs font-medium shadow-sm border border-primary/20">
+              <Badge className="bg-primary/10 text-primary text-xs font-medium shadow-sm border border-primary/20 px-1.5 py-0.5 sm:px-2 sm:py-1">
                 Featured
               </Badge>
             )}
 
-            {/* Free Shipping Badge */}
+            {/* Free Shipping Badge - Hide on very small screens */}
             {product.price >= 3500 && (
-              <Badge className="bg-green-100 text-green-800 text-xs font-medium shadow-sm">
+              <Badge className="bg-green-100 text-green-800 text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1 hidden xs:block">
                 Free Shipping
               </Badge>
             )}
           </div>
 
-          {/* Professional Quick Actions */}
-          <div className={`absolute bottom-3 left-3 right-3 transition-all duration-300 ${
+          {/* Professional Quick Actions - Mobile Responsive */}
+          <div className={`absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-3 sm:right-3 transition-all duration-300 ${
             isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
           }`}>
             <Button
               onClick={handleAddToCart}
-              className="w-full modern-button-primary text-sm h-10 shadow-lg"
+              className="w-full modern-button-primary text-xs sm:text-sm h-8 sm:h-10 shadow-lg"
               disabled={product.stock_quantity <= 0}
             >
-              {product.stock_quantity <= 0 ? 'Available for preorder' : 'Add to Cart'}
+              {product.stock_quantity <= 0 ? (
+                <span className="hidden sm:inline">Available for preorder</span>
+              ) : (
+                <span className="hidden sm:inline">Add to Cart</span>
+              )}
+              {product.stock_quantity <= 0 ? (
+                <span className="sm:hidden">Preorder</span>
+              ) : (
+                <span className="sm:hidden">Add</span>
+              )}
             </Button>
           </div>
         </div>
 
-        {/* Product Information - Modern Style */}
-        <div className="space-y-3">
-          {/* Brand */}
+        {/* Product Information - Mobile-First Responsive */}
+        <div className="space-y-2 sm:space-y-3">
+          {/* Brand - Hide on very small screens */}
           {product.brand && (
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium hidden xs:block">
               {product.brand}
             </p>
           )}
 
-          {/* Product Name */}
-          <h3 className="text-sm font-medium line-clamp-2 text-foreground group-hover:text-primary transition-colors leading-relaxed">
+          {/* Product Name - Mobile Optimized */}
+          <h3 className="text-xs sm:text-sm font-medium line-clamp-2 text-foreground group-hover:text-primary transition-colors leading-tight sm:leading-relaxed">
             {productName}
           </h3>
 
-          {/* Reviews removed - no longer displayed */}
-
-          {/* Price - Professional Style */}
+          {/* Price - Mobile-First Professional Style */}
           <div className="space-y-1">
-            <div className="flex items-baseline space-x-2">
-              <span className="text-lg font-bold text-foreground">
+            <div className="flex items-baseline space-x-1 sm:space-x-2">
+              <span className="text-sm sm:text-lg font-bold text-foreground">
                 {formatPrice(product.price)}
               </span>
               {product.compare_at_price && product.compare_at_price > product.price && (
-                <span className="text-sm text-muted-foreground line-through">
+                <span className="text-xs sm:text-sm text-muted-foreground line-through">
                   {formatPrice(product.compare_at_price)}
                 </span>
               )}
               {discountPercentage && (
-                <span className="text-xs font-medium text-primary">
+                <span className="text-xs font-medium text-primary hidden sm:inline">
                   Save {formatPrice(product.compare_at_price - product.price)}
                 </span>
               )}
             </div>
 
-            {/* Points Display - Amazon-like */}
+            {/* Points Display - Mobile Optimized */}
             <div className="flex items-center space-x-1 text-xs">
               <span className="text-orange-600 font-medium">
                 {product.points_rate || 1}%
@@ -227,9 +234,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </div>
           </div>
 
-
-
-          {/* Stock Status - Updated rules */}
+          {/* Stock Status - Mobile Responsive */}
           {product.stock_quantity === 1 && (
             <p className="text-xs text-red-600 font-medium">
               1 left
@@ -254,14 +259,14 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
 
       </Link>
 
-      {/* Wishlist Button - Modern Style */}
+      {/* Wishlist Button - Mobile Responsive */}
       <Button
         variant="ghost"
         size="sm"
-        className="absolute top-3 right-3 h-9 w-9 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-background/80 hover:bg-background shadow-sm backdrop-blur-sm rounded-full"
+        className="absolute top-2 right-2 sm:top-3 sm:right-3 h-7 w-7 sm:h-9 sm:w-9 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-background/80 hover:bg-background shadow-sm backdrop-blur-sm rounded-full"
         onClick={handleWishlist}
       >
-        <Heart className="h-4 w-4 text-muted-foreground hover:text-primary" />
+        <Heart className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground hover:text-primary" />
       </Button>
     </div>
   )

@@ -99,9 +99,9 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
+    <div className="min-h-screen bg-background flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-6 sm:space-y-8">
+        {/* Header - Mobile-First Responsive */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
             <div className="flex items-center space-x-2">
@@ -118,97 +118,101 @@ function LoginPageContent() {
                 alt="Foryoupiece"
                 width={80}
                 height={24}
-                className="object-contain flex-shrink-0"
+                className="object-contain flex-shrink-0 hidden xs:block"
                 priority
               />
             </div>
           </Link>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-foreground">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-muted-foreground">
             Or{' '}
-            <Link href="/en/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/auth/register" className="font-medium text-primary hover:text-primary/80 transition-colors">
               create a new account
             </Link>
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>
+        <Card className="shadow-lg border-0 bg-card">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-xl sm:text-2xl font-semibold text-center">Welcome back</CardTitle>
+            <CardDescription className="text-center text-muted-foreground">
               Sign in to access your account and continue shopping
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Error Alert */}
+          <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+            {/* Error Alert - Mobile Optimized */}
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="text-sm">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            {/* Email/Password Form */}
+            {/* Email/Password Form - Mobile-First */}
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
+                <Label htmlFor="email" className="text-sm font-medium">Email address</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="pl-10"
+                    className="pl-10 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="pl-10 pr-10"
+                    className="pl-10 pr-10 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                     disabled={loading}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
+              {/* Mobile-Responsive Remember Me and Forgot Password */}
+              <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                 <div className="flex items-center">
                   <input
                     id="remember-me"
                     name="remember-me"
                     type="checkbox"
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-primary focus:ring-primary border-border rounded"
                   />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                  <label htmlFor="remember-me" className="ml-2 block text-sm text-foreground">
                     Remember me
                   </label>
                 </div>
 
                 <div className="text-sm">
-                  <Link href="/en/auth/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+                  <Link href="/en/auth/forgot-password" className="font-medium text-primary hover:text-primary/80 transition-colors">
                     Forgot your password?
                   </Link>
                 </div>
@@ -216,7 +220,7 @@ function LoginPageContent() {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-11 text-base sm:text-sm font-medium"
                 disabled={loading}
               >
                 {loading ? 'Signing in...' : 'Sign in'}
@@ -224,25 +228,26 @@ function LoginPageContent() {
               </Button>
             </form>
 
-            <div className="relative">
+            {/* Separator - Mobile Optimized */}
+            <div className="relative my-4 sm:my-6">
               <div className="absolute inset-0 flex items-center">
                 <Separator className="w-full" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">Or continue with</span>
+                <span className="bg-card px-3 text-muted-foreground font-medium">Or continue with</span>
               </div>
             </div>
 
-            {/* Social Login Options */}
+            {/* Social Login Options - Mobile-First Design */}
             <div className="space-y-3">
               <Button
                 type="button"
                 variant="outline"
-                className="w-full"
+                className="w-full h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
                 onClick={handleGoogleLogin}
                 disabled={loading}
               >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 mr-3 sm:w-4 sm:h-4 sm:mr-2" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -254,30 +259,29 @@ function LoginPageContent() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full"
+                className="w-full h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
                 onClick={handleTelegramLogin}
                 disabled={loading}
               >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="w-5 h-5 mr-3 sm:w-4 sm:h-4 sm:mr-2" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
                 </svg>
                 Continue with Telegram
               </Button>
             </div>
 
-
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <div className="text-center text-sm text-gray-600">
-          <p>
+        {/* Footer - Mobile Optimized */}
+        <div className="text-center text-xs sm:text-sm text-muted-foreground px-2">
+          <p className="leading-relaxed">
             By signing in, you agree to our{' '}
-            <Link href="/en/terms" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/terms" className="font-medium text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/en/privacy" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/en/privacy" className="font-medium text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline">
               Privacy Policy
             </Link>
           </p>
@@ -290,11 +294,11 @@ function LoginPageContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
+      <div className="min-h-screen bg-background flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-6 sm:space-y-8">
           <div className="text-center">
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Loading...</h2>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mt-4"></div>
+            <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-foreground">Loading...</h2>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mt-4"></div>
           </div>
         </div>
       </div>

@@ -102,13 +102,13 @@ export function Header() {
 
 
       {/* Modern Clean Header */}
-      <header className="sticky top-0 z-50 w-full modern-header">
+      <header className="sticky top-0 z-50 w-full modern-header overflow-x-hidden">
         {/* Main Header Bar */}
-        <div className="px-4">
-          <div className="flex h-16 items-center justify-between max-w-screen-2xl mx-auto">
+        <div className="px-2 sm:px-4">
+          <div className="flex h-16 items-center justify-between max-w-screen-2xl mx-auto min-w-0">
             {/* Logo */}
-            <Link href="/" className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors">
-              <div className="flex items-center space-x-2">
+            <Link href="/" className="flex items-center space-x-1 sm:space-x-2 text-foreground hover:text-primary transition-colors flex-shrink-0">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <Image
                   src="/favicon.jpg"
                   alt="ForYouPiece"
@@ -130,13 +130,13 @@ export function Header() {
 
             {/* Enhanced Search Bar with Real-time Search */}
             <EnhancedSearch
-              className="flex-1 max-w-3xl mx-4 lg:mx-8"
+              className="flex-1 max-w-3xl mx-2 sm:mx-4 lg:mx-8 min-w-0"
               placeholder="Search for products..."
               showCategoryFilter={true}
             />
 
             {/* Language Switcher */}
-            <div className="hidden md:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground transition-colors">
+            <div className="hidden lg:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground transition-colors flex-shrink-0">
               <Globe className="h-4 w-4 mr-1" />
               <span className="font-medium">EN</span>
               <ChevronDown className="h-3 w-3 ml-1" />
@@ -145,11 +145,12 @@ export function Header() {
             {/* Account & Lists */}
             {!isHydrated || loading ? (
               // Show loading state to prevent flash of unauthenticated content during hydration
-              <div className="flex items-center text-foreground text-sm px-3 py-2 rounded-lg">
-                <div className="text-right mr-2">
+              <div className="flex items-center text-foreground text-sm px-2 sm:px-3 py-2 rounded-lg flex-shrink-0">
+                <div className="text-right mr-2 min-w-0">
                   <div className="text-xs text-muted-foreground">Loading...</div>
-                  <div className="font-medium flex items-center">
-                    Account & Lists
+                  <div className="font-medium flex items-center truncate">
+                    <span className="hidden sm:inline">Account & Lists</span>
+                    <span className="sm:hidden">Account</span>
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </div>
                 </div>
@@ -157,11 +158,12 @@ export function Header() {
             ) : isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
-                    <div className="text-right mr-2">
-                      <div className="text-xs text-muted-foreground">Hello, {profile?.first_name || 'User'}</div>
+                  <div className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-2 sm:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0">
+                    <div className="text-right mr-2 min-w-0">
+                      <div className="text-xs text-muted-foreground truncate">Hello, {profile?.first_name || 'User'}</div>
                       <div className="font-medium flex items-center">
-                        Account & Lists
+                        <span className="hidden sm:inline">Account & Lists</span>
+                        <span className="sm:hidden">Account</span>
                         <ChevronDown className="h-3 w-3 ml-1" />
                       </div>
                     </div>
@@ -285,19 +287,19 @@ export function Header() {
             )}
 
             {/* Cart */}
-            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
-              <div className="relative mr-3">
-                <ShoppingCart className="h-6 w-6" />
+            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary transition-colors px-2 sm:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0">
+              <div className="relative mr-2 sm:mr-3">
+                <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6" />
                 {showCartCount && cartItemCount > 0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs bg-primary hover:bg-primary text-primary-foreground"
+                    className="absolute -top-2 -right-2 h-4 w-4 sm:h-5 sm:w-5 rounded-full p-0 text-xs bg-primary hover:bg-primary text-primary-foreground"
                   >
                     {cartItemCount}
                   </Badge>
                 )}
               </div>
-              <div className="text-right">
+              <div className="text-right min-w-0">
                 <div className="text-xs text-muted-foreground">Cart</div>
                 <div className="font-medium">
                   {cartLoading ? '...' : (showCartCount ? cartItemCount : 0)}
@@ -308,40 +310,44 @@ export function Header() {
         </div>
 
         {/* Secondary Navigation Bar */}
-        <div className="bg-secondary border-t border-border px-4">
-          <div className="flex h-12 items-center space-x-8 max-w-screen-2xl mx-auto">
-            <nav className="flex items-center space-x-8">
+        <div className="bg-secondary border-t border-border px-2 sm:px-4 overflow-x-hidden">
+          <div className="flex h-12 items-center max-w-screen-2xl mx-auto min-w-0">
+            <nav className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8 overflow-x-auto scrollbar-hide">
               <Link
                 href="/en/trending"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 whitespace-nowrap flex-shrink-0"
               >
                 <TrendingUp className="h-4 w-4" />
-                Trending Now
+                <span className="hidden sm:inline">Trending Now</span>
+                <span className="sm:hidden">Trending</span>
               </Link>
               <Link
                 href="/en/products?deals=true"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 whitespace-nowrap flex-shrink-0"
               >
                 <Percent className="h-4 w-4" />
-                Deals and Discounts
+                <span className="hidden sm:inline">Deals and Discounts</span>
+                <span className="sm:hidden">Deals</span>
               </Link>
               <Link
                 href="/en/products?recently_added=true"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 whitespace-nowrap flex-shrink-0"
               >
                 <Clock className="h-4 w-4" />
-                Recently Added
+                <span className="hidden sm:inline">Recently Added</span>
+                <span className="sm:hidden">New</span>
               </Link>
               <Link
                 href="/en/products?recommended=true"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 whitespace-nowrap flex-shrink-0"
               >
                 <Heart className="h-4 w-4" />
-                Recommended for You
+                <span className="hidden sm:inline">Recommended for You</span>
+                <span className="sm:hidden">For You</span>
               </Link>
               <button
                 onClick={handleScrollToCategories}
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 cursor-pointer"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors py-2 flex items-center gap-2 cursor-pointer whitespace-nowrap flex-shrink-0"
               >
                 <Menu className="h-4 w-4" />
                 Categories

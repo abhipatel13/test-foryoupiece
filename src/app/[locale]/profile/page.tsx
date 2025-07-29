@@ -245,41 +245,42 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('title')}</h1>
-          <p className="text-gray-600">Manage your account and view your loyalty status</p>
+        <div className="mb-4 sm:mb-6 lg:mb-8">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">{t('title')}</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage your account and view your loyalty status</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Profile Info */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          {/* Profile Info - Mobile-First Responsive */}
           <Card>
-            <CardHeader className="text-center">
-              <Avatar className="w-20 h-20 mx-auto mb-4">
+            <CardHeader className="text-center pb-3 sm:pb-6">
+              <Avatar className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
                 <AvatarImage src={profile?.avatar_url || ''} />
-                <AvatarFallback className="text-lg">
+                <AvatarFallback className="text-base sm:text-lg">
                   {profile?.first_name?.[0] || profile?.telegram_username?.[0] || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <CardTitle className="text-xl">
-                {profile?.first_name && profile?.last_name 
+              <CardTitle className="text-lg sm:text-xl">
+                {profile?.first_name && profile?.last_name
                   ? `${profile.first_name} ${profile.last_name}`
                   : profile?.telegram_username || 'User'
                 }
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm">
                 {profile?.email || 'Telegram User'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               {isEditingProfile ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-first-name">First Name</Label>
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label htmlFor="edit-first-name" className="text-sm">First Name</Label>
                       <Input
                         id="edit-first-name"
+                        className="h-10 sm:h-11"
                         value={profileData.first_name}
                         onChange={(e) => setProfileData({
                           ...profileData,
@@ -287,10 +288,11 @@ export default function ProfilePage() {
                         })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-last-name">Last Name</Label>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label htmlFor="edit-last-name" className="text-sm">Last Name</Label>
                       <Input
                         id="edit-last-name"
+                        className="h-10 sm:h-11"
                         value={profileData.last_name}
                         onChange={(e) => setProfileData({
                           ...profileData,
@@ -299,11 +301,12 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-phone">Phone Number</Label>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="edit-phone" className="text-sm">Phone Number</Label>
                     <Input
                       id="edit-phone"
                       type="tel"
+                      className="h-10 sm:h-11"
                       value={profileData.phone}
                       onChange={(e) => setProfileData({
                         ...profileData,
@@ -311,11 +314,12 @@ export default function ProfilePage() {
                       })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-email">Email (Read-only)</Label>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label htmlFor="edit-email" className="text-sm">Email (Read-only)</Label>
                     <Input
                       id="edit-email"
                       type="email"
+                      className="h-10 sm:h-11"
                       value={profileData.email}
                       disabled
                       className="bg-gray-50"
