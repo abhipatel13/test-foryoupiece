@@ -477,21 +477,21 @@ function ProductsPageContent() {
           <main className={`${isRecommendedView || isSearchView || isDealsView ? 'w-full max-w-6xl' : 'flex-1'}`}>
 
             {loading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+              <div className="product-grid">
                 {[...Array(12)].map((_, i) => (
-                  <div key={i} className="modern-product-card bg-card p-3 sm:p-4 animate-pulse">
+                  <div key={i} className="modern-product-card bg-card p-4 animate-pulse">
                     <div className="aspect-square bg-muted rounded-lg mb-3"></div>
-                    <div className="h-3 sm:h-4 bg-muted rounded mb-2"></div>
-                    <div className="h-2 sm:h-3 bg-muted rounded mb-2"></div>
-                    <div className="h-3 sm:h-4 bg-muted rounded w-16 sm:w-20"></div>
+                    <div className="h-4 bg-muted rounded mb-2"></div>
+                    <div className="h-3 bg-muted rounded mb-2"></div>
+                    <div className="h-4 bg-muted rounded w-20"></div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className={`grid gap-3 sm:gap-4 ${
+              <div className={`${
                 viewMode === 'grid'
-                  ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-                  : 'grid-cols-1 sm:grid-cols-2'
+                  ? 'product-grid'
+                  : 'grid grid-cols-1 gap-4'
               }`}>
                 {products.map((product) => (
                   <ProductCard

@@ -254,7 +254,7 @@ export function EnhancedSearch({
           e.preventDefault()
           handleSearch(query)
         }}
-        className="flex modern-search-bar overflow-hidden shadow-sm w-full min-w-0 enterprise-shadow"
+        className="flex modern-search-bar overflow-hidden shadow-md w-full min-w-0 border border-border/50 hover:border-border focus-within:border-primary/50 focus-within:shadow-lg transition-all duration-300"
       >
         {/* Category Dropdown */}
         {showCategoryFilter && (
@@ -262,21 +262,21 @@ export function EnhancedSearch({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-11 px-2 sm:px-4 lg:px-6 bg-secondary hover:bg-accent text-foreground border-r border-border rounded-none rounded-l-lg flex-shrink-0 cursor-pointer transition-all duration-200 hover:shadow-sm"
+                className="h-11 px-3 sm:px-4 lg:px-6 bg-muted/30 hover:bg-muted/50 text-foreground border-r border-border/30 rounded-none rounded-l-lg flex-shrink-0 cursor-pointer transition-all duration-200 hover:shadow-sm font-medium"
               >
-                <span className="hidden sm:inline text-sm font-medium truncate">
-                  {categories.find(cat => cat.value === selectedCategory)?.label || 'All'}
+                <span className="hidden sm:inline text-sm font-semibold truncate">
+                  {categories.find(cat => cat.value === selectedCategory)?.label || 'All Categories'}
                 </span>
-                <span className="sm:hidden text-sm font-medium">All</span>
-                <ChevronDown className="h-4 w-4 ml-1" />
+                <span className="sm:hidden text-sm font-semibold">All</span>
+                <ChevronDown className="h-4 w-4 ml-2 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuContent align="start" className="w-56 shadow-xl border-border/50">
               {categories.map((category) => (
                 <DropdownMenuItem
                   key={category.value}
                   onClick={() => setSelectedCategory(category.value)}
-                  className="text-sm"
+                  className="text-sm font-medium py-2.5 px-3 cursor-pointer hover:bg-accent/50 transition-colors duration-200"
                 >
                   {category.label}
                 </DropdownMenuItem>
@@ -293,14 +293,14 @@ export function EnhancedSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleInputFocus}
-          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground w-full min-w-0 text-sm lg:text-base px-3 lg:px-4"
+          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground/70 w-full min-w-0 text-sm lg:text-base px-4 lg:px-5 font-medium"
         />
 
         {/* Search Button */}
         <Button
           type="submit"
           disabled={isLoading}
-          className="h-11 px-3 sm:px-5 lg:px-6 modern-button-primary rounded-none rounded-r-lg flex-shrink-0 cursor-pointer"
+          className="h-11 px-4 lg:px-5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-none rounded-r-lg flex-shrink-0 cursor-pointer transition-all duration-200 hover:shadow-md font-semibold"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -310,31 +310,31 @@ export function EnhancedSearch({
         </Button>
       </form>
 
-      {/* Search Dropdown */}
+      {/* Search Dropdown - Enhanced for Production */}
       {isOpen && (hasResults || hasSuggestions || hasHistory) && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg enterprise-shadow-lg z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-lg shadow-xl z-[100] max-h-[32rem] overflow-y-auto backdrop-blur-sm">
           {/* Search History */}
           {hasHistory && (
-            <div className="p-3 border-b border-border">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="p-4 border-b border-border/50">
+              <div className="flex items-center gap-2 mb-3">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Recent Searches</span>
+                <span className="text-sm font-semibold text-foreground">Recent Searches</span>
               </div>
               <div className="space-y-1">
                 {searchHistory.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between p-2 hover:bg-accent rounded cursor-pointer group"
+                    className="flex items-center justify-between p-3 hover:bg-accent/50 rounded-md cursor-pointer group transition-all duration-200 hover:shadow-sm"
                     onClick={() => handleHistoryClick(item.search_query)}
                   >
-                    <span className="text-sm">{item.search_query}</span>
+                    <span className="text-sm font-medium text-foreground">{item.search_query}</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                      className="opacity-0 group-hover:opacity-100 h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
                       onClick={(e) => deleteHistoryItem(item.id, e)}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 ))}
@@ -344,23 +344,25 @@ export function EnhancedSearch({
 
           {/* Suggestions */}
           {hasSuggestions && (
-            <div className="p-3 border-b border-border">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Suggestions</span>
+            <div className="p-4 border-b border-border/50">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">Suggestions</span>
               </div>
               <div className="space-y-1">
                 {suggestions.map((suggestion, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-2 p-2 hover:bg-accent rounded cursor-pointer"
+                    className="flex items-center gap-3 p-3 hover:bg-accent/50 rounded-md cursor-pointer transition-all duration-200 hover:shadow-sm group"
                     onClick={() => handleSuggestionClick(suggestion.suggestion_text)}
                   >
-                    {suggestion.suggestion_type === 'product' && <Package className="h-4 w-4 text-muted-foreground" />}
-                    {suggestion.suggestion_type === 'brand' && <Tag className="h-4 w-4 text-muted-foreground" />}
-                    {suggestion.suggestion_type === 'category' && <TrendingUp className="h-4 w-4 text-muted-foreground" />}
-                    <span className="text-sm">{suggestion.suggestion_text}</span>
-                    <Badge variant="secondary" className="text-xs">
+                    <div className="flex-shrink-0">
+                      {suggestion.suggestion_type === 'product' && <Package className="h-4 w-4 text-primary" />}
+                      {suggestion.suggestion_type === 'brand' && <Tag className="h-4 w-4 text-primary" />}
+                      {suggestion.suggestion_type === 'category' && <TrendingUp className="h-4 w-4 text-primary" />}
+                    </div>
+                    <span className="text-sm font-medium text-foreground flex-1 truncate group-hover:text-primary transition-colors duration-200">{suggestion.suggestion_text}</span>
+                    <Badge variant="secondary" className="text-xs font-medium bg-muted/50 text-muted-foreground border-0">
                       {suggestion.suggestion_type}
                     </Badge>
                   </div>
@@ -371,16 +373,16 @@ export function EnhancedSearch({
 
           {/* Search Results */}
           {hasResults && (
-            <div className="p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Products</span>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Search className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">Products</span>
               </div>
               <div className="space-y-2">
                 {searchResults.map((product) => (
                   <div
                     key={product.id}
-                    className="flex items-center gap-3 p-2 hover:bg-accent rounded cursor-pointer"
+                    className="flex items-center gap-4 p-3 hover:bg-accent/50 rounded-md cursor-pointer transition-all duration-200 hover:shadow-sm group"
                     onClick={() => {
                       // Track product click from search
                       if (user?.id && query) {
@@ -405,16 +407,18 @@ export function EnhancedSearch({
                     }}
                   >
                     {product.images[0] && (
-                      <img
-                        src={product.images[0]}
-                        alt={product.name_en}
-                        className="w-10 h-10 object-cover rounded"
-                      />
+                      <div className="flex-shrink-0">
+                        <img
+                          src={product.images[0]}
+                          alt={product.name_en}
+                          className="w-12 h-12 object-cover rounded-md border border-border/20 group-hover:border-primary/20 transition-colors duration-200"
+                        />
+                      </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{product.name_en}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {product.brand} • ${product.price}
+                      <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors duration-200">{product.name_en}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">{product.brand}</span> • <span className="font-semibold text-foreground">${product.price}</span>
                       </p>
                     </div>
                   </div>

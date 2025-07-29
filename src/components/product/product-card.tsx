@@ -110,164 +110,149 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
 
   return (
     <div
-      className="modern-product-card p-3 sm:p-4 lg:p-6 group relative w-full min-w-0"
+      className="group relative w-full h-full"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/en/products/${product.sku}`} className="block" onClick={handleProductClick}>
-        {/* Product Image - Mobile-First Responsive */}
-        <div className="relative aspect-square mb-3 sm:mb-4 bg-secondary rounded-lg sm:rounded-xl overflow-hidden">
-          {product.images.length > 0 ? (
-            <Image
-              src={product.images[0]}
-              alt={productName}
-              fill
-              className={`object-contain p-3 sm:p-4 lg:p-6 transition-all duration-300 ${
-                isHovered ? 'scale-110' : 'scale-100'
-              } ${imageLoading ? 'blur-sm' : 'blur-0'}`}
-              onLoad={() => setImageLoading(false)}
-              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              <Package className="h-8 w-8 sm:h-12 sm:w-12 lg:h-16 lg:w-16" />
+      {/* COMPLETELY REDESIGNED: Professional E-commerce Card */}
+      <div className="modern-product-card h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+
+        {/* Product Image Container - Fixed 1:1 Aspect Ratio */}
+        <div className="relative aspect-square bg-gray-50 rounded-t-lg overflow-hidden flex-shrink-0">
+          <Link
+            href={`/en/products/${product.sku}`}
+            className="block w-full h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            onClick={handleProductClick}
+            aria-label={`View ${productName}`}
+          >
+            {product.images.length > 0 ? (
+              <Image
+                src={product.images[0]}
+                alt={productName}
+                fill
+                className={`object-cover transition-all duration-300 ${
+                  isHovered ? 'scale-105' : 'scale-100'
+                } ${imageLoading ? 'blur-sm' : 'blur-0'}`}
+                onLoad={() => setImageLoading(false)}
+                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <Package className="h-12 w-12" />
+              </div>
+            )}
+          </Link>
+
+          {/* FIXED: Professional Badge Positioning - Semi-transparent Background */}
+          {discountPercentage && (
+            <div className="absolute top-2 left-2 z-10">
+              <Badge className="bg-red-500/90 text-white text-xs font-bold shadow-lg px-2 py-1 rounded backdrop-blur-sm">
+                -{discountPercentage}% OFF
+              </Badge>
             </div>
           )}
 
-          {/* Professional badges - Mobile Optimized */}
-          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex flex-col space-y-1">
-            {/* Discount Percentage */}
-            {discountPercentage && (
-              <Badge className="bg-primary text-primary-foreground text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1">
-                -{discountPercentage}% OFF
+          {/* Stock Indicators - Integrated into Card Body (not overlay) */}
+          {(product.stock_quantity === 1 || product.stock_quantity === 2) && (
+            <div className="absolute top-2 right-2 z-10">
+              <Badge className={`text-xs font-medium shadow-lg px-2 py-1 rounded backdrop-blur-sm ${
+                product.stock_quantity === 1
+                  ? 'bg-red-100/90 text-red-800'
+                  : 'bg-orange-100/90 text-orange-800'
+              }`}>
+                {product.stock_quantity === 1 ? '1 left' : 'Few left'}
               </Badge>
-            )}
+            </div>
+          )}
 
-            {/* Critical Stock Indicator - Only show for very low stock */}
-            {product.stock_quantity === 1 && (
-              <Badge className="bg-red-100 text-red-800 text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1">
-                1 left
-              </Badge>
-            )}
-            {product.stock_quantity === 2 && (
-              <Badge className="bg-orange-100 text-orange-800 text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1">
-                Few left
-              </Badge>
-            )}
-
-            {/* Featured Badge */}
-            {product.is_featured && (
-              <Badge className="bg-primary/10 text-primary text-xs font-medium shadow-sm border border-primary/20 px-1.5 py-0.5 sm:px-2 sm:py-1">
-                Featured
-              </Badge>
-            )}
-
-            {/* Free Shipping Badge - Hide on very small screens */}
-            {product.price >= 3500 && (
-              <Badge className="bg-green-100 text-green-800 text-xs font-medium shadow-sm px-1.5 py-0.5 sm:px-2 sm:py-1 hidden xs:block">
-                Free Shipping
-              </Badge>
-            )}
-          </div>
-
-          {/* Professional Quick Actions - Mobile Responsive */}
-          <div className={`absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-3 sm:right-3 transition-all duration-300 ${
-            isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-          }`}>
-            <Button
-              onClick={handleAddToCart}
-              className="w-full modern-button-primary text-xs sm:text-sm h-8 sm:h-10 shadow-lg"
-              disabled={product.stock_quantity <= 0}
-            >
-              {product.stock_quantity <= 0 ? (
-                <span className="hidden sm:inline">Available for preorder</span>
-              ) : (
-                <span className="hidden sm:inline">Add to Cart</span>
-              )}
-              {product.stock_quantity <= 0 ? (
-                <span className="sm:hidden">Preorder</span>
-              ) : (
-                <span className="sm:hidden">Add</span>
-              )}
-            </Button>
-          </div>
+          {/* Wishlist Button - Desktop Only */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute bottom-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-white/90 hover:bg-white shadow-md rounded-full z-10 hidden sm:flex items-center justify-center"
+            onClick={handleWishlist}
+            aria-label={`Add ${productName} to wishlist`}
+          >
+            <Heart className="h-3.5 w-3.5 text-gray-600 hover:text-red-500" />
+          </Button>
         </div>
 
-        {/* Product Information - Mobile-First Responsive */}
-        <div className="space-y-2 sm:space-y-3">
-          {/* Brand - Hide on very small screens */}
+        {/* REDESIGNED: Content Section with Proper Hierarchy */}
+        <div className="flex-1 flex flex-col p-4">
+
+          {/* Brand - Consistent Typography */}
           {product.brand && (
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium hidden xs:block">
+            <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1 truncate">
               {product.brand}
             </p>
           )}
 
-          {/* Product Name - Mobile Optimized */}
-          <h3 className="text-xs sm:text-sm font-medium line-clamp-2 text-foreground group-hover:text-primary transition-colors leading-tight sm:leading-relaxed">
-            {productName}
-          </h3>
+          {/* Product Title - 2 Lines Max with Ellipsis */}
+          <Link href={`/en/products/${product.sku}`} onClick={handleProductClick}>
+            <h3 className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors mb-2 line-clamp-2 leading-tight min-h-[2.5rem]">
+              {productName}
+            </h3>
+          </Link>
 
-          {/* Price - Mobile-First Professional Style */}
-          <div className="space-y-1">
-            <div className="flex items-baseline space-x-1 sm:space-x-2">
-              <span className="text-sm sm:text-lg font-bold text-foreground">
+          {/* Price Section - Bold and Prominent */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-lg font-bold text-gray-900">
                 {formatPrice(product.price)}
               </span>
               {product.compare_at_price && product.compare_at_price > product.price && (
-                <span className="text-xs sm:text-sm text-muted-foreground line-through">
-                  {formatPrice(product.compare_at_price)}
-                </span>
-              )}
-              {discountPercentage && (
-                <span className="text-xs font-medium text-primary hidden sm:inline">
-                  Save {formatPrice(product.compare_at_price - product.price)}
-                </span>
+                <>
+                  <span className="text-sm text-gray-500 line-through">
+                    {formatPrice(product.compare_at_price)}
+                  </span>
+                  <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                    Save {formatPrice(product.compare_at_price - product.price)}
+                  </span>
+                </>
               )}
             </div>
 
-            {/* Points Display - Mobile Optimized */}
-            <div className="flex items-center space-x-1 text-xs">
+            {/* Points Display - Smaller, Muted Text */}
+            <div className="flex items-center gap-1 text-xs text-gray-500">
               <span className="text-orange-600 font-medium">
                 {product.points_rate || 1}%
               </span>
-              <span className="text-muted-foreground">back in points</span>
+              <span>back in points</span>
             </div>
           </div>
 
-          {/* Stock Status - Mobile Responsive */}
-          {product.stock_quantity === 1 && (
-            <p className="text-xs text-red-600 font-medium">
-              1 left
-            </p>
-          )}
-          {product.stock_quantity === 2 && (
-            <p className="text-xs text-orange-600 font-medium">
-              Few left
-            </p>
-          )}
-          {product.stock_quantity > 2 && (
-            <p className="text-xs text-green-600 font-medium">
-              Fast delivery
-            </p>
-          )}
-          {product.stock_quantity <= 0 && (
-            <p className="text-xs text-blue-600 font-medium">
-              Available for preorder
-            </p>
-          )}
+          {/* Stock Status - Integrated into Card Body */}
+          <div className="text-xs font-medium mb-3">
+            {product.stock_quantity === 1 && (
+              <span className="text-red-600">Only 1 left</span>
+            )}
+            {product.stock_quantity === 2 && (
+              <span className="text-orange-600">Only 2 left</span>
+            )}
+            {product.stock_quantity > 2 && (
+              <span className="text-green-600">Fast delivery</span>
+            )}
+            {product.stock_quantity <= 0 && (
+              <span className="text-blue-600">Available for preorder</span>
+            )}
+          </div>
+
+          {/* FIXED: Standardized Add to Cart Button - Bottom Positioned */}
+          <div className="mt-auto">
+            <Button
+              onClick={handleAddToCart}
+              className="w-full bg-black hover:bg-gray-800 text-white font-semibold text-sm h-11 shadow-sm hover:shadow-md transition-all duration-200 rounded-md flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed touch-target-44"
+              disabled={product.stock_quantity <= 0}
+              aria-label={product.stock_quantity <= 0 ? `Preorder ${productName}` : `Add ${productName} to cart`}
+            >
+              <ShoppingCart className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate">
+                {product.stock_quantity <= 0 ? 'Preorder' : 'Add to Cart'}
+              </span>
+            </Button>
+          </div>
         </div>
-
-      </Link>
-
-      {/* Wishlist Button - Mobile Responsive */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute top-2 right-2 sm:top-3 sm:right-3 h-7 w-7 sm:h-9 sm:w-9 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-background/80 hover:bg-background shadow-sm backdrop-blur-sm rounded-full"
-        onClick={handleWishlist}
-      >
-        <Heart className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground hover:text-primary" />
-      </Button>
+      </div>
     </div>
   )
 }

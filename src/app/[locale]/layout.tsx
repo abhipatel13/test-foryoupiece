@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/config';
 import { QueryProvider } from "@/lib/providers/query-provider";
 import { MainLayout } from '@/components/layout/main-layout';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -28,12 +29,14 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <QueryProvider>
-      <NextIntlClientProvider messages={messages}>
-        <MainLayout>
-          {children}
-        </MainLayout>
-      </NextIntlClientProvider>
-    </QueryProvider>
+    <ErrorBoundary>
+      <QueryProvider>
+        <NextIntlClientProvider messages={messages}>
+          <MainLayout>
+            {children}
+          </MainLayout>
+        </NextIntlClientProvider>
+      </QueryProvider>
+    </ErrorBoundary>
   );
 }

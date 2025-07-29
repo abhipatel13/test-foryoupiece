@@ -187,28 +187,28 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Compact Sales-Focused Banner */}
+      {/* Mobile-First Hero Banner */}
       <section className="bg-gradient-to-r from-primary/5 via-secondary to-accent/5 border-b border-border">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-            {/* Compact Branding & Value Proposition */}
-            <div className="text-center lg:text-left">
-              <h1 className="section-heading">
+        <div className="desktop-container py-4 sm:py-6 lg:py-8 xl:py-10">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-4 sm:gap-6 lg:gap-8">
+            {/* Mobile-Optimized Branding & Value Proposition */}
+            <div className="text-center lg:text-left max-w-full lg:max-w-none">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-foreground mb-2 sm:mb-3 lg:mb-4 leading-tight">
                 Premium Quality Products
               </h1>
-              <p className="section-subheading">
+              <p className="text-sm sm:text-base lg:text-lg text-muted-foreground leading-relaxed">
                 Authentic quality • Fast shipping • Trusted by 10,000+ customers
               </p>
             </div>
 
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-3">
-              <Button asChild className="modern-button-primary">
+            {/* Mobile-Optimized Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto lg:flex-shrink-0">
+              <Button asChild className="modern-button-primary w-full sm:w-auto px-6 py-3 text-base font-semibold touch-manipulation">
                 <Link href="/en/products">
                   Shop Now
                 </Link>
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" className="w-full sm:w-auto px-6 py-3 text-base font-medium touch-manipulation">
                 <Link href="/en/products?featured=true">
                   View Featured
                 </Link>
@@ -218,42 +218,43 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Product-First Layout - Sales Focused */}
-      <div className="container mx-auto px-4 py-6 max-w-screen-2xl">
+      {/* Mobile-First Product Layout */}
+      <div className="desktop-container py-4 sm:py-6 lg:py-8 xl:py-10">
 
-        {/* 1. TRENDING PRODUCTS - Above the fold priority */}
-        <section className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <h2 className="text-2xl font-bold text-foreground">Trending Now</h2>
+        {/* 1. TRENDING PRODUCTS - Mobile-First Design */}
+        <section className="mb-8 sm:mb-10 lg:mb-12">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Trending Now</h2>
               </div>
-              <Badge className="bg-red-500 text-white animate-pulse">HOT</Badge>
+              <Badge className="bg-red-500 text-white animate-pulse text-xs px-2 py-1">HOT</Badge>
             </div>
             <Link
               href="/en/trending"
-              className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
+              className="text-primary hover:text-primary/80 font-medium flex items-center gap-1 sm:gap-2 transition-colors text-sm sm:text-base touch-manipulation"
             >
-              View All Trending
-              <ArrowRight className="h-4 w-4" />
+              <span className="hidden sm:inline">View All Trending</span>
+              <span className="sm:hidden">View All</span>
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
             </Link>
           </div>
 
           {trendingLoading ? (
             <div className="product-grid">
-              {[...Array(10)].map((_, i) => (
-                <div key={i} className="modern-product-card p-4 animate-pulse">
-                  <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
-                  <div className="h-4 bg-secondary rounded mb-2"></div>
-                  <div className="h-3 bg-secondary rounded mb-2"></div>
-                  <div className="h-4 bg-secondary rounded w-20"></div>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="modern-product-card p-3 sm:p-4 animate-pulse">
+                  <div className="aspect-square bg-secondary rounded-lg mb-2 sm:mb-3"></div>
+                  <div className="h-3 sm:h-4 bg-secondary rounded mb-1 sm:mb-2"></div>
+                  <div className="h-2 sm:h-3 bg-secondary rounded mb-1 sm:mb-2"></div>
+                  <div className="h-3 sm:h-4 bg-secondary rounded w-16 sm:w-20"></div>
                 </div>
               ))}
             </div>
           ) : trendingError ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Unable to load trending products</p>
+            <div className="text-center py-6 sm:py-8">
+              <p className="text-muted-foreground text-sm sm:text-base">Unable to load trending products</p>
             </div>
           ) : (
             <div className="product-grid">
@@ -495,9 +496,9 @@ export default function HomePage() {
 
         {/* BoxHero Categories - Real Inventory Data */}
         <section id="categories-section" className="mb-16">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-foreground mb-2">Shop by Category</h2>
-            <p className="text-muted-foreground">Explore our authentic product categories</p>
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Shop by Category</h2>
+            <p className="text-muted-foreground text-sm sm:text-base">Explore our authentic product categories</p>
 
             {/* Hidden Progressive Loading Indicator - Only for debugging, not visible to users */}
             {process.env.NODE_ENV === 'development' && !progressiveState.imagesLoaded && progressiveState.imageLoadingProgress > 0 && (
@@ -519,18 +520,18 @@ export default function HomePage() {
 
 
           {categoriesLoading ? (
-            // Show skeleton loading for categories (text content)
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-6">
+            // Show skeleton loading for categories (text content) - Mobile-first responsive grid
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
               {[...Array(7)].map((_, i) => (
-                <div key={i} className="modern-product-card p-6 text-center animate-pulse">
-                  <div className="aspect-square bg-secondary rounded-xl mb-4"></div>
-                  <div className="h-4 bg-secondary rounded w-20 mx-auto mb-2"></div>
-                  <div className="h-3 bg-secondary rounded w-16 mx-auto"></div>
+                <div key={i} className="modern-product-card p-4 sm:p-6 text-center animate-pulse">
+                  <div className="aspect-square bg-secondary rounded-xl mb-3 sm:mb-4"></div>
+                  <div className="h-3 sm:h-4 bg-secondary rounded w-16 sm:w-20 mx-auto mb-2"></div>
+                  <div className="h-2 sm:h-3 bg-secondary rounded w-12 sm:w-16 mx-auto"></div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
               {boxHeroCategories.length > 0 ? boxHeroCategories.map((category) => {
                 const categoryImage = categoryImages[category.slug];
 
@@ -540,9 +541,9 @@ export default function HomePage() {
                     href={`/en/products?category=${category.slug}`}
                     className="group"
                   >
-                    <div className="modern-product-card p-4 text-center group-hover:scale-105 transition-transform">
+                    <div className="modern-product-card p-3 sm:p-4 text-center group-hover:scale-105 transition-all duration-300 hover:shadow-lg">
                       {/* Progressive Loading: Show text content immediately */}
-                      <div className="aspect-square rounded-xl mb-4 overflow-hidden bg-gradient-to-br from-secondary to-accent relative">
+                      <div className="aspect-square rounded-xl mb-3 sm:mb-4 overflow-hidden bg-gradient-to-br from-secondary to-accent relative">
                         {categoryImage ? (
                           <Image
                             src={categoryImage}
@@ -578,10 +579,10 @@ export default function HomePage() {
                           </div>
                         )}
                       </div>
-                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors mb-1 text-sm">
+                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors mb-1 text-sm sm:text-base line-clamp-2">
                         {category.name}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {category.count} items
                       </p>
                     </div>
@@ -591,7 +592,7 @@ export default function HomePage() {
                 // Fallback static categories if API fails
                 <div className="col-span-full text-center py-8">
                   <p className="text-muted-foreground mb-4">Categories temporarily unavailable</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
                     {[
                       { name: 'Hair', count: 347, slug: 'hair', emoji: '💇' },
                       { name: 'Bath & Body', count: 189, slug: 'bath-body', emoji: '🛁' },
@@ -606,16 +607,16 @@ export default function HomePage() {
                         href={`/en/products?category=${category.slug}`}
                         className="group"
                       >
-                        <div className="modern-product-card p-4 text-center group-hover:scale-105 transition-transform">
-                          <div className="aspect-square rounded-xl mb-4 overflow-hidden bg-gradient-to-br from-secondary to-accent relative">
+                        <div className="modern-product-card p-3 sm:p-4 text-center group-hover:scale-105 transition-all duration-300 hover:shadow-lg">
+                          <div className="aspect-square rounded-xl mb-3 sm:mb-4 overflow-hidden bg-gradient-to-br from-secondary to-accent relative">
                             <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-4xl">{category.emoji}</span>
+                              <span className="text-3xl sm:text-4xl">{category.emoji}</span>
                             </div>
                           </div>
-                          <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors mb-1 text-sm">
+                          <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors mb-1 text-sm sm:text-base line-clamp-2">
                             {category.name}
                           </h3>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs sm:text-sm text-muted-foreground">
                             {category.count} items
                           </p>
                         </div>
@@ -633,7 +634,7 @@ export default function HomePage() {
 
       {/* Features Section - Modern */}
       <section className="bg-secondary/50 py-20">
-        <div className="container mx-auto px-4">
+        <div className="desktop-container">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-foreground mb-4">Why Choose Foryoupiece?</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">

@@ -152,20 +152,36 @@ const nextConfig: NextConfig = {
         config.optimization = {
           ...config.optimization,
           splitChunks: {
-            chunks: 'async', // Only split async chunks to avoid SSR issues
+            chunks: 'all',
             cacheGroups: {
-              default: false,
-              vendors: false,
-              // Only split large libraries that are commonly used
-              react: {
-                name: 'react',
-                chunks: 'all',
-                test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+              default: {
+                minChunks: 2,
+                priority: -20,
+                reuseExistingChunk: true,
+              },
+              vendors: {
+                test: /[\\/]node_modules[\\/]/,
+                priority: -10,
+                reuseExistingChunk: true,
+                name: 'vendors',
+              },
+              commons: {
+                minChunks: 2,
+                priority: -5,
+                reuseExistingChunk: true,
               },
             },
           },
+          runtimeChunk: {
+            name: 'runtime',
+          },
         };
       }
+    }
+
+    // Fix for ChunkLoadError - add proper chunk naming
+    if (!dev && !isServer) {
+      config.output.chunkFilename = 'static/chunks/[name].[contenthash].js';
     }
 
     return config;

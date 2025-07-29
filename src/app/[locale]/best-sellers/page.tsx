@@ -160,10 +160,10 @@ export default function BestSellersPage() {
 
         {/* Products Grid/List - Mobile-First Responsive */}
         {!isLoading && !error && bestSellerData.length > 0 && (
-          <div className={`grid gap-3 sm:gap-4 lg:gap-6 ${
+          <div className={`${
             viewMode === 'grid'
-              ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-              : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-6'
+              : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
           }`}>
             {bestSellerData.map((product) => (
               <div key={product.id} className="relative">

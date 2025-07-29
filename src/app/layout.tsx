@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,9 +39,37 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <Script
+          id="chunk-error-handler"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Handle chunk loading errors
+              window.addEventListener('error', function(e) {
+                if (e.error && e.error.name === 'ChunkLoadError') {
+                  console.warn('ChunkLoadError detected, reloading page...');
+                  if (window.location.pathname !== '/') {
+                    // Store current path and reload
+                    sessionStorage.setItem('chunk-error-redirect', window.location.pathname);
+                    window.location.reload();
+                  }
+                }
+              }, true);
+              
+              // Check for redirect after reload
+              if (sessionStorage.getItem('chunk-error-redirect')) {
+                const redirect = sessionStorage.getItem('chunk-error-redirect');
+                sessionStorage.removeItem('chunk-error-redirect');
+                if (window.location.pathname === '/' && redirect !== '/') {
+                  window.location.href = redirect;
+                }
+              }
+            `,
+          }}
+        />
         {children}
       </body>
     </html>

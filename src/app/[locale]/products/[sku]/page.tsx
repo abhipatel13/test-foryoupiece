@@ -262,13 +262,13 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
-        {/* Main Product Section - Enterprise Mobile-First Design */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12 mb-16">
-          {/* Enhanced Product Images Gallery - Mobile Optimized */}
-          <div className="space-y-4 lg:space-y-6">
-            {/* Main Image with Navigation */}
-            <div className="relative aspect-square bg-white rounded-2xl overflow-hidden border-2 border-gray-100 group shadow-lg hover:shadow-xl transition-all duration-300">
+      <div className="container mx-auto px-4 py-8 lg:py-6 xl:py-8 max-w-screen-2xl">
+        {/* Main Product Section - Enterprise Desktop Optimized */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-8 xl:gap-12 mb-16 lg:mb-12 xl:mb-16">
+          {/* Enhanced Product Images Gallery - Enterprise Desktop Optimized */}
+          <div className="space-y-4 lg:space-y-3 xl:space-y-4">
+            {/* Main Image with Navigation - Compact Desktop */}
+            <div className="relative aspect-square bg-white rounded-2xl lg:rounded-xl overflow-hidden border-2 border-gray-100 group shadow-lg hover:shadow-xl transition-all duration-300">
               {product.images.length > 0 ? (
                 <>
                   <Image

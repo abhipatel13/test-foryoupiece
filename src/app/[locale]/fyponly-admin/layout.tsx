@@ -200,33 +200,34 @@ function AdminLoginForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-6 sm:py-12 px-3 sm:px-4 lg:px-6 xl:px-8">
-      <div className="max-w-md w-full space-y-6 sm:space-y-8">
+      <div className="auth-form-container w-full space-y-6 sm:space-y-8 mx-auto"
+           style={{ maxWidth: '440px' }}>
         {/* Header - Mobile-First Responsive */}
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center text-xs sm:text-sm text-gray-600 hover:text-gray-900 mb-3 sm:mb-4">
-            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+          <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4 min-h-[44px] px-2 py-2 rounded-md hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Foryoupiece
           </Link>
-          <div className="flex items-center justify-center mb-3 sm:mb-4">
-            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 mr-2" />
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Access</h2>
+          <div className="flex items-center justify-center mb-4">
+            <Shield className="h-8 w-8 text-red-600 mr-3" />
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Admin Access</h2>
           </div>
-          <p className="mt-2 text-xs sm:text-sm text-gray-600">
+          <p className="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
             Secure administrator login portal
           </p>
         </div>
 
-        <Card className="border-red-200">
-          <CardHeader className="bg-red-50">
-            <CardTitle className="text-red-800 flex items-center">
-              <Shield className="h-5 w-5 mr-2" />
+        <Card className="border-red-200 shadow-lg">
+          <CardHeader className="bg-red-50 border-b border-red-100">
+            <CardTitle className="text-red-800 flex items-center text-lg sm:text-xl">
+              <Shield className="h-5 w-5 mr-3" />
               Administrator Login
             </CardTitle>
-            <CardDescription className="text-red-600">
+            <CardDescription className="text-red-600 text-sm">
               This area is restricted to authorized administrators only
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 pt-6">
+          <CardContent className="space-y-6 pt-6 px-4 sm:px-6">
             {/* Success Alert */}
             {showSuccessMessage && (
               <div className="bg-green-50 border border-green-200 rounded-md p-3">
@@ -244,9 +245,9 @@ function AdminLoginForm() {
             )}
 
             {/* Admin Login Form - Mobile-First Responsive */}
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
               <div>
-                <Label htmlFor="email" className="text-sm">Administrator Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium text-gray-700 block mb-2">Administrator Email</Label>
                 <Input
                   id="email"
                   name="email"
@@ -256,13 +257,13 @@ function AdminLoginForm() {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="Enter admin email"
-                  className="mt-1 h-10 sm:h-11"
+                  className="mt-1 h-11 min-h-[44px] text-base"
                 />
               </div>
 
               <div>
-                <Label htmlFor="password" className="text-sm">Password</Label>
-                <div className="relative mt-1">
+                <Label htmlFor="password" className="text-sm font-medium text-gray-700 block mb-2">Password</Label>
+                <div className="relative">
                   <Input
                     id="password"
                     name="password"
@@ -272,11 +273,11 @@ function AdminLoginForm() {
                     value={formData.password}
                     onChange={handleInputChange}
                     placeholder="Enter admin password"
-                    className="pr-10 h-10 sm:h-11"
+                    className="pr-10 h-11 min-h-[44px] text-base"
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center min-w-[44px] min-h-[44px] justify-center hover:bg-gray-100 rounded-r-md transition-colors"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -290,7 +291,7 @@ function AdminLoginForm() {
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 h-10 sm:h-11 text-sm sm:text-base"
+                className="w-full bg-red-600 hover:bg-red-700 h-11 min-h-[44px] text-base font-medium transition-colors"
                 disabled={loading}
               >
                 {loading ? 'Authenticating...' : 'Access Admin Panel'}
@@ -301,7 +302,7 @@ function AdminLoginForm() {
             <div className="text-center">
               <Link
                 href="/en/auth/admin-forgot-password"
-                className="text-sm text-red-600 hover:text-red-700 hover:underline"
+                className="text-sm text-red-600 hover:text-red-700 hover:underline min-h-[44px] inline-flex items-center px-2 py-2 rounded-md hover:bg-red-50 transition-colors"
               >
                 Forgot your admin password?
               </Link>
