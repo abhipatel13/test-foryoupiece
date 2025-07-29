@@ -135,6 +135,11 @@ export function useAuth() {
 
     const initializeAuth = async () => {
       try {
+        // Add a small delay to ensure any logout operations have completed
+        await new Promise(resolve => setTimeout(resolve, 50))
+
+        if (!isMounted) return
+
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!isMounted) return
@@ -237,19 +242,73 @@ export function useAuth() {
       stableClearUser()
       stableSetUserId(null)
 
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error('❌ Error signing out:', error)
-        throw error
+      // Clear all browser storage first
+      if (typeof window !== 'undefined') {
+        // Clear localStorage
+        const keys = Object.keys(localStorage)
+        keys.forEach(key => {
+          if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+            console.log('🧹 Clearing localStorage key:', key)
+            localStorage.removeItem(key)
+          }
+        })
+
+        // Clear sessionStorage
+        const sessionKeys = Object.keys(sessionStorage)
+        sessionKeys.forEach(key => {
+          if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+            console.log('🧹 Clearing sessionStorage key:', key)
+            sessionStorage.removeItem(key)
+          }
+        })
+
+        // Clear all cookies (more comprehensive approach)
+        document.cookie.split(";").forEach(function(c) {
+          const eqPos = c.indexOf("=")
+          const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim()
+          if (name.includes('sb-') || name.includes('supabase') || name.includes('auth')) {
+            console.log('🧹 Clearing cookie:', name)
+            // Clear for current domain
+            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname
+            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/"
+            // Clear for parent domain
+            const domain = window.location.hostname.split('.').slice(-2).join('.')
+            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + domain
+          }
+        })
       }
 
-      console.log('✅ Successfully signed out')
+      // Sign out from Supabase with scope 'global' to clear all sessions
+      const { error } = await supabase.auth.signOut({ scope: 'global' })
+      if (error) {
+        console.error('❌ Error signing out:', error)
+        // Don't throw error, continue with cleanup
+      }
+
+      // Force refresh the page to ensure clean state
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          window.location.reload()
+        }, 100)
+      }
+
+      console.log('✅ Successfully signed out and cleared all auth data')
     } catch (error) {
       console.error('❌ Error during sign out:', error)
       // Still clear local state even if Supabase sign out fails
       clearUser()
       setUserId(null)
+
+      // Force clear storage even on error
+      if (typeof window !== 'undefined') {
+        localStorage.clear()
+        sessionStorage.clear()
+        // Force refresh on error too
+        setTimeout(() => {
+          window.location.reload()
+        }, 100)
+      }
+
       throw error
     }
   }
