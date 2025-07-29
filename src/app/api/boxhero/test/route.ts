@@ -11,7 +11,16 @@ export async function GET(request: NextRequest) {
     console.log('🧪 BoxHero API Comprehensive Test called');
 
     // Test both API implementations
-    const boxHeroService = new BoxHeroService('a827b827-36f7-4e0e-b66b-db6990469aaa');
+    // ⚠️ SECURITY: Use environment variable instead of hardcoded token
+    const boxHeroToken = process.env.BOXHERO_API_TOKEN;
+    if (!boxHeroToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
+    }
+
+    const boxHeroService = new BoxHeroService(boxHeroToken);
 
     // Test connection with both implementations
     const isConnected1 = await boxHeroApi.testConnection();

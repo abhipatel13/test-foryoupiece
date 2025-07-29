@@ -306,14 +306,16 @@ This is an automated alert from the Foryoupiece admin security system.
 
   /**
    * Test email functionality (for development)
+   * ⚠️ SECURITY: This method uses hardcoded test data for development only
    */
   async testEmail(): Promise<boolean> {
+    // ⚠️ SECURITY: Using hardcoded test data - only for development
     const testData: AdminLoginAttemptData = {
       timestamp: new Date().toISOString(),
       ipAddress: '192.168.1.100',
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       attemptCount: 3,
-      email: 'test@example.com'
+      email: 'test@example.com' // Safe test email
     }
     
     return await this.sendAdminLoginAttemptAlert(testData)

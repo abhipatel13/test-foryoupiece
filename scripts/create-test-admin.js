@@ -1,5 +1,8 @@
 const { createClient } = require('@supabase/supabase-js')
 
+// ⚠️ SECURITY WARNING: This script creates admin users for testing purposes only
+// Do not use in production environment. Remove or secure before deployment.
+
 // Supabase configuration
 const supabaseUrl = 'https://xhfmyghtcugcocchzgja.supabase.co'
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

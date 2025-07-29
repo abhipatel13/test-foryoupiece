@@ -29,16 +29,20 @@ async function confirmTestUser() {
     
     console.log('📋 Found users:', users.users.length)
     
+    // ⚠️ SECURITY WARNING: This script creates test users with hardcoded credentials
+    // Only use in development environment. Remove or secure for production.
+
     // Find the test user
     const testUser = users.users.find(user => user.email === 'test@foryoupiece.com')
-    
+
     if (!testUser) {
       console.log('❌ Test user not found. Creating test user...')
-      
+
       // Create the test user with confirmed email
+      // ⚠️ SECURITY: Using hardcoded password for development only
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: 'test@foryoupiece.com',
-        password: 'testpassword123',
+        password: 'testpassword123', // TODO: Use environment variable for production
         email_confirm: true,
         user_metadata: {
           first_name: 'Test',
@@ -128,8 +132,9 @@ async function confirmTestUser() {
     
     console.log('\n🎉 Test user setup complete!')
     console.log('📧 Email: test@foryoupiece.com')
-    console.log('🔑 Password: testpassword123')
+    console.log('🔑 Password: testpassword123 (⚠️ DEVELOPMENT ONLY)')
     console.log('🌐 Login URL: http://localhost:3003/en/auth/login')
+    console.log('⚠️ WARNING: This is a test account with hardcoded credentials. Do not use in production!')
     
   } catch (error) {
     console.error('❌ Error:', error)

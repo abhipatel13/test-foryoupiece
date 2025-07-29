@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/use-auth'
+import { useAdminConfig } from '@/hooks/use-admin-config'
 import { adminQueries } from '@/lib/supabase/queries'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -35,6 +36,7 @@ interface AdminLayoutProps {
 
 function AdminLoginForm() {
   const { signInWithEmail } = useAuth()
+  const { adminEmail, loading: configLoading, error: configError } = useAdminConfig()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -66,76 +68,58 @@ function AdminLoginForm() {
     if (error) setError(null)
   }
 
-  const handleTempLogin = async () => {
-    // Security check: Only allow in development environment
-    if (process.env.NODE_ENV !== 'development') {
-      setError('Temporary login is disabled in production for security.')
-      toast.error('Feature disabled in production')
-      return
+  // Pre-fill admin email when available
+  useEffect(() => {
+    if (adminEmail && !formData.email) {
+      setFormData(prev => ({ ...prev, email: adminEmail }))
     }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      // Get admin credentials from environment variables for security
-      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_TEMP_PASSWORD
-
-      if (!adminEmail || !adminPassword) {
-        throw new Error('Admin credentials not configured')
-      }
-
-      await signInWithEmail(adminEmail, adminPassword)
-      toast.success('Development admin access granted!')
-    } catch (err: unknown) {
-      setError('Development login failed. Please use your admin credentials.')
-      toast.error('Development login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [adminEmail, formData.email])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to ForYouPiece
+          <Link
+            href="/"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6 transition-colors duration-200 min-h-[44px] px-2 py-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Foryoupiece
           </Link>
           <div className="flex items-center justify-center mb-4">
-            <Shield className="h-8 w-8 text-red-600 mr-2" />
-            <h2 className="text-3xl font-bold text-gray-900">Admin Access</h2>
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-black mr-3" />
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black">Admin Access</h2>
           </div>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm sm:text-base text-gray-600 max-w-md mx-auto">
             Secure administrator login portal
           </p>
         </div>
 
-        <Card className="border-red-200">
-          <CardHeader className="bg-red-50">
-            <CardTitle className="text-red-800 flex items-center">
-              <Shield className="h-5 w-5 mr-2" />
+        <Card className="border-gray-200 shadow-lg">
+          <CardHeader className="bg-white border-b border-gray-100 pb-6">
+            <CardTitle className="text-black flex items-center text-lg sm:text-xl">
+              <Shield className="h-5 w-5 sm:h-6 sm:w-6 mr-3" />
               Administrator Login
             </CardTitle>
-            <CardDescription className="text-red-600">
+            <CardDescription className="text-gray-600 text-sm sm:text-base mt-2">
               This area is restricted to authorized administrators only
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 pt-6">
+          <CardContent className="space-y-6 pt-6 px-6 sm:px-8 pb-8">
             {/* Error Alert */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-sm sm:text-base text-red-700">{error}</p>
               </div>
             )}
 
             {/* Admin Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
               <div>
-                <Label htmlFor="email">Administrator Email</Label>
+                <Label htmlFor="email" className="text-sm sm:text-base font-medium text-gray-700">
+                  Administrator Email
+                </Label>
                 <Input
                   id="email"
                   name="email"
@@ -145,13 +129,15 @@ function AdminLoginForm() {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="Enter admin email"
-                  className="mt-1"
+                  className="mt-2 h-11 sm:h-12 text-sm sm:text-base"
                 />
               </div>
 
               <div>
-                <Label htmlFor="password">Password</Label>
-                <div className="relative mt-1">
+                <Label htmlFor="password" className="text-sm sm:text-base font-medium text-gray-700">
+                  Password
+                </Label>
+                <div className="relative mt-2">
                   <Input
                     id="password"
                     name="password"
@@ -161,17 +147,18 @@ function AdminLoginForm() {
                     value={formData.password}
                     onChange={handleInputChange}
                     placeholder="Enter admin password"
-                    className="pr-10"
+                    className="pr-12 h-11 sm:h-12 text-sm sm:text-base"
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center min-h-[44px] min-w-[44px] justify-center hover:bg-gray-50 rounded-r-md transition-colors duration-200"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                     )}
                   </button>
                 </div>
@@ -179,42 +166,26 @@ function AdminLoginForm() {
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700"
+                className="w-full bg-black hover:bg-gray-800 text-white h-11 sm:h-12 text-sm sm:text-base font-medium transition-colors duration-200"
                 disabled={loading}
               >
                 {loading ? 'Authenticating...' : 'Access Admin Panel'}
               </Button>
             </form>
 
-            {/* Temporary Login Section - Development Only */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="border-t pt-4">
-                <div className="text-center mb-3">
-                  <p className="text-sm text-red-600 mb-2 font-semibold">⚠️ DEVELOPMENT ONLY</p>
-                  <p className="text-xs text-gray-600 mb-2">This feature is disabled in production</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={handleTempLogin}
-                  disabled={loading}
-                >
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  {loading ? 'Accessing...' : 'Development Admin Access'}
-                </Button>
-                <p className="text-xs text-red-500 mt-2 text-center">
-                  Uses configured admin credentials for development testing
-                </p>
-              </div>
-            )}
+            <Link
+              href="/en/auth/admin-forgot-password"
+              className="block text-center text-sm text-gray-600 hover:text-black transition-colors duration-200 min-h-[44px] flex items-center justify-center"
+            >
+              Forgot your admin password?
+            </Link>
 
             {/* Security Notice */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-              <div className="flex">
-                <Shield className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
-                <div className="text-xs text-yellow-700">
-                  <p className="font-medium">Security Notice</p>
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+              <div className="flex items-start">
+                <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 mt-0.5 mr-3 flex-shrink-0" />
+                <div className="text-xs sm:text-sm text-gray-700">
+                  <p className="font-medium mb-1">Security Notice</p>
                   <p>All admin access attempts are logged and monitored. Unauthorized access is prohibited.</p>
                 </div>
               </div>
@@ -245,20 +216,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     try {
       const adminUser = await adminQueries.getAdminUser(user.id)
 
-      // Enhanced security check - verify user email for super admin
-      if (adminUser && adminUser.role === 'super_admin') {
-        const allowedSuperAdminEmails = [
-          process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-          process.env.NEXT_PUBLIC_ADMIN_EMAIL_BACKUP
-        ].filter(Boolean) // Remove undefined values
-
-        if (!allowedSuperAdminEmails.includes(user.email || '')) {
-          console.error('Super admin role mismatch - unauthorized access attempt')
-          setIsAdmin(false)
-          setCheckingAdmin(false)
-          return
-        }
-      }
+      // Enhanced security check is now handled server-side in admin middleware
+      // This ensures proper security without exposing admin emails client-side
 
       setIsAdmin(!!adminUser)
 
@@ -295,13 +254,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   if (!isAdmin) {
-    // Log unauthorized access attempt
-    console.warn('Unauthorized admin access attempt:', {
-      userId: user?.id,
-      email: user?.email,
-      timestamp: new Date().toISOString(),
-      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'unknown'
-    })
+    // Unauthorized access attempt - handled gracefully
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">

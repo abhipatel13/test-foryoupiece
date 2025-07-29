@@ -145,8 +145,8 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
     // Enhanced security check for super admin
     if (adminUser.role === 'super_admin') {
       const allowedSuperAdminEmails = [
-        process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-        process.env.NEXT_PUBLIC_ADMIN_EMAIL_BACKUP
+        process.env.ADMIN_EMAIL,
+        process.env.ADMIN_EMAIL_BACKUP
       ].filter(Boolean) // Remove undefined values
 
       if (!allowedSuperAdminEmails.includes(user.email || '')) {

@@ -22,23 +22,26 @@
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://xhfmyghtcugcocchzgja.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoZm15Z2h0Y3VnY29jY2h6Z2phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4MjgwMzAsImV4cCI6MjA2ODQwNDAzMH0.75nm-mC073DP-5m7efcJlRgS00cT1VBxR9mONHvTNUo
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoZm15Z2h0Y3VnY29jY2h6Z2phIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjgyODAzMCwiZXhwIjoyMDY4NDA0MDMwfQ.i_XZl5t2cWjdQ4i04F7J-nDQSMiIYmAFucNTlDsXVt0
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 
 # Site Configuration (CRITICAL - MUST BE PRODUCTION DOMAIN)
 NEXT_PUBLIC_SITE_URL=https://foryoupiece-web-git-main-akito1013s-projects.vercel.app
 NEXTAUTH_URL=https://foryoupiece-web-git-main-akito1013s-projects.vercel.app
-NEXTAUTH_SECRET=your-super-secret-development-key-min-32-chars-for-testing-purposes-only
+NEXTAUTH_SECRET=your_cryptographically_strong_secret_here
 
 # BoxHero Integration
-BOXHERO_API_TOKEN=a827b827-36f7-4e0e-b66b-db6990469aaa
+BOXHERO_API_TOKEN=your_boxhero_api_token_here
+
+# Admin Authentication (Server-side only)
+ADMIN_EMAIL=akito12350@gmail.com
 
 # Environment
 NODE_ENV=production
 
 # Telegram Bot (Optional)
-TELEGRAM_BOT_TOKEN=8066090295:AAHmPDgCvuCA7qrQAF6lGFl1j-AGSZG0zio
-NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=Authenticationfypbot
-NEXT_PUBLIC_TELEGRAM_BOT_ID=8066090295
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=your_telegram_bot_username_here
+NEXT_PUBLIC_TELEGRAM_BOT_ID=your_telegram_bot_id_here
 ```
 
 ## 📋 Step-by-Step Instructions

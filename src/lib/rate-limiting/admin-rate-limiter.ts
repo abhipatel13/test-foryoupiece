@@ -121,7 +121,7 @@ class AdminRateLimitStore {
       }
     }
 
-    if (cleanedCount > 0) {
+    if (cleanedCount > 0 && process.env.NODE_ENV === 'development') {
       console.log(`🧹 Rate limiter cleanup: removed ${cleanedCount} expired entries`)
     }
   }

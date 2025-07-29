@@ -420,7 +420,7 @@ function AdminLoginForm() {
   const [mfaFactors, setMfaFactors] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [formData, setFormData] = useState({
-    email: process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
+    email: '', // Will be populated via useAdminConfig hook
     password: ''
   })
 

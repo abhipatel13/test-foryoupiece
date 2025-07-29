@@ -25,9 +25,7 @@ Configure these in **Vercel Dashboard > Project Settings > Environment Variables
 | `TELEGRAM_BOT_TOKEN` | `your_telegram_bot_token_here` | All | ❌ Server-side only |
 | `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | `your_telegram_bot_username_here` | All | ✅ Safe for client |
 | `NEXT_PUBLIC_TELEGRAM_BOT_ID` | `your_telegram_bot_id_here` | All | ✅ Safe for client |
-| `NEXT_PUBLIC_ADMIN_EMAIL` | `your_admin_email_here` | All | ⚠️ Development only |
-| `NEXT_PUBLIC_ADMIN_TEMP_PASSWORD` | `your_admin_temp_password_here` | All | ⚠️ Development only |
-| `NEXT_PUBLIC_ADMIN_EMAIL_BACKUP` | `your_backup_admin_email_here` | All | ⚠️ Development only |
+| `ADMIN_EMAIL` | `your_admin_email_here` | All | ❌ Server-side only |
 
 ## 🔧 Deployment Fixes Applied
 

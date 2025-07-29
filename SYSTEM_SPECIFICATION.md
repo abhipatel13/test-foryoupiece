@@ -44,8 +44,8 @@
 
 ### Admin Authentication
 - **Route**: `/en/fyponly-admin` (obscured admin route)
-- **Super Admin Email**: Configured via `NEXT_PUBLIC_ADMIN_EMAIL` environment variable
-- **Temporary Password**: Configured via `NEXT_PUBLIC_ADMIN_TEMP_PASSWORD` environment variable
+- **Super Admin Email**: Configured via `ADMIN_EMAIL` environment variable (server-side only)
+- **Security**: Admin email is fetched via secure API endpoint, not exposed client-side
 - **Security Features**:
   - Role-based access control
   - Email verification for super admin

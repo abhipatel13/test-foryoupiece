@@ -68,11 +68,8 @@ function AdminLoginForm() {
         setShowSuccessMessage(true)
         toast.success('Password reset successful! Please log in with your new password.')
 
-        // Pre-populate admin email if available
-        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-        if (adminEmail) {
-          setFormData(prev => ({ ...prev, email: adminEmail }))
-        }
+        // Admin email will be pre-populated via useAdminConfig hook
+        // No longer using client-side environment variables for security
 
         // Clean up the URL
         window.history.replaceState({}, '', window.location.pathname)
@@ -209,17 +206,17 @@ function AdminLoginForm() {
             Back to Foryoupiece
           </Link>
           <div className="flex items-center justify-center mb-4">
-            <Shield className="h-8 w-8 text-red-600 mr-3" />
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Admin Access</h2>
+            <Shield className="h-8 w-8 text-black mr-3" />
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black">Admin Access</h2>
           </div>
           <p className="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
             Secure administrator login portal
           </p>
         </div>
 
-        <Card className="border-red-200 shadow-lg">
-          <CardHeader className="bg-red-50 border-b border-red-100">
-            <CardTitle className="text-red-800 flex items-center text-lg sm:text-xl">
+        <Card className="border-gray-200 shadow-lg">
+          <CardHeader className="bg-white border-b border-gray-100">
+            <CardTitle className="text-black flex items-center text-lg sm:text-xl">
               <Shield className="h-5 w-5 mr-3" />
               Administrator Login
             </CardTitle>
@@ -291,7 +288,7 @@ function AdminLoginForm() {
 
               <Button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 h-11 min-h-[44px] text-base font-medium transition-colors"
+                className="w-full bg-black hover:bg-gray-800 text-white h-11 min-h-[44px] text-base font-medium transition-colors"
                 disabled={loading}
               >
                 {loading ? 'Authenticating...' : 'Access Admin Panel'}

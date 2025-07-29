@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/use-auth'
+import { useAdminConfig } from '@/hooks/use-admin-config'
 import { adminQueries } from '@/lib/supabase/queries'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -35,6 +36,7 @@ interface AdminLayoutProps {
 
 function AdminLoginForm() {
   const { signInWithEmail } = useAuth()
+  const { adminEmail, loading: configLoading, error: configError } = useAdminConfig()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -66,39 +68,16 @@ function AdminLoginForm() {
     if (error) setError(null)
   }
 
-  const handleTempLogin = async () => {
-    // Security check: Only allow in development environment
-    if (process.env.NODE_ENV !== 'development') {
-      setError('Temporary login is disabled in production for security.')
-      toast.error('Feature disabled in production')
-      return
+  // Pre-fill admin email when available
+  useEffect(() => {
+    if (adminEmail && !formData.email) {
+      setFormData(prev => ({ ...prev, email: adminEmail }))
     }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      // Get admin credentials from environment variables for security
-      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_TEMP_PASSWORD
-
-      if (!adminEmail || !adminPassword) {
-        throw new Error('Admin credentials not configured')
-      }
-
-      await signInWithEmail(adminEmail, adminPassword)
-      toast.success('Development admin access granted!')
-    } catch (err: any) {
-      setError('Development login failed. Please use your admin credentials.')
-      toast.error('Development login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [adminEmail, formData.email])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
@@ -186,28 +165,7 @@ function AdminLoginForm() {
               </Button>
             </form>
 
-            {/* Temporary Login Section - Development Only */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="border-t pt-4">
-                <div className="text-center mb-3">
-                  <p className="text-sm text-red-600 mb-2 font-semibold">⚠️ DEVELOPMENT ONLY</p>
-                  <p className="text-xs text-gray-600 mb-2">This feature is disabled in production</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={handleTempLogin}
-                  disabled={loading}
-                >
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  {loading ? 'Accessing...' : 'Development Admin Access'}
-                </Button>
-                <p className="text-xs text-red-500 mt-2 text-center">
-                  Uses configured admin credentials for development testing
-                </p>
-              </div>
-            )}
+
 
             {/* Security Notice */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
@@ -245,34 +203,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     try {
       const adminUser = await adminQueries.getAdminUser(user.id)
 
-      // Enhanced security check - verify user email for super admin
-      if (adminUser && adminUser.role === 'super_admin') {
-        const allowedSuperAdminEmails = [
-          process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-          process.env.NEXT_PUBLIC_ADMIN_EMAIL_BACKUP
-        ].filter(Boolean) // Remove undefined values
-
-        if (!allowedSuperAdminEmails.includes(user.email || '')) {
-          console.error('Super admin role mismatch - unauthorized access attempt')
-          setIsAdmin(false)
-          setCheckingAdmin(false)
-          return
-        }
-      }
+      // Enhanced security check is now handled server-side in admin middleware
+      // This ensures proper security without exposing admin emails client-side
 
       setIsAdmin(!!adminUser)
 
-      // Log admin access
+      // Admin access granted
       if (adminUser) {
-        console.log('Admin access granted:', {
-          userId: user.id,
-          email: user.email,
-          role: adminUser.role,
-          timestamp: new Date().toISOString()
-        })
+        // Access granted - no logging needed in production
       }
     } catch (error) {
-      console.error('Error checking admin status:', error)
+      // Error checking admin status - handled gracefully
       setIsAdmin(false)
     } finally {
       setCheckingAdmin(false)
@@ -295,13 +236,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   if (!isAdmin) {
-    // Log unauthorized access attempt
-    console.warn('Unauthorized admin access attempt:', {
-      userId: user?.id,
-      email: user?.email,
-      timestamp: new Date().toISOString(),
-      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'unknown'
-    })
+    // Unauthorized access attempt - handled gracefully
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">

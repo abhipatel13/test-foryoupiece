@@ -22,10 +22,10 @@ NEXTAUTH_SECRET=your-super-secret-development-key-min-32-chars-here
 # ===== BOXHERO INTEGRATION (REQUIRED) =====
 BOXHERO_API_TOKEN=your_boxhero_api_token_here
 
-# ===== ADMIN AUTHENTICATION (FOR TEMPORARY LOGIN) =====
-NEXT_PUBLIC_ADMIN_EMAIL=your_admin_email_here
-NEXT_PUBLIC_ADMIN_TEMP_PASSWORD=your_admin_temp_password_here
-NEXT_PUBLIC_ADMIN_EMAIL_BACKUP=your_backup_admin_email_here
+# ===== ADMIN AUTHENTICATION (SERVER-SIDE ONLY) =====
+ADMIN_EMAIL=your_admin_email_here
+# Note: Admin email is now server-side only for better security
+# Client components fetch this via secure API endpoint
 
 # ===== DEVELOPMENT SETTINGS (REQUIRED FOR WINDOWS) =====
 NODE_ENV=development
