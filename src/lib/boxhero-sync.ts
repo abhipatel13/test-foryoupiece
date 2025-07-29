@@ -16,8 +16,9 @@ function getBaseUrl(): string {
     return process.env.NEXT_PUBLIC_SITE_URL;
   }
 
-  // In development, default to localhost:3000
-  return 'http://localhost:3000';
+  // In development, try to detect the current port from environment
+  const port = process.env.PORT || '3000';
+  return `http://localhost:${port}`;
 }
 
 /**
