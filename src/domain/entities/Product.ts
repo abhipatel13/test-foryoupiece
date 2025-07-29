@@ -327,6 +327,14 @@ export class Product implements BaseEntity {
 
   // Database serialization (maps to actual database schema)
   toDatabaseObject(): any {
+    // Extract BoxHero data from metadata if it exists
+    const boxheroData = this._metadata?.boxhero_id ? {
+      boxhero_item_id: this._metadata.boxhero_id?.toString(),
+      boxhero_last_sync_at: this._metadata.boxhero_synced_at || this._updatedAt,
+      boxhero_sync_status: 'synced',
+      boxhero_locations: this._metadata.boxhero_quantities || null,
+    } : {};
+
     return {
       id: this._id,
       sku: this._sku.value,
@@ -346,7 +354,8 @@ export class Product implements BaseEntity {
       weight_grams: this._weight,
       dimensions: this._dimensions,
       tags: this._tags,
-      metadata: this._metadata,
+      // Map metadata to existing BoxHero columns instead of non-existent metadata column
+      ...boxheroData,
       created_at: this._createdAt,
       updated_at: this._updatedAt,
     };

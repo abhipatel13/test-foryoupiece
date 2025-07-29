@@ -4,6 +4,7 @@ import { IProductRepository } from '@/domain/repositories/IProductRepository';
 import { Product } from '@/domain/entities/Product';
 import { SKU } from '@/domain/value-objects/SKU';
 import { Price } from '@/domain/value-objects/Price';
+import { CategoriesService } from '@/lib/categories-service';
 
 export interface SyncOptions {
   locationIds?: number[];
@@ -45,6 +46,8 @@ export interface SyncReport {
  * Handles synchronization between BoxHero inventory and ForYouPiece products
  */
 export class BoxHeroSyncService {
+  private categoryMap: Map<string, string> = new Map();
+
   constructor(
     private boxHeroService: BoxHeroService,
     private productRepository: IProductRepository
@@ -72,6 +75,60 @@ export class BoxHeroSyncService {
   }
 
   /**
+   * Initialize category mapping from local categories
+   */
+  private async initializeCategoryMapping(): Promise<void> {
+    try {
+      const categories = await CategoriesService.getCategories();
+      this.categoryMap.clear();
+      categories.forEach(category => {
+        this.categoryMap.set(category.slug, category.id);
+      });
+      console.log(`📂 Initialized category mapping with ${this.categoryMap.size} categories`);
+    } catch (error) {
+      console.error('❌ Failed to initialize category mapping:', error);
+    }
+  }
+
+  /**
+   * Map BoxHero category attribute to local category ID
+   */
+  private mapBoxHeroCategoryToId(boxHeroItem: BoxHeroItem): string | null {
+    const categoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Category');
+    if (!categoryAttr?.value) {
+      return null;
+    }
+
+    const boxheroCategory = categoryAttr.value.toString().toLowerCase();
+
+    // Map BoxHero categories to our category slugs
+    switch (boxheroCategory) {
+      case 'hair':
+        return this.categoryMap.get('hair') || null;
+      case 'bath & body':
+        return this.categoryMap.get('bath-body') || null;
+      case 'skincare':
+        return this.categoryMap.get('skincare') || null;
+      case 'health & personal care':
+        return this.categoryMap.get('health-personal-care') || null;
+      case 'food & beverage':
+        return this.categoryMap.get('food-beverage') || null;
+      case 'makeup':
+        return this.categoryMap.get('makeup') || null;
+      case 'home':
+        return this.categoryMap.get('home') || null;
+      default:
+        // Try partial matching for edge cases
+        if (boxheroCategory.includes('home')) {
+          return this.categoryMap.get('home') || null;
+        } else if (boxheroCategory.includes('food') || boxheroCategory.includes('beverage')) {
+          return this.categoryMap.get('food-beverage') || null;
+        }
+        return null;
+    }
+  }
+
+  /**
    * Perform full sync between BoxHero and ForYouPiece
    */
   async performSync(options: SyncOptions = {}): Promise<Result<SyncReport>> {
@@ -90,6 +147,10 @@ export class BoxHeroSyncService {
     };
 
     try {
+      // Step 0: Initialize category mapping
+      console.log('📂 Initializing category mapping...');
+      await this.initializeCategoryMapping();
+
       // Step 1: Fetch all BoxHero items
       console.log('🔄 Fetching BoxHero items...');
       console.log('🔍 Sync options received:', options);
@@ -271,6 +332,9 @@ export class BoxHeroSyncService {
       // Use USD price directly from BoxHero
       const usdPrice = parseFloat(boxHeroItem.price || '0');
 
+      // Map category from BoxHero attributes
+      const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
+
       // Create product entity
       const product = Product.create({
         name_en: boxHeroItem.name,
@@ -284,7 +348,7 @@ export class BoxHeroSyncService {
         low_stock_threshold: 5, // Default threshold
         is_active: true,
         is_featured: false,
-        category_id: null, // Will be mapped later if needed
+        category_id: categoryId, // Mapped from BoxHero category
         images: boxHeroItem.photo_url ? [boxHeroItem.photo_url] : [],
         tags: [
           categoryAttr?.value?.toString() || '',
@@ -347,13 +411,21 @@ export class BoxHeroSyncService {
         0
       );
 
+      // Extract price from BoxHero (ensure it's a valid number)
+      const usdPrice = parseFloat(boxHeroItem.price || '0');
+
+      // Map category from BoxHero attributes
+      const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
+
       // Update product with new data (preserving bulk-updated descriptions and images)
       const updatedProduct = Product.fromPersistence({
         ...existingProduct.toPlainObject(),
         // Core fields that BoxHero should update
         stock_quantity: totalStock,
+        price: usdPrice, // Update price from BoxHero
         name_en: boxHeroItem.name, // Update product names from BoxHero
         name_ja: boxHeroItem.name, // Default to same name, can be manually updated later
+        category_id: categoryId, // Update category from BoxHero attributes
         updated_at: new Date().toISOString(),
         metadata: {
           ...existingProduct.metadata,
@@ -361,19 +433,23 @@ export class BoxHeroSyncService {
           boxhero_synced_at: new Date().toISOString(),
           boxhero_quantities: boxHeroItem.quantities,
           boxhero_attrs: boxHeroItem.attrs,
+          boxhero_cost: boxHeroItem.cost, // Store cost for reference
+          boxhero_barcode: boxHeroItem.barcode, // Store barcode for reference
         },
         // NOTE: Explicitly preserving these fields from bulk updates:
         // - description_en, description_ja (rich descriptions from CSV)
         // - short_description_en, short_description_ja (cleaned descriptions)
         // - images (downloaded product images)
         // - brand, seo_title, seo_description (manual updates)
+        // - points_rate (preserve custom point configurations)
       });
 
       const result = await this.productRepository.update(updatedProduct);
-      
+
       if (result.success) {
         report.itemsUpdated++;
-        console.log(`🔄 Updated product: ${boxHeroItem.name} (Stock: ${totalStock})`);
+        const categoryInfo = categoryId ? `Category: ${categoryId}` : 'No category';
+        console.log(`🔄 Updated product: ${boxHeroItem.name} (Stock: ${totalStock}, Price: $${usdPrice}, ${categoryInfo})`);
       } else {
         throw result.error;
       }

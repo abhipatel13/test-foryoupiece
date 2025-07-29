@@ -20,10 +20,21 @@ export class SupabaseProductRepository implements IProductRepository {
 
   // Helper method to map database data to ProductProps
   private mapDatabaseToProductProps(dbData: any): ProductProps {
+    // Reconstruct metadata from separate BoxHero columns
+    const metadata = dbData.boxhero_item_id ? {
+      boxhero_id: dbData.boxhero_item_id,
+      boxhero_synced_at: dbData.boxhero_last_sync_at,
+      boxhero_quantities: dbData.boxhero_locations || [],
+      boxhero_attrs: [], // This would need to be stored separately if needed
+      boxhero_cost: null, // This would need to be stored separately if needed
+      boxhero_barcode: null, // This would need to be stored separately if needed
+    } : undefined;
+
     return {
       ...dbData,
       image_urls: dbData.images || [], // Map images to image_urls
       weight: dbData.weight_grams, // Map weight_grams to weight
+      metadata, // Include reconstructed metadata
     };
   }
 
@@ -318,6 +329,11 @@ export class SupabaseProductRepository implements IProductRepository {
         .single();
 
       if (error) {
+        console.error('❌ Database update error details:', {
+          error,
+          productId: product.id,
+          productData: JSON.stringify(productData, null, 2)
+        });
         throw new DomainError('Failed to update product', 'DATABASE_ERROR', error);
       }
 
