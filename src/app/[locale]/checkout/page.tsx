@@ -223,15 +223,20 @@ export default function CheckoutPage() {
 
 
   return (
-    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-4 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">{t('title')}</h1>
-          <p className="text-sm sm:text-base text-gray-600">Complete your order information</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 max-w-7xl">
+        {/* Header Section - Mobile Optimized */}
+        <div className="mb-4 sm:mb-6 lg:mb-8">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+            {t('title')}
+          </h1>
+          <p className="text-sm sm:text-base lg:text-lg text-gray-600">
+            Complete your order information
+          </p>
         </div>
 
-        <form onSubmit={handleSubmitOrder}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+        <form onSubmit={handleSubmitOrder} className="w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 w-full overflow-hidden">
             {/* Checkout Form - Mobile-First Responsive */}
             <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Shipping Address */}
@@ -245,97 +250,103 @@ export default function CheckoutPage() {
                 <CardContent className="space-y-3 sm:space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="firstName" className="text-sm">First Name</Label>
+                      <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">First Name</Label>
                       <Input
                         id="firstName"
                         required
-                        className="h-10 sm:h-11"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.firstName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
                           firstName: e.target.value
                         })}
+                        placeholder="Enter your first name"
                       />
                     </div>
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="lastName" className="text-sm">Last Name</Label>
+                      <Label htmlFor="lastName" className="text-sm font-medium text-slate-700">Last Name</Label>
                       <Input
                         id="lastName"
                         required
-                        className="h-10 sm:h-11"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.lastName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
                           lastName: e.target.value
                         })}
+                        placeholder="Enter your last name"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="email" className="text-sm">Email</Label>
+                      <Label htmlFor="email" className="text-sm font-medium text-slate-700">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         required
-                        className="h-10 sm:h-11"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.email}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
                           email: e.target.value
                         })}
+                        placeholder="your.email@example.com"
                       />
                     </div>
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="phone" className="text-sm">Phone</Label>
+                      <Label htmlFor="phone" className="text-sm font-medium text-slate-700">Phone</Label>
                       <Input
                         id="phone"
                         type="tel"
                         required
-                        className="h-10 sm:h-11"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.phone}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
                           phone: e.target.value
                         })}
+                        placeholder="+855 12 345 678"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="address1" className="text-sm">Address Line 1</Label>
+                    <Label htmlFor="address1" className="text-sm font-medium">Address Line 1</Label>
                     <Input
                       id="address1"
                       required
-                      className="h-10 sm:h-11"
+                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       value={shippingAddress.address1}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
                         address1: e.target.value
                       })}
+                      placeholder="Street address, P.O. box, company name"
                     />
                   </div>
 
                   <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="address2" className="text-sm">Address Line 2 (Optional)</Label>
+                    <Label htmlFor="address2" className="text-sm font-medium">Address Line 2 (Optional)</Label>
                     <Input
                       id="address2"
-                      className="h-10 sm:h-11"
+                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       value={shippingAddress.address2}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
                         address2: e.target.value
                       })}
+                      placeholder="Apartment, suite, unit, building, floor, etc."
                     />
                   </div>
 
                   <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="abaBankName" className="text-sm">ABA Bank Name *</Label>
+                    <Label htmlFor="abaBankName" className="text-sm font-medium">ABA Bank Name *</Label>
                     <Input
                       id="abaBankName"
                       required
-                      className="h-10 sm:h-11"
+                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       placeholder="Taravatey Than"
                       value={shippingAddress.abaBankName}
                       onChange={(e) => setShippingAddress({
@@ -382,7 +393,7 @@ export default function CheckoutPage() {
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     rows={3}
-                    className="text-sm sm:text-base resize-none"
+                    className="min-h-[88px] text-sm sm:text-base px-3 sm:px-4 py-3 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300 resize-none"
                   />
                 </CardContent>
               </Card>
@@ -400,86 +411,243 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            {/* Order Summary - Mobile-First Responsive */}
+            {/* Enhanced Order Summary - Mobile-First Responsive */}
             <div className="lg:col-span-1">
-              <Card className="lg:sticky lg:top-4">
-                <CardHeader className="pb-3 sm:pb-6">
-                  <CardTitle className="text-base sm:text-lg">{t('orderSummary')}</CardTitle>
+              <Card className="lg:sticky lg:top-4 shadow-lg border-2 border-gray-100">
+                <CardHeader className="pb-4 sm:pb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 rounded-t-lg">
+                  <CardTitle className="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                    </div>
+                    {t('orderSummary')}
+                  </CardTitle>
+                  <CardDescription className="text-sm text-slate-600 mt-2">
+                    Review your order details before checkout
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 sm:space-y-4">
-                  {/* Order Items - Mobile Responsive */}
-                  <div className="space-y-2 sm:space-y-3">
+                <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+                  {/* Order Items - Enhanced Display */}
+                  <div className="space-y-3 sm:space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-2">
+                      Items ({itemCount})
+                    </h3>
                     {items.map((item) => (
-                      <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between text-xs sm:text-sm">
-                        <div className="flex-1 pr-2">
-                          <p className="font-medium line-clamp-2">{item.name}</p>
+                      <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between items-start p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1 pr-3">
+                          <p className="font-medium text-sm sm:text-base line-clamp-2 text-gray-900">{item.name}</p>
                           {item.variant && (
-                            <p className="text-gray-500 text-xs">{item.variant}</p>
+                            <p className="text-gray-600 text-xs mt-1 bg-gray-200 px-2 py-1 rounded-full inline-block">{item.variant}</p>
                           )}
-                          <p className="text-gray-500 text-xs">Qty: {item.quantity}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
+                            {item.originalPrice && item.originalPrice > item.price && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs line-through text-gray-400">{formatPrice(item.originalPrice)}</span>
+                                <span className="text-xs text-red-600 font-medium">
+                                  {Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
+                          <p className="font-semibold text-sm sm:text-base text-gray-900">{formatPrice(item.price * item.quantity)}</p>
+                          {item.originalPrice && item.originalPrice > item.price && (
+                            <p className="text-xs text-gray-400 line-through">{formatPrice(item.originalPrice * item.quantity)}</p>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <Separator />
+                  <Separator className="my-4" />
 
-                  {/* Totals - Mobile Responsive */}
-                  <div className="space-y-1 sm:space-y-2">
-                    <div className="flex justify-between text-xs sm:text-sm">
-                      <span>Subtotal ({itemCount} items)</span>
-                      <span>{formatPrice(subtotal)}</span>
+                  {/* Enhanced Order Summary - Mobile Responsive */}
+                  <div className="space-y-2 sm:space-y-3">
+                    {/* Subtotal */}
+                    <div className="flex justify-between items-center text-sm sm:text-base">
+                      <span className="text-gray-700">Subtotal ({itemCount} items)</span>
+                      <span className="font-medium">{formatPrice(subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-xs sm:text-sm">
-                      <span>Shipping & handling</span>
-                      <span>
+
+                    {/* Individual Item Discounts - Redesigned */}
+                    {items.some(item => item.originalPrice && item.originalPrice > item.price) && (
+                      <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 p-4 rounded-xl">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="p-1.5 bg-rose-100 rounded-lg">
+                            <svg className="h-4 w-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-semibold text-rose-800">Item Discounts Applied</span>
+                        </div>
+                        <div className="space-y-2">
+                          {items.filter(item => item.originalPrice && item.originalPrice > item.price).map((item) => {
+                            const discountAmount = (item.originalPrice! - item.price) * item.quantity
+                            const discountPercentage = Math.round(((item.originalPrice! - item.price) / item.originalPrice!) * 100)
+                            return (
+                              <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between items-center text-sm bg-white p-2 rounded-lg">
+                                <span className="text-slate-700 flex items-center gap-2">
+                                  <span className="w-2 h-2 bg-rose-400 rounded-full"></span>
+                                  <span className="font-medium">{item.title}</span>
+                                  <span className="text-xs bg-rose-100 text-rose-700 px-2 py-1 rounded-full font-medium">
+                                    {discountPercentage}% OFF
+                                  </span>
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="line-through text-slate-400 text-xs">{formatPrice(item.originalPrice!)}</span>
+                                  <span className="text-rose-600 font-semibold">-{formatPrice(discountAmount)}</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Shipping */}
+                    <div className="flex justify-between items-center text-sm sm:text-base">
+                      <span className="text-gray-700">Shipping & handling</span>
+                      <span className="font-medium">
                         {shippingFee === 0 ? (
-                          <span className="text-green-700">FREE</span>
+                          <span className="text-green-700 font-semibold">FREE</span>
                         ) : (
                           formatPrice(shippingFee)
                         )}
                       </span>
                     </div>
-                    {totalSavings > 0 && (
-                      <div className="flex justify-between text-green-700 text-xs sm:text-sm">
-                        <span>Total Savings</span>
-                        <span>-{formatPrice(totalSavings)}</span>
+
+                    {/* Free Shipping Indicator */}
+                    {shippingFee === 0 && itemCount >= 4 && (
+                      <div className="text-xs text-green-600 bg-green-50 p-2 rounded-md">
+                        🎉 You saved {formatPrice(1.50)} with free shipping on 4+ items!
                       </div>
                     )}
+
+                    {/* Points Discount - Redesigned */}
                     {pointsDiscount > 0 && (
-                      <div className="flex justify-between text-orange-600 text-xs sm:text-sm">
-                        <span>Points Discount ({pointsToRedeem} pts)</span>
-                        <span>-{formatPrice(pointsDiscount)}</span>
+                      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 p-4 rounded-xl">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-100 rounded-lg">
+                              <svg className="h-5 w-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <span className="text-slate-800 font-semibold text-sm">Points Discount</span>
+                              <div className="text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded-full inline-block mt-1">
+                                {pointsToRedeem.toLocaleString()} points redeemed
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-amber-700 font-bold text-lg">-{formatPrice(pointsDiscount)}</span>
+                        </div>
+                        <div className="text-xs text-amber-700 mt-2 bg-white p-2 rounded-lg">
+                          🎉 You're saving with your loyalty points!
+                        </div>
                       </div>
                     )}
+
+                    {/* Coupon Discount - Redesigned */}
                     {appliedCoupon && couponDiscount > 0 && (
-                      <div className="flex justify-between text-blue-600 text-xs sm:text-sm">
-                        <span>Coupon Discount ({appliedCoupon.code})</span>
-                        <span>-{formatPrice(couponDiscount)}</span>
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-xl">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <span className="text-slate-800 font-semibold text-sm">Coupon Applied</span>
+                              <div className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded-full inline-block mt-1 font-mono">
+                                {appliedCoupon.code}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-blue-700 font-bold text-lg">-{formatPrice(couponDiscount)}</span>
+                        </div>
+                        <div className="text-xs text-blue-700 mt-2 bg-white p-2 rounded-lg">
+                          ✅ Coupon discount applied successfully!
+                        </div>
                       </div>
                     )}
-                    <Separator />
-                    <div className="flex justify-between text-base sm:text-lg font-bold text-red-600">
-                      <span>Order Total</span>
-                      <span>
-                        {formatPrice(
-                          (appliedCoupon && couponDiscount > 0) || pointsDiscount > 0
-                            ? finalTotalWithCouponAndPoints
-                            : finalTotal
-                        )}
-                      </span>
+
+                    {/* Total Savings Summary - Redesigned */}
+                    {(totalSavings > 0 || pointsDiscount > 0 || couponDiscount > 0) && (
+                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 p-4 rounded-xl shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-100 rounded-lg">
+                              <svg className="h-5 w-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <div>
+                              <span className="text-slate-800 font-bold text-base">Total Savings</span>
+                              <div className="text-xs text-emerald-700 mt-1">
+                                You saved on this order!
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-emerald-700 font-bold text-xl">
+                            -{formatPrice(totalSavings + pointsDiscount + couponDiscount)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <Separator className="my-4" />
+
+                    {/* Final Total - Redesigned */}
+                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-2 border-slate-200 p-6 rounded-xl shadow-sm">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                          <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          Order Total
+                        </span>
+                        <span className="text-2xl font-bold text-slate-900">
+                          {formatPrice(finalTotalWithCouponAndPoints)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-slate-600 flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Final amount at checkout
+                      </div>
                     </div>
                   </div>
 
                   <Button
                     type="submit"
-                    className="w-full h-10 sm:h-12 text-sm sm:text-base"
+                    className="group w-full min-h-[44px] h-12 sm:h-14 text-sm sm:text-base font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:border-slate-400 disabled:shadow-none"
                     disabled={loading}
+                    aria-label={loading ? 'Processing your order...' : 'Place your order'}
                   >
-                    {loading ? 'Processing...' : 'Place Order'}
+                    <div className="flex items-center justify-center gap-3 px-4">
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                          <span className="font-medium">Processing Order...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-5 w-5 text-white group-hover:text-slate-100 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                          <div className="flex flex-col items-center sm:flex-row sm:items-center sm:gap-2">
+                            <span className="font-semibold">Place Order</span>
+                            <span className="text-xs sm:text-sm text-slate-200 group-hover:text-white transition-colors duration-200">
+                              {formatPrice(finalTotalWithCouponAndPoints)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </Button>
 
                   <div className="text-xs sm:text-sm text-blue-600 text-center bg-blue-50 p-2 rounded">

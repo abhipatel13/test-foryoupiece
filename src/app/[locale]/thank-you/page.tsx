@@ -183,116 +183,130 @@ function ThankYouPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="bg-green-100 rounded-full p-3">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+    <div className="min-h-screen bg-white">
+      {/* Mobile-first responsive container with proper desktop centering */}
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+        {/* Modern Minimalistic Header */}
+        <div className="text-center mb-8 sm:mb-12">
+          <div className="flex justify-center mb-6">
+            <div className="bg-slate-50 border border-slate-200 rounded-full p-4 sm:p-5">
+              <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-slate-700" strokeWidth={1.5} />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Thank You for Your Order!</h1>
-          <p className="text-lg text-gray-600">
-            Your order has been placed successfully and is currently on hold for payment verification.
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-4 leading-tight">
+            Order Confirmed
+          </h1>
+          <p className="text-base sm:text-lg text-slate-600 max-w-xl mx-auto leading-relaxed">
+            Your order has been placed successfully. Please complete payment to process your order.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Order Details */}
-          <div className="space-y-6">
+        {/* Enhanced responsive grid layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-10 xl:gap-12">
+          {/* Order Details - Enhanced styling */}
+          <div className="space-y-6 sm:space-y-8">
             {/* Order Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Package className="h-5 w-5" />
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
+                  <Package className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Order Summary</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Order Number:</span>
+              <CardContent className="space-y-5 sm:space-y-6">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm sm:text-base font-medium text-slate-600">Order Number:</span>
                   <div className="flex items-center space-x-2">
-                    <span className="font-mono text-sm">{order.order_number}</span>
+                    <span className="font-mono text-sm sm:text-base font-semibold text-slate-900 bg-slate-50 px-3 py-1 rounded-lg">
+                      {order.order_number}
+                    </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={copyOrderNumber}
-                      className="h-6 w-6 p-0"
+                      className="h-8 w-8 p-0 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+                      title="Copy order number"
                     >
-                      <Copy className="h-3 w-3" />
+                      <Copy className="h-4 w-4 text-slate-600" />
                     </Button>
                   </div>
                 </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Order Status:</span>
-                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                    <Clock className="h-3 w-3 mr-1" />
+
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm sm:text-base font-medium text-slate-600">Order Status:</span>
+                  <Badge variant="secondary" className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1.5 font-semibold">
+                    <Clock className="h-4 w-4 mr-2" />
                     On Hold
                   </Badge>
                 </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Total Amount:</span>
-                  <span className="text-lg font-semibold text-gray-900">
+
+                <div className="flex items-center justify-between py-2 border-t border-slate-100 pt-4">
+                  <span className="text-base sm:text-lg font-semibold text-slate-700">Total Amount:</span>
+                  <span className="text-xl sm:text-2xl font-bold text-slate-900">
                     {formatPrice(order.total_amount)}
                   </span>
                 </div>
                 
-                <Separator />
-                
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Items Ordered:</h4>
-                  {order.items.map((item) => (
-                    <div key={item.id} className="space-y-1">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <span className="text-gray-900 font-medium">
-                            {item.title} × {item.quantity}
-                          </span>
-                          {item.original_price && item.discount_percentage && (
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge variant="destructive" className="text-xs px-2 py-0.5">
-                                {item.discount_percentage}% OFF
-                              </Badge>
-                              <span className="text-xs text-green-600 font-medium">
-                                Save {formatPrice(item.discount_amount || 0)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          {item.original_price && item.original_price > item.price ? (
-                            <div className="space-y-1">
-                              <div className="text-xs text-gray-500 line-through">
-                                {formatPrice(item.original_price * item.quantity)}
-                              </div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {formatPrice(item.total)}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-sm font-medium text-gray-900">
-                              {formatPrice(item.total)}
+                <Separator className="my-6" />
+
+                <div className="space-y-4 sm:space-y-5">
+                  <h4 className="text-base sm:text-lg font-bold text-slate-900">Items Ordered:</h4>
+                  <div className="space-y-4">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 pr-4">
+                            <span className="text-slate-900 font-semibold text-sm sm:text-base block mb-2">
+                              {item.title}
                             </span>
-                          )}
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-xs sm:text-sm text-slate-600 bg-white px-2 py-1 rounded-md font-medium">
+                                Qty: {item.quantity}
+                              </span>
+                              {item.original_price && item.discount_percentage && (
+                                <>
+                                  <Badge variant="destructive" className="text-xs px-2 py-1 font-semibold">
+                                    {item.discount_percentage}% OFF
+                                  </Badge>
+                                  <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded-md">
+                                    Save {formatPrice(item.discount_amount || 0)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {item.original_price && item.original_price > item.price ? (
+                              <div className="space-y-1">
+                                <div className="text-xs sm:text-sm text-slate-500 line-through">
+                                  {formatPrice(item.original_price * item.quantity)}
+                                </div>
+                                <div className="text-sm sm:text-base font-bold text-slate-900">
+                                  {formatPrice(item.total)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm sm:text-base font-bold text-slate-900">
+                                {formatPrice(item.total)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Enhanced Pricing Breakdown */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <CreditCard className="h-5 w-5" />
+            {/* Pricing Breakdown */}
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
+                  <CreditCard className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Pricing Breakdown</span>
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-slate-600 mt-1">
                   Detailed breakdown showing all discounts and savings
                 </CardDescription>
               </CardHeader>
@@ -507,35 +521,35 @@ function ThankYouPageContent() {
             </Card>
           </div>
 
-          {/* Payment Instructions */}
-          <div className="space-y-6">
+          {/* Payment Instructions - Enhanced */}
+          <div className="space-y-6 sm:space-y-8">
             {/* QR Code Payment */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <QrCode className="h-5 w-5" />
+            <Card className="border border-slate-200 shadow-sm bg-slate-50">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
+                  <QrCode className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Payment Instructions</span>
                 </CardTitle>
-                <CardDescription>
-                  Please make a payment of <strong>{formatPrice(order.total_amount)}</strong> via this QR code. 
-                  Once paid, admin will check and process your order.
+                <CardDescription className="text-sm text-slate-600 mt-1 leading-relaxed">
+                  Please make a payment of <strong className="text-slate-900">{formatPrice(order.total_amount)}</strong> via this QR code.
+                  Once paid, our admin will verify and process your order within 24 hours.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 sm:space-y-8">
                 {/* QR Code Image */}
                 <div className="text-center">
-                  <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
-                    <a href={paymentLink} target="_blank" rel="noopener noreferrer">
+                  <div className="inline-block p-4 bg-white border border-slate-200 rounded-lg">
+                    <a href={paymentLink} target="_blank" rel="noopener noreferrer" className="block">
                       <Image
                         src="/93155.jpg"
                         alt="Payment QR Code"
                         width={192}
                         height={192}
-                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        className="cursor-pointer hover:opacity-80 transition-opacity duration-200"
                       />
                     </a>
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
+                  <p className="text-sm text-slate-600 mt-3">
                     Scan with your banking app or click to open payment page
                   </p>
                 </div>
@@ -593,18 +607,63 @@ function ThankYouPageContent() {
               </CardContent>
             </Card>
 
-            {/* Actions */}
-            <div className="flex space-x-4">
-              <Button asChild variant="outline" className="flex-1">
-                <Link href="/profile">
-                  View Order History
+            {/* Modern Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                asChild
+                variant="outline"
+                className="flex-1 min-h-[44px] h-11 text-sm font-medium border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-lg transition-all duration-200"
+              >
+                <Link href="/profile" className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>View Order History</span>
                 </Link>
               </Button>
-              <Button asChild className="flex-1">
-                <Link href="/">
-                  Continue Shopping
+              <Button
+                asChild
+                className="flex-1 min-h-[44px] h-11 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <Link href="/" className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  <span>Continue Shopping</span>
                 </Link>
               </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Simple Footer Section */}
+        <div className="mt-12 text-center border-t border-slate-200 pt-8">
+          <div className="max-w-lg mx-auto space-y-3">
+            <h3 className="text-base font-semibold text-slate-900">Need Help?</h3>
+            <p className="text-sm text-slate-600">
+              Questions about your order? Contact our support team.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4">
+              <a
+                href="mailto:support@foryoupiece.com"
+                className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm transition-colors duration-200"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>support@foryoupiece.com</span>
+              </a>
+              <a
+                href="https://t.me/foryoupiece_support"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm transition-colors duration-200"
+              >
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                </svg>
+                <span>Telegram Support</span>
+              </a>
             </div>
           </div>
         </div>

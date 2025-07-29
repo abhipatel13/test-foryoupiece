@@ -94,7 +94,20 @@ export default function CartPage() {
   const itemCount = getItemCount()
   const totalPointsEarned = getTotalPointsEarned()
   const couponDiscount = getCouponDiscount()
+  const pointsDiscount = getPointsDiscount()
   const finalTotalWithCouponAndPoints = getFinalTotalWithCouponAndPoints()
+
+  // Debug logging for calculations
+  console.log('Cart calculations:', {
+    subtotal,
+    shippingFee,
+    finalTotal,
+    couponDiscount,
+    pointsDiscount,
+    pointsToRedeem,
+    appliedCoupon: appliedCoupon?.code,
+    finalTotalWithCouponAndPoints
+  })
 
   if (items.length === 0) {
     return (
@@ -133,86 +146,147 @@ export default function CartPage() {
       </div>
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-screen-2xl">
-        {/* Header - Mobile Responsive */}
+        {/* Amazon-Style Urgency Banner */}
+        {itemCount > 0 && (
+          <div className="mb-4 sm:mb-6 bg-orange-50 border-l-4 border-orange-400 p-3 sm:p-4 rounded-r-lg">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="h-2 w-2 bg-orange-500 rounded-full animate-pulse"></div>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-orange-800">
+                  Items in your cart are reserved for a limited time
+                </p>
+                <p className="text-xs text-orange-700 mt-1">
+                  Complete your purchase soon to secure these items
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Enhanced Header - Mobile Responsive */}
         <div className="mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl font-medium text-gray-900 mb-1 sm:mb-2">Shopping Cart</h1>
-          <p className="text-sm sm:text-base text-gray-600">
-            {getItemCount()} {getItemCount() === 1 ? 'item' : 'items'}
-          </p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 mb-2">Shopping Cart</h1>
+          <div className="flex items-center justify-between">
+            <p className="text-sm sm:text-base text-gray-600">
+              {getItemCount()} {getItemCount() === 1 ? 'item' : 'items'} in your cart
+            </p>
+            {totalSavings > 0 && (
+              <div className="text-sm font-medium text-green-700 bg-green-50 px-3 py-1 rounded-full">
+                You're saving {formatPrice(totalSavings)}!
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-          {/* Cart Items - Mobile-First Responsive */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm">
-              {/* Select All Header - Mobile Responsive */}
-              <div className="p-3 sm:p-4 border-b flex items-center justify-between">
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <Checkbox />
-                  <span className="text-xs sm:text-sm">Select all items</span>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+          {/* Left Side - Cart Items and Key Actions (3/4 width on desktop) */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Cart Items Section - Improved Layout */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Clean Header */}
+              <div className="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox className="h-4 w-4" />
+                    <span className="text-sm font-semibold text-gray-900">Select all items</span>
+                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                      {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearCart}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear Cart
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleClearCart} className="text-red-600 hover:text-red-700 text-xs sm:text-sm px-2 sm:px-3">
-                  Delete
-                </Button>
               </div>
 
-              {/* Cart Items - Mobile-First Layout */}
-              <div className="divide-y">
+              {/* Improved Cart Items Layout */}
+              <div className="divide-y divide-gray-100">
                 {items.map((item) => (
-                  <div key={generateCartItemKey(item.id, item.variant)} className="p-3 sm:p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
-                      {/* Mobile: Top Row - Checkbox, Image, Basic Info */}
-                      <div className="flex items-start space-x-3 sm:contents">
+                  <div key={generateCartItemKey(item.id, item.variant)} className="p-4 sm:p-6 hover:bg-gray-50 transition-all duration-200">
+                    <div className="flex flex-col sm:flex-row sm:items-start space-y-4 sm:space-y-0 sm:space-x-5">
+                      {/* Left Section: Checkbox and Image */}
+                      <div className="flex items-start space-x-4 sm:contents">
                         {/* Checkbox */}
-                        <div className="pt-1 sm:pt-2">
-                          <Checkbox />
+                        <div className="pt-2">
+                          <Checkbox className="h-4 w-4" />
                         </div>
 
-                        {/* Product Image - Mobile Responsive */}
-                        <div className="relative w-16 h-16 sm:w-24 sm:h-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                        {/* Enhanced Product Image */}
+                        <div className="relative w-20 h-20 sm:w-32 sm:h-32 lg:w-36 lg:h-36 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                           <Image
                             src={item.image}
                             alt={item.name}
                             fill
-                            className="object-contain p-1 sm:p-2"
-                            sizes="(max-width: 640px) 64px, 96px"
+                            className="object-contain p-2 sm:p-3"
+                            sizes="(max-width: 640px) 80px, (max-width: 1024px) 128px, 144px"
                           />
                         </div>
 
-                        {/* Product Info - Mobile Layout */}
+                        {/* Product Information - Improved */}
                         <div className="flex-1 min-w-0 sm:contents">
-                          <div className="space-y-1 sm:space-y-2 sm:flex-1 sm:min-w-0">
-                            <h3 className="text-xs sm:text-sm font-medium text-gray-900 line-clamp-2">
+                          <div className="space-y-3 sm:flex-1 sm:min-w-0">
+                            {/* Product Name - More Prominent */}
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2 leading-tight">
                               {item.name}
                             </h3>
 
-                            {/* Stock Status */}
-                            <div className="flex items-center text-xs sm:text-sm text-green-700">
-                              <span>In Stock</span>
+                            {/* Stock Status - Clean Design */}
+                            <div className="flex items-center space-x-3">
+                              <div className="flex items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1 rounded-md">
+                                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                <span>In Stock</span>
+                              </div>
+                              {item.stockQuantity && item.stockQuantity <= 5 && (
+                                <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-1 rounded-md">
+                                  Only {item.stockQuantity} left
+                                </span>
+                              )}
                             </div>
 
-                            {/* Gift Option - Hide on very small screens */}
-                            <div className="hidden xs:flex items-center space-x-2 text-xs sm:text-sm">
-                              <Checkbox />
-                              <Gift className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
-                              <span className="text-gray-600">This is a gift</span>
+                            {/* Variant Info */}
+                            {item.variant && (
+                              <div className="text-xs text-gray-600">
+                                <span className="font-medium">Variant:</span> {item.variant}
+                              </div>
+                            )}
+
+                            {/* Gift Option - Subtle */}
+                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                              <Checkbox className="h-3 w-3" />
+                              <Gift className="h-3 w-3" />
+                              <span>This is a gift</span>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Mobile: Bottom Section - Actions and Price */}
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-3 sm:space-y-0 sm:space-x-4">
-                        {/* Actions - Mobile Responsive */}
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-                          {/* Quantity Selector */}
-                          <div className="flex items-center space-x-1 sm:space-x-2">
-                            <span className="text-gray-600">Qty:</span>
+                      {/* Amazon-Style Actions and Price Section */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-4 sm:space-y-0 sm:space-x-6">
+                        {/* Actions Section - Streamlined */}
+                        <div className="flex flex-col space-y-4">
+                          {/* Quantity Selector - Clean Design */}
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-gray-700">Quantity</span>
+                              {item.stockQuantity && item.stockQuantity <= 5 && (
+                                <span className="text-xs text-orange-600 font-medium">
+                                  Max: {item.stockQuantity}
+                                </span>
+                              )}
+                            </div>
                             <Select
                               value={item.quantity.toString()}
                               onValueChange={(value) => handleQuantityChange(item.id, parseInt(value), item.variant)}
                             >
-                              <SelectTrigger className="w-12 h-7 sm:w-16 sm:h-8 text-xs sm:text-sm">
+                              <SelectTrigger className="w-full h-10 text-sm border-gray-300 rounded-md shadow-sm hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -223,61 +297,71 @@ export default function CartPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            {/* Stock limit message */}
-                            {item.stockQuantity && item.stockQuantity <= 5 && (
-                              <span className="text-xs text-orange-600">
-                                Max: {item.stockQuantity}
-                              </span>
-                            )}
                           </div>
 
-                          <Separator orientation="vertical" className="h-3 sm:h-4 hidden sm:block" />
+                          {/* Streamlined Action Buttons - Enterprise UX */}
+                          <div className="flex items-center gap-4 text-sm">
+                            {/* Primary Action - Delete */}
+                            <button
+                              onClick={() => handleRemoveItem(item.id, item.variant)}
+                              className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md font-medium transition-all duration-200 min-h-[44px] sm:min-h-[36px]"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
 
-                          <button
-                            onClick={() => handleRemoveItem(item.id, item.variant)}
-                            className="text-blue-600 hover:text-blue-800 hover:underline"
-                          >
-                            Delete
-                          </button>
-
-                          <Separator orientation="vertical" className="h-3 sm:h-4 hidden sm:block" />
-
-                          <button className="text-blue-600 hover:text-blue-800 hover:underline hidden sm:inline">
-                            Save for later
-                          </button>
-
-                          <Separator orientation="vertical" className="h-3 sm:h-4 hidden lg:block" />
-
-                          <button className="text-blue-600 hover:text-blue-800 hover:underline hidden lg:inline">
-                            Compare with similar items
-                          </button>
+                            {/* Secondary Action - Save for Later */}
+                            <button className="flex items-center gap-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 px-3 py-2 rounded-md font-medium transition-all duration-200 min-h-[44px] sm:min-h-[36px]">
+                              <Heart className="h-4 w-4" />
+                              <span className="hidden sm:inline">Save</span>
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Price - Mobile Responsive */}
-                        <div className="text-right sm:text-right">
-                          <div className="text-base sm:text-lg font-bold text-gray-900">
+                        {/* Enhanced Price Display - Amazon Style */}
+                        <div className="text-right sm:text-right sm:min-w-[120px]">
+                          {/* Total Price for Quantity */}
+                          <div className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
                             {formatPrice(item.price * item.quantity)}
                           </div>
-                          <div className="text-xs sm:text-sm space-y-1">
+
+                          {/* Price Breakdown */}
+                          <div className="text-sm space-y-1">
                             {item.originalPrice && item.originalPrice > item.price ? (
                               <>
-                                <div className="text-gray-500 line-through">
+                                {/* Original Price - Crossed Out */}
+                                <div className="text-gray-500 line-through text-xs">
                                   {formatPrice(item.originalPrice)} each
                                 </div>
-                                <div className="text-green-700 font-medium">
+
+                                {/* Current Price */}
+                                <div className="text-green-700 font-semibold">
                                   {formatPrice(item.price)} each
                                 </div>
-                                <div className="text-red-600 text-xs">
-                                  You save {formatPrice((item.originalPrice - item.price) * item.quantity)}
-                                  {' '}({Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF)
+
+                                {/* Savings Badge */}
+                                <div className="inline-block bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
+                                  {Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF
+                                </div>
+
+                                {/* Total Savings */}
+                                <div className="text-green-700 text-xs font-medium">
+                                  Save {formatPrice((item.originalPrice - item.price) * item.quantity)}
                                 </div>
                               </>
                             ) : (
-                              <div className="text-gray-600">
+                              <div className="text-gray-600 font-medium">
                                 {formatPrice(item.price)} each
                               </div>
                             )}
                           </div>
+
+                          {/* Quantity Indicator */}
+                          {item.quantity > 1 && (
+                            <div className="text-xs text-gray-500 mt-2">
+                              {item.quantity} × {formatPrice(item.price)}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -285,157 +369,199 @@ export default function CartPage() {
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Order Summary - Mobile-First Responsive */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 lg:sticky lg:top-4">
-              <div className="space-y-3 sm:space-y-4">
-                {/* Shipping Banner - Mobile Responsive */}
-                {shippingFee === 0 ? (
-                  <div className="bg-green-50 border border-green-200 rounded p-2 sm:p-3">
-                    <div className="flex items-center text-green-700">
-                      <Truck className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                      <span className="text-xs sm:text-sm font-medium">
-                        Your order qualifies for FREE Delivery (4+ items)
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-blue-50 border border-blue-200 rounded p-2 sm:p-3">
-                    <div className="flex items-center text-blue-700">
-                      <Truck className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                      <span className="text-xs sm:text-sm font-medium">
-                        Add {4 - itemCount} more item{4 - itemCount !== 1 ? 's' : ''} for FREE Delivery
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Subtotal - Mobile Responsive */}
-                <div className="text-base sm:text-lg">
-                  <span className="text-gray-700">Subtotal ({itemCount} items): </span>
-                  <span className="font-bold">{formatPrice(subtotal)}</span>
+            {/* Prominent Order Total and Checkout Section - Improved UX */}
+            <div className="bg-white rounded-lg shadow-md border border-gray-200">
+              <div className="p-4 sm:p-6">
+                {/* Order Summary Header */}
+                <div className="mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">Order Summary</h2>
                 </div>
 
-                {/* Total Savings */}
-                {totalSavings > 0 && (
-                  <div className="text-sm text-green-700 font-medium">
-                    Total Savings: {formatPrice(totalSavings)}
+                {/* Order Breakdown */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</span>
+                    <span className="text-gray-900 font-medium">{formatPrice(subtotal)}</span>
                   </div>
-                )}
-
-                {/* Points Earned Display */}
-                {totalPointsEarned > 0 && (
-                  <div className="flex items-center space-x-2 text-sm bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
-                    <Star className="h-4 w-4 text-orange-600 flex-shrink-0" />
-                    <span className="text-orange-700 font-medium">
-                      You will earn {totalPointsEarned.toLocaleString()} points with this order
-                    </span>
-                    <span className="text-orange-600 text-xs">
-                      (${(totalPointsEarned / 1000).toFixed(2)} value)
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Shipping</span>
+                    <span className="text-gray-900 font-medium">
+                      {shippingFee === 0 ? 'FREE' : formatPrice(shippingFee)}
                     </span>
                   </div>
-                )}
-
-                {/* Gift Option */}
-                <div className="flex items-center space-x-2">
-                  <Checkbox />
-                  <Gift className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">This order contains a gift</span>
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Coupon Discount</span>
+                      <span className="text-green-600 font-medium">-{formatPrice(couponDiscount)}</span>
+                    </div>
+                  )}
+                  {pointsDiscount > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Points Discount</span>
+                      <span className="text-green-600 font-medium">-{formatPrice(pointsDiscount)}</span>
+                    </div>
+                  )}
+                  {totalSavings > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-green-700 font-medium">Total Savings</span>
+                      <span className="text-green-700 font-medium">-{formatPrice(totalSavings)}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Coupon Input */}
-                <CouponInput
-                  orderTotal={finalTotal}
-                  appliedCoupon={appliedCoupon || undefined}
-                  onCouponApplied={applyCoupon}
-                  onCouponRemoved={removeCoupon}
-                />
+                {/* MINIMALISTIC FINAL TOTAL */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-5 mb-6">
+                  <div className="text-center">
+                    <div className="text-sm font-medium mb-2 text-slate-600">
+                      Total to Pay
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-bold text-slate-900">
+                      {formatPrice(finalTotalWithCouponAndPoints)}
+                    </div>
+                    <div className="text-sm text-slate-500 mt-1">
+                      Final amount at checkout
+                    </div>
+                  </div>
+                </div>
 
-                {/* Points Redemption */}
-                {profile && (
-                  <PointsRedemption
-                    userPointsBalance={profile.points_balance || 0}
-                    onPointsChange={(points) => {
-                      // Points are automatically updated in the cart store
-                    }}
-                  />
-                )}
+                {/* ENHANCED CHECKOUT BUTTON - Better sizing and responsive */}
+                <Button asChild className="group relative w-full min-h-[44px] h-14 sm:h-16 lg:h-18 text-sm sm:text-base lg:text-lg font-semibold bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 mb-4">
+                  <Link href="/en/checkout" className="flex items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:py-5 lg:py-6">
+                    {/* Icon */}
+                    <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-slate-600 group-hover:text-slate-700 transition-colors duration-200" strokeWidth={1.5} />
 
-                {/* Proceed to Checkout */}
-                <Button asChild className="w-full amazon-button-primary h-12">
-                  <Link href="/en/checkout">
-                    Proceed to checkout
+                    {/* Text content */}
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-900 leading-tight text-sm sm:text-base lg:text-lg">
+                        Proceed to Checkout
+                      </span>
+                      <span className="text-xs sm:text-sm lg:text-base text-slate-600 group-hover:text-slate-700 transition-colors duration-200 mt-0.5">
+                        Pay {formatPrice(finalTotalWithCouponAndPoints)}
+                      </span>
+                    </div>
+
+                    {/* Arrow indicator */}
+                    <svg className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
                   </Link>
                 </Button>
 
-                <Separator />
+                {/* Security Notice */}
+                <div className="flex items-center justify-center text-sm text-gray-600">
+                  <Shield className="h-4 w-4 mr-2" />
+                  <span>Secure checkout with 256-bit SSL encryption</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                {/* Order Details */}
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Items:</span>
-                    <span>{formatPrice(subtotal)}</span>
-                  </div>
+          {/* Simplified Right Sidebar - Additional Options */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 lg:sticky lg:top-4">
+              {/* Simplified Header */}
+              <div className="p-4 sm:p-5 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Additional Options</h2>
+              </div>
 
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Shipping & handling:</span>
-                    <span>
-                      {shippingFee === 0 ? (
-                        <span className="text-green-700">FREE</span>
-                      ) : (
-                        formatPrice(shippingFee)
-                      )}
-                    </span>
-                  </div>
-
-                  {totalSavings > 0 && (
-                    <div className="flex justify-between text-green-700">
-                      <span>Total Savings:</span>
-                      <span>-{formatPrice(totalSavings)}</span>
-                    </div>
-                  )}
-
-                  {/* Points Discount */}
-                  {pointsToRedeem > 0 && (
-                    <div className="flex justify-between text-orange-600">
-                      <span>Points Discount ({pointsToRedeem.toLocaleString()} pts):</span>
-                      <span>-{formatPrice(getPointsDiscount())}</span>
-                    </div>
-                  )}
-
-                  {/* Coupon Discount */}
-                  {appliedCoupon && couponDiscount > 0 && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>Coupon Discount ({appliedCoupon.code}):</span>
-                      <span>-{formatPrice(couponDiscount)}</span>
-                    </div>
-                  )}
-
-                  <Separator />
-
-                  <div className="flex justify-between text-lg font-bold text-red-600">
-                    <span>Order total:</span>
-                    <span>
-                      {formatPrice(
-                        (appliedCoupon && couponDiscount > 0) || pointsToRedeem > 0
-                          ? finalTotalWithCouponAndPoints
-                          : finalTotal
-                      )}
-                    </span>
+              <div className="p-4 sm:p-5 space-y-4">
+                {/* Simplified Shipping Info */}
+                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center">
+                    <Truck className="h-4 w-4 mr-2" />
+                    {shippingFee === 0 ? (
+                      <span className="text-green-700 font-medium">FREE Delivery (4+ items)</span>
+                    ) : (
+                      <span>Add {4 - itemCount} more for FREE delivery</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Security Features */}
-                <div className="space-y-2 text-xs text-gray-600">
-                  <div className="flex items-center">
-                    <Shield className="h-3 w-3 mr-2" />
-                    <span>Secure transaction</span>
+                {/* Simplified Points Earned */}
+                {totalPointsEarned > 0 && (
+                  <div className="text-sm text-gray-600 bg-orange-50 p-3 rounded-lg">
+                    <div className="flex items-center">
+                      <Star className="h-4 w-4 mr-2 text-orange-600" />
+                      <span>Earn {totalPointsEarned.toLocaleString()} points (${(totalPointsEarned / 1000).toFixed(2)} value)</span>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <Truck className="h-3 w-3 mr-2" />
-                    <span>Fast delivery</span>
+                )}
+
+                {/* Gift Option - Simplified */}
+                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                  <Checkbox />
+                  <Gift className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-700">This order contains a gift</span>
+                </div>
+
+                {/* Coupon Input - Enhanced */}
+                <div className="border-t border-gray-200 pt-4">
+                  <CouponInput
+                    orderTotal={finalTotal}
+                    appliedCoupon={appliedCoupon || undefined}
+                    onCouponApplied={applyCoupon}
+                    onCouponRemoved={removeCoupon}
+                  />
+                </div>
+
+                {/* Points Redemption - Enhanced */}
+                {profile && (
+                  <div className="border-t border-gray-200 pt-4">
+                    <PointsRedemption
+                      userPointsBalance={profile.points_balance || 0}
+                      onPointsChange={(points) => {
+                        // Points are automatically updated in the cart store
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Simplified Order Summary */}
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">Quick Summary</h3>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <div className="flex justify-between">
+                      <span>Items ({itemCount}):</span>
+                      <span>{formatPrice(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Shipping:</span>
+                      <span>{shippingFee === 0 ? 'FREE' : formatPrice(shippingFee)}</span>
+                    </div>
+                    {totalSavings > 0 && (
+                      <div className="flex justify-between text-green-700">
+                        <span>Savings:</span>
+                        <span>-{formatPrice(totalSavings)}</span>
+                      </div>
+                    )}
+
+                    {pointsToRedeem > 0 && (
+                      <div className="flex justify-between text-orange-600">
+                        <span>Points ({pointsToRedeem.toLocaleString()}):</span>
+                        <span>-{formatPrice(getPointsDiscount())}</span>
+                      </div>
+                    )}
+                    {appliedCoupon && couponDiscount > 0 && (
+                      <div className="flex justify-between text-blue-600">
+                        <span>Coupon ({appliedCoupon.code}):</span>
+                        <span>-{formatPrice(couponDiscount)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Simplified Trust Signals */}
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <div className="flex items-center">
+                      <Shield className="h-3 w-3 mr-2" />
+                      <span>Secure checkout</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Star className="h-3 w-3 mr-2" />
+                      <span>Earn loyalty points</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -443,18 +569,43 @@ export default function CartPage() {
           </div>
         </div>
 
-        {/* Recommendations Section */}
-        <div className="mt-12">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-medium mb-6">Customers who bought items in your cart also bought</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {/* Continue Shopping Section */}
+        <div className="mt-8 sm:mt-10">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Need more items?</h3>
+                <p className="text-sm text-gray-600">Continue shopping to discover more products</p>
+              </div>
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link href="/en/products" className="flex items-center justify-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Continue Shopping
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Recommendations Section */}
+        <div className="mt-8 sm:mt-12">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+                Customers who bought items in your cart also bought
+              </h2>
+              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
+                View all
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
               {/* Placeholder for recommended products */}
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="amazon-product-card bg-gray-50 p-4">
+                <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer">
                   <div className="aspect-square bg-gray-200 rounded-lg mb-3"></div>
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
                   <div className="h-3 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  <div className="h-3 bg-gray-200 rounded mb-2 w-3/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
                 </div>
               ))}
             </div>
