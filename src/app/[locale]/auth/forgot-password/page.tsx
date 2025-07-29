@@ -81,8 +81,8 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="min-h-screen bg-background flex flex-col justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-sm sm:max-w-md lg:max-w-md xl:max-w-md mx-auto">
           {/* Header */}
           <div className="text-center">
             <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
@@ -156,8 +156,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+      <div className="auth-form-container mx-auto">
         {/* Header */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
@@ -186,14 +186,14 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Forgot your password?</CardTitle>
-            <CardDescription>
+        <Card className="mt-8 shadow-2xl border border-gray-200 bg-white lg:shadow-2xl lg:border-gray-300">
+          <CardHeader className="px-8 sm:px-10 lg:px-12 pt-8 sm:pt-10 lg:pt-12 pb-6">
+            <CardTitle className="text-gray-900">Forgot your password?</CardTitle>
+            <CardDescription className="text-gray-600">
               No worries! Enter your email address below and we'll send you a reset link.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 px-8 sm:px-10 lg:px-12 pb-8 sm:pb-10 lg:pb-12">
             {/* Error Alert */}
             {error && (
               <Alert variant="destructive">

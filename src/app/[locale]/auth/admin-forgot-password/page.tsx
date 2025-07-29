@@ -165,8 +165,8 @@ export default function AdminForgotPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <Card className="shadow-lg">
+      <div className="auth-form-container space-y-8">
+        <Card className="shadow-2xl border border-gray-200 bg-white lg:shadow-2xl lg:border-gray-300">
           <CardHeader className="text-center">
             <Link href="/" className="flex justify-center mb-6">
               <div className="relative">

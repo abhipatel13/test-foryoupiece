@@ -142,9 +142,9 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full">
-          <Card className="shadow-lg border-0 bg-card">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+        <div className="auth-form-container">
+          <Card className="shadow-2xl border border-gray-200 bg-white lg:shadow-2xl lg:border-gray-300">
             <CardHeader className="text-center space-y-2 pb-4">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-2">
                 <CheckCircle className="h-6 w-6 text-green-600" />
@@ -155,7 +155,7 @@ export default function RegisterPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
-              <Button asChild className="w-full h-11 text-base sm:text-sm font-medium">
+              <Button asChild className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium">
                 <Link href="/en/auth/login">
                   Continue to Login
                 </Link>
@@ -168,8 +168,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-6 sm:space-y-8">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+      <div className="auth-form-container space-y-6 sm:space-y-8">
         {/* Header - Mobile-First Responsive */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
@@ -203,14 +203,14 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <Card className="shadow-lg border-0 bg-card">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl sm:text-2xl font-semibold text-center">Join Foryoupiece</CardTitle>
-            <CardDescription className="text-center text-muted-foreground">
+        <Card className="shadow-2xl border border-gray-200 bg-white mx-auto lg:shadow-2xl lg:border-gray-300">
+          <CardHeader className="space-y-1 pb-6 px-8 sm:px-10 lg:px-12 pt-8 sm:pt-10 lg:pt-12">
+            <CardTitle className="text-xl sm:text-2xl font-semibold text-center text-gray-900">Join Foryoupiece</CardTitle>
+            <CardDescription className="text-center text-gray-600">
               Create an account to start shopping for premium Japanese products
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+          <CardContent className="space-y-4 sm:space-y-6 px-8 sm:px-10 lg:px-12 pb-8 sm:pb-10 lg:pb-12">
             {/* Error Alert - Mobile Optimized */}
             {error && (
               <Alert variant="destructive" className="text-sm">

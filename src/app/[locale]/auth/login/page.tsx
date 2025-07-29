@@ -99,8 +99,8 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-6 sm:space-y-8">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+      <div className="auth-form-container space-y-6 sm:space-y-8">
         {/* Header - Mobile-First Responsive */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
@@ -134,14 +134,14 @@ function LoginPageContent() {
           </p>
         </div>
 
-        <Card className="shadow-lg border-0 bg-card">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl sm:text-2xl font-semibold text-center">Welcome back</CardTitle>
-            <CardDescription className="text-center text-muted-foreground">
+        <Card className="shadow-2xl border border-gray-200 bg-white mx-auto lg:shadow-2xl lg:border-gray-300">
+          <CardHeader className="space-y-1 pb-6 px-8 sm:px-10 lg:px-12 pt-8 sm:pt-10 lg:pt-12">
+            <CardTitle className="text-lg sm:text-xl lg:text-2xl font-semibold text-center text-gray-900">Welcome back</CardTitle>
+            <CardDescription className="text-center text-gray-600 text-sm sm:text-base">
               Sign in to access your account and continue shopping
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+          <CardContent className="space-y-4 sm:space-y-6 px-8 sm:px-10 lg:px-12 pb-8 sm:pb-10 lg:pb-12">
             {/* Error Alert - Mobile Optimized */}
             {error && (
               <Alert variant="destructive" className="text-sm">
@@ -162,7 +162,7 @@ function LoginPageContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="pl-10 h-11 text-base sm:text-sm"
+                    className="pl-10 h-12 sm:h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="email"
@@ -180,7 +180,7 @@ function LoginPageContent() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="pl-10 pr-10 h-11 text-base sm:text-sm"
+                    className="pl-10 pr-10 h-12 sm:h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="current-password"
@@ -220,7 +220,7 @@ function LoginPageContent() {
 
               <Button
                 type="submit"
-                className="w-full h-11 text-base sm:text-sm font-medium"
+                className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium"
                 disabled={loading}
               >
                 {loading ? 'Signing in...' : 'Sign in'}
@@ -243,7 +243,7 @@ function LoginPageContent() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
                 onClick={handleGoogleLogin}
                 disabled={loading}
               >
@@ -259,7 +259,7 @@ function LoginPageContent() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+                className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
                 onClick={handleTelegramLogin}
                 disabled={loading}
               >
@@ -295,7 +295,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-6 sm:space-y-8">
+        <div className="w-full max-w-sm sm:max-w-md lg:max-w-md xl:max-w-md space-y-6 sm:space-y-8">
           <div className="text-center">
             <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-foreground">Loading...</h2>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mt-4"></div>

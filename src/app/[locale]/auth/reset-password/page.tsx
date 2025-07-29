@@ -174,8 +174,8 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+        <div className="auth-form-container mx-auto">
           {/* Header */}
           <div className="text-center">
             <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
@@ -232,8 +232,8 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+      <div className="auth-form-container mx-auto">
         {/* Header */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center justify-center space-x-2 text-foreground hover:text-primary transition-colors">
@@ -262,14 +262,14 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Create new password</CardTitle>
-            <CardDescription>
+        <Card className="mt-8 shadow-2xl border border-gray-200 bg-white lg:shadow-2xl lg:border-gray-300">
+          <CardHeader className="px-8 sm:px-10 lg:px-12 pt-8 sm:pt-10 lg:pt-12 pb-6">
+            <CardTitle className="text-gray-900">Create new password</CardTitle>
+            <CardDescription className="text-gray-600">
               Choose a strong password that you haven't used before
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 px-8 sm:px-10 lg:px-12 pb-8 sm:pb-10 lg:pb-12">
             {/* Loading State */}
             {initialLoading && (
               <div className="flex items-center justify-center py-8">
