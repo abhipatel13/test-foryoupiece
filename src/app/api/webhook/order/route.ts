@@ -37,11 +37,6 @@ export async function POST(request: NextRequest) {
           quantity,
           price,
           total
-        ),
-        profiles (
-          full_name,
-          first_name,
-          last_name
         )
       `)
       .eq('id', order_id)
