@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
 /**
  * Complete Order API - Streamlined single-click completion
  * POST /api/admin/orders/complete
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('📦 Order completion API called');
 
@@ -52,43 +53,35 @@ export async function POST(request: NextRequest) {
       fulfillmentStatus: order.fulfillment_status
     });
 
-    // TEMPORARY WORKAROUND: Handle the database trigger error gracefully
-    console.log('🔧 Attempting order completion with error handling...');
+    // Update order status directly
+    console.log('🔧 Attempting order completion with direct update...');
 
     let updatedOrder;
     try {
-      // Use the helper RPC function to safely update order status
-      console.log('🔧 Using helper RPC function to update order status');
-      const { data: rpcResult, error: rpcError } = await supabase
-        .rpc('update_order_status', {
-          order_id: orderId,
-          new_payment_status: 'verified',
-          new_fulfillment_status: 'shipped'
-        });
-
-      if (rpcError) {
-        console.error('❌ RPC function error:', rpcError);
-        throw rpcError;
-      }
-
-      if (!rpcResult) {
-        throw new Error('RPC function returned false - update failed');
-      }
-
-      // Fetch the updated order data
-      const { data, error: fetchError } = await supabase
+      // Update order status directly
+      console.log('🔧 Updating order status directly in database');
+      const { data, error: updateError } = await supabase
         .from('orders')
-        .select()
+        .update({
+          payment_status: 'verified',
+          fulfillment_status: 'delivered',
+          payment_verified_at: new Date().toISOString(),
+          delivered_at: new Date().toISOString(),
+          processed_by: `Admin: ${adminUser.email}`,
+          processed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq('id', orderId)
+        .select()
         .single();
 
-      if (fetchError) {
-        console.error('❌ Error fetching updated order:', fetchError);
-        throw fetchError;
+      if (updateError) {
+        console.error('❌ Direct update error:', updateError);
+        throw updateError;
       }
 
       updatedOrder = data;
-      console.log('✅ Order updated successfully in database using RPC function');
+      console.log('✅ Order updated successfully in database using direct update');
     } catch (error: any) {
       console.error('❌ Error completing order:', error);
       return NextResponse.json({
@@ -179,4 +172,4 @@ export async function POST(request: NextRequest) {
       error: 'Internal server error'
     }, { status: 500 });
   }
-}
+});

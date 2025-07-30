@@ -328,6 +328,61 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 📱 Send Telegram notification for new order
+    try {
+      console.log('📱 Triggering Telegram notification for order:', order.order_number);
+
+      // Import and use notification service directly
+      const { telegramNotificationService } = await import('@/lib/telegram/notification-service');
+
+      // Get complete order data for notification
+      const { data: orderWithDetails, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            title,
+            quantity,
+            price,
+            total
+          )
+        `)
+        .eq('id', order.id)
+        .single();
+
+      // Get user profile separately from users table
+      let userProfile = null;
+      if (orderWithDetails && orderWithDetails.user_id) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('first_name, last_name, aba_bank_name')
+          .eq('id', orderWithDetails.user_id)
+          .single();
+        userProfile = profile;
+      }
+
+      // Combine order data with profile
+      const completeOrderData = {
+        ...orderWithDetails,
+        profiles: userProfile
+      };
+
+      if (completeOrderData && !orderError) {
+        const notificationSent = await telegramNotificationService.sendOrderNotification(completeOrderData);
+
+        if (notificationSent) {
+          console.log('✅ Telegram notification sent successfully');
+        } else {
+          console.error('❌ Failed to send Telegram notification');
+        }
+      } else {
+        console.error('❌ Failed to fetch order details for Telegram notification:', orderError);
+      }
+    } catch (telegramError) {
+      console.error('❌ Error triggering Telegram notification:', telegramError);
+      // Don't fail the order creation if Telegram notification fails
+    }
+
     return NextResponse.json({
       success: true,
       order: {

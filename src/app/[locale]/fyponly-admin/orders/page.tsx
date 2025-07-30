@@ -140,7 +140,7 @@ export default function AdminOrdersPage() {
         order.id === orderId
           ? {
               ...order,
-              payment_status: 'verified',
+              payment_status: 'completed',
               fulfillment_status: 'shipped'
             }
           : order

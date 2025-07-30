@@ -139,16 +139,17 @@ export const PATCH = withAdminAuth(async (request: NextRequest, { user, adminUse
       }, { status: 500 });
     }
 
-    // Use RPC function to safely update order status
-    console.log('🔧 Using helper RPC function to update order status');
+    // Use Telegram-aware RPC function to safely update order status
+    console.log('🔧 Using Telegram-aware RPC function to update order status');
     const newPaymentStatus = statusType === 'payment' ? status : currentOrder.payment_status;
     const newFulfillmentStatus = statusType === 'fulfillment' ? status : currentOrder.fulfillment_status;
 
     const { data: rpcResult, error: rpcError } = await supabase
-      .rpc('update_order_status', {
+      .rpc('update_order_status_with_telegram', {
         order_id: orderId,
         new_payment_status: newPaymentStatus,
-        new_fulfillment_status: newFulfillmentStatus
+        new_fulfillment_status: newFulfillmentStatus,
+        processed_by_user: `Admin: ${adminUser.email}`
       });
 
     if (rpcError) {
