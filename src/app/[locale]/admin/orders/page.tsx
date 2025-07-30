@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { adminQueries } from '@/lib/supabase/queries'
+import { adminQueries } from '@/lib/supabase/admin-queries'
 import { formatPrice, formatDateTime } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

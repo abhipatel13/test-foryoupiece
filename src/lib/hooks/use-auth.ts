@@ -186,15 +186,18 @@ export function useAuth() {
 
     // Ensure loading state is cleared after timeout for better UX
     const timeoutId = setTimeout(() => {
-      if (isMounted) {
-        console.log('⏰ Auth loading timeout reached, setting loading to false')
+      if (isMounted && loading) {
+        // Only log in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⏰ Auth loading timeout reached, setting loading to false')
+        }
         setLoading(false)
         stableSetStoreLoading(false)
         if (!isHydrated) {
           stableSetHydrated(true)
         }
       }
-    }, 3000)
+    }, 2000)
 
     return () => {
       isMounted = false

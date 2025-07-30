@@ -80,27 +80,27 @@ export default function HomePage() {
     }
   }, [categoriesLoading, boxHeroCategories.length]);
 
-  // Preload critical category images on component mount
+  // Optimized image preloading - only preload when categories are about to be displayed
   useEffect(() => {
-    const preloadImages = [
-      'https://images.unsplash.com/photo-1522338242992-e1a54906a8da?w=150&h=150&fit=crop&crop=center',
-      'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=150&h=150&fit=crop&crop=center',
-      'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=150&h=150&fit=crop&crop=center',
-      'https://images.unsplash.com/photo-1559181567-c3190ca9959b?w=150&h=150&fit=crop&crop=center',
-      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=150&h=150&fit=crop&crop=center',
-      'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=150&h=150&fit=crop&crop=center',
-      'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=150&h=150&fit=crop&crop=center'
-    ];
+    // Only preload images in production and when categories are actually being displayed
+    if (process.env.NODE_ENV === 'production' && categoryImages.images) {
+      const imagesToPreload = Object.values(categoryImages.images).filter(Boolean);
 
-    preloadImages.forEach(src => {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.href = src;
-      link.crossOrigin = 'anonymous';
-      document.head.appendChild(link);
-    });
-  }, []);
+      // Use requestIdleCallback for non-blocking preloading
+      const preloadWhenIdle = () => {
+        imagesToPreload.slice(0, 3).forEach(src => { // Only preload first 3 images
+          const img = new Image();
+          img.src = src!;
+        });
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(preloadWhenIdle);
+      } else {
+        setTimeout(preloadWhenIdle, 100);
+      }
+    }
+  }, [categoryImages.images]);
 
   useEffect(() => {
     const fetchProducts = async () => {

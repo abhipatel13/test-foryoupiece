@@ -329,7 +329,7 @@ export function ProductImagesDisplay({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {displayImages.map((imageUrl, index) => (
             <div key={index} className="relative group">
-              <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border">
+              <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border">
                 {imageErrors.has(index) ? (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">
                     <div className="text-center">

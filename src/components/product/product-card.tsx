@@ -121,7 +121,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
         <div className="relative aspect-square bg-gray-50 rounded-t-lg overflow-hidden flex-shrink-0">
           <Link
             href={`/en/products/${product.sku}`}
-            className="block w-full h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="relative block w-full h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             onClick={handleProductClick}
             aria-label={`View ${productName}`}
           >

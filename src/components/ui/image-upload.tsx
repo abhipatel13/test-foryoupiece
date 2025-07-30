@@ -240,7 +240,7 @@ export function ImageUpload({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {files.map((file, index) => (
               <div key={index} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
                   <Image
                     src={file.preview!}
                     alt={file.name}
@@ -282,7 +282,7 @@ export function ImageUpload({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {value.map((url, index) => (
               <div key={index} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
                   <Image
                     src={url}
                     alt={`Uploaded image ${index + 1}`}

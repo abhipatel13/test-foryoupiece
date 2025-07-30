@@ -185,8 +185,8 @@ export function calculatePersonalizationScore(product: Product, userBehavior: Us
   let score = 0;
   
   // Category preference
-  if (product.category && userBehavior.categoryPreferences[product.category]) {
-    score += userBehavior.categoryPreferences[product.category] * 10;
+  if (product.category?.name_en && userBehavior.categoryPreferences[product.category.name_en]) {
+    score += userBehavior.categoryPreferences[product.category.name_en] * 10;
   }
   
   // Brand preference
@@ -231,7 +231,7 @@ export function calculateEnhancedPersonalizationScore(product: Product, userBeha
   let score = 0;
 
   // Strong category preference boost based on purchase history
-  const categoryPreference = userBehavior.categoryPreferences[product.category || ''] || 0;
+  const categoryPreference = userBehavior.categoryPreferences[product.category?.name_en || ''] || 0;
   score += categoryPreference * 15; // Higher weight for purchase-based preferences
 
   // Brand preference boost based on purchase history
@@ -288,7 +288,7 @@ export function calculateEnhancedPersonalizationScore(product: Product, userBeha
       const nameLower = product.name_en?.toLowerCase() || '';
       const brandLower = product.brand?.toLowerCase() || '';
       const descLower = product.description_en?.toLowerCase() || '';
-      const categoryLower = product.category?.toLowerCase() || '';
+      const categoryLower = product.category?.name_en?.toLowerCase() || '';
 
       // Exact matches get highest score
       if (nameLower.includes(searchLower)) searchRelevanceScore += 15; // Increased from 8
@@ -424,7 +424,7 @@ export async function getEnhancedPersonalizedRecommendations(
             const nameLower = product.name_en?.toLowerCase() || '';
             const brandLower = product.brand?.toLowerCase() || '';
             const descLower = product.description_en?.toLowerCase() || '';
-            const categoryLower = product.category?.toLowerCase() || '';
+            const categoryLower = product.category?.name_en?.toLowerCase() || '';
             let termMatched = false;
 
             // Exact matches get highest score
@@ -642,7 +642,7 @@ export function getRecentlyViewedProducts(
  * Simulate user behavior for demo purposes
  */
 export function generateSimulatedUserBehavior(products: Product[]): UserBehavior {
-  const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+  const categories = [...new Set(products.map(p => p.category?.name_en).filter(Boolean))];
   const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
   
   // Generate random preferences

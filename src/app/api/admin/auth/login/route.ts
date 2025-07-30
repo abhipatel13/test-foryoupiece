@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { adminQueries } from '@/lib/supabase/queries'
+import { adminQueries } from '@/lib/supabase/admin-queries'
 import {
   checkAdminRateLimit,
   createRateLimitResponse,

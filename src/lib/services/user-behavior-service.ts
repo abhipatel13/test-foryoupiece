@@ -71,7 +71,7 @@ export class UserBehaviorService {
           )
         `)
         .eq('user_id', userId)
-        .eq('payment_status', 'completed')
+        .eq('payment_status', 'verified')
         .gte('created_at', cutoffDate.toISOString())
         .order('created_at', { ascending: false })
 
