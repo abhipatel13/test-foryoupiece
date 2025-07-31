@@ -430,92 +430,7 @@ export function useAuth() {
     return data
   }
 
-  const signInWithTelegram = async (telegramData: any, redirectTo?: string) => {
-    try {
-      console.log('🔄 Starting Telegram authentication:', {
-        id: telegramData.id,
-        username: telegramData.username,
-        first_name: telegramData.first_name,
-        hasAuthDate: !!telegramData.auth_date,
-        hasHash: !!telegramData.hash
-      })
 
-      console.log('📡 Making API request to /api/auth/telegram...')
-      const response = await fetch('/api/auth/telegram', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ user: telegramData, redirectTo }),
-      })
-
-      console.log('📡 API response status:', response.status)
-      console.log('📡 API response headers:', Object.fromEntries(response.headers.entries()))
-
-      if (!response.ok) {
-        console.error('❌ API request failed with status:', response.status)
-
-        let errorData
-        try {
-          errorData = await response.json()
-          console.error('❌ API error response:', errorData)
-        } catch (parseError) {
-          console.error('❌ Failed to parse error response:', parseError)
-          const textResponse = await response.text()
-          console.error('❌ Raw error response:', textResponse)
-          throw new Error(`HTTP ${response.status}: ${textResponse || 'Unknown error'}`)
-        }
-
-        throw new Error(errorData.error || `HTTP ${response.status}: Telegram authentication failed`)
-      }
-
-      const result = await response.json()
-      console.log('✅ API success response received')
-      console.log('🔍 Session tokens present:', {
-        hasAccessToken: !!result.access_token,
-        hasRefreshToken: !!result.refresh_token,
-        hasUser: !!result.user
-      })
-
-      if (!result.access_token || !result.refresh_token) {
-        console.error('❌ Missing session tokens in response')
-        throw new Error('No session data received from server')
-      }
-
-      console.log('🔑 Setting session with received tokens...')
-
-      // Set the session with the tokens from the server
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: result.access_token,
-        refresh_token: result.refresh_token,
-      })
-
-      if (sessionError) {
-        console.error('❌ Session error:', sessionError)
-        throw new Error(`Failed to establish session: ${sessionError.message}`)
-      }
-
-      console.log('✅ Session established successfully')
-      console.log('👤 Session user:', sessionData.session?.user?.id)
-
-      // Update local auth state
-      if (sessionData.session?.user) {
-        setUser(sessionData.session.user)
-        console.log('🔄 Loading user profile...')
-        await loadUserProfile(sessionData.session.user.id)
-      }
-
-      console.log('🔄 Redirecting to:', redirectTo || '/')
-
-      // Redirect to the intended page
-      if (typeof window !== 'undefined') {
-        window.location.href = redirectTo || '/'
-      }
-    } catch (error) {
-      console.error('❌ Telegram authentication error:', error)
-      throw error
-    }
-  }
 
   const signInWithGoogle = async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -582,7 +497,7 @@ export function useAuth() {
     signOut,
     signInWithEmail,
     signUpWithEmail,
-    signInWithTelegram,
+
     signInWithGoogle,
     changePassword,
     updateProfile,

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { TelegramLoginButton } from '@/components/auth/telegram-login'
+
 import { GoogleLogin } from '@/components/auth/google-login'
 import { toast } from 'sonner'
 
@@ -19,7 +19,7 @@ interface AuthFormProps {
 
 export function AuthForm({ mode, onSuccess }: AuthFormProps) {
   const t = useTranslations('auth')
-  const { signInWithEmail, signUpWithEmail, signInWithTelegram, signInWithGoogle } = useAuth()
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -75,12 +75,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
             size="lg"
           />
 
-          {/* Telegram Login Button */}
-          <TelegramLoginButton
-            botName={process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || ''}
-            onAuth={onSuccess}
-            className="w-full min-h-[44px] bg-blue-500 hover:bg-blue-600 text-white"
-          />
+
         </div>
 
         <div className="relative">

@@ -758,4 +758,4 @@ const notificationQueries = {
   }
 }
 
-export { userQueries, productQueries, categoryQueries, cartQueries, orderQueries, notificationQueries }
+export { userQueries, productQueries, categoryQueries, cartQueries, orderQueries, notificationQueries, adminQueries }

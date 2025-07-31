@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { TelegramLogin } from '@/components/auth/telegram-login'
+
 import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -95,8 +95,7 @@ function LoginPageContent() {
     }
   }
 
-  // No need for handleTelegramAuth callback - the TelegramLogin component
-  // handles everything internally and redirects via magic link
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
@@ -256,15 +255,7 @@ function LoginPageContent() {
                 Continue with Google
               </Button>
 
-              {/* Telegram Login Widget */}
-              <div className="w-full">
-                <TelegramLogin
-                  botName={process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_USERNAME || 'Authenticationfypbot'}
-                  className="w-full"
-                  buttonSize="large"
-                  redirectTo={redirectTo}
-                />
-              </div>
+
             </div>
 
           </CardContent>
