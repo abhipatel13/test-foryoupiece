@@ -391,8 +391,15 @@ export function useAuth() {
 
   const signInWithTelegram = async (telegramData: any, redirectTo?: string) => {
     try {
-      console.log('🔄 Starting Telegram authentication:', { id: telegramData.id, username: telegramData.username })
+      console.log('🔄 Starting Telegram authentication:', {
+        id: telegramData.id,
+        username: telegramData.username,
+        first_name: telegramData.first_name,
+        hasAuthDate: !!telegramData.auth_date,
+        hasHash: !!telegramData.hash
+      })
 
+      console.log('📡 Making API request to /api/auth/telegram...')
       const response = await fetch('/api/auth/telegram', {
         method: 'POST',
         headers: {
@@ -402,11 +409,23 @@ export function useAuth() {
       })
 
       console.log('📡 API response status:', response.status)
+      console.log('📡 API response headers:', Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
-        const error = await response.json()
-        console.error('❌ API error response:', error)
-        throw new Error(error.error || 'Telegram authentication failed')
+        console.error('❌ API request failed with status:', response.status)
+
+        let errorData
+        try {
+          errorData = await response.json()
+          console.error('❌ API error response:', errorData)
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError)
+          const textResponse = await response.text()
+          console.error('❌ Raw error response:', textResponse)
+          throw new Error(`HTTP ${response.status}: ${textResponse || 'Unknown error'}`)
+        }
+
+        throw new Error(errorData.error || `HTTP ${response.status}: Telegram authentication failed`)
       }
 
       const result = await response.json()

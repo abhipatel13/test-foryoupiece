@@ -40,45 +40,99 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 Telegram auth API called')
+
+    // Check environment variables first
+    const requiredEnvVars = {
+      TELEGRAM_AUTH_BOT_TOKEN: process.env.TELEGRAM_AUTH_BOT_TOKEN,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL
+    }
+
+    console.log('🔍 Environment variables check:', {
+      TELEGRAM_AUTH_BOT_TOKEN: requiredEnvVars.TELEGRAM_AUTH_BOT_TOKEN ? '✅ Set' : '❌ Missing',
+      SUPABASE_SERVICE_ROLE_KEY: requiredEnvVars.SUPABASE_SERVICE_ROLE_KEY ? '✅ Set' : '❌ Missing',
+      NEXT_PUBLIC_SUPABASE_URL: requiredEnvVars.NEXT_PUBLIC_SUPABASE_URL ? '✅ Set' : '❌ Missing'
+    })
+
+    // Check for missing environment variables
+    const missingVars = Object.entries(requiredEnvVars)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key)
+
+    if (missingVars.length > 0) {
+      console.error('❌ Missing environment variables:', missingVars)
+      return NextResponse.json({
+        error: 'Server configuration error',
+        details: `Missing environment variables: ${missingVars.join(', ')}`
+      }, { status: 500 })
+    }
+
+    console.log('📥 Parsing request body...')
     const body = await request.json()
     const telegramData = body.user as TelegramAuthData
     const redirectTo = body.redirectTo || '/'
 
     console.log('🔄 Telegram auth request received:', {
-      id: telegramData.id,
-      username: telegramData.username,
-      first_name: telegramData.first_name
+      id: telegramData?.id,
+      username: telegramData?.username,
+      first_name: telegramData?.first_name,
+      hasAuthDate: !!telegramData?.auth_date,
+      hasHash: !!telegramData?.hash
     })
 
+    // Validate required fields
+    if (!telegramData || !telegramData.id || !telegramData.first_name) {
+      console.error('❌ Missing required Telegram data fields')
+      return NextResponse.json({ error: 'Missing required Telegram data' }, { status: 400 })
+    }
+
+    console.log('🔐 Verifying Telegram authentication...')
     // Verify Telegram authentication
     if (!verifyTelegramAuth(telegramData)) {
+      console.error('❌ Telegram authentication verification failed')
       return NextResponse.json({ error: 'Invalid authentication data' }, { status: 401 })
     }
+    console.log('✅ Telegram authentication verified')
 
     // Check if auth date is not too old (5 minutes)
     const currentTime = Math.floor(Date.now() / 1000)
     if (currentTime - telegramData.auth_date > 300) {
+      console.error('❌ Authentication data too old:', {
+        currentTime,
+        authDate: telegramData.auth_date,
+        diff: currentTime - telegramData.auth_date
+      })
       return NextResponse.json({ error: 'Authentication data is too old' }, { status: 401 })
     }
+    console.log('✅ Authentication date is valid')
 
-    const email = `telegram_${telegramData.id}@foryoupiece.temp`
+    const email = `telegram_${telegramData.id}@foryoupiece.com`
+    console.log('📧 Generated email:', email)
 
+    console.log('🔍 Checking if user exists in auth.users...')
     // First, check if user exists in auth.users
     const { data: authUsers, error: authSearchError } = await supabaseAdmin.auth.admin.listUsers()
 
     if (authSearchError) {
-      console.error('Error searching auth users:', authSearchError)
-      return NextResponse.json({ error: 'Failed to search users' }, { status: 500 })
+      console.error('❌ Error searching auth users:', authSearchError)
+      return NextResponse.json({
+        error: 'Failed to search users',
+        details: authSearchError.message
+      }, { status: 500 })
     }
 
+    console.log('📊 Found', authUsers.users.length, 'total auth users')
     const existingAuthUser = authUsers.users.find(u => u.email === email)
 
     let authUserId: string
 
     if (existingAuthUser) {
+      console.log('✅ Existing auth user found:', existingAuthUser.id)
       // User exists, update their metadata
       authUserId = existingAuthUser.id
 
+      console.log('🔄 Updating existing user metadata...')
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
         authUserId,
         {
@@ -94,10 +148,15 @@ export async function POST(request: NextRequest) {
       )
 
       if (updateError) {
-        console.error('Error updating auth user:', updateError)
-        return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+        console.error('❌ Error updating auth user:', updateError)
+        return NextResponse.json({
+          error: 'Failed to update user',
+          details: updateError.message
+        }, { status: 500 })
       }
+      console.log('✅ User metadata updated successfully')
     } else {
+      console.log('👤 Creating new auth user...')
       // Create new auth user
       const { data: newAuthUser, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
         email,
@@ -113,13 +172,18 @@ export async function POST(request: NextRequest) {
       })
 
       if (createAuthError || !newAuthUser.user) {
-        console.error('Error creating auth user:', createAuthError)
-        return NextResponse.json({ error: 'Failed to create auth user' }, { status: 500 })
+        console.error('❌ Error creating auth user:', createAuthError)
+        return NextResponse.json({
+          error: 'Failed to create auth user',
+          details: createAuthError?.message || 'No user returned'
+        }, { status: 500 })
       }
 
       authUserId = newAuthUser.user.id
+      console.log('✅ New auth user created:', authUserId)
     }
 
+    console.log('🔍 Checking if user profile exists...')
     // Check if user profile exists
     const { data: existingProfile, error: profileError } = await supabaseAdmin
       .from('users')
@@ -128,12 +192,16 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Error checking user profile:', profileError)
-      return NextResponse.json({ error: 'Failed to check user profile' }, { status: 500 })
+      console.error('❌ Error checking user profile:', profileError)
+      return NextResponse.json({
+        error: 'Failed to check user profile',
+        details: profileError.message
+      }, { status: 500 })
     }
 
     // If no profile exists, create one
     if (!existingProfile) {
+      console.log('📝 Creating new user profile...')
       // Create user profile with correct schema
       const { error: insertError } = await supabaseAdmin
         .from('users')
@@ -150,10 +218,15 @@ export async function POST(request: NextRequest) {
         })
 
       if (insertError) {
-        console.error('Error creating user profile:', insertError)
-        return NextResponse.json({ error: 'Failed to create user profile' }, { status: 500 })
+        console.error('❌ Error creating user profile:', insertError)
+        return NextResponse.json({
+          error: 'Failed to create user profile',
+          details: insertError.message
+        }, { status: 500 })
       }
+      console.log('✅ User profile created successfully')
 
+      console.log('🎁 Creating welcome bonus transaction...')
       // Create welcome bonus transaction for new users
       const { error: transactionError } = await supabaseAdmin
         .from('point_transactions')
@@ -166,8 +239,13 @@ export async function POST(request: NextRequest) {
         })
 
       if (transactionError) {
-        console.error('Error creating welcome bonus transaction:', transactionError)
+        console.error('⚠️ Error creating welcome bonus transaction:', transactionError)
+        // Don't fail the auth process for bonus transaction errors
+      } else {
+        console.log('✅ Welcome bonus transaction created')
       }
+    } else {
+      console.log('✅ Existing user profile found:', existingProfile.id)
     }
 
     console.log('🔑 Generating magic link for email:', email)
@@ -208,9 +286,20 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Telegram auth error:', error)
+    console.error('❌ Telegram auth error:', error)
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+
+    // Provide more specific error information in development
+    const isDevelopment = process.env.NODE_ENV === 'development'
+
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        ...(isDevelopment && {
+          details: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        })
+      },
       { status: 500 }
     )
   }

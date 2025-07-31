@@ -41,22 +41,32 @@ export function TelegramLogin({
 
   useEffect(() => {
     if (!botName) {
-      console.error('Telegram bot name is required')
+      console.error('❌ Telegram bot name is required')
       return
     }
 
+    console.log('🚀 Initializing Telegram widget with bot:', botName)
+
     // Create unique callback function name
     const callbackName = `telegramCallback_${Date.now()}`
+    console.log('📝 Created callback function:', callbackName)
 
     // Define the callback function
     ;(window as any)[callbackName] = async (user: any) => {
       try {
+        console.log('🎯 Telegram callback triggered!', { callbackName, user })
+
         // Verify the authentication data
-        if (!user.id || !user.first_name) {
+        if (!user || !user.id || !user.first_name) {
+          console.error('❌ Invalid Telegram authentication data:', user)
           throw new Error('Invalid Telegram authentication data')
         }
 
-        console.log('🔄 Starting Telegram authentication for user:', user.id)
+        console.log('🔄 Starting Telegram authentication for user:', {
+          id: user.id,
+          first_name: user.first_name,
+          username: user.username
+        })
 
         // Call the auth function - this will create session directly
         await signInWithTelegram(user, redirectTo)
@@ -64,11 +74,18 @@ export function TelegramLogin({
         // Session is now established and user will be redirected
         console.log('✅ Telegram authentication completed successfully')
 
+        // Call onAuth callback if provided
+        if (onAuth) {
+          onAuth(user)
+        }
+
       } catch (error: any) {
         console.error('❌ Telegram authentication error:', error)
         toast.error(error.message || 'Failed to sign in with Telegram')
       }
     }
+
+    console.log('📦 Callback function registered on window:', callbackName)
 
     // Create the script element
     const script = document.createElement('script')
@@ -82,14 +99,34 @@ export function TelegramLogin({
     script.setAttribute('data-onauth', callbackName)
     script.async = true
 
+    console.log('🔧 Script attributes set:', {
+      'data-telegram-login': botName,
+      'data-size': buttonSize,
+      'data-onauth': callbackName
+    })
+
+    // Add error handling for script loading
+    script.onerror = (error) => {
+      console.error('❌ Failed to load Telegram widget script:', error)
+      toast.error('Failed to load Telegram widget')
+    }
+
+    script.onload = () => {
+      console.log('✅ Telegram widget script loaded successfully')
+    }
+
     // Clear container and append script
     if (containerRef.current) {
+      console.log('📍 Appending script to container')
       containerRef.current.innerHTML = ''
       containerRef.current.appendChild(script)
+    } else {
+      console.error('❌ Container ref is null')
     }
 
     // Cleanup function
     return () => {
+      console.log('🧹 Cleaning up Telegram widget')
       // Remove the callback function
       delete (window as any)[callbackName]
 
@@ -110,12 +147,45 @@ export function TelegramLogin({
     )
   }
 
+  // Add a test button for debugging
+  const testCallback = () => {
+    console.log('🧪 Testing callback function manually')
+    const testUser = {
+      id: 123456789,
+      first_name: 'Test',
+      last_name: 'User',
+      username: 'testuser',
+      auth_date: Math.floor(Date.now() / 1000),
+      hash: 'test_hash'
+    }
+
+    // Find the callback function
+    const callbackName = Object.keys(window).find(key => key.startsWith('telegramCallback_'))
+    if (callbackName) {
+      console.log('🎯 Found callback function:', callbackName)
+      ;(window as any)[callbackName](testUser)
+    } else {
+      console.error('❌ No callback function found')
+    }
+  }
+
   return (
-    <div
-      ref={containerRef}
-      className={`telegram-login-widget ${className}`}
-      style={{ minHeight: '40px' }}
-    />
+    <div className={`telegram-login-widget-container ${className}`}>
+      <div
+        ref={containerRef}
+        className="telegram-login-widget"
+        style={{ minHeight: '40px' }}
+      />
+      {process.env.NODE_ENV === 'development' && (
+        <button
+          onClick={testCallback}
+          className="mt-2 px-2 py-1 text-xs bg-gray-200 rounded"
+          type="button"
+        >
+          Test Callback
+        </button>
+      )}
+    </div>
   )
 }
 
