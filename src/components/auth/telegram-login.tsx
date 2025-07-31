@@ -107,11 +107,16 @@ export function TelegramLogin({
 
     console.log('📦 Callback function registered on window:', callbackName)
 
-    // Create the script element
+    // Create the script element using the standard Telegram approach
     const script = document.createElement('script')
     script.id = `telegram-login-${botName}`
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.setAttribute('data-telegram-login', botName)
+
+    // Try different bot name formats to debug the issue
+    const botNameToUse = botName.toLowerCase() === 'authenticationfypbot' ? 'authenticationfypbot' : botName
+    console.log('🤖 Using bot name:', botNameToUse, '(original:', botName, ')')
+
+    script.setAttribute('data-telegram-login', botNameToUse)
     script.setAttribute('data-size', buttonSize)
     script.setAttribute('data-corner-radius', cornerRadius.toString())
     script.setAttribute('data-request-access', requestAccess ? 'write' : '')
@@ -123,7 +128,9 @@ export function TelegramLogin({
     console.log('🔧 Script attributes set:', {
       'data-telegram-login': botName,
       'data-size': buttonSize,
-      'data-onauth': callbackName
+      'data-onauth': callbackName,
+      'data-request-access': requestAccess ? 'write' : '',
+      'data-userpic': usePic.toString()
     })
 
     // Add error handling for script loading
@@ -134,16 +141,28 @@ export function TelegramLogin({
 
     script.onload = () => {
       console.log('✅ Telegram widget script loaded successfully')
+      // Give the widget time to render
+      setTimeout(() => {
+        if (containerRef.current) {
+          console.log('🔍 Widget render check:', {
+            children: containerRef.current.children.length,
+            innerHTML: containerRef.current.innerHTML.substring(0, 100)
+          })
+        }
+      }, 1000)
     }
 
-    // Clear container and append script
+    // Clear container and append script (must be in container for widget to render)
     if (containerRef.current) {
-      console.log('📍 Appending script to container')
+      console.log('📍 Clearing container and appending script')
       containerRef.current.innerHTML = ''
+
+      // The script MUST be appended to the container for the widget to render there
       containerRef.current.appendChild(script)
+
       // Mark as initialized globally
       globalTelegramInitialized = true
-      console.log('✅ Telegram widget marked as globally initialized')
+      console.log('✅ Telegram widget script appended to container')
     } else {
       console.error('❌ Container ref is null')
     }
@@ -210,7 +229,7 @@ export function TelegramLogin({
       <div
         ref={containerRef}
         className="telegram-login-widget"
-        style={{ minHeight: '40px' }}
+        style={{ minHeight: '40px', display: 'block', visibility: 'visible' }}
       />
       {process.env.NODE_ENV === 'development' && (
         <button
@@ -221,6 +240,22 @@ export function TelegramLogin({
           Test Callback
         </button>
       )}
+
+      {/* Fallback: Show a manual button if widget doesn't render */}
+      <div className="mt-2">
+        <TelegramLoginButton
+          botName={botName}
+          onAuth={stableOnAuth}
+          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg"
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.568 8.16l-1.61 7.59c-.12.54-.44.67-.89.42l-2.46-1.81-1.19 1.14c-.13.13-.24.24-.49.24l.17-2.43 4.47-4.03c.19-.17-.04-.27-.3-.1L9.39 13.17l-2.43-.76c-.53-.17-.54-.53.11-.78l9.49-3.66c.44-.17.83.11.69.78z"/>
+            </svg>
+            <span>Continue with Telegram</span>
+          </div>
+        </TelegramLoginButton>
+      </div>
     </div>
   )
 }
