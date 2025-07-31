@@ -270,7 +270,7 @@ export default function RegisterPage() {
                     value={formData.password}
                     onChange={handleInputChange}
                     placeholder="Create a password"
-                    className="pl-10 pr-10 h-11 text-base sm:text-sm"
+                    className="pl-10 pr-12 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="new-password"
@@ -278,7 +278,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted/50 flex items-center justify-center min-w-[44px] min-h-[44px]"
                     disabled={loading}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
@@ -299,7 +299,7 @@ export default function RegisterPage() {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     placeholder="Confirm your password"
-                    className="pl-10 pr-10 h-11 text-base sm:text-sm"
+                    className="pl-10 pr-12 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="new-password"
@@ -307,7 +307,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted/50 flex items-center justify-center min-w-[44px] min-h-[44px]"
                     disabled={loading}
                     aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                   >

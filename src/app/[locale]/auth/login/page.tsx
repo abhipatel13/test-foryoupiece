@@ -180,7 +180,7 @@ function LoginPageContent() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="pl-10 pr-10 h-12 sm:h-11 text-base sm:text-sm"
+                    className="pl-10 pr-12 h-12 sm:h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="current-password"
@@ -188,7 +188,7 @@ function LoginPageContent() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted/50 flex items-center justify-center min-w-[44px] min-h-[44px]"
                     disabled={loading}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >

@@ -149,19 +149,43 @@ img {
   }
 }
 
-/* Desktop-optimized content containers */
+/* ENHANCED: Mobile-First Responsive Container System */
 .desktop-container {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 0.75rem; /* 12px - tighter mobile padding */
+  padding-right: 0.75rem;
 }
 
+/* Small mobile improvements */
+@media (min-width: 375px) {
+  .desktop-container {
+    padding-left: 1rem; /* 16px - standard mobile padding */
+    padding-right: 1rem;
+  }
+}
+
+/* Tablet improvements */
+@media (min-width: 640px) {
+  .desktop-container {
+    padding-left: 1.25rem; /* 20px - better tablet padding */
+    padding-right: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .desktop-container {
+    padding-left: 1.5rem; /* 24px - improved tablet padding */
+    padding-right: 1.5rem;
+  }
+}
+
+/* Desktop optimizations */
 @media (min-width: 1024px) {
   .desktop-container {
     max-width: 1200px;
-    padding-left: 2rem;
+    padding-left: 2rem; /* 32px - desktop padding */
     padding-right: 2rem;
   }
 }
@@ -169,7 +193,7 @@ img {
 @media (min-width: 1280px) {
   .desktop-container {
     max-width: 1280px;
-    padding-left: 2.5rem;
+    padding-left: 2.5rem; /* 40px - large desktop padding */
     padding-right: 2.5rem;
   }
 }
@@ -177,7 +201,7 @@ img {
 @media (min-width: 1536px) {
   .desktop-container {
     max-width: 1400px;
-    padding-left: 3rem;
+    padding-left: 3rem; /* 48px - ultra-wide padding */
     padding-right: 3rem;
   }
 }
@@ -623,7 +647,7 @@ input, textarea, select {
     box-shadow: none;
   }
 
-  /* COMPLETELY REDESIGNED: Professional E-commerce Product Card */
+  /* ENHANCED: Professional E-commerce Product Card - Flexible Heights */
   .modern-product-card {
     background: white;
     border: 1px solid #e5e7eb; /* gray-200 */
@@ -633,8 +657,10 @@ input, textarea, select {
     position: relative;
     overflow: hidden;
     height: 100%;
-    /* FIXED: Consistent minimum heights for uniform grid */
-    min-height: 400px; /* Mobile minimum height */
+    display: flex;
+    flex-direction: column;
+    /* IMPROVED: More flexible minimum heights for better responsive behavior */
+    min-height: 350px; /* Reduced mobile minimum height */
   }
 
   .modern-product-card:hover {
@@ -643,17 +669,17 @@ input, textarea, select {
     transform: translateY(-2px);
   }
 
-  /* Tablet responsive heights */
+  /* Tablet responsive heights - More flexible */
   @media (min-width: 640px) {
     .modern-product-card {
-      min-height: 420px; /* Tablet height */
+      min-height: 380px; /* Slightly increased tablet height */
     }
   }
 
-  /* Desktop responsive heights */
+  /* Desktop responsive heights - Optimized */
   @media (min-width: 1024px) {
     .modern-product-card {
-      min-height: 440px; /* Desktop height for better content fit */
+      min-height: 400px; /* Reduced desktop height for better fit */
     }
 
     .modern-product-card:hover {
@@ -939,16 +965,32 @@ input, textarea, select {
     }
   }
 
-  /* FIXED: Standardized Product Grid Layout - Following UI/UX Requirements */
+  /* ENHANCED: Standardized Product Grid Layout - Better Card Alignment */
   .product-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr); /* Mobile: 2 products per row */
-    gap: 1rem; /* 16px - proper spacing */
+    gap: 0.75rem; /* 12px - tighter mobile spacing */
     min-height: 0; /* Prevent grid overflow */
     width: 100%;
+    align-items: stretch; /* Ensure equal height cards */
+    grid-auto-rows: 1fr; /* Make all rows equal height */
   }
 
-  /* Tablet: 2-3 products per row */
+  /* Ensure all product cards have consistent heights */
+  .product-grid > * {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* Small mobile improvements */
+  @media (min-width: 375px) {
+    .product-grid {
+      gap: 1rem; /* 16px - better spacing on larger mobile */
+    }
+  }
+
+  /* Tablet: 2-3 products per row with better spacing */
   @media (min-width: 640px) {
     .product-grid {
       grid-template-columns: repeat(2, 1fr);
@@ -963,18 +1005,18 @@ input, textarea, select {
     }
   }
 
-  /* Desktop: 4-5 products per row */
+  /* Desktop: 4-5 products per row with optimized spacing */
   @media (min-width: 1024px) {
     .product-grid {
       grid-template-columns: repeat(4, 1fr);
-      gap: 1.25rem; /* 20px - desktop spacing */
+      gap: 1.5rem; /* 24px - improved desktop spacing */
     }
   }
 
   @media (min-width: 1280px) {
     .product-grid {
       grid-template-columns: repeat(5, 1fr);
-      gap: 1.25rem; /* 20px - large desktop spacing */
+      gap: 1.5rem; /* 24px - consistent large desktop spacing */
     }
   }
 
@@ -982,7 +1024,7 @@ input, textarea, select {
   @media (min-width: 1536px) {
     .product-grid {
       grid-template-columns: repeat(5, 1fr);
-      gap: 1.5rem; /* 24px - premium spacing */
+      gap: 2rem; /* 32px - premium ultra-wide spacing */
     }
   }
 
@@ -1354,38 +1396,66 @@ input, textarea, select {
     }
   }
 
-  /* FIXED: Mobile-optimized cards with proper spacing */
+  /* ENHANCED: Mobile-optimized cards with improved spacing and layout */
   @media (max-width: 768px) {
     .modern-product-card {
       border-radius: 0.5rem;
       padding: 0; /* Remove padding conflicts */
+      min-height: 340px; /* Slightly increased for better content fit */
+      display: flex;
+      flex-direction: column;
     }
 
     .modern-product-card:active {
       transform: scale(0.98);
     }
 
-    /* Ensure proper spacing in mobile cards */
-    .modern-product-card .flex.flex-col {
-      padding: 1rem; /* 16px consistent padding */
+    /* Ensure proper spacing in mobile cards with flex layout */
+    .modern-product-card .flex-1 {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 0; /* Allow flex shrinking */
     }
 
-    /* Prevent text overlapping on mobile */
+    /* Better mobile typography with consistent spacing */
     .modern-product-card h3 {
-      font-size: 0.875rem; /* 14px */
-      line-height: 1.25rem; /* 20px */
-      margin-bottom: 0.5rem; /* 8px */
+      font-size: 0.875rem; /* 14px - readable mobile size */
+      line-height: 1.25rem; /* 20px - better line height */
+      margin-bottom: 0.5rem; /* 8px - consistent margin */
+      font-weight: 600;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
+    /* Consistent price typography on mobile */
+    .modern-product-card .text-base,
     .modern-product-card .text-lg {
-      font-size: 1rem; /* 16px on mobile */
+      font-size: 1rem; /* 16px on mobile - consistent sizing */
       line-height: 1.5rem; /* 24px */
+      font-weight: 700;
     }
 
-    /* Ensure buttons are properly sized for touch */
+    /* Ensure buttons are properly sized for touch with better spacing */
     .modern-product-card button {
       min-height: 44px;
-      font-size: 0.875rem; /* 14px */
+      font-size: 0.875rem; /* 14px - readable size */
+      padding: 0.75rem 1rem; /* Better mobile padding */
+      margin-top: 0.75rem; /* Increased top margin for spacing */
+    }
+
+    /* Improve image container on mobile */
+    .modern-product-card .aspect-square {
+      margin-bottom: 0.75rem; /* Better bottom margin */
+    }
+
+    /* Better badge positioning on mobile */
+    .modern-product-card .absolute {
+      top: 0.75rem; /* 12px - consistent positioning */
     }
   }
 
@@ -1397,13 +1467,16 @@ input, textarea, select {
     min-width: 44px;
   }
 
-  /* Line clamp utilities for consistent text truncation */
+  /* ENHANCED: Line clamp utilities for consistent text truncation */
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
 
   .line-clamp-1 {
@@ -1412,19 +1485,45 @@ input, textarea, select {
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
-  /* Consistent font sizes for product cards */
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* ENHANCED: Consistent font sizes for product cards with responsive scaling */
   .product-title {
     font-size: 0.875rem; /* 14px */
     line-height: 1.25rem; /* 20px */
     font-weight: 600;
   }
 
+  @media (min-width: 640px) {
+    .product-title {
+      font-size: 1rem; /* 16px */
+      line-height: 1.5rem; /* 24px */
+    }
+  }
+
   .product-price {
-    font-size: 1.125rem; /* 18px */
-    line-height: 1.75rem; /* 28px */
+    font-size: 1rem; /* 16px */
+    line-height: 1.5rem; /* 24px */
     font-weight: 700;
+  }
+
+  @media (min-width: 640px) {
+    .product-price {
+      font-size: 1.125rem; /* 18px */
+      line-height: 1.75rem; /* 28px */
+    }
   }
 
   .product-meta {
@@ -1432,15 +1531,35 @@ input, textarea, select {
     line-height: 1rem; /* 16px */
   }
 
-  /* Prevent horizontal scroll on mobile */
+  /* ENHANCED: Prevent horizontal scroll and improve mobile UX */
   @media (max-width: 768px) {
-    body {
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100vw;
+    }
+
+    .container, .desktop-container {
+      max-width: 100vw;
       overflow-x: hidden;
     }
 
-    .container {
-      max-width: 100vw;
+    /* Ensure all grid containers respect viewport width */
+    .product-grid, .product-grid-compact, .product-grid-featured {
+      max-width: 100%;
       overflow-x: hidden;
+    }
+
+    /* Improve touch targets on mobile */
+    button, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Better mobile typography */
+    h1, h2, h3, h4, h5, h6 {
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
   }
 

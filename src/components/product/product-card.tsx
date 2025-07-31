@@ -69,7 +69,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
       sku: product.sku,
       variant: undefined, // No variant selection in product cards
       stockQuantity: product.stock_quantity,
-      points_rate: product.points_rate || 1.00
+      points_rate: 1.00
     }, product.stock_quantity)
 
     if (success) {
@@ -143,22 +143,22 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             )}
           </Link>
 
-          {/* FIXED: Professional Badge Positioning - Semi-transparent Background */}
+          {/* ENHANCED: Professional Badge Positioning - Better Z-index and Spacing */}
           {discountPercentage && (
-            <div className="absolute top-2 left-2 z-10">
-              <Badge className="bg-red-500/90 text-white text-xs font-bold shadow-lg px-2 py-1 rounded backdrop-blur-sm">
+            <div className="absolute top-3 left-3 z-20">
+              <Badge className="bg-red-500 text-white text-xs font-bold shadow-lg px-2.5 py-1.5 rounded-md border border-red-600">
                 -{discountPercentage}% OFF
               </Badge>
             </div>
           )}
 
-          {/* Stock Indicators - Integrated into Card Body (not overlay) */}
+          {/* ENHANCED: Stock Indicators - Better positioning to avoid overlap */}
           {(product.stock_quantity === 1 || product.stock_quantity === 2) && (
-            <div className="absolute top-2 right-2 z-10">
-              <Badge className={`text-xs font-medium shadow-lg px-2 py-1 rounded backdrop-blur-sm ${
+            <div className={`absolute top-3 z-20 ${discountPercentage ? 'right-3' : 'right-3'}`}>
+              <Badge className={`text-xs font-medium shadow-lg px-2.5 py-1.5 rounded-md border ${
                 product.stock_quantity === 1
-                  ? 'bg-red-100/90 text-red-800'
-                  : 'bg-orange-100/90 text-orange-800'
+                  ? 'bg-red-50 text-red-800 border-red-200'
+                  : 'bg-orange-50 text-orange-800 border-orange-200'
               }`}>
                 {product.stock_quantity === 1 ? '1 left' : 'Few left'}
               </Badge>
@@ -177,8 +177,8 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
           </Button>
         </div>
 
-        {/* REDESIGNED: Content Section with Proper Hierarchy */}
-        <div className="flex-1 flex flex-col p-4">
+        {/* ENHANCED: Content Section - Mobile-First Responsive */}
+        <div className="flex-1 flex flex-col p-3 sm:p-4">
 
           {/* Brand - Consistent Typography */}
           {product.brand && (
@@ -187,17 +187,17 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </p>
           )}
 
-          {/* Product Title - 2 Lines Max with Ellipsis */}
+          {/* ENHANCED: Product Title - Better Mobile Text Handling */}
           <Link href={`/en/products/${product.sku}`} onClick={handleProductClick}>
-            <h3 className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors mb-2 line-clamp-2 leading-tight min-h-[2.5rem]">
+            <h3 className="text-sm sm:text-base font-semibold text-gray-900 hover:text-blue-600 transition-colors mb-2 line-clamp-2 leading-tight min-h-[2.5rem] sm:min-h-[3rem]">
               {productName}
             </h3>
           </Link>
 
-          {/* Price Section - Bold and Prominent */}
-          <div className="mb-2">
+          {/* ENHANCED: Price Section - Better Mobile Formatting */}
+          <div className="mb-3">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-lg font-bold text-gray-900">
+              <span className="text-base sm:text-lg font-bold text-gray-900">
                 {formatPrice(product.price)}
               </span>
               {product.compare_at_price && product.compare_at_price > product.price && (
@@ -215,33 +215,35 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             {/* Points Display - Smaller, Muted Text */}
             <div className="flex items-center gap-1 text-xs text-gray-500">
               <span className="text-orange-600 font-medium">
-                {product.points_rate || 1}%
+                1%
               </span>
               <span>back in points</span>
             </div>
           </div>
 
-          {/* Stock Status - Integrated into Card Body */}
-          <div className="text-xs font-medium mb-3">
+          {/* ENHANCED: Stock Status - Better Spacing and Typography */}
+          <div className="text-xs font-medium mb-4">
             {product.stock_quantity === 1 && (
-              <span className="text-red-600">Only 1 left</span>
+              <span className="text-red-600 font-semibold">Only 1 left</span>
             )}
             {product.stock_quantity === 2 && (
-              <span className="text-orange-600">Only 2 left</span>
+              <span className="text-orange-600 font-semibold">Only 2 left</span>
             )}
             {product.stock_quantity > 2 && (
-              <span className="text-green-600">Fast delivery</span>
+              <span className="text-green-600 font-semibold">Fast delivery</span>
             )}
             {product.stock_quantity <= 0 && (
-              <span className="text-blue-600">Available for preorder</span>
+              <div className="space-y-1">
+                <span className="text-blue-600 font-semibold block">Available for preorder</span>
+              </div>
             )}
           </div>
 
-          {/* FIXED: Standardized Add to Cart Button - Bottom Positioned */}
+          {/* ENHANCED: Add to Cart Button - Better Mobile UX */}
           <div className="mt-auto">
             <Button
               onClick={handleAddToCart}
-              className="w-full bg-black hover:bg-gray-800 text-white font-semibold text-sm h-11 shadow-sm hover:shadow-md transition-all duration-200 rounded-md flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed touch-target-44"
+              className="w-full bg-black hover:bg-gray-800 text-white font-semibold text-sm h-11 sm:h-12 shadow-sm hover:shadow-md transition-all duration-200 rounded-md flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed touch-target-44"
               disabled={product.stock_quantity <= 0}
               aria-label={product.stock_quantity <= 0 ? `Preorder ${productName}` : `Add ${productName} to cart`}
             >

@@ -172,12 +172,12 @@ export function Header() {
             ) : isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-2 sm:px-3 lg:px-4 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-sm h-auto">
+                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-sm h-auto">
                     <div className="text-right mr-1 sm:mr-2 min-w-0">
-                      <div className="text-xs text-muted-foreground truncate hidden sm:block">Hello, {profile?.first_name || 'User'}</div>
+                      <div className="text-xs text-muted-foreground truncate hidden lg:block">Hello, {profile?.first_name || 'User'}</div>
                       <div className="font-medium flex items-center text-xs sm:text-sm">
-                        <span className="hidden md:inline">Account</span>
-                        <span className="md:hidden truncate max-w-[60px]">{profile?.first_name || 'User'}</span>
+                        <span className="hidden lg:inline">Account & Lists</span>
+                        <span className="lg:hidden truncate max-w-[50px] sm:max-w-[70px]">{profile?.first_name || 'Account'}</span>
                         <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
                       </div>
                     </div>
@@ -243,20 +243,22 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <div className="flex items-center space-x-2">
-                <Link href="/en/auth/login" className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+              <div className="flex items-center space-x-1 sm:space-x-2">
+                <Link href="/en/auth/login" className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0">
                   <div className="text-right">
-                    <div className="text-xs text-muted-foreground">Hello, sign in</div>
-                    <div className="font-medium flex items-center">
-                      Account & Lists
-                      <ChevronDown className="h-3 w-3 ml-1" />
+                    <div className="text-xs text-muted-foreground hidden lg:block">Hello, sign in</div>
+                    <div className="font-medium flex items-center text-xs sm:text-sm">
+                      <span className="hidden lg:inline">Account & Lists</span>
+                      <span className="lg:hidden">Account</span>
+                      <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
                     </div>
                   </div>
                 </Link>
                 <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs">
-                      Quick Login
+                    <Button variant="outline" size="sm" className="text-xs px-2 sm:px-3 py-1.5 sm:py-2 h-8 sm:h-9 flex-shrink-0">
+                      <span className="hidden sm:inline">Quick Login</span>
+                      <span className="sm:hidden">Login</span>
                     </Button>
                   </DialogTrigger>
                 <DialogContent className="w-full max-w-[calc(100vw-1rem)] sm:max-w-[440px] mx-auto p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
@@ -330,48 +332,48 @@ export function Header() {
           </div>
         </div>
 
-        {/* FIXED Secondary Navigation - Better Text Sizing */}
+        {/* Enhanced Secondary Navigation - Mobile-First Responsive */}
         <div className="bg-muted/20 border-t border-border/50 overflow-x-hidden shadow-sm">
           <div className="desktop-container">
-            <div className="flex h-14 lg:h-12 xl:h-14 items-center min-w-0">
-            <nav className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8 xl:space-x-10 overflow-x-auto scrollbar-hide">
+            <div className="flex h-12 sm:h-14 lg:h-12 xl:h-14 items-center min-w-0">
+            <nav className="flex items-center space-x-2 sm:space-x-4 lg:space-x-6 xl:space-x-8 overflow-x-auto scrollbar-hide w-full">
               <Link
                 href="/en/trending"
-                className="text-base sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-3 px-4 rounded-md flex items-center gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg"
+                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
               >
-                <TrendingUp className="h-5 w-5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
+                <TrendingUp className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
                 <span className="hidden sm:inline">Trending Now</span>
                 <span className="sm:hidden">Trending</span>
               </Link>
               <Link
                 href="/en/products?deals=true"
-                className="text-base sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-3 px-4 rounded-md flex items-center gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg"
+                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
               >
-                <Percent className="h-5 w-5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
+                <Percent className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
                 <span className="hidden sm:inline">Deals and Discounts</span>
                 <span className="sm:hidden">Deals</span>
               </Link>
               <Link
                 href="/en/products?recently_added=true"
-                className="text-base sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-3 px-4 rounded-md flex items-center gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg"
+                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
               >
-                <Clock className="h-5 w-5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
+                <Clock className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
                 <span className="hidden sm:inline">Recently Added</span>
                 <span className="sm:hidden">New</span>
               </Link>
               <Link
                 href="/en/products?recommended=true"
-                className="text-base sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-3 px-4 rounded-md flex items-center gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg"
+                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
               >
-                <Heart className="h-5 w-5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
+                <Heart className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
                 <span className="hidden sm:inline">Recommended for You</span>
                 <span className="sm:hidden">For You</span>
               </Link>
               <button
                 onClick={handleScrollToCategories}
-                className="text-base sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-3 px-4 rounded-md flex items-center gap-2 cursor-pointer whitespace-nowrap flex-shrink-0 group touch-target-lg"
+                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 cursor-pointer whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
               >
-                <Menu className="h-5 w-5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
+                <Menu className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
                 Categories
               </button>
             </nav>
