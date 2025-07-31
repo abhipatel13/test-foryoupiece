@@ -283,9 +283,13 @@ export function TelegramLoginButton({
     // Use the bot ID for OAuth (numeric ID required)
     const botId = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_ID || '8066090295'
 
-    // Open Telegram auth in popup - use production domain
-    const origin = window.location.origin
-    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&request_access=write`
+    // Create callback URL that Telegram will redirect to
+    const callbackUrl = `${window.location.origin}/api/auth/telegram/callback`
+
+    // Open Telegram auth in popup with proper callback URL
+    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&return_to=${encodeURIComponent(callbackUrl)}&request_access=write`
+
+    console.log('🚀 Opening Telegram auth popup:', authUrl)
 
     const popup = window.open(
       authUrl,
@@ -293,12 +297,25 @@ export function TelegramLoginButton({
       'width=400,height=500,scrollbars=yes,resizable=yes'
     )
 
-    // Listen for messages from popup
-    const messageListener = async (event: MessageEvent) => {
-      if (event.origin !== 'https://oauth.telegram.org') return
+    if (!popup) {
+      toast.error('Popup was blocked. Please allow popups for this site.')
+      return
+    }
 
-      if (event.data && event.data.type === 'telegram-auth') {
+    // Listen for messages from the callback page
+    const messageListener = async (event: MessageEvent) => {
+      console.log('📨 Message received:', event.data, 'from origin:', event.origin)
+
+      // Accept messages from our own domain (the callback page)
+      if (event.origin !== window.location.origin) {
+        console.log('🚫 Ignoring message from different origin:', event.origin)
+        return
+      }
+
+      if (event.data && event.data.type === 'telegram-auth-success') {
         try {
+          console.log('✅ Telegram auth success message received:', event.data.user)
+
           await signInWithTelegram(event.data.user)
 
           if (onAuth) {
@@ -308,10 +325,14 @@ export function TelegramLoginButton({
           toast.success('Successfully signed in with Telegram!')
           popup?.close()
         } catch (error: any) {
-          console.error('Telegram authentication error:', error)
+          console.error('❌ Telegram authentication error:', error)
           toast.error(error.message || 'Failed to sign in with Telegram')
           popup?.close()
         }
+      } else if (event.data && event.data.type === 'telegram-auth-error') {
+        console.error('❌ Telegram auth error message received:', event.data.error)
+        toast.error(event.data.error || 'Authentication failed')
+        popup?.close()
       }
     }
 
