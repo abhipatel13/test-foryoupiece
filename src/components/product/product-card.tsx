@@ -114,8 +114,8 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* COMPLETELY REDESIGNED: Professional E-commerce Card */}
-      <div className="modern-product-card h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+      {/* ENHANCED: Pixel-Perfect Professional E-commerce Card */}
+      <div className="modern-product-card h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 min-h-[360px] sm:min-h-[370px]">
 
         {/* Product Image Container - Fixed 1:1 Aspect Ratio */}
         <div className="relative aspect-square bg-gray-50 rounded-t-lg overflow-hidden flex-shrink-0">
@@ -177,8 +177,8 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
           </Button>
         </div>
 
-        {/* ENHANCED: Content Section - Mobile-First Responsive */}
-        <div className="flex-1 flex flex-col p-3 sm:p-4">
+        {/* ENHANCED: Content Section - Pixel-Perfect Mobile Layout */}
+        <div className="flex-1 flex flex-col p-3 sm:p-4 justify-between min-h-0">
 
           {/* Brand - Consistent Typography */}
           {product.brand && (

@@ -221,23 +221,21 @@ export default function HomePage() {
       {/* Mobile-First Product Layout */}
       <div className="desktop-container py-4 sm:py-6 lg:py-8 xl:py-10">
 
-        {/* 1. TRENDING PRODUCTS - Mobile-First Design */}
+        {/* 1. TRENDING PRODUCTS - Enhanced Mobile-First Design */}
         <section className="mb-8 sm:mb-10 lg:mb-12">
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-1 sm:gap-2">
-                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Trending Now</h2>
-              </div>
-              <Badge className="bg-red-500 text-white animate-pulse text-xs px-2 py-1">HOT</Badge>
+          <div className="mobile-section-header">
+            <div className="mobile-section-title">
+              <TrendingUp className="mobile-section-icon text-primary flex-shrink-0" />
+              <h2 className="section-heading">Trending Now</h2>
+              <Badge className="mobile-section-badge bg-red-500 text-white animate-pulse ml-2">HOT</Badge>
             </div>
             <Link
               href="/en/trending"
-              className="text-primary hover:text-primary/80 font-medium flex items-center gap-1 sm:gap-2 transition-colors text-sm sm:text-base touch-manipulation"
+              className="mobile-view-all-link"
             >
-              <span className="hidden sm:inline">View All Trending</span>
+              <span className="hidden sm:inline">View All</span>
               <span className="sm:hidden">View All</span>
-              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
 
@@ -280,22 +278,21 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 2. BEST SELLERS - Customer favorites that keep selling out */}
+        {/* 2. BEST SELLERS - Enhanced Mobile-First Design */}
         <section className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-foreground/70" />
-                <h2 className="text-2xl font-bold text-foreground">Best Sellers</h2>
-              </div>
-              <Badge variant="secondary" className="text-xs font-medium">Customer Favorites</Badge>
+          <div className="mobile-section-header">
+            <div className="mobile-section-title">
+              <Award className="mobile-section-icon text-foreground/70 flex-shrink-0" />
+              <h2 className="section-heading">Best Sellers</h2>
+              <Badge className="mobile-section-badge bg-secondary text-secondary-foreground ml-2">Customer Favorites</Badge>
             </div>
             <Link
               href="/en/best-sellers"
-              className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
+              className="mobile-view-all-link"
             >
-              View All Best Sellers
-              <ArrowRight className="h-4 w-4" />
+              <span className="hidden sm:inline">View All Best Sellers</span>
+              <span className="sm:hidden">View All</span>
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
 
@@ -368,22 +365,21 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 3. DEALS AND DISCOUNTS - Special offers */}
+        {/* 3. DEALS AND DISCOUNTS - Enhanced Mobile-First Design */}
         <section className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Percent className="h-5 w-5 text-primary" />
-                <h2 className="text-2xl font-bold text-foreground">Deals and Discounts</h2>
-              </div>
-              <Badge className="bg-primary/10 text-primary border-primary/20">Up to 20% OFF</Badge>
+          <div className="mobile-section-header">
+            <div className="mobile-section-title">
+              <Percent className="mobile-section-icon text-primary flex-shrink-0" />
+              <h2 className="section-heading">Deals and Discounts</h2>
+              <Badge className="mobile-section-badge bg-primary/10 text-primary border-primary/20 ml-2">Up to 20% OFF</Badge>
             </div>
             <Link
               href="/en/products?deals=true"
-              className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
+              className="mobile-view-all-link"
             >
-              View All Deals
-              <ArrowRight className="h-4 w-4" />
+              <span className="hidden sm:inline">View All Deals</span>
+              <span className="sm:hidden">View All</span>
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
 
@@ -409,20 +405,21 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 4. RECENTLY ADDED - New Arrivals from BoxHero */}
+        {/* 4. RECENTLY ADDED - Enhanced Mobile-First Design */}
         <section className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <h2 className="text-2xl font-bold text-foreground">Recently Added</h2>
-              <Badge className="bg-green-100 text-green-800">New Arrivals</Badge>
+          <div className="mobile-section-header">
+            <div className="mobile-section-title">
+              <Clock className="mobile-section-icon text-primary flex-shrink-0" />
+              <h2 className="section-heading">Recently Added</h2>
+              <Badge className="mobile-section-badge bg-green-100 text-green-800 ml-2">New Arrivals</Badge>
             </div>
             <Link
               href="/en/products?recently_added=true"
-              className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
+              className="mobile-view-all-link"
             >
-              See More
-              <ArrowRight className="h-4 w-4" />
+              <span className="hidden sm:inline">See More</span>
+              <span className="sm:hidden">See More</span>
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
 
@@ -448,20 +445,21 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* 5. RECOMMENDED FOR YOU - Personalized */}
+        {/* 5. RECOMMENDED FOR YOU - Enhanced Mobile-First Design */}
         <section className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Heart className="h-5 w-5 text-primary" />
-              <h2 className="text-2xl font-bold text-foreground">Recommended for You</h2>
-              <Badge className="bg-primary/10 text-primary">Personalized</Badge>
+          <div className="mobile-section-header">
+            <div className="mobile-section-title">
+              <Heart className="mobile-section-icon text-primary flex-shrink-0" />
+              <h2 className="section-heading">Recommended for You</h2>
+              <Badge className="mobile-section-badge bg-primary/10 text-primary ml-2">Personalized</Badge>
             </div>
             <Link
               href="/en/products?recommended=true"
-              className="text-primary hover:text-primary/80 font-medium flex items-center gap-2 transition-colors"
+              className="mobile-view-all-link"
             >
-              See More
-              <ArrowRight className="h-4 w-4" />
+              <span className="hidden sm:inline">See More</span>
+              <span className="sm:hidden">See More</span>
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
 

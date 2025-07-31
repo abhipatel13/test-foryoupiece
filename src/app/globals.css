@@ -807,21 +807,45 @@ input, textarea, select {
 
   /* Enterprise Desktop Typography & Spacing System */
 
-  /* Mobile-first typography (preserved) */
+  /* ENHANCED: Mobile-First Section Typography - Pixel-Perfect */
   .section-heading {
-    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-size: 1.25rem; /* 20px - optimized for mobile readability */
     font-weight: 700;
     color: oklch(0.15 0 0);
-    margin-bottom: 0.5rem;
-    line-height: 1.2;
+    margin-bottom: 0.75rem; /* 12px - better mobile spacing */
+    line-height: 1.3;
     letter-spacing: -0.025em;
+  }
+
+  /* Mobile viewport specific adjustments */
+  @media (max-width: 320px) {
+    .section-heading {
+      font-size: 1.125rem; /* 18px - smaller for 320px screens */
+      margin-bottom: 0.5rem; /* 8px - tighter spacing */
+    }
+  }
+
+  @media (min-width: 375px) and (max-width: 414px) {
+    .section-heading {
+      font-size: 1.375rem; /* 22px - optimal for 375px-414px */
+      margin-bottom: 0.75rem; /* 12px */
+    }
   }
 
   .section-subheading {
     color: oklch(0.4 0.01 250);
-    font-size: 0.875rem;
-    line-height: 1.6;
-    margin-bottom: 1.5rem;
+    font-size: 0.75rem; /* 12px - better mobile readability */
+    line-height: 1.5;
+    margin-bottom: 1rem; /* 16px - optimized mobile spacing */
+    font-weight: 500;
+  }
+
+  /* Mobile viewport specific subheading adjustments */
+  @media (min-width: 375px) {
+    .section-subheading {
+      font-size: 0.875rem; /* 14px - larger for bigger screens */
+      margin-bottom: 1.25rem; /* 20px */
+    }
   }
 
   /* Enterprise Desktop Typography (1024px+) */
@@ -965,22 +989,46 @@ input, textarea, select {
     }
   }
 
-  /* ENHANCED: Standardized Product Grid Layout - Better Card Alignment */
+  /* ENHANCED: Pixel-Perfect Product Grid Layout - Consistent Dimensions */
   .product-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr); /* Mobile: 2 products per row */
-    gap: 0.75rem; /* 12px - tighter mobile spacing */
+    gap: 0.75rem; /* 12px - consistent mobile spacing */
     min-height: 0; /* Prevent grid overflow */
     width: 100%;
     align-items: stretch; /* Ensure equal height cards */
-    grid-auto-rows: 1fr; /* Make all rows equal height */
+    grid-auto-rows: minmax(360px, auto); /* Fixed minimum height for consistency */
   }
 
-  /* Ensure all product cards have consistent heights */
+  /* ENHANCED: Ensure all product cards have identical dimensions */
   .product-grid > * {
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 360px; /* Fixed minimum height */
+  }
+
+  /* ENHANCED: Responsive grid adjustments for different mobile viewports */
+  @media (max-width: 320px) {
+    .product-grid {
+      gap: 0.5rem; /* 8px - tighter spacing for smallest screens */
+      grid-auto-rows: minmax(340px, auto); /* Slightly smaller for 320px */
+    }
+
+    .product-grid > * {
+      min-height: 340px;
+    }
+  }
+
+  @media (min-width: 375px) and (max-width: 414px) {
+    .product-grid {
+      gap: 0.75rem; /* 12px - standard spacing */
+      grid-auto-rows: minmax(370px, auto); /* Optimal for 375px-414px */
+    }
+
+    .product-grid > * {
+      min-height: 370px;
+    }
   }
 
   /* Small mobile improvements */
@@ -1529,6 +1577,101 @@ input, textarea, select {
   .product-meta {
     font-size: 0.75rem; /* 12px */
     line-height: 1rem; /* 16px */
+  }
+
+  /* ENHANCED: Mobile Section Header Utilities */
+  .mobile-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem; /* 16px */
+    padding: 0 0.25rem; /* 4px horizontal padding */
+  }
+
+  .mobile-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* 8px */
+    flex: 1;
+    min-width: 0; /* Allow text truncation */
+  }
+
+  .mobile-section-icon {
+    width: 1rem; /* 16px */
+    height: 1rem; /* 16px */
+    flex-shrink: 0;
+  }
+
+  .mobile-section-badge {
+    font-size: 0.625rem; /* 10px */
+    padding: 0.125rem 0.375rem; /* 2px 6px */
+    border-radius: 0.25rem; /* 4px */
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  .mobile-view-all-link {
+    color: oklch(0.45 0.1 250); /* Primary color */
+    font-weight: 500;
+    font-size: 0.875rem; /* 14px */
+    display: flex;
+    align-items: center;
+    gap: 0.25rem; /* 4px */
+    transition: color 0.2s ease;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .mobile-view-all-link:hover {
+    color: oklch(0.35 0.1 250); /* Darker primary on hover */
+  }
+
+  .mobile-view-all-link {
+    font-size: 0.75rem; /* 12px */
+    font-weight: 500;
+    color: oklch(0.4 0.15 250);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem; /* 4px */
+    padding: 0.25rem 0.5rem; /* 4px 8px */
+    border-radius: 0.25rem; /* 4px */
+    transition: all 0.2s ease;
+    min-height: 44px; /* Touch target */
+    justify-content: center;
+  }
+
+  .mobile-view-all-link:hover {
+    color: oklch(0.3 0.15 250);
+    background-color: oklch(0.95 0.01 250);
+  }
+
+  /* Responsive adjustments for larger mobile screens */
+  @media (min-width: 375px) {
+    .mobile-section-header {
+      margin-bottom: 1.25rem; /* 20px */
+      padding: 0 0.5rem; /* 8px horizontal padding */
+    }
+
+    .mobile-section-title {
+      gap: 0.75rem; /* 12px */
+    }
+
+    .mobile-section-icon {
+      width: 1.25rem; /* 20px */
+      height: 1.25rem; /* 20px */
+    }
+
+    .mobile-section-badge {
+      font-size: 0.75rem; /* 12px */
+      padding: 0.25rem 0.5rem; /* 4px 8px */
+    }
+
+    .mobile-view-all-link {
+      font-size: 0.875rem; /* 14px */
+      padding: 0.375rem 0.75rem; /* 6px 12px */
+    }
   }
 
   /* ENHANCED: Prevent horizontal scroll and improve mobile UX */
