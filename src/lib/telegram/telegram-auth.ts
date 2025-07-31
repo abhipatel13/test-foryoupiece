@@ -2,9 +2,12 @@ import crypto from 'crypto'
 
 // Telegram Bot configuration
 export const TELEGRAM_CONFIG = {
-  botToken: process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN || '',
-  botUsername: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '',
-  domain: process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+  botToken: process.env.TELEGRAM_AUTH_BOT_TOKEN || '',
+  botUsername: process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_USERNAME || '',
+  botId: process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_ID || '8066090295',
+  domain: process.env.NEXT_PUBLIC_SITE_URL ?
+    new URL(process.env.NEXT_PUBLIC_SITE_URL).host :
+    'foryoupiece.com'
 }
 
 // Telegram user data interface
@@ -75,10 +78,10 @@ export function generateTelegramLoginUrl(redirectUrl?: string): string {
     : `https://${TELEGRAM_CONFIG.domain}`
 
   const params = new URLSearchParams({
-    bot_id: TELEGRAM_CONFIG.botToken.split(':')[0] || '',
+    bot_id: TELEGRAM_CONFIG.botId,
     origin: TELEGRAM_CONFIG.domain,
     request_access: 'write',
-    return_to: redirectUrl || `${origin}/auth/telegram/callback`
+    return_to: redirectUrl || `${origin}/en/auth/callback`
   })
 
   return `${baseUrl}?${params.toString()}`

@@ -138,10 +138,11 @@ export function TelegramLoginButton({
     }
 
     // Use the bot ID for OAuth (numeric ID required)
-    const botId = process.env.NEXT_PUBLIC_TELEGRAM_BOT_ID || '8066090295'
+    const botId = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_ID || '8066090295'
 
-    // Open Telegram auth in popup
-    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&request_access=write`
+    // Open Telegram auth in popup - use production domain
+    const origin = window.location.origin
+    const authUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&request_access=write`
 
     const popup = window.open(
       authUrl,

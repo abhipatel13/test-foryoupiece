@@ -37,11 +37,11 @@ export async function POST(request: NextRequest) {
   try {
     const telegramData: TelegramAuthData = await request.json()
     
-    // Verify Telegram authentication
-    const botToken = process.env.TELEGRAM_BOT_TOKEN
+    // Verify Telegram authentication - use the auth bot token
+    const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN
     if (!botToken) {
       return NextResponse.json(
-        { error: 'Telegram bot token not configured' },
+        { error: 'Telegram authentication bot token not configured' },
         { status: 500 }
       )
     }
