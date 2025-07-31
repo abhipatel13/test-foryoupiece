@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/lib/store/user-store'
@@ -14,20 +14,57 @@ export function useAuth() {
   const { setUserId, forceLoadCartForUser } = useCartStore()
   const supabase = createClient()
 
-  // Create stable references to store functions
-  const stableSetUser = useCallback((user: any) => setUser(user), [])
-  const stableSetProfile = useCallback((profile: any) => setProfile(profile), [])
-  const stableSetStoreLoading = useCallback((loading: boolean) => setStoreLoading(loading), [])
-  const stableSetHydrated = useCallback((hydrated: boolean) => setHydrated(hydrated), [])
-  const stableClearUser = useCallback(() => clearUser(), [])
+  // Create stable references to store functions using useRef to prevent re-creation
+  const storeActionsRef = useRef({
+    setUser,
+    setProfile,
+    setStoreLoading,
+    setHydrated,
+    clearUser,
+    setUserId,
+    forceLoadCartForUser
+  })
+
+  // Update refs when store functions change (but don't cause re-renders)
+  storeActionsRef.current = {
+    setUser,
+    setProfile,
+    setStoreLoading,
+    setHydrated,
+    clearUser,
+    setUserId,
+    forceLoadCartForUser
+  }
+
+  // Create truly stable callbacks that don't change on re-renders
+  const stableSetUser = useCallback((user: any) => {
+    storeActionsRef.current.setUser(user)
+  }, [])
+
+  const stableSetProfile = useCallback((profile: any) => {
+    storeActionsRef.current.setProfile(profile)
+  }, [])
+
+  const stableSetStoreLoading = useCallback((loading: boolean) => {
+    storeActionsRef.current.setStoreLoading(loading)
+  }, [])
+
+  const stableSetHydrated = useCallback((hydrated: boolean) => {
+    storeActionsRef.current.setHydrated(hydrated)
+  }, [])
+
+  const stableClearUser = useCallback(() => {
+    storeActionsRef.current.clearUser()
+  }, [])
+
   const stableSetUserId = useCallback((userId: string | null) => {
     try {
       if (userId) {
         // Force load cart for authenticated user (handles both new and existing users)
-        forceLoadCartForUser(userId)
+        storeActionsRef.current.forceLoadCartForUser(userId)
       } else {
         // User logged out, just set userId to null
-        setUserId(null)
+        storeActionsRef.current.setUserId(null)
       }
     } catch (error) {
       console.error('❌ Error calling cart functions:', error)
@@ -35,8 +72,12 @@ export function useAuth() {
   }, [])
 
   const loadUserProfile = useCallback(async (userId: string) => {
+    // Get current values from refs to avoid dependencies
+    const currentProfileLoading = profileLoading
+    const currentProfile = profile
+
     // Prevent multiple concurrent profile loads for the same user
-    if (profileLoading) {
+    if (currentProfileLoading) {
       if (process.env.NODE_ENV === 'development') {
         console.log('Profile loading already in progress, skipping...')
       }
@@ -44,7 +85,7 @@ export function useAuth() {
     }
 
     // Check if we already have the profile for this user
-    if (profile && profile.id === userId) {
+    if (currentProfile && currentProfile.id === userId) {
       if (process.env.NODE_ENV === 'development') {
         console.log('Profile already loaded for user:', userId)
       }
@@ -136,7 +177,7 @@ export function useAuth() {
     } finally {
       setProfileLoading(false)
     }
-  }, [profileLoading, profile, stableSetProfile, supabase.auth])
+  }, []) // Remove dependencies to prevent re-creation
 
   // Initialize auth state only once on mount
   useEffect(() => {

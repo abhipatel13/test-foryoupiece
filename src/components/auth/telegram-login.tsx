@@ -1,9 +1,13 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+
+// Global flag to prevent multiple widget initializations
+let globalTelegramInitialized = false
+let globalCallbackName: string | null = null
 
 interface TelegramLoginProps {
   botName: string
@@ -37,7 +41,12 @@ export function TelegramLogin({
   redirectTo
 }: TelegramLoginProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const isInitialized = useRef(false)
   const { signInWithTelegram } = useAuth()
+
+  // Create stable callback references
+  const stableSignInWithTelegram = useCallback(signInWithTelegram, [])
+  const stableOnAuth = useCallback(onAuth || (() => {}), [onAuth])
 
   useEffect(() => {
     if (!botName) {
@@ -45,10 +54,23 @@ export function TelegramLogin({
       return
     }
 
+    // Check if widget is already initialized globally
+    if (globalTelegramInitialized && globalCallbackName) {
+      console.log('🔒 Telegram widget already initialized globally, skipping...')
+      return
+    }
+
+    // Check if container already has a widget
+    if (containerRef.current && containerRef.current.children.length > 0) {
+      console.log('🔒 Container already has widget, skipping...')
+      return
+    }
+
     console.log('🚀 Initializing Telegram widget with bot:', botName)
 
     // Create unique callback function name
     const callbackName = `telegramCallback_${Date.now()}`
+    globalCallbackName = callbackName
     console.log('📝 Created callback function:', callbackName)
 
     // Define the callback function
@@ -69,15 +91,13 @@ export function TelegramLogin({
         })
 
         // Call the auth function - this will create session directly
-        await signInWithTelegram(user, redirectTo)
+        await stableSignInWithTelegram(user, redirectTo)
 
         // Session is now established and user will be redirected
         console.log('✅ Telegram authentication completed successfully')
 
         // Call onAuth callback if provided
-        if (onAuth) {
-          onAuth(user)
-        }
+        stableOnAuth(user)
 
       } catch (error: any) {
         console.error('❌ Telegram authentication error:', error)
@@ -89,6 +109,7 @@ export function TelegramLogin({
 
     // Create the script element
     const script = document.createElement('script')
+    script.id = `telegram-login-${botName}`
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
     script.setAttribute('data-telegram-login', botName)
     script.setAttribute('data-size', buttonSize)
@@ -120,6 +141,9 @@ export function TelegramLogin({
       console.log('📍 Appending script to container')
       containerRef.current.innerHTML = ''
       containerRef.current.appendChild(script)
+      // Mark as initialized globally
+      globalTelegramInitialized = true
+      console.log('✅ Telegram widget marked as globally initialized')
     } else {
       console.error('❌ Container ref is null')
     }
@@ -127,15 +151,27 @@ export function TelegramLogin({
     // Cleanup function
     return () => {
       console.log('🧹 Cleaning up Telegram widget')
-      // Remove the callback function
-      delete (window as any)[callbackName]
+      // Only cleanup if this is the active callback
+      if (globalCallbackName === callbackName) {
+        // Remove the callback function
+        if ((window as any)[callbackName]) {
+          delete (window as any)[callbackName]
+        }
+        globalCallbackName = null
+        globalTelegramInitialized = false
+        console.log('🔄 Reset global Telegram initialization state')
+      }
 
-      // Remove the script if it exists
-      if (containerRef.current && script.parentNode) {
-        script.parentNode.removeChild(script)
+      // Remove the script if it exists and is still in the DOM
+      if (script && script.parentNode) {
+        try {
+          script.parentNode.removeChild(script)
+        } catch (error) {
+          console.warn('Script already removed from DOM')
+        }
       }
     }
-  }, [botName, buttonSize, cornerRadius, requestAccess, usePic, lang, signInWithTelegram, onAuth, redirectTo])
+  }, [botName, buttonSize, cornerRadius, requestAccess, usePic, lang]) // Stable dependencies only
 
   if (!botName) {
     return (
