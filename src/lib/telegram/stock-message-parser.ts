@@ -47,20 +47,20 @@ export interface TelegramUpdate {
 export class StockMessageParser {
   // Regex patterns for product extraction
   private readonly productPatterns = [
-    // Pattern 1: "1. Product Name x 2 = 50.00" or "1. Product Name *2 = 19$"
-    /^(\d+)\.?\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*([\d.,]+)[\$]?/i,
+    // Pattern 1: "1. Product Name x 2 = $50.00" or "1. Product Name x 2 = 50.00" or "1. Product Name *2 = 19$"
+    /^(\d+)\.?\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 2: "Product Name x 2 = 50.00" (without number prefix)
-    /^(.+?)\s*[x*×]\s*(\d+)\s*=\s*([\d.,]+)[\$]?/i,
+    // Pattern 2: "Product Name x 2 = $50.00" or "Product Name x 2 = 50.00" (without number prefix)
+    /^(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 3: "2 Product Name * 3 = 150.00" (quantity first)
-    /^(\d+)\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*([\d.,]+)[\$]?/i,
+    // Pattern 3: "2 Product Name * 3 = $150.00" (quantity first)
+    /^(\d+)\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 4: "Product Name (x2) = 50.00" (parentheses)
-    /^(.+?)\s*\([x*×](\d+)\)\s*=\s*([\d.,]+)[\$]?/i,
+    // Pattern 4: "Product Name (x2) = $50.00" (parentheses)
+    /^(.+?)\s*\([x*×](\d+)\)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 5: "Item name x Qty = Price" format from your message
-    /^(.+?)\s*[x*×]\s*(\d+)\s*=\s*([\d.,]+)[\$]?/i
+    // Pattern 5: "Item name x Qty = Price" format - catch-all
+    /^(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i
   ];
 
   /**
@@ -81,9 +81,9 @@ export class StockMessageParser {
     const threadId = parseInt(process.env.TELEGRAM_STOCK_THREAD_ID || '0');
     if (message.message_thread_id !== threadId) return false;
 
-    // Must contain "ORDER CONFIRMATION" (case-insensitive)
+    // Must contain either "ORDER CONFIRMATION" or "✅ PAID" (case-insensitive)
     const text = message.text.toLowerCase();
-    if (!text.includes('order confirmation')) return false;
+    if (!text.includes('order confirmation') && !text.includes('✅ paid')) return false;
 
     // Must NOT contain "#Order" (indicates order ID, not stock update)
     if (text.includes('#order') || text.includes('#Order')) return false;

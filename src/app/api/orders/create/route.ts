@@ -368,12 +368,22 @@ export async function POST(request: NextRequest) {
       };
 
       if (completeOrderData && !orderError) {
+        // Send notification to notification group
         const notificationSent = await telegramNotificationService.sendOrderNotification(completeOrderData);
 
         if (notificationSent) {
           console.log('✅ Telegram notification sent successfully');
         } else {
           console.error('❌ Failed to send Telegram notification');
+        }
+
+        // 📦 Send ORDER CONFIRMATION message to stock group for automatic stock processing
+        try {
+          console.log('📦 Sending ORDER CONFIRMATION message to stock group for automatic processing');
+          await sendOrderConfirmationToStockGroup(completeOrderData);
+        } catch (stockError) {
+          console.error('❌ Error sending ORDER CONFIRMATION to stock group:', stockError);
+          // Don't fail the order if stock group message fails
         }
       } else {
         console.error('❌ Failed to fetch order details for Telegram notification:', orderError);
@@ -425,5 +435,108 @@ export async function POST(request: NextRequest) {
         hint: error.hint
       }
     }, { status: 500 });
+  }
+}
+
+/**
+ * Send ORDER CONFIRMATION message to stock group for automatic processing
+ */
+async function sendOrderConfirmationToStockGroup(order: any): Promise<void> {
+  const stockBotToken = process.env.TELEGRAM_STOCK_BOT_TOKEN;
+  const stockGroupId = process.env.TELEGRAM_STOCK_GROUP_ID;
+  const stockThreadId = process.env.TELEGRAM_STOCK_THREAD_ID;
+
+  if (!stockBotToken || !stockGroupId || !stockThreadId) {
+    console.warn('⚠️ Stock bot configuration incomplete, skipping ORDER CONFIRMATION message');
+    return;
+  }
+
+  try {
+    // Format customer info
+    const customerName = order.profiles?.first_name && order.profiles?.last_name
+      ? `${order.profiles.first_name} ${order.profiles.last_name}`
+      : order.profiles?.first_name || 'Unknown Customer';
+
+    const phoneNumber = order.shipping_address?.phone || order.profiles?.phone || 'Not provided';
+
+    // Format address
+    const address = order.shipping_address;
+    const addressLines = [];
+    if (address?.address1) addressLines.push(address.address1);
+    if (address?.address2) addressLines.push(address.address2);
+    const addressComponents = [
+      ...addressLines,
+      address?.city,
+      address?.country,
+      address?.postal_code
+    ].filter(component => component && component.trim() !== '');
+    const fullAddress = addressComponents.length > 0 ? addressComponents.join(', ') : 'Not provided';
+
+    // Format items in the exact format expected by the stock webhook
+    const items = order.order_items?.map((item: any, index: number) => {
+      return `${index + 1}. ${item.title} *${item.quantity} =${item.price}$`;
+    }).join('\n') || 'No items found';
+
+    // Calculate pricing
+    const subtotal = order.subtotal || 0;
+    const shippingFee = order.shipping_fee || 0;
+    const discount = order.discount_amount || 0;
+    const pointsUsed = order.points_used || 0;
+    const pointsValue = pointsUsed / 1000; // Convert points to dollar value
+    const totalAmount = order.total_amount || 0;
+
+    // Create ORDER CONFIRMATION message in the exact format expected
+    const orderConfirmationMessage = `🎀✨ ORDER CONFIRMATION ✨🎀
+
+👤 Customer Info
+Name: ${customerName}
+Phone number: ${phoneNumber}
+Address: ${fullAddress}
+
+🛒 Items
+Item name x Qty = Price
+${items}
+
+💰 Pricing Summary
+• Delivery Fee: $ ${shippingFee.toFixed(0)}
+• Total amount: $ ${totalAmount.toFixed(0)}
+• Deposit: $
+• Amount Due: $ ${totalAmount.toFixed(0)} ✅✅
+
+📌 Important Notes
+🚨 Final Sale : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted.
+🚚 Delivery : We will notify you once your items are ready for delivery.
+
+🙏 Thank you for your purchase! 🤍`;
+
+    console.log('📦 Sending ORDER CONFIRMATION message to stock group:', {
+      groupId: stockGroupId,
+      threadId: stockThreadId,
+      orderNumber: order.order_number
+    });
+
+    const response = await fetch(`https://api.telegram.org/bot${stockBotToken}/sendMessage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chat_id: stockGroupId,
+        message_thread_id: parseInt(stockThreadId),
+        text: orderConfirmationMessage
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ ORDER CONFIRMATION message sent to stock group successfully:', result.result?.message_id);
+    } else {
+      const error = await response.text();
+      console.error('❌ Failed to send ORDER CONFIRMATION message to stock group:', error);
+    }
+
+  } catch (error) {
+    console.error('❌ Error sending ORDER CONFIRMATION message to stock group:', error);
+    throw error;
   }
 }
