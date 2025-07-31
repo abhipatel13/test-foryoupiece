@@ -71,7 +71,7 @@ export default function CheckoutPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Please log in to checkout</h1>
-          <Button onClick={() => router.push('/auth/login')}>Login</Button>
+          <Button onClick={() => router.push('/en/auth/login')}>Login</Button>
         </div>
       </div>
     )
