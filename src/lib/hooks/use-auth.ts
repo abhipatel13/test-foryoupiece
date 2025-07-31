@@ -374,38 +374,54 @@ export function useAuth() {
   }
 
   const signInWithTelegram = async (telegramData: any) => {
-    const response = await fetch('/api/auth/telegram', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(telegramData)
-    })
+    try {
+      console.log('🔄 Sending Telegram auth request:', { id: telegramData.id, username: telegramData.username })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Telegram authentication failed')
-    }
+      const response = await fetch('/api/auth/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(telegramData)
+      })
 
-    const result = await response.json()
+      console.log('📡 API response status:', response.status)
 
-    // If we got an auth URL, redirect to it for session creation
-    if (result.authUrl) {
-      // Check for browser environment before redirecting
-      if (typeof window !== 'undefined') {
-        window.location.href = result.authUrl
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('❌ API error response:', error)
+        throw new Error(error.error || 'Telegram authentication failed')
       }
+
+      const result = await response.json()
+      console.log('✅ API success response:', result)
+
+      // If we got an auth URL, redirect to it for session creation
+      if (result.authUrl) {
+        console.log('🔗 Redirecting to auth URL:', result.authUrl)
+        // Check for browser environment before redirecting
+        if (typeof window !== 'undefined') {
+          window.location.href = result.authUrl
+        }
+        return result
+      }
+
+      // If no auth URL, try to refresh the session
+      console.log('🔄 No auth URL, checking current session...')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        console.log('✅ Found existing session, updating user state')
+        setUser(session.user)
+        await loadUserProfile(session.user.id)
+      } else {
+        console.log('⚠️ No session found after authentication')
+      }
+
       return result
+    } catch (error) {
+      console.error('❌ Telegram authentication error:', error)
+      throw error
     }
-
-    // Refresh the session to get the updated user
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      setUser(session.user)
-      await loadUserProfile(session.user.id)
-    }
-
-    return result
   }
 
   const signInWithGoogle = async () => {

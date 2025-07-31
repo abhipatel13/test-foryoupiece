@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import crypto from 'crypto'
 
 interface TelegramAuthData {
@@ -175,28 +176,36 @@ export async function POST(request: NextRequest) {
       user = newUser
     }
     
-    // Create session
-    const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
-      email: `telegram_${telegramData.id}@foryoupiece.temp`,
-      password: crypto.randomBytes(32).toString('hex')
-    })
-    
-    if (sessionError) {
-      // For existing users, we need to sign them in differently
-      // This is a simplified approach - in production, you'd want to use custom JWT tokens
-      const { data: signInData, error: signInError } = await supabase.auth.signInAnonymously()
-      
-      if (signInError) {
-        console.error('Error signing in user:', signInError)
-        return NextResponse.json(
-          { error: 'Failed to sign in user' },
-          { status: 500 }
-        )
-      }
+    // Generate a magic link for authentication using service role client
+    const serviceSupabase = createServiceRoleClient()
+
+    if (!serviceSupabase) {
+      return NextResponse.json(
+        { error: 'Service client not available' },
+        { status: 500 }
+      )
     }
-    
+
+    // Generate magic link for the user
+    const { data: linkData, error: linkError } = await serviceSupabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: `telegram_${telegramData.id}@foryoupiece.temp`,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/en`
+      }
+    })
+
+    if (linkError) {
+      console.error('Error generating magic link:', linkError)
+      return NextResponse.json(
+        { error: 'Failed to create authentication link' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
+      authUrl: linkData.properties?.action_link,
       user: {
         id: user.id,
         telegram_id: user.telegram_id,

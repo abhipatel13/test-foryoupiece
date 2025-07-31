@@ -54,16 +54,22 @@ export function TelegramLogin({
           throw new Error('Invalid Telegram authentication data')
         }
 
+        console.log('🔄 Starting Telegram authentication for user:', user.id)
+
         // Call the auth function
-        await signInWithTelegram(user)
+        const result = await signInWithTelegram(user)
+
+        console.log('✅ Telegram authentication result:', result)
 
         // Call custom onAuth callback if provided
         if (onAuth) {
           onAuth(user)
         }
 
-        toast.success('Successfully signed in with Telegram!')
+        // Don't show success toast here - let the auth flow handle it
+        // The signInWithTelegram function will handle redirects
       } catch (error: any) {
+        console.error('❌ Telegram authentication error:', error)
         toast.error(error.message || 'Failed to sign in with Telegram')
       }
     }

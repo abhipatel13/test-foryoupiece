@@ -96,14 +96,10 @@ function LoginPageContent() {
   }
 
   const handleTelegramAuth = async (user: any) => {
-    try {
-      // The TelegramLogin component handles the authentication
-      // This callback is called after successful authentication
-      toast.success('Successfully signed in with Telegram!')
-      router.push(redirectTo)
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to sign in with Telegram')
-    }
+    // The TelegramLogin component handles the authentication internally
+    // This callback is called after successful authentication
+    // Just redirect to the intended destination
+    router.push(redirectTo)
   }
 
   return (
