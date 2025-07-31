@@ -373,16 +373,19 @@ export function useAuth() {
     return data
   }
 
-  const signInWithTelegram = async (telegramData: any) => {
+  const signInWithTelegram = async (telegramData: any, redirectTo?: string) => {
     try {
-      console.log('🔄 Sending Telegram auth request:', { id: telegramData.id, username: telegramData.username })
+      console.log('🔄 Starting Telegram authentication:', { id: telegramData.id, username: telegramData.username })
 
       const response = await fetch('/api/auth/telegram', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(telegramData)
+        body: JSON.stringify({
+          ...telegramData,
+          redirectTo: redirectTo || '/'
+        })
       })
 
       console.log('📡 API response status:', response.status)
@@ -396,28 +399,28 @@ export function useAuth() {
       const result = await response.json()
       console.log('✅ API success response:', result)
 
-      // If we got an auth URL, redirect to it for session creation
+      // Always redirect to auth URL for proper session creation (like Google OAuth)
       if (result.authUrl) {
-        console.log('🔗 Redirecting to auth URL:', result.authUrl)
+        console.log('🔗 Redirecting to magic link for session creation')
         // Check for browser environment before redirecting
         if (typeof window !== 'undefined') {
-          window.location.href = result.authUrl
+          // Validate the URL is from Supabase before redirecting
+          try {
+            const url = new URL(result.authUrl)
+            if (url.hostname.includes('supabase.co') || url.hostname.includes('supabase.com')) {
+              window.location.href = result.authUrl
+            } else {
+              throw new Error('Invalid authentication URL domain')
+            }
+          } catch (urlError) {
+            console.error('❌ Invalid auth URL:', urlError)
+            throw new Error('Invalid authentication URL')
+          }
         }
         return result
-      }
-
-      // If no auth URL, try to refresh the session
-      console.log('🔄 No auth URL, checking current session...')
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        console.log('✅ Found existing session, updating user state')
-        setUser(session.user)
-        await loadUserProfile(session.user.id)
       } else {
-        console.log('⚠️ No session found after authentication')
+        throw new Error('No authentication URL received from server')
       }
-
-      return result
     } catch (error) {
       console.error('❌ Telegram authentication error:', error)
       throw error

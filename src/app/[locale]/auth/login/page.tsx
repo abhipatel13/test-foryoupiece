@@ -95,12 +95,8 @@ function LoginPageContent() {
     }
   }
 
-  const handleTelegramAuth = async (user: any) => {
-    // The TelegramLogin component handles the authentication internally
-    // This callback is called after successful authentication
-    // Just redirect to the intended destination
-    router.push(redirectTo)
-  }
+  // No need for handleTelegramAuth callback - the TelegramLogin component
+  // handles everything internally and redirects via magic link
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
@@ -264,9 +260,9 @@ function LoginPageContent() {
               <div className="w-full">
                 <TelegramLogin
                   botName={process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_USERNAME || 'Authenticationfypbot'}
-                  onAuth={handleTelegramAuth}
                   className="w-full"
                   buttonSize="large"
+                  redirectTo={redirectTo}
                 />
               </div>
             </div>

@@ -14,6 +14,7 @@ interface TelegramLoginProps {
   requestAccess?: boolean
   usePic?: boolean
   lang?: string
+  redirectTo?: string
 }
 
 declare global {
@@ -32,7 +33,8 @@ export function TelegramLogin({
   cornerRadius = 10,
   requestAccess = true,
   usePic = true,
-  lang = 'en'
+  lang = 'en',
+  redirectTo
 }: TelegramLoginProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { signInWithTelegram } = useAuth()
@@ -56,18 +58,12 @@ export function TelegramLogin({
 
         console.log('🔄 Starting Telegram authentication for user:', user.id)
 
-        // Call the auth function
-        const result = await signInWithTelegram(user)
+        // Call the auth function - this will redirect to magic link
+        await signInWithTelegram(user, redirectTo)
 
-        console.log('✅ Telegram authentication result:', result)
+        // Note: Code after this point won't execute due to redirect
+        // The magic link will handle session creation and redirect back to the app
 
-        // Call custom onAuth callback if provided
-        if (onAuth) {
-          onAuth(user)
-        }
-
-        // Don't show success toast here - let the auth flow handle it
-        // The signInWithTelegram function will handle redirects
       } catch (error: any) {
         console.error('❌ Telegram authentication error:', error)
         toast.error(error.message || 'Failed to sign in with Telegram')
@@ -102,7 +98,7 @@ export function TelegramLogin({
         script.parentNode.removeChild(script)
       }
     }
-  }, [botName, buttonSize, cornerRadius, requestAccess, usePic, lang, signInWithTelegram, onAuth])
+  }, [botName, buttonSize, cornerRadius, requestAccess, usePic, lang, signInWithTelegram, onAuth, redirectTo])
 
   if (!botName) {
     return (
