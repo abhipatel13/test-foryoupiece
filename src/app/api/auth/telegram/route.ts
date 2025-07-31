@@ -1,41 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
 interface TelegramAuthData {
-  id: string
-  first_name?: string
+  id: number
+  first_name: string
   last_name?: string
   username?: string
   photo_url?: string
-  auth_date: string
+  auth_date: number
   hash: string
 }
 
-function verifyTelegramAuth(data: TelegramAuthData, botToken: string): boolean {
-  const { hash, ...authData } = data
-  
-  // Create data-check-string
-  const dataCheckString = Object.keys(authData)
+function verifyTelegramAuth(data: TelegramAuthData): boolean {
+  const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN!
+  const { hash, ...dataToCheck } = data
+
+  const dataCheckArr = Object.entries(dataToCheck)
+    .map(([key, value]) => `${key}=${value}`)
     .sort()
-    .map(key => `${key}=${authData[key as keyof typeof authData]}`)
     .join('\n')
-  
-  // Create secret key
+
   const secretKey = crypto.createHash('sha256').update(botToken).digest()
-  
-  // Create hash
-  const calculatedHash = crypto
-    .createHmac('sha256', secretKey)
-    .update(dataCheckString)
-    .digest('hex')
-  
-  return calculatedHash === hash
+  const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckArr).digest('hex')
+
+  return hmac === hash
 }
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 export async function POST(request: NextRequest) {
   try {
-    const telegramData: TelegramAuthData = await request.json()
+    const body = await request.json()
+    const telegramData = body.user as TelegramAuthData
+    const redirectTo = body.redirectTo || '/'
 
     console.log('🔄 Telegram auth request received:', {
       id: telegramData.id,
@@ -43,83 +50,43 @@ export async function POST(request: NextRequest) {
       first_name: telegramData.first_name
     })
 
-    // Verify required fields
-    if (!telegramData.id || !telegramData.first_name) {
-      return NextResponse.json(
-        { error: 'Missing required Telegram data' },
-        { status: 400 }
-      )
+    // Verify Telegram authentication
+    if (!verifyTelegramAuth(telegramData)) {
+      return NextResponse.json({ error: 'Invalid authentication data' }, { status: 401 })
     }
 
-    // Verify Telegram authentication - use the auth bot token
-    const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN
-    if (!botToken) {
-      return NextResponse.json(
-        { error: 'Telegram authentication bot token not configured' },
-        { status: 500 }
-      )
+    // Check if auth date is not too old (5 minutes)
+    const currentTime = Math.floor(Date.now() / 1000)
+    if (currentTime - telegramData.auth_date > 300) {
+      return NextResponse.json({ error: 'Authentication data is too old' }, { status: 401 })
     }
 
-    if (!verifyTelegramAuth(telegramData, botToken)) {
-      return NextResponse.json(
-        { error: 'Invalid Telegram authentication' },
-        { status: 401 }
-      )
+    const email = `telegram_${telegramData.id}@foryoupiece.temp`
+
+    // First, check if user exists in auth.users
+    const { data: authUsers, error: authSearchError } = await supabaseAdmin.auth.admin.listUsers()
+
+    if (authSearchError) {
+      console.error('Error searching auth users:', authSearchError)
+      return NextResponse.json({ error: 'Failed to search users' }, { status: 500 })
     }
 
-    // Check if auth data is not too old (5 minutes)
-    const authDate = parseInt(telegramData.auth_date)
-    const now = Math.floor(Date.now() / 1000)
-    if (now - authDate > 300) {
-      return NextResponse.json(
-        { error: 'Authentication data is too old' },
-        { status: 401 }
-      )
-    }
+    const existingAuthUser = authUsers.users.find(u => u.email === email)
 
-    // Use service role client for admin operations
-    const supabase = createServiceRoleClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Service client not available' },
-        { status: 500 }
-      )
-    }
+    let authUserId: string
 
-    const telegramEmail = `telegram_${telegramData.id}@foryoupiece.temp`
+    if (existingAuthUser) {
+      // User exists, update their metadata
+      authUserId = existingAuthUser.id
 
-    // First check if user profile exists in our database (by telegram_id)
-    const { data: existingProfile, error: profileLookupError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('telegram_id', parseInt(telegramData.id))
-      .single()
-
-    let authUser
-
-    if (existingProfile && existingProfile.id) {
-      // User exists, get their auth user
-      console.log('🔄 Found existing user profile, getting auth user')
-      const { data: existingAuthUser, error: authUserError } = await supabase.auth.admin.getUserById(existingProfile.id)
-
-      if (authUserError || !existingAuthUser.user) {
-        console.error('❌ Error getting existing auth user:', authUserError)
-        return NextResponse.json(
-          { error: 'Failed to retrieve user account' },
-          { status: 500 }
-        )
-      }
-
-      // Update auth user metadata
-      const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(
-        existingAuthUser.user.id,
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        authUserId,
         {
           user_metadata: {
-            ...existingAuthUser.user.user_metadata,
             telegram_id: telegramData.id,
+            username: telegramData.username,
             first_name: telegramData.first_name,
             last_name: telegramData.last_name,
-            username: telegramData.username,
             avatar_url: telegramData.photo_url,
             provider: 'telegram'
           }
@@ -127,167 +94,121 @@ export async function POST(request: NextRequest) {
       )
 
       if (updateError) {
-        console.error('❌ Error updating auth user metadata:', updateError)
+        console.error('Error updating auth user:', updateError)
+        return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
       }
-
-      authUser = updateData?.user || existingAuthUser.user
     } else {
-      // Create new Supabase auth user
-      console.log('🆕 Creating new Telegram auth user')
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: telegramEmail,
+      // Create new auth user
+      const { data: newAuthUser, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
+        email,
         email_confirm: true,
         user_metadata: {
           telegram_id: telegramData.id,
+          username: telegramData.username,
           first_name: telegramData.first_name,
           last_name: telegramData.last_name,
-          username: telegramData.username,
           avatar_url: telegramData.photo_url,
           provider: 'telegram'
         }
       })
 
-      if (authError || !authData.user) {
-        console.error('❌ Error creating auth user:', authError)
-        return NextResponse.json(
-          { error: 'Failed to create user account' },
-          { status: 500 }
-        )
+      if (createAuthError || !newAuthUser.user) {
+        console.error('Error creating auth user:', createAuthError)
+        return NextResponse.json({ error: 'Failed to create auth user' }, { status: 500 })
       }
 
-      authUser = authData.user
+      authUserId = newAuthUser.user.id
     }
 
-    // Now handle user profile in the database
-    console.log('🔄 Handling user profile in database')
+    // Check if user profile exists
+    const { data: existingProfile, error: profileError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', authUserId)
+      .single()
 
-    let userProfile
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('Error checking user profile:', profileError)
+      return NextResponse.json({ error: 'Failed to check user profile' }, { status: 500 })
+    }
 
-    if (existingProfile) {
-      // Update existing profile
-      console.log('🔄 Updating existing user profile')
-      const { data: updatedProfile, error: updateError } = await supabase
-        .from('users')
-        .update({
-          telegram_username: telegramData.username,
-          first_name: telegramData.first_name,
-          last_name: telegramData.last_name,
-          avatar_url: telegramData.photo_url,
-          updated_at: new Date().toISOString()
-        })
-        .eq('telegram_id', parseInt(telegramData.id))
-        .select()
-        .single()
-
-      if (updateError) {
-        console.error('❌ Error updating user profile:', updateError)
-        return NextResponse.json(
-          { error: 'Failed to update user profile' },
-          { status: 500 }
-        )
-      }
-
-      userProfile = updatedProfile
-    } else {
-      // Create new user profile with welcome bonus
-      console.log('🆕 Creating new user profile with welcome bonus')
-      const { data: newProfile, error: createError } = await supabase
+    // If no profile exists, create one
+    if (!existingProfile) {
+      // Create user profile with correct schema
+      const { error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
-          id: authUser.id, // The user ID is the auth user ID
-          telegram_id: parseInt(telegramData.id),
+          id: authUserId,
+          telegram_id: telegramData.id,
           telegram_username: telegramData.username,
+          email,
           first_name: telegramData.first_name,
           last_name: telegramData.last_name,
           avatar_url: telegramData.photo_url,
-          points_balance: 1000, // Welcome bonus
-          tier_level: 'bronze'
+          tier_level: 'bronze',
+          points_balance: 1000
         })
-        .select()
-        .single()
 
-      if (createError) {
-        console.error('❌ Error creating user profile:', createError)
-        return NextResponse.json(
-          { error: 'Failed to create user profile' },
-          { status: 500 }
-        )
+      if (insertError) {
+        console.error('Error creating user profile:', insertError)
+        return NextResponse.json({ error: 'Failed to create user profile' }, { status: 500 })
       }
 
-      // Add welcome bonus points transaction
-      await supabase
+      // Create welcome bonus transaction for new users
+      const { error: transactionError } = await supabaseAdmin
         .from('point_transactions')
         .insert({
-          user_id: newProfile.id,
+          user_id: authUserId,
           points: 1000,
-          type: 'earned',
-          description: 'Welcome bonus for new Telegram user',
-          created_at: new Date().toISOString()
+          transaction_type: 'bonus',
+          reference_type: 'signup',
+          description: 'Welcome bonus for new Telegram user'
         })
 
-      userProfile = newProfile
+      if (transactionError) {
+        console.error('Error creating welcome bonus transaction:', transactionError)
+      }
     }
 
-    // Create a session using password-based authentication
-    console.log('🔑 Creating session for user:', authUser.id)
+    console.log('🔑 Generating magic link for email:', email)
 
-    // Generate a secure random password for this session
-    const sessionPassword = crypto.randomBytes(32).toString('hex')
-
-    // Update the user's password temporarily for session creation
-    const { error: passwordUpdateError } = await supabase.auth.admin.updateUserById(authUser.id, {
-      password: sessionPassword
+    // Generate magic link
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: email,
     })
 
-    if (passwordUpdateError) {
-      console.error('❌ Error updating user password:', passwordUpdateError)
-      return NextResponse.json(
-        { error: 'Failed to prepare user session' },
-        { status: 500 }
-      )
+    if (linkError || !linkData?.properties?.hashed_token) {
+      console.error('❌ Error generating magic link:', linkError)
+      return NextResponse.json({ error: 'Failed to generate session' }, { status: 500 })
     }
 
-    // Use the service role client to sign in with password
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: telegramEmail,
-      password: sessionPassword
+    console.log('✅ Magic link generated successfully, verifying OTP...')
+
+    // Immediately verify the magic link to get a session
+    const { data: otpData, error: otpError } = await supabaseAdmin.auth.verifyOtp({
+      token_hash: linkData.properties.hashed_token,
+      type: 'magiclink',
     })
 
-    if (signInError || !signInData.session) {
-      console.error('❌ Error creating session:', signInError)
-      return NextResponse.json(
-        { error: 'Failed to create user session' },
-        { status: 500 }
-      )
+    if (otpError || !otpData?.session) {
+      console.error('❌ Error verifying OTP:', otpError)
+      return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
     }
 
-    console.log('✅ Telegram authentication successful for user:', authUser.id)
+    console.log('✅ Session created successfully for user:', otpData.user?.id)
+    console.log('🔄 Returning session tokens to client')
 
-    // Return session data directly to client
+    // Return the session tokens
     return NextResponse.json({
-      success: true,
-      session: {
-        access_token: signInData.session.access_token,
-        refresh_token: signInData.session.refresh_token,
-        expires_in: signInData.session.expires_in,
-        token_type: 'bearer',
-        user: signInData.session.user
-      },
-      user: {
-        id: userProfile.id,
-        telegram_id: userProfile.telegram_id,
-        telegram_username: userProfile.telegram_username,
-        first_name: userProfile.first_name,
-        last_name: userProfile.last_name,
-        avatar_url: userProfile.avatar_url,
-        points_balance: userProfile.points_balance,
-        tier_level: userProfile.tier_level
-      },
-      redirectTo: telegramData.redirectTo || '/'
+      access_token: otpData.session.access_token,
+      refresh_token: otpData.session.refresh_token,
+      user: otpData.user,
+      redirectTo
     })
 
   } catch (error) {
-    console.error('❌ Telegram auth error:', error)
+    console.error('Telegram auth error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

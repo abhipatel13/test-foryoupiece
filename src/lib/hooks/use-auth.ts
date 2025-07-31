@@ -73,15 +73,24 @@ export function useAuth() {
 
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const newProfile = await userQueries.createProfile({
-          id: user.id,
-          email: user.email || null,
-          first_name: user.user_metadata?.first_name || null,
-          last_name: user.user_metadata?.last_name || null,
-          phone: user.user_metadata?.phone || null,
-          points_balance: 1000, // Welcome bonus - 1000 points
-          tier_level: 'bronze'
-        })
+        // Create profile using direct Supabase insert to match schema
+        const { data: newProfile, error: createError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: user.email || null,
+            first_name: user.user_metadata?.first_name || null,
+            last_name: user.user_metadata?.last_name || null,
+            phone: user.user_metadata?.phone || null,
+            points_balance: 1000, // Welcome bonus - 1000 points
+            tier_level: 'bronze'
+          })
+          .select()
+          .single()
+
+        if (createError) {
+          throw createError
+        }
 
         // Add welcome bonus points transaction
         try {
@@ -344,15 +353,22 @@ export function useAuth() {
     // Create user profile if signup was successful
     if (data.user) {
       try {
-        await userQueries.createProfile({
-          id: data.user.id,
-          email: email,
-          first_name: userData?.first_name || null,
-          last_name: userData?.last_name || null,
-          phone: userData?.phone || null,
-          points_balance: 1000, // Welcome bonus
-          tier_level: 'bronze'
-        })
+        // Create profile using direct Supabase insert to match schema
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: data.user.id,
+            email: email,
+            first_name: userData?.first_name || null,
+            last_name: userData?.last_name || null,
+            phone: userData?.phone || null,
+            points_balance: 1000, // Welcome bonus
+            tier_level: 'bronze'
+          })
+
+        if (profileError) {
+          throw profileError
+        }
         
         // Add welcome bonus points transaction
         await supabase
@@ -380,12 +396,9 @@ export function useAuth() {
       const response = await fetch('/api/auth/telegram', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...telegramData,
-          redirectTo: redirectTo || '/'
-        })
+        body: JSON.stringify({ user: telegramData, redirectTo }),
       })
 
       console.log('📡 API response status:', response.status)
@@ -397,40 +410,46 @@ export function useAuth() {
       }
 
       const result = await response.json()
-      console.log('✅ API success response:', result)
+      console.log('✅ API success response received')
+      console.log('🔍 Session tokens present:', {
+        hasAccessToken: !!result.access_token,
+        hasRefreshToken: !!result.refresh_token,
+        hasUser: !!result.user
+      })
 
-      // Handle direct session creation (no more magic links)
-      if (result.session) {
-        console.log('🔑 Setting session directly from API response')
-
-        // Set the session using Supabase client
-        const { data: sessionResult, error: sessionSetError } = await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token
-        })
-
-        if (sessionSetError) {
-          console.error('❌ Error setting session:', sessionSetError)
-          throw new Error('Failed to establish user session')
-        }
-
-        console.log('✅ Session established successfully:', sessionResult.session?.user?.id)
-
-        // Update user state
-        if (sessionResult.session?.user) {
-          setUser(sessionResult.session.user)
-          await loadUserProfile(sessionResult.session.user.id)
-        }
-
-        // Redirect to intended destination
-        if (typeof window !== 'undefined' && result.redirectTo) {
-          console.log('🔄 Redirecting to:', result.redirectTo)
-          window.location.href = result.redirectTo
-        }
-
-        return result
-      } else {
+      if (!result.access_token || !result.refresh_token) {
+        console.error('❌ Missing session tokens in response')
         throw new Error('No session data received from server')
+      }
+
+      console.log('🔑 Setting session with received tokens...')
+
+      // Set the session with the tokens from the server
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+      })
+
+      if (sessionError) {
+        console.error('❌ Session error:', sessionError)
+        throw new Error(`Failed to establish session: ${sessionError.message}`)
+      }
+
+      console.log('✅ Session established successfully')
+      console.log('👤 Session user:', sessionData.session?.user?.id)
+
+      // Update local auth state
+      if (sessionData.session?.user) {
+        setUser(sessionData.session.user)
+        console.log('🔄 Loading user profile...')
+        await loadUserProfile(sessionData.session.user.id)
+      }
+
+      console.log('🔄 Redirecting to:', redirectTo || '/')
+
+      // Redirect to the intended page
+      if (typeof window !== 'undefined') {
+        window.location.href = redirectTo || '/'
       }
     } catch (error) {
       console.error('❌ Telegram authentication error:', error)
