@@ -65,13 +65,13 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
 
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full mx-auto">
         {/* Social Login Buttons */}
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {/* Google Login Button */}
           <GoogleLogin
             onSuccess={onSuccess}
-            className="w-full"
+            className="w-full min-h-[44px]"
             size="lg"
           />
 
@@ -79,7 +79,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
           <TelegramLoginButton
             botName={process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || ''}
             onAuth={onSuccess}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+            className="w-full min-h-[44px] bg-blue-500 hover:bg-blue-600 text-white"
           />
         </div>
 
@@ -93,10 +93,10 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
         </div>
 
         {/* Email/Password Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {mode === 'signup' && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">{t('firstName')}</Label>
                   <Input
@@ -104,6 +104,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
                     type="text"
                     value={formData.firstName}
                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className="min-h-[44px]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -113,6 +114,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
                     type="text"
                     value={formData.lastName}
                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className="min-h-[44px]"
                   />
                 </div>
               </div>
@@ -124,6 +126,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="min-h-[44px]"
                 />
               </div>
             </>
@@ -137,6 +140,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="min-h-[44px]"
             />
           </div>
 
@@ -148,6 +152,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
               required
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="min-h-[44px]"
             />
           </div>
 
@@ -160,6 +165,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
                 required
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                className="min-h-[44px]"
               />
             </div>
           )}
@@ -167,7 +173,7 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full"
+            className="w-full min-h-[44px]"
             size="lg"
           >
             {loading ? 'Loading...' : (mode === 'login' ? t('login') : t('signup'))}

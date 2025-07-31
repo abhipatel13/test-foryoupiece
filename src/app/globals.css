@@ -1580,3 +1580,58 @@ input, textarea, select {
   max-width: 440px !important;
   width: 100% !important;
 }
+
+/* Dialog Content Improvements for Enterprise-Level UI */
+[data-slot="dialog-content"] {
+  @apply shadow-2xl border-border/20;
+}
+
+/* Ensure proper spacing and alignment for auth dialogs */
+[data-slot="dialog-content"] .space-y-6 > * + * {
+  margin-top: 1.5rem;
+}
+
+/* Better button hover states for enterprise feel */
+[data-slot="dialog-content"] button:hover {
+  @apply transition-all duration-200;
+}
+
+/* Improved form field spacing in dialogs */
+[data-slot="dialog-content"] .space-y-4 > * + * {
+  margin-top: 1rem;
+}
+
+/* Mobile-specific dialog optimizations */
+@media (max-width: 640px) {
+  /* Ensure dialog doesn't exceed viewport */
+  [data-radix-dialog-content] {
+    max-width: calc(100vw - 1rem) !important;
+    margin: 0.5rem !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Reduce padding on mobile for more content space */
+  [data-radix-dialog-content] {
+    padding: 1rem !important;
+  }
+
+  /* Ensure touch targets are minimum 44px */
+  .auth-form-container button,
+  .auth-form-container input {
+    min-height: 44px !important;
+  }
+
+  /* Better spacing for mobile forms */
+  .auth-form-container .space-y-6 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .auth-form-container .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .auth-form-container .space-y-3 > * + * {
+    margin-top: 0.5rem !important;
+  }
+}

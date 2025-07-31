@@ -259,7 +259,7 @@ export function Header() {
                       Quick Login
                     </Button>
                   </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="w-full max-w-[calc(100vw-1rem)] sm:max-w-[440px] mx-auto p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>
                       {authMode === 'login' ? 'Sign in to ForYouPiece' : 'Create Account'}
@@ -271,14 +271,16 @@ export function Header() {
                       }
                     </DialogDescription>
                   </DialogHeader>
-                  <AuthForm mode={authMode} onSuccess={handleAuthSuccess} />
-                  <div className="text-center text-sm text-gray-600">
+                  <div className="px-1">
+                    <AuthForm mode={authMode} onSuccess={handleAuthSuccess} />
+                  </div>
+                  <div className="text-center text-sm text-muted-foreground border-t pt-4">
                     {authMode === 'login' ? (
                       <span>
                         New to ForYouPiece?{' '}
                         <button
                           onClick={() => setAuthMode('signup')}
-                          className="text-blue-600 hover:underline"
+                          className="text-primary hover:underline font-medium transition-colors"
                         >
                           Create your account
                         </button>
@@ -288,7 +290,7 @@ export function Header() {
                         Already have an account?{' '}
                         <button
                           onClick={() => setAuthMode('login')}
-                          className="text-blue-600 hover:underline"
+                          className="text-primary hover:underline font-medium transition-colors"
                         >
                           Sign in
                         </button>
