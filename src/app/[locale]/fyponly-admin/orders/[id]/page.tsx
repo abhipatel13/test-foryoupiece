@@ -10,20 +10,21 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { 
-  ArrowLeft, 
-  Package, 
-  User, 
-  MapPin, 
-  CreditCard, 
-  Clock, 
-  CheckCircle, 
+import {
+  ArrowLeft,
+  Package,
+  User,
+  MapPin,
+  CreditCard,
+  Clock,
+  CheckCircle,
   XCircle,
   Truck,
   Eye,
   Download,
   Mail,
-  Phone
+  Phone,
+  MessageCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -44,27 +45,60 @@ interface OrderDetails {
   customer_email: string
   customer_name: string | null
   customer_phone: string | null
+  aba_bank_name: string | null
+  special_notes: string | null
   shipping_address: {
-    address_line_1: string
+    firstName?: string
+    lastName?: string
+    first_name?: string
+    last_name?: string
+    address1?: string
+    address2?: string
+    address_line_1?: string
     address_line_2?: string
-    city: string
-    postal_code: string
-    country: string
-  }
+    city?: string
+    postal_code?: string
+    country?: string
+  } | null
+  billing_address: {
+    firstName?: string
+    lastName?: string
+    first_name?: string
+    last_name?: string
+    address1?: string
+    address2?: string
+    address_line_1?: string
+    address_line_2?: string
+    city?: string
+    postal_code?: string
+    country?: string
+  } | null
   total_amount: number
   subtotal: number
   shipping_cost: number
   tax_amount: number
+  discount_amount: number
+  coupon_discount_amount: number
+  points_used: number
+  points_earned: number
   payment_status: string
   fulfillment_status: string
   payment_method: string
   created_at: string
   updated_at: string
   order_items: OrderItem[]
+  coupon_info: {
+    id: string
+    code: string
+    discount_type: string
+    discount_value: number
+  } | null
   user: {
     first_name: string | null
     last_name: string | null
     email: string
+    phone: string | null
+    telegram_username: string | null
   } | null
 }
 
@@ -271,6 +305,9 @@ export default function AdminOrderDetailsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-gray-900 truncate">{item.product_name}</h4>
+                      {item.variant_title && (
+                        <p className="text-sm text-gray-500">Variant: {item.variant_title}</p>
+                      )}
                       <p className="text-sm text-gray-500">SKU: {item.product_sku}</p>
                       <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                     </div>
@@ -292,46 +329,113 @@ export default function AdminOrderDetailsPage() {
                 Customer Information
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Contact Details</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-400" />
-                      <span>{order.user?.first_name && order.user?.last_name
-                        ? `${order.user.first_name} ${order.user.last_name}`
-                        : order.customer_name || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-gray-400" />
-                      <span>{order.customer_email}</span>
-                    </div>
-                    {order.customer_phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-gray-400" />
-                        <span>{order.customer_phone}</span>
-                      </div>
-                    )}
+            <CardContent className="space-y-6">
+              {/* Contact Details */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Contact Details</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <span className="font-medium">Name:</span>
+                    <span>{order.customer_name || 'Not provided'}</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                    <span className="font-medium">Email:</span>
+                    <span>{order.customer_email}</span>
+                  </div>
+                  {order.customer_phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-gray-400" />
+                      <span className="font-medium">Phone:</span>
+                      <span>{order.customer_phone}</span>
+                    </div>
+                  )}
+                  {order.aba_bank_name && (
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-gray-400" />
+                      <span className="font-medium">ABA Bank Name:</span>
+                      <span>{order.aba_bank_name}</span>
+                    </div>
+                  )}
+                  {order.user?.telegram_username && (
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4 text-gray-400" />
+                      <span className="font-medium">Telegram:</span>
+                      <span>@{order.user.telegram_username}</span>
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Shipping Address */}
+              {order.shipping_address && (
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Shipping Address</h4>
+                  <h4 className="font-medium text-gray-900 mb-3">Shipping Address</h4>
                   <div className="space-y-1 text-sm text-gray-600">
                     <div className="flex items-start gap-2">
                       <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p>{order.shipping_address.address_line_1}</p>
-                        {order.shipping_address.address_line_2 && (
-                          <p>{order.shipping_address.address_line_2}</p>
+                        {/* Handle different address field formats */}
+                        {(order.shipping_address.address1 || order.shipping_address.address_line_1) && (
+                          <p>{order.shipping_address.address1 || order.shipping_address.address_line_1}</p>
                         )}
-                        <p>{order.shipping_address.city}, {order.shipping_address.postal_code}</p>
-                        <p>{order.shipping_address.country}</p>
+                        {(order.shipping_address.address2 || order.shipping_address.address_line_2) && (
+                          <p>{order.shipping_address.address2 || order.shipping_address.address_line_2}</p>
+                        )}
+                        {order.shipping_address.city && (
+                          <p>
+                            {order.shipping_address.city}
+                            {order.shipping_address.postal_code && `, ${order.shipping_address.postal_code}`}
+                          </p>
+                        )}
+                        {order.shipping_address.country && (
+                          <p>{order.shipping_address.country}</p>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Billing Address */}
+              {order.billing_address && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Billing Address</h4>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <div>
+                        {(order.billing_address.address1 || order.billing_address.address_line_1) && (
+                          <p>{order.billing_address.address1 || order.billing_address.address_line_1}</p>
+                        )}
+                        {(order.billing_address.address2 || order.billing_address.address_line_2) && (
+                          <p>{order.billing_address.address2 || order.billing_address.address_line_2}</p>
+                        )}
+                        {order.billing_address.city && (
+                          <p>
+                            {order.billing_address.city}
+                            {order.billing_address.postal_code && `, ${order.billing_address.postal_code}`}
+                          </p>
+                        )}
+                        {order.billing_address.country && (
+                          <p>{order.billing_address.country}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Special Notes */}
+              {order.special_notes && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Special Notes</h4>
+                  <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                    <p>{order.special_notes}</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -361,11 +465,44 @@ export default function AdminOrderDetailsPage() {
                   <span>{formatPrice(order.tax_amount)}</span>
                 </div>
               )}
+
+              {/* Discount Information */}
+              {order.discount_amount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>💸 Discount</span>
+                  <span>-{formatPrice(order.discount_amount)}</span>
+                </div>
+              )}
+
+              {/* Coupon Information */}
+              {order.coupon_discount_amount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>🎫 Coupon {order.coupon_info?.code ? `(${order.coupon_info.code})` : ''}</span>
+                  <span>-{formatPrice(order.coupon_discount_amount)}</span>
+                </div>
+              )}
+
+              {/* Points Used */}
+              {order.points_used > 0 && (
+                <div className="flex justify-between text-sm text-blue-600">
+                  <span>⭐ Points Used ({order.points_used} pts)</span>
+                  <span>-{formatPrice(order.points_used / 1000)}</span>
+                </div>
+              )}
+
               <Separator />
               <div className="flex justify-between font-medium">
                 <span>Total</span>
                 <span>{formatPrice(order.total_amount)}</span>
               </div>
+
+              {/* Points Earned */}
+              {order.points_earned > 0 && (
+                <div className="flex justify-between text-sm text-blue-600 pt-2 border-t">
+                  <span>⭐ Points Earned</span>
+                  <span>{order.points_earned} pts</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -382,6 +519,12 @@ export default function AdminOrderDetailsPage() {
                 <p className="text-sm font-medium text-gray-600">Payment Method</p>
                 <p className="text-sm">{order.payment_method || 'QR Code Payment'}</p>
               </div>
+              {order.aba_bank_name && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600">ABA Bank Name</p>
+                  <p className="text-sm">{order.aba_bank_name}</p>
+                </div>
+              )}
               <div>
                 <p className="text-sm font-medium text-gray-600">Payment Status</p>
                 <Badge className={getStatusColor(order.payment_status)}>

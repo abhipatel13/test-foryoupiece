@@ -35,7 +35,7 @@ export const GET = withAdminAuth(async (
 
     console.log('🔧 Service role client created successfully');
 
-    // Fetch order with all related data
+    // Fetch order with all related data including product images
     const { data: order, error } = await supabase
       .from('orders')
       .select(`
@@ -57,6 +57,12 @@ export const GET = withAdminAuth(async (
           quantity,
           price,
           total
+        ),
+        coupons(
+          id,
+          code,
+          discount_type,
+          discount_value
         )
       `)
       .eq('id', orderId)
@@ -87,30 +93,73 @@ export const GET = withAdminAuth(async (
 
     console.log('✅ Order details fetched successfully:', order.order_number);
 
+    // Extract ABA Bank Name from notes (similar to Telegram notification logic)
+    const notes = order.notes || '';
+    const abaBankNameMatch = notes.match(/ABA Bank Name:\s*([^.]+)\.?/i);
+    const abaBankName = abaBankNameMatch ? abaBankNameMatch[1].trim() : null;
+
+    // Extract special notes (everything except ABA bank name)
+    const specialNotes = notes.replace(/ABA Bank Name:\s*[^.]+\.?\s*/i, '').trim();
+
+    // Parse shipping address from JSON field
+    const shippingAddress = order.shipping_address ?
+      (typeof order.shipping_address === 'string' ?
+        JSON.parse(order.shipping_address) :
+        order.shipping_address) : null;
+
+    // Parse billing address from JSON field
+    const billingAddress = order.billing_address ?
+      (typeof order.billing_address === 'string' ?
+        JSON.parse(order.billing_address) :
+        order.billing_address) : null;
+
+    // Check for ABA bank name in shipping address (newer format)
+    let finalAbaBankName = abaBankName;
+    if (!finalAbaBankName && shippingAddress?.abaBankName) {
+      finalAbaBankName = shippingAddress.abaBankName;
+    }
+    if (!finalAbaBankName && shippingAddress?.aba_bank_name) {
+      finalAbaBankName = shippingAddress.aba_bank_name;
+    }
+
+    // Get customer name from shipping address first, then fall back to user profile
+    let customerName = '';
+    if (shippingAddress?.firstName && shippingAddress?.lastName) {
+      customerName = `${shippingAddress.firstName} ${shippingAddress.lastName}`.trim();
+    } else if (shippingAddress?.first_name && shippingAddress?.last_name) {
+      customerName = `${shippingAddress.first_name} ${shippingAddress.last_name}`.trim();
+    } else if (order.users?.first_name || order.users?.last_name) {
+      customerName = `${order.users.first_name || ''} ${order.users.last_name || ''}`.trim();
+    }
+
     // Transform the data to match the expected format
     const transformedOrder = {
       ...order,
-      customer_name: order.users?.first_name && order.users?.last_name
-        ? `${order.users.first_name} ${order.users.last_name}`
-        : null,
-      customer_phone: order.users?.phone || null,
+      customer_name: customerName || null,
+      customer_phone: order.phone || order.users?.phone || null,
+      aba_bank_name: finalAbaBankName,
+      special_notes: specialNotes,
+      shipping_address: shippingAddress,
+      billing_address: billingAddress,
       user: order.users,
+      coupon_info: order.coupons,
       // Transform order items to match expected format
       order_items: order.order_items?.map((item: any) => ({
         id: item.id,
         product_id: item.product_id,
         product_name: item.title,
         product_sku: item.sku,
-        product_image_url: null, // We'll need to fetch this from products table if needed
+        product_image_url: null, // We'll fetch this separately if needed
         quantity: item.quantity,
         unit_price: parseFloat(item.price),
-        total_price: parseFloat(item.total)
+        total_price: parseFloat(item.total),
+        variant_title: item.variant_title
       })) || [],
       // Calculate subtotal from order items
       subtotal: order.order_items?.reduce((sum: number, item: any) => sum + parseFloat(item.total), 0) || 0,
-      // Shipping cost calculation (assuming $1.50 base shipping)
+      // Shipping cost calculation
       shipping_cost: order.shipping_cost || 1.50,
-      // Tax amount (assuming no tax for now)
+      // Tax amount
       tax_amount: order.tax_amount || 0
     };
 
