@@ -58,11 +58,11 @@ export function TelegramLogin({
 
         console.log('🔄 Starting Telegram authentication for user:', user.id)
 
-        // Call the auth function - this will redirect to magic link
+        // Call the auth function - this will create session directly
         await signInWithTelegram(user, redirectTo)
 
-        // Note: Code after this point won't execute due to redirect
-        // The magic link will handle session creation and redirect back to the app
+        // Session is now established and user will be redirected
+        console.log('✅ Telegram authentication completed successfully')
 
       } catch (error: any) {
         console.error('❌ Telegram authentication error:', error)

@@ -17,17 +17,18 @@ export const metadata: Metadata = {
   title: "Foryoupiece - Premium E-commerce",
   description: "Discover premium Japanese products delivered directly from Japan to Cambodia. Experience authentic quality with our modern e-commerce platform featuring loyalty points and seamless shopping experience.",
   keywords: "premium Japanese products, Japan to Cambodia shipping, authentic Japanese goods, e-commerce, online shopping, quality products",
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   icons: {
     icon: '/favicon.jpg',
     shortcut: '/favicon.jpg',
     apple: '/favicon.jpg',
   },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 // Root layout for direct root access
@@ -39,7 +40,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Script

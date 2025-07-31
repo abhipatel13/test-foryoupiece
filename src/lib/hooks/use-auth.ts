@@ -399,27 +399,38 @@ export function useAuth() {
       const result = await response.json()
       console.log('✅ API success response:', result)
 
-      // Always redirect to auth URL for proper session creation (like Google OAuth)
-      if (result.authUrl) {
-        console.log('🔗 Redirecting to magic link for session creation')
-        // Check for browser environment before redirecting
-        if (typeof window !== 'undefined') {
-          // Validate the URL is from Supabase before redirecting
-          try {
-            const url = new URL(result.authUrl)
-            if (url.hostname.includes('supabase.co') || url.hostname.includes('supabase.com')) {
-              window.location.href = result.authUrl
-            } else {
-              throw new Error('Invalid authentication URL domain')
-            }
-          } catch (urlError) {
-            console.error('❌ Invalid auth URL:', urlError)
-            throw new Error('Invalid authentication URL')
-          }
+      // Handle direct session creation (no more magic links)
+      if (result.session) {
+        console.log('🔑 Setting session directly from API response')
+
+        // Set the session using Supabase client
+        const { data: sessionResult, error: sessionSetError } = await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token
+        })
+
+        if (sessionSetError) {
+          console.error('❌ Error setting session:', sessionSetError)
+          throw new Error('Failed to establish user session')
         }
+
+        console.log('✅ Session established successfully:', sessionResult.session?.user?.id)
+
+        // Update user state
+        if (sessionResult.session?.user) {
+          setUser(sessionResult.session.user)
+          await loadUserProfile(sessionResult.session.user.id)
+        }
+
+        // Redirect to intended destination
+        if (typeof window !== 'undefined' && result.redirectTo) {
+          console.log('🔄 Redirecting to:', result.redirectTo)
+          window.location.href = result.redirectTo
+        }
+
         return result
       } else {
-        throw new Error('No authentication URL received from server')
+        throw new Error('No session data received from server')
       }
     } catch (error) {
       console.error('❌ Telegram authentication error:', error)

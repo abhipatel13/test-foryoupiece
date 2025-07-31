@@ -228,23 +228,33 @@ export async function POST(request: NextRequest) {
       userProfile = newProfile
     }
 
-    // Create a session for the user using admin API
+    // Create a session using password-based authentication
     console.log('🔑 Creating session for user:', authUser.id)
 
-    // Get the base URL for redirects
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    const redirectDestination = telegramData.redirectTo || '/'
+    // Generate a secure random password for this session
+    const sessionPassword = crypto.randomBytes(32).toString('hex')
 
-    const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: telegramEmail,
-      options: {
-        redirectTo: `${baseUrl}/en/auth/callback?redirectTo=${encodeURIComponent(redirectDestination)}`
-      }
+    // Update the user's password temporarily for session creation
+    const { error: passwordUpdateError } = await supabase.auth.admin.updateUserById(authUser.id, {
+      password: sessionPassword
     })
 
-    if (sessionError) {
-      console.error('❌ Error creating session:', sessionError)
+    if (passwordUpdateError) {
+      console.error('❌ Error updating user password:', passwordUpdateError)
+      return NextResponse.json(
+        { error: 'Failed to prepare user session' },
+        { status: 500 }
+      )
+    }
+
+    // Use the service role client to sign in with password
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: telegramEmail,
+      password: sessionPassword
+    })
+
+    if (signInError || !signInData.session) {
+      console.error('❌ Error creating session:', signInError)
       return NextResponse.json(
         { error: 'Failed to create user session' },
         { status: 500 }
@@ -253,9 +263,16 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Telegram authentication successful for user:', authUser.id)
 
+    // Return session data directly to client
     return NextResponse.json({
       success: true,
-      authUrl: sessionData.action_link,
+      session: {
+        access_token: signInData.session.access_token,
+        refresh_token: signInData.session.refresh_token,
+        expires_in: signInData.session.expires_in,
+        token_type: 'bearer',
+        user: signInData.session.user
+      },
       user: {
         id: userProfile.id,
         telegram_id: userProfile.telegram_id,
@@ -265,7 +282,8 @@ export async function POST(request: NextRequest) {
         avatar_url: userProfile.avatar_url,
         points_balance: userProfile.points_balance,
         tier_level: userProfile.tier_level
-      }
+      },
+      redirectTo: telegramData.redirectTo || '/'
     })
 
   } catch (error) {
