@@ -3,14 +3,23 @@ import type { NextConfig } from "next";
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
-// Global polyfill for 'self' in Node.js environment
+// Import and apply Node.js polyfills immediately
+require('./scripts/node-polyfills.js');
+require('./scripts/aggressive-polyfill.js');
+
+// Import custom webpack plugin
+const WebpackPolyfillPlugin = require('./scripts/webpack-polyfill-plugin.js');
+
+// Emergency global polyfill for 'self' in Node.js environment
 if (typeof globalThis !== 'undefined' && typeof globalThis.self === 'undefined') {
   globalThis.self = globalThis;
+  console.log('🔧 Emergency polyfill: globalThis.self applied in next.config.ts');
 }
 
 // Ensure 'self' is defined in global scope for server-side rendering
 if (typeof global !== 'undefined' && typeof (global as any).self === 'undefined') {
   (global as any).self = global;
+  console.log('🔧 Emergency polyfill: global.self applied in next.config.ts');
 }
 
 const nextConfig: NextConfig = {
@@ -169,6 +178,8 @@ const nextConfig: NextConfig = {
       if (Array.isArray(config.externals)) {
         config.externals.push({
           'sonner': 'commonjs sonner',
+          'lucide-react': 'commonjs lucide-react',
+          '@tanstack/react-query-devtools': 'commonjs @tanstack/react-query-devtools',
         });
       }
 
@@ -191,6 +202,28 @@ const nextConfig: NextConfig = {
       config.plugins.push(
         new webpack.ProvidePlugin({
           self: 'global',
+        })
+      );
+
+      // Add custom polyfill plugin
+      config.plugins.push(new WebpackPolyfillPlugin());
+
+      // Add banner plugin to inject polyfills at the start of every bundle
+      config.plugins.push(
+        new webpack.BannerPlugin({
+          banner: `
+// Next.js Build Polyfill - Emergency 'self' definition
+if (typeof self === 'undefined') {
+  if (typeof global !== 'undefined') {
+    self = global;
+  } else if (typeof globalThis !== 'undefined') {
+    self = globalThis;
+  } else {
+    self = {};
+  }
+}`,
+          raw: true,
+          entryOnly: false,
         })
       );
 
