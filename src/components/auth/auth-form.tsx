@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 
 import { GoogleLogin } from '@/components/auth/google-login'
-import { FacebookLogin } from '@/components/auth/facebook-login'
+import { TelegramLogin } from '@/components/auth/telegram-login'
 import { toast } from 'sonner'
 
 interface AuthFormProps {
@@ -76,8 +76,8 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
             size="lg"
           />
 
-          {/* Facebook Login Button */}
-          <FacebookLogin
+          {/* Telegram Login Button */}
+          <TelegramLogin
             onSuccess={onSuccess}
             className="w-full min-h-[44px]"
             size="lg"
