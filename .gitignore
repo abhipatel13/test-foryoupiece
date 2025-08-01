@@ -43,3 +43,6 @@ next-env.d.ts
 
 #Ignore vscode AI rules
 .github\copilot-instructions.md
+
+# Sentry Config File
+.env.sentry-build-plugin
