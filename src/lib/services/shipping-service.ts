@@ -15,7 +15,28 @@ export interface ShippingOptions {
 }
 
 export class ShippingService {
-  private serviceClient = createServiceRoleClient()
+  private serviceClient: any = null
+
+  private getServiceClient() {
+    if (!this.serviceClient) {
+      // Only create service client on server side
+      if (typeof window === 'undefined') {
+        try {
+          this.serviceClient = createServiceRoleClient()
+          if (!this.serviceClient) {
+            console.error('Failed to create service role client in ShippingService')
+          }
+        } catch (error) {
+          console.error('Error initializing ShippingService:', error)
+          this.serviceClient = null
+        }
+      } else {
+        console.warn('ShippingService should only be used on server side')
+        return null
+      }
+    }
+    return this.serviceClient
+  }
 
   /**
    * Calculate shipping fee with tier-based free shipping support

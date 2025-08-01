@@ -13,8 +13,13 @@ export function useAuth() {
   const [profileLoading, setProfileLoading] = useState(false)
   const isClient = useIsClient()
 
-  // SSR-safe store access with fallback values
-  const userStoreData = isClient ? useUserStore() : {
+  // Always call hooks to prevent React Hook order violations
+  // Use fallback values during SSR, actual store values after hydration
+  const userStoreData = useUserStore()
+  const cartStoreData = useCartStore()
+
+  // Use fallback values during SSR to prevent hydration mismatches
+  const safeUserStoreData = isClient ? userStoreData : {
     user: null,
     profile: null,
     isHydrated: false,
@@ -25,13 +30,13 @@ export function useAuth() {
     clearUser: () => {}
   }
 
-  const cartStoreData = isClient ? useCartStore() : {
+  const safeCartStoreData = isClient ? cartStoreData : {
     setUserId: () => {},
     forceLoadCartForUser: () => {}
   }
 
-  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStoreData
-  const { setUserId, forceLoadCartForUser } = cartStoreData
+  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = safeUserStoreData
+  const { setUserId, forceLoadCartForUser } = safeCartStoreData
   const supabase = createClient()
 
   // Create stable references to store functions using useRef to prevent re-creation

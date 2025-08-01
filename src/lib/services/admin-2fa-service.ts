@@ -35,7 +35,28 @@ export interface SecurityLogEvent {
 }
 
 export class Admin2FAService {
-  private supabase = createServiceRoleClient()
+  private supabase: any = null
+
+  private getServiceClient() {
+    if (!this.supabase) {
+      // Only create service client on server side
+      if (typeof window === 'undefined') {
+        try {
+          this.supabase = createServiceRoleClient()
+          if (!this.supabase) {
+            console.error('Failed to create service role client in Admin2FAService')
+          }
+        } catch (error) {
+          console.error('Error initializing Admin2FAService:', error)
+          this.supabase = null
+        }
+      } else {
+        console.warn('Admin2FAService should only be used on server side')
+        return null
+      }
+    }
+    return this.supabase
+  }
 
   /**
    * Check if an IP address is trusted for a user

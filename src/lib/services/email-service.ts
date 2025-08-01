@@ -26,9 +26,30 @@ export interface AdminLoginAttemptData {
  */
 export class EmailService {
   private static instance: EmailService
-  private supabase = createServiceRoleClient()
+  private supabase: any = null
 
   private constructor() {}
+
+  private getServiceClient() {
+    if (!this.supabase) {
+      // Only create service client on server side
+      if (typeof window === 'undefined') {
+        try {
+          this.supabase = createServiceRoleClient()
+          if (!this.supabase) {
+            console.error('Failed to create service role client in EmailService')
+          }
+        } catch (error) {
+          console.error('Error initializing EmailService:', error)
+          this.supabase = null
+        }
+      } else {
+        console.warn('EmailService should only be used on server side')
+        return null
+      }
+    }
+    return this.supabase
+  }
 
   static getInstance(): EmailService {
     if (!EmailService.instance) {

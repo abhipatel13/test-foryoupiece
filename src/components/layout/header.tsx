@@ -4,10 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
-import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { useAuth } from '@/lib/hooks/use-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
-import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
-import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
+import { useCartStore } from '@/lib/store/cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { Button } from '@/components/ui/button'
@@ -52,79 +51,21 @@ import {
 } from 'lucide-react'
 
 export function Header() {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Don't render interactive elements until mounted to prevent hydration mismatch
-  if (!mounted) {
-    return (
-      <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center">
-              <Link href="/en" className="flex items-center space-x-2">
-                <Image
-                  src="/logo.jpg"
-                  alt="Foryoupiece"
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 rounded"
-                />
-                <span className="text-xl font-bold text-gray-900">Foryoupiece</span>
-              </Link>
-            </div>
-
-            {/* Desktop Navigation - Skeleton */}
-            <nav className="hidden md:flex items-center space-x-6">
-              <div className="h-4 w-20 bg-gray-200 animate-pulse rounded"></div>
-              <div className="h-4 w-16 bg-gray-200 animate-pulse rounded"></div>
-              <div className="h-4 w-24 bg-gray-200 animate-pulse rounded"></div>
-              <div className="h-4 w-20 bg-gray-200 animate-pulse rounded"></div>
-            </nav>
-
-            {/* Right side - Skeleton */}
-            <div className="flex items-center space-x-4">
-              <div className="hidden md:block">
-                <div className="h-10 w-64 bg-gray-200 animate-pulse rounded-md"></div>
-              </div>
-              <div className="h-8 w-8 bg-gray-200 animate-pulse rounded"></div>
-              <div className="h-8 w-8 bg-gray-200 animate-pulse rounded"></div>
-              <div className="h-8 w-8 bg-gray-200 animate-pulse rounded"></div>
-            </div>
-          </div>
-        </div>
-      </header>
-    )
-  }
-
-  return <HeaderContent />
-}
-
-function HeaderContent() {
   const t = useTranslations('navigation')
+  const { user, profile, signOut, isAuthenticated, loading } = useAuth()
+  const isHydrated = useHydration()
+  const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useCartStore()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  const [mounted, setMounted] = useState(false)
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  // Simple state management without SSR-safe stores for now
-  const [user, setUser] = useState(null)
-  const [cartItemCount, setCartItemCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [cartLoading, setCartLoading] = useState(false)
+  const cartItemCount = getItemCount()
+  const showCartCount = isHydrated && mounted && !cartLoading
 
   useEffect(() => {
     setMounted(true)
-    setLoading(false)
   }, [])
-
-  const isAuthenticated = !!user
-  const showCartCount = mounted
 
   const handleAuthSuccess = () => {
     setAuthDialogOpen(false)
@@ -132,15 +73,12 @@ function HeaderContent() {
 
   const handleSignOut = async () => {
     try {
-      // Simple logout for now
-      setUser(null)
-      setCartItemCount(0)
+      await signOut()
+      clearCartOnLogout()
     } catch (error) {
       console.error('Sign out error:', error)
     }
   }
-
-
 
   const handleScrollToCategories = () => {
     // Smooth scroll to categories section on the current page
@@ -216,7 +154,7 @@ function HeaderContent() {
             </div>
 
             {/* Account & Lists - Mobile Optimized */}
-            {!mounted || loading ? (
+            {!mounted ? (
               // Show loading state to prevent flash of unauthenticated content during hydration
               <div className="flex items-center text-foreground text-sm px-1 sm:px-2 lg:px-3 py-2 rounded-lg flex-shrink-0 min-w-0">
                 <div className="text-right mr-1 sm:mr-2 min-w-0">

@@ -34,18 +34,27 @@ export interface TierUpgradeResult {
 }
 
 export class TierRewardsService {
-  private serviceClient: any
+  private serviceClient: any = null
 
-  constructor() {
-    try {
-      this.serviceClient = createServiceRoleClient()
-      if (!this.serviceClient) {
-        console.error('Failed to create service role client in TierRewardsService')
+  private getServiceClient() {
+    if (!this.serviceClient) {
+      // Only create service client on server side
+      if (typeof window === 'undefined') {
+        try {
+          this.serviceClient = createServiceRoleClient()
+          if (!this.serviceClient) {
+            console.error('Failed to create service role client in TierRewardsService')
+          }
+        } catch (error) {
+          console.error('Error initializing TierRewardsService:', error)
+          this.serviceClient = null
+        }
+      } else {
+        console.warn('TierRewardsService should only be used on server side')
+        return null
       }
-    } catch (error) {
-      console.error('Error initializing TierRewardsService:', error)
-      this.serviceClient = null
     }
+    return this.serviceClient
   }
 
   // Define tier rewards configuration
@@ -129,12 +138,13 @@ export class TierRewardsService {
    */
   async checkAndAwardTierUpgrade(userId: string): Promise<TierUpgradeResult> {
     try {
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
       // Get user's current data
-      const { data: userData, error: userError } = await this.serviceClient
+      const { data: userData, error: userError } = await serviceClient
         .from('users')
         .select('id, tier_level, total_points_earned, points_balance')
         .eq('id', userId)
@@ -161,7 +171,7 @@ export class TierRewardsService {
       console.log(`🎉 Tier upgrade detected for user ${userId}: ${oldTier} → ${newTier}`)
 
       // Update user's tier
-      const { error: updateError } = await this.serviceClient
+      const { error: updateError } = await serviceClient
         .from('users')
         .update({ 
           tier_level: newTier,
@@ -227,8 +237,13 @@ export class TierRewardsService {
    */
   private async awardPointsBonus(userId: string, reward: TierReward): Promise<string> {
     try {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
+        throw new Error('Service client not available')
+      }
+
       // Create points transaction for bonus points
-      const { data: transaction, error: transactionError } = await this.serviceClient
+      const { data: transaction, error: transactionError } = await serviceClient
         .from('point_transactions')
         .insert({
           user_id: userId,
@@ -245,7 +260,7 @@ export class TierRewardsService {
       }
 
       // Update user's points balance (but NOT total_points_earned to avoid affecting tier calculations)
-      const { error: updateError } = await this.serviceClient
+      const { error: updateError } = await serviceClient
         .rpc('update_user_points', {
           p_user_id: userId,
           p_points: reward.reward_value

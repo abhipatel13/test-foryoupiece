@@ -17,7 +17,28 @@ import {
 } from '@/types/coupon'
 
 export class CouponService {
-  private serviceClient = createServiceRoleClient()
+  private serviceClient: any = null
+
+  private getServiceClient() {
+    if (!this.serviceClient) {
+      // Only create service client on server side
+      if (typeof window === 'undefined') {
+        try {
+          this.serviceClient = createServiceRoleClient()
+          if (!this.serviceClient) {
+            console.error('Failed to create service role client in CouponService')
+          }
+        } catch (error) {
+          console.error('Error initializing CouponService:', error)
+          this.serviceClient = null
+        }
+      } else {
+        console.warn('CouponService should only be used on server side')
+        return null
+      }
+    }
+    return this.serviceClient
+  }
 
   /**
    * Validate a coupon code for a specific user and order total
@@ -26,12 +47,13 @@ export class CouponService {
     try {
       console.log('🎫 Validating coupon:', { code, userId, orderTotal })
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
       // Use the database function for validation
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .rpc('validate_coupon_usage', {
           p_coupon_code: code.toUpperCase().trim(),
           p_user_id: userId,
@@ -82,12 +104,13 @@ export class CouponService {
     try {
       console.log('🎫 Applying coupon to order:', { code, userId, orderId, orderTotal })
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
       // Use the database function for application
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .rpc('apply_coupon_to_order', {
           p_coupon_code: code.toUpperCase().trim(),
           p_user_id: userId,

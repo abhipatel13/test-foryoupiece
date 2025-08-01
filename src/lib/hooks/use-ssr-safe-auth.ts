@@ -49,7 +49,7 @@ export function useSSRSafeAuth() {
     
     profileLoadPromise.current = (async () => {
       try {
-        const profileData = await userQueries.getUserProfile(userId)
+        const profileData = await userQueries.getProfile(userId)
         if (profileData) {
           setProfile(profileData)
         }
@@ -215,7 +215,7 @@ export function useSSRSafeAuth() {
     if (!isClient || !user) return
 
     try {
-      const updatedProfile = await userQueries.updateUserProfile(user.id, updates)
+      const updatedProfile = await userQueries.updateProfile(user.id, updates)
       if (updatedProfile) {
         setProfile(updatedProfile)
       }
