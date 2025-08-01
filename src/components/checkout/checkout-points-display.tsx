@@ -20,7 +20,7 @@ import {
   HelpCircle,
   Coins
 } from 'lucide-react'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { PointsService, CheckoutPointsInfo } from '@/lib/services/points-service'
 import { pointsToDollars, formatPrice } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -37,7 +37,7 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
     setPointsToRedeem,
     getPointsDiscount,
     clearPointsRedemption
-  } = useCartStore()
+  } = useSSRSafeCartStore()
 
   const [checkoutPointsInfo, setCheckoutPointsInfo] = useState<CheckoutPointsInfo | null>(null)
   const [loading, setLoading] = useState(true)

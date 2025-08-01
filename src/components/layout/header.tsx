@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { Button } from '@/components/ui/button'
@@ -54,7 +54,7 @@ export function Header() {
   const t = useTranslations('navigation')
   const { user, profile, signOut, isAuthenticated, loading } = useAuth()
   const isHydrated = useHydration()
-  const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useCartStore()
+  const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useSSRSafeCartStore()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [mounted, setMounted] = useState(false)

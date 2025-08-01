@@ -3,255 +3,123 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { useUserStore } from '@/lib/store/user-store'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from './use-ssr-safe-store'
 
+/**
+ * Main authentication hook - now SSR-safe
+ * This replaces the old useAuth with SSR-safe implementation
+ */
 export function useAuth() {
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
   const isClient = useIsClient()
 
-  // Always call hooks to prevent React Hook order violations
-  // Use fallback values during SSR, actual store values after hydration
-  const userStoreData = useUserStore()
-  const cartStoreData = useCartStore()
+  // Use SSR-safe store wrappers
+  const userStore = useSSRSafeUserStore()
+  const cartStore = useSSRSafeCartStore()
 
-  // Use fallback values during SSR to prevent hydration mismatches
-  const safeUserStoreData = isClient ? userStoreData : {
-    user: null,
-    profile: null,
-    isHydrated: false,
-    setUser: () => {},
-    setProfile: () => {},
-    setLoading: () => {},
-    setHydrated: () => {},
-    clearUser: () => {}
-  }
+  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
+  const { setUserId, forceLoadCartForUser } = cartStore
 
-  const safeCartStoreData = isClient ? cartStoreData : {
-    setUserId: () => {},
-    forceLoadCartForUser: () => {}
-  }
-
-  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = safeUserStoreData
-  const { setUserId, forceLoadCartForUser } = safeCartStoreData
   const supabase = createClient()
 
-  // Create stable references to store functions using useRef to prevent re-creation
+  const isInitialLoad = useRef(true)
+  const profileLoadPromise = useRef<Promise<void> | null>(null)
+
+  // Store functions in refs to avoid dependency issues
   const storeActionsRef = useRef({
     setUser,
-    setProfile,
-    setStoreLoading,
-    setHydrated,
-    clearUser,
     setUserId,
-    forceLoadCartForUser
+    loadUserProfile: async () => {},
+    forceLoadCartForUser,
+    clearUser,
+    setLoading,
+    setStoreLoading: setStoreLoading,
+    setHydrated
   })
 
-  // Update refs when store functions change (but don't cause re-renders)
-  storeActionsRef.current = {
-    setUser,
-    setProfile,
-    setStoreLoading,
-    setHydrated,
-    clearUser,
-    setUserId,
-    forceLoadCartForUser
-  }
+  // Memoize auth state to prevent unnecessary re-renders
+  const authState = useMemo(() => ({
+    user,
+    profile,
+    isAuthenticated: !!user,
+    loading: loading || !isHydrated,
+    profileLoading
+  }), [user, profile, loading, isHydrated, profileLoading])
 
-  // Create truly stable callbacks that don't change on re-renders
-  const stableSetUser = useCallback((user: any) => {
-    storeActionsRef.current.setUser(user)
-  }, [])
+  // Load user profile with caching
+  const loadUserProfile = useCallback(async (userId: string, forceReload = false) => {
+    if (!isClient) return
 
-  const stableSetProfile = useCallback((profile: any) => {
-    storeActionsRef.current.setProfile(profile)
-  }, [])
-
-  const stableSetStoreLoading = useCallback((loading: boolean) => {
-    storeActionsRef.current.setStoreLoading(loading)
-  }, [])
-
-  const stableSetHydrated = useCallback((hydrated: boolean) => {
-    storeActionsRef.current.setHydrated(hydrated)
-  }, [])
-
-  const stableClearUser = useCallback(() => {
-    storeActionsRef.current.clearUser()
-  }, [])
-
-  const stableSetUserId = useCallback((userId: string | null) => {
-    try {
-      if (userId) {
-        // Force load cart for authenticated user (handles both new and existing users)
-        storeActionsRef.current.forceLoadCartForUser(userId)
-      } else {
-        // User logged out, just set userId to null
-        storeActionsRef.current.setUserId(null)
-      }
-    } catch (error) {
-      console.error('❌ Error calling cart functions:', error)
-    }
-  }, [])
-
-  const loadUserProfile = useCallback(async (userId: string) => {
-    // Get current values from refs to avoid dependencies
-    const currentProfileLoading = profileLoading
-    const currentProfile = profile
-
-    // Prevent multiple concurrent profile loads for the same user
-    if (currentProfileLoading) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Profile loading already in progress, skipping...')
-      }
-      return
-    }
-
-    // Check if we already have the profile for this user
-    if (currentProfile && currentProfile.id === userId) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Profile already loaded for user:', userId)
-      }
-      return
+    if (profileLoadPromise.current && !forceReload) {
+      return profileLoadPromise.current
     }
 
     setProfileLoading(true)
-    try {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Loading user profile for userId:', userId)
-      }
-      const profile = await userQueries.getProfile(userId)
 
-      if (profile) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Profile loaded successfully:', profile)
+    profileLoadPromise.current = (async () => {
+      try {
+        const profileData = await userQueries.getProfile(userId)
+        if (profileData) {
+          setProfile(profileData)
         }
-        stableSetProfile(profile)
-        return
+      } catch (error) {
+        console.error('Failed to load user profile:', error)
+      } finally {
+        setProfileLoading(false)
       }
+    })()
 
-      // Profile doesn't exist, try to create one
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Profile not found, attempting to create one...')
-      }
+    return profileLoadPromise.current
+  }, [setProfile, setProfileLoading, isClient])
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        // Create profile using direct Supabase insert to match schema
-        const { data: newProfile, error: createError } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            email: user.email || null,
-            first_name: user.user_metadata?.first_name || null,
-            last_name: user.user_metadata?.last_name || null,
-            phone: user.user_metadata?.phone || null,
-            points_balance: 1000, // Welcome bonus - 1000 points
-            tier_level: 'bronze'
-          })
-          .select()
-          .single()
+  // Update refs when functions change (but don't cause re-renders)
+  storeActionsRef.current = {
+    setUser,
+    setUserId,
+    loadUserProfile,
+    forceLoadCartForUser,
+    clearUser,
+    setLoading,
+    setStoreLoading,
+    setHydrated
+  }
 
-        if (createError) {
-          throw createError
-        }
-
-        // Add welcome bonus points transaction
-        try {
-          await supabase
-            .from('point_transactions')
-            .insert({
-              user_id: user.id,
-              points: 1000,
-              transaction_type: 'bonus',
-              reference_type: 'signup',
-              description: 'Welcome bonus for new user'
-            })
-
-          if (process.env.NODE_ENV === 'development') {
-            console.log('Welcome bonus transaction created for user:', user.id)
-          }
-        } catch (transactionError) {
-          console.error('Error creating welcome bonus transaction:', transactionError)
-          // Don't throw here to allow profile creation to complete
-        }
-
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Profile created successfully:', newProfile)
-        }
-        stableSetProfile(newProfile)
-        return
-      }
-
-      // If we can't create a profile, set to null
-      stableSetProfile(null)
-    } catch (error: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error loading or creating user profile:', {
-          message: error?.message,
-          code: error?.code,
-          details: error?.details,
-          hint: error?.hint
-        })
-      }
-
-      // Don't throw here to prevent auth flow from breaking
-      stableSetProfile(null)
-    } finally {
-      setProfileLoading(false)
-    }
-  }, []) // Remove dependencies to prevent re-creation
-
-  // Initialize auth state only once on mount
+  // Initialize auth state - STABLE effect with minimal dependencies
   useEffect(() => {
-    let isMounted = true
+    if (!isClient) return
+
+    let mounted = true
 
     const initializeAuth = async () => {
       try {
-        // Add a small delay to ensure any logout operations have completed
-        await new Promise(resolve => setTimeout(resolve, 50))
-
-        if (!isMounted) return
-
         const { data: { session } } = await supabase.auth.getSession()
 
-        if (!isMounted) return
+        if (!mounted) return
+
+        const actions = storeActionsRef.current
 
         if (session?.user) {
-          console.log('🔐 Initial session found:', { userId: session.user.id, email: session.user.email })
-          stableSetUser(session.user)
-          stableSetUserId(session.user.id)
-          // Load profile for authenticated user
-          try {
-            await loadUserProfile(session.user.id)
-          } catch (profileError) {
-            console.error('❌ Error loading profile during initialization:', profileError)
-            // Don't break the auth flow if profile loading fails
-          }
-        } else if (user) {
-          // If we have a persisted user but no session, clear the user
-          console.log('❌ No active session found, clearing persisted user data')
-          stableClearUser()
-          stableSetUserId(null)
+          actions.setUser(session.user)
+          actions.setUserId(session.user.id)
+          await actions.loadUserProfile(session.user.id)
+          await actions.forceLoadCartForUser(session.user.id)
         } else {
-          console.log('🔓 No session and no persisted user - unauthenticated state')
+          actions.clearUser()
         }
       } catch (error) {
-        console.error('❌ Error getting initial session:', error)
-        if (isMounted) {
-          // Clear user data on error
-          stableClearUser()
-          stableSetUserId(null)
-        }
+        console.error('Auth initialization error:', error)
       } finally {
-        if (isMounted) {
-          setLoading(false)
-          stableSetStoreLoading(false)
-          // Mark as hydrated after initial session check
-          if (!isHydrated) {
-            stableSetHydrated(true)
+        if (mounted) {
+          const actions = storeActionsRef.current
+          actions.setLoading(false)
+          actions.setStoreLoading(false)
+          if (isInitialLoad.current) {
+            actions.setHydrated(true)
+            isInitialLoad.current = false
           }
         }
       }
@@ -259,274 +127,75 @@ export function useAuth() {
 
     initializeAuth()
 
-    // Ensure loading state is cleared after timeout for better UX
-    const timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
-        // Only log in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('⏰ Auth loading timeout reached, setting loading to false')
-        }
-        setLoading(false)
-        stableSetStoreLoading(false)
-        if (!isHydrated) {
-          stableSetHydrated(true)
-        }
-      }
-    }, 2000)
-
     return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
+      mounted = false
     }
-  }, []) // Empty dependency array - only run once on mount
+  }, [isClient, supabase.auth]) // ONLY depend on isClient and supabase.auth
 
-  // Separate effect for auth state changes
+
+
+  // Listen for auth changes - STABLE subscription with minimal dependencies
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔄 Auth state change:', { event, userId: session?.user?.id })
+    if (!isClient) return
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          stableSetUser(session.user)
-          stableSetUserId(session.user.id)
-          // Load profile for newly signed in user
-          try {
-            await loadUserProfile(session.user.id)
-          } catch (profileError) {
-            console.error('❌ Error loading profile during sign in:', profileError)
-            // Don't break the auth flow if profile loading fails
-          }
-        } else if (event === 'SIGNED_OUT') {
-          console.log('🚪 User signed out, clearing auth state')
-          stableClearUser()
-          stableSetUserId(null)
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 Auth state change:', { event, userId: session?.user?.id })
 
-        setLoading(false)
-        stableSetStoreLoading(false)
+      const actions = storeActionsRef.current
+
+      if (session?.user) {
+        actions.setUser(session.user)
+        actions.setUserId(session.user.id)
+        await actions.loadUserProfile(session.user.id)
+        await actions.forceLoadCartForUser(session.user.id)
+      } else {
+        actions.clearUser()
       }
-    )
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, []) // Empty dependency array to prevent re-subscriptions
+      actions.setLoading(false)
+      actions.setStoreLoading(false)
+    })
 
-  const signOut = async () => {
+    return () => subscription.unsubscribe()
+  }, [isClient, supabase.auth]) // ONLY depend on isClient and supabase.auth
+  // Sign out function
+  const signOut = useCallback(async () => {
+    if (!isClient) return
+
     try {
-      console.log('🚪 Starting logout process')
-
-      // Clear local state immediately
-      stableClearUser()
-      stableSetUserId(null)
-
-      // Clear all browser storage first
-      if (typeof window !== 'undefined') {
-        // Clear localStorage
-        const keys = Object.keys(localStorage)
-        keys.forEach(key => {
-          if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
-            console.log('🧹 Clearing localStorage key:', key)
-            localStorage.removeItem(key)
-          }
-        })
-
-        // Clear sessionStorage
-        const sessionKeys = Object.keys(sessionStorage)
-        sessionKeys.forEach(key => {
-          if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
-            console.log('🧹 Clearing sessionStorage key:', key)
-            sessionStorage.removeItem(key)
-          }
-        })
-
-        // Clear all cookies (more comprehensive approach)
-        document.cookie.split(";").forEach(function(c) {
-          const eqPos = c.indexOf("=")
-          const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim()
-          if (name.includes('sb-') || name.includes('supabase') || name.includes('auth')) {
-            console.log('🧹 Clearing cookie:', name)
-            // Clear for current domain
-            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname
-            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/"
-            // Clear for parent domain
-            const domain = window.location.hostname.split('.').slice(-2).join('.')
-            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + domain
-          }
-        })
-      }
-
-      // Sign out from Supabase with scope 'global' to clear all sessions
-      const { error } = await supabase.auth.signOut({ scope: 'global' })
-      if (error) {
-        console.error('❌ Error signing out:', error)
-        // Don't throw error, continue with cleanup
-      }
-
-      // Force refresh the page to ensure clean state
-      if (typeof window !== 'undefined') {
-        setTimeout(() => {
-          window.location.reload()
-        }, 100)
-      }
-
-      console.log('✅ Successfully signed out and cleared all auth data')
-    } catch (error) {
-      console.error('❌ Error during sign out:', error)
-      // Still clear local state even if Supabase sign out fails
+      setLoading(true)
+      await supabase.auth.signOut()
       clearUser()
-      setUserId(null)
+    } catch (error) {
+      console.error('Sign out error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [isClient, supabase.auth, clearUser, setLoading])
 
-      // Force clear storage even on error
-      if (typeof window !== 'undefined') {
-        localStorage.clear()
-        sessionStorage.clear()
-        // Force refresh on error too
-        setTimeout(() => {
-          window.location.reload()
-        }, 100)
+  // Update profile function
+  const updateProfile = useCallback(async (updates: any) => {
+    if (!isClient || !user) return null
+
+    try {
+      setProfileLoading(true)
+      const updatedProfile = await userQueries.updateProfile(user.id, updates)
+      if (updatedProfile) {
+        setProfile(updatedProfile)
       }
-
+      return updatedProfile
+    } catch (error) {
+      console.error('Update profile error:', error)
       throw error
+    } finally {
+      setProfileLoading(false)
     }
-  }
-
-  const signInWithEmail = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    
-    if (error) throw error
-    return data
-  }
-
-  const signUpWithEmail = async (email: string, password: string, userData?: {
-    first_name?: string
-    last_name?: string
-    phone?: string
-  }) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData
-      }
-    })
-    
-    if (error) throw error
-    
-    // Create user profile if signup was successful
-    if (data.user) {
-      try {
-        // Create profile using direct Supabase insert to match schema
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert({
-            id: data.user.id,
-            email: email,
-            first_name: userData?.first_name || null,
-            last_name: userData?.last_name || null,
-            phone: userData?.phone || null,
-            points_balance: 1000, // Welcome bonus
-            tier_level: 'bronze'
-          })
-
-        if (profileError) {
-          throw profileError
-        }
-        
-        // Add welcome bonus points transaction
-        await supabase
-          .from('point_transactions')
-          .insert({
-            user_id: data.user.id,
-            points: 1000,
-            transaction_type: 'bonus',
-            reference_type: 'signup',
-            description: 'Welcome bonus for new user'
-          })
-      } catch (profileError) {
-        console.error('Error creating user profile:', profileError)
-        // Don't throw here to allow signup to complete even if profile creation fails
-      }
-    }
-    
-    return data
-  }
-
-
-
-  const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/en/auth/callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
-      }
-    })
-
-    if (error) throw error
-    return data
-  }
-
-
-
-  const changePassword = async (currentPassword: string, newPassword: string) => {
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    // First verify the current password by attempting to sign in
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email: user.email!,
-      password: currentPassword
-    })
-
-    if (verifyError) {
-      throw new Error('Current password is incorrect')
-    }
-
-    // Update the password
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    })
-
-    if (error) throw error
-  }
-
-  const updateProfile = async (updates: {
-    first_name?: string
-    last_name?: string
-    phone?: string
-    preferred_language?: string
-    marketing_consent?: boolean
-    address_line_1?: string
-    address_line_2?: string
-    aba_bank_name?: string
-  }) => {
-    if (!user) throw new Error('No user logged in')
-
-    const updatedProfile = await userQueries.updateProfile(user.id, updates)
-    setProfile(updatedProfile)
-    return updatedProfile
-  }
+  }, [isClient, user, setProfile, setProfileLoading])
 
   return {
-    user,
-    profile,
-    loading,
+    ...authState,
     signOut,
-    signInWithEmail,
-    signUpWithEmail,
-
-    signInWithGoogle,
-    changePassword,
     updateProfile,
-    isAuthenticated: !!user,
-    isAdmin: profile?.tier_level === 'platinum' // Simplified admin check
+    loadUserProfile
   }
 }
