@@ -2,8 +2,17 @@
 
 import { Header } from './header'
 import { Footer } from './footer'
-import { Toaster } from '@/components/ui/sonner'
 import { KeyboardShortcuts } from '@/components/accessibility/keyboard-shortcuts'
+import dynamic from 'next/dynamic'
+
+// Dynamically import Toaster to avoid SSR issues with sonner
+const Toaster = dynamic(
+  () => import('@/components/ui/sonner').then((mod) => ({ default: mod.Toaster })),
+  {
+    ssr: false,
+    loading: () => null
+  }
+)
 
 interface MainLayoutProps {
   children: React.ReactNode

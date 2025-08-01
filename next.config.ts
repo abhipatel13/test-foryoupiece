@@ -164,6 +164,14 @@ const nextConfig: NextConfig = {
         path: false,
       };
 
+      // Exclude client-only packages from server-side bundling
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push({
+          'sonner': 'commonjs sonner',
+        });
+      }
+
       // Define browser globals for server environment
       config.plugins = config.plugins || [];
       config.plugins.push(
@@ -185,6 +193,23 @@ const nextConfig: NextConfig = {
           self: 'global',
         })
       );
+
+      // Add polyfill to webpack entry to ensure it runs first
+      const originalEntry = config.entry;
+      config.entry = async () => {
+        const entries = await originalEntry();
+
+        // Add polyfill to all entry points
+        Object.keys(entries).forEach((key) => {
+          if (Array.isArray(entries[key])) {
+            entries[key].unshift('./src/lib/polyfills.ts');
+          } else if (typeof entries[key] === 'string') {
+            entries[key] = ['./src/lib/polyfills.ts', entries[key]];
+          }
+        });
+
+        return entries;
+      };
     }
 
     // Only apply webpack config when not using Turbopack
