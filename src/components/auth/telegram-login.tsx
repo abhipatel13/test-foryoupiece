@@ -43,7 +43,8 @@ export function TelegramLogin({
   const handleTelegramAuth = async (user: TelegramUser) => {
     try {
       setLoading(true)
-      
+      console.log('🔄 Telegram authentication started for user:', user.id, user.username)
+
       // Send the Telegram user data to our API for verification and authentication
       const response = await fetch('/api/auth/telegram', {
         method: 'POST',
@@ -62,17 +63,25 @@ export function TelegramLogin({
       
       if (result.success) {
         toast.success('Successfully signed in with Telegram!')
-        
+
         if (onSuccess) {
           onSuccess(user)
         }
-        
-        // Reload the page to update authentication state
-        window.location.reload()
+
+        // Use the magic link returned by the API to properly authenticate the user
+        if (result.redirect_url) {
+          console.log('🔄 Redirecting to Supabase magic link for authentication')
+          window.location.href = result.redirect_url
+        } else {
+          // Fallback to page reload if no redirect URL provided
+          console.log('⚠️ No redirect URL provided, falling back to page reload')
+          window.location.reload()
+        }
       } else {
         throw new Error(result.error || 'Authentication failed')
       }
     } catch (error: any) {
+      console.error('❌ Telegram auth error:', error)
       const errorMessage = error.message || 'Failed to sign in with Telegram'
       toast.error(errorMessage)
       
