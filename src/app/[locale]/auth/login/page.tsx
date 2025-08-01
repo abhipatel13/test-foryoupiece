@@ -12,8 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle, Send } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { TelegramLogin } from '@/components/auth/telegram-login'
 
 function LoginPageContent() {
   const [email, setEmail] = useState('')
@@ -257,22 +258,18 @@ function LoginPageContent() {
                 Continue with Google
               </Button>
 
-              <Button
-                type="button"
-                variant="outline"
+              <TelegramLogin
                 className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
-                onClick={() => {
-                  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-                    toast.info('Telegram Login Widget only works on public domains. Please deploy to test Telegram authentication.')
-                  } else {
-                    toast.error('Telegram Login Widget failed to load. Please try again.')
-                  }
+                variant="outline"
+                size="lg"
+                onSuccess={() => {
+                  // Redirect will be handled by the TelegramLogin component
+                  toast.success('Successfully signed in with Telegram!')
                 }}
-                disabled={loading}
-              >
-                <Send className="w-5 h-5 mr-3 sm:w-4 sm:h-4 sm:mr-2" />
-                Continue with Telegram
-              </Button>
+                onError={(error) => {
+                  toast.error(`Telegram login failed: ${error.message}`)
+                }}
+              />
             </div>
 
           </CardContent>

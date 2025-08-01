@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle, Send } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { TelegramLogin } from '@/components/auth/telegram-login'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -356,22 +357,20 @@ export default function RegisterPage() {
                 Sign up with Google
               </Button>
 
-              <Button
-                type="button"
-                variant="outline"
+              <TelegramLogin
                 className="w-full h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
-                onClick={() => {
-                  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-                    toast.info('Telegram Login Widget only works on public domains. Please deploy to test Telegram authentication.')
-                  } else {
-                    toast.error('Telegram Login Widget failed to load. Please try again.')
-                  }
+                variant="outline"
+                size="lg"
+                onSuccess={() => {
+                  // Redirect will be handled by the TelegramLogin component
+                  toast.success('Successfully signed up with Telegram!')
                 }}
-                disabled={loading}
+                onError={(error) => {
+                  toast.error(`Telegram signup failed: ${error.message}`)
+                }}
               >
-                <Send className="w-5 h-5 mr-3 sm:w-4 sm:h-4 sm:mr-2" />
                 Sign up with Telegram
-              </Button>
+              </TelegramLogin>
             </div>
           </CardContent>
         </Card>
