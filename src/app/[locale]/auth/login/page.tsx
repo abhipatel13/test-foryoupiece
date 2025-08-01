@@ -37,7 +37,25 @@ function LoginPageContent() {
       }
     }
     checkUser()
-  }, [supabase, router, redirectTo])
+
+    // Handle Telegram OAuth callback errors
+    const error = searchParams.get('error')
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        'missing_telegram_data': 'Missing required Telegram authentication data. Please try again.',
+        'telegram_not_configured': 'Telegram authentication is not properly configured.',
+        'telegram_verification_failed': 'Telegram authentication verification failed. Please try again.',
+        'telegram_auth_expired': 'Telegram authentication has expired. Please try again.',
+        'user_creation_failed': 'Failed to create user account. Please try again.',
+        'session_creation_failed': 'Failed to create session. Please try again.',
+        'telegram_callback_error': 'Telegram authentication error. Please try again.'
+      }
+
+      const errorMessage = errorMessages[error] || 'Authentication failed. Please try again.'
+      setError(errorMessage)
+      toast.error(errorMessage)
+    }
+  }, [supabase, router, redirectTo, searchParams])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()

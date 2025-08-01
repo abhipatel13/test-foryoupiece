@@ -169,56 +169,38 @@ export function TelegramLogin({
     }
   }, [])
 
-  // Enhanced fallback with popup authentication
-  const handleFallbackClick = () => {
-    console.log('🔄 Fallback button clicked on hostname:', window.location.hostname)
+  // Direct OAuth redirect - bypasses popup blockers and third-party cookie issues
+  const handleDirectOAuth = () => {
+    console.log('🔄 Direct OAuth redirect initiated')
 
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       toast.info('Telegram Login Widget only works on public domains. Please deploy to test Telegram authentication.')
       return
     }
 
-    // Try popup-based authentication as fallback
     try {
-      console.log('🔄 Attempting popup-based Telegram authentication')
-      const telegramUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&return_to=${encodeURIComponent(window.location.href)}`
+      // Create direct OAuth URL that redirects back to our callback
+      const returnUrl = `${window.location.origin}/api/auth/telegram/callback`
+      const telegramOAuthUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&return_to=${encodeURIComponent(returnUrl)}&request_access=write`
 
-      const popup = window.open(
-        telegramUrl,
-        'telegram-auth',
-        'width=400,height=500,scrollbars=yes,resizable=yes'
-      )
+      console.log('🔄 Redirecting to Telegram OAuth:', telegramOAuthUrl)
 
-      if (!popup) {
-        toast.error('Popup blocked. Please enable popups and try again, or check your browser settings for third-party cookies.')
-        return
-      }
+      // Store current page for redirect after authentication
+      sessionStorage.setItem('telegram_auth_return_url', window.location.href)
 
-      // Monitor popup for completion
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed)
-          console.log('🔄 Telegram popup closed')
-          // The authentication should be handled by the redirect URL
-          setTimeout(() => {
-            window.location.reload()
-          }, 1000)
-        }
-      }, 1000)
-
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        if (!popup.closed) {
-          popup.close()
-          clearInterval(checkClosed)
-          toast.error('Authentication timeout. Please try again.')
-        }
-      }, 300000)
+      // Direct redirect - no popup needed
+      window.location.href = telegramOAuthUrl
 
     } catch (error) {
-      console.error('❌ Popup authentication failed:', error)
-      toast.error('Authentication failed. Please check your browser settings and try again.')
+      console.error('❌ Direct OAuth failed:', error)
+      toast.error('Authentication failed. Please try again.')
     }
+  }
+
+  // Enhanced fallback with popup authentication (secondary option)
+  const handleFallbackClick = () => {
+    console.log('🔄 Fallback button clicked - trying direct OAuth first')
+    handleDirectOAuth()
   }
 
   return (
@@ -230,14 +212,13 @@ export function TelegramLogin({
         style={{ minHeight: '44px' }}
       />
       
-      {/* Fallback Button - shown when widget doesn't load */}
+      {/* Direct OAuth Button - always visible as primary option */}
       <Button
         variant={variant}
         size={size}
-        className={`absolute inset-0 w-full min-h-[44px] ${className} telegram-fallback-btn`}
-        onClick={handleFallbackClick}
+        className={`w-full min-h-[44px] ${className}`}
+        onClick={handleDirectOAuth}
         disabled={loading}
-        style={{ display: 'none' }}
       >
         {children || (
           <>
@@ -245,6 +226,18 @@ export function TelegramLogin({
             Continue with Telegram
           </>
         )}
+      </Button>
+
+      {/* Fallback Button - hidden, only shown if widget fails */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute inset-0 w-full min-h-[44px] telegram-fallback-btn opacity-0 pointer-events-none"
+        onClick={handleFallbackClick}
+        disabled={loading}
+        style={{ display: 'none' }}
+      >
+        Telegram Widget Fallback
       </Button>
 
       {/* Third-party cookie warning */}
