@@ -1,3 +1,11 @@
+// Global polyfill for 'self' - must be at the very top before any imports
+if (typeof global !== 'undefined' && typeof (global as any).self === 'undefined') {
+  (global as any).self = global;
+}
+if (typeof globalThis !== 'undefined' && typeof globalThis.self === 'undefined') {
+  globalThis.self = globalThis;
+}
+
 import createNextIntlPlugin from 'next-intl/plugin';
 import type { NextConfig } from "next";
 
@@ -153,6 +161,8 @@ const nextConfig: NextConfig = {
           'lucide-react': 'commonjs lucide-react',
           '@tanstack/react-query-devtools': 'commonjs @tanstack/react-query-devtools',
           'zustand': 'commonjs zustand',
+          'zustand/middleware': 'commonjs zustand/middleware',
+          '@radix-ui/react-toast': 'commonjs @radix-ui/react-toast',
         });
       }
     }
