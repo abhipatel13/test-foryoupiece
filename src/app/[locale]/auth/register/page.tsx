@@ -234,7 +234,7 @@ export default function RegisterPage() {
                     value={formData.name}
                     onChange={handleInputChange}
                     placeholder="Enter your full name"
-                    className="pl-10 h-11 text-base sm:text-sm"
+                    className="!pl-12 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="name"
@@ -253,7 +253,7 @@ export default function RegisterPage() {
                     value={formData.email}
                     onChange={handleInputChange}
                     placeholder="Enter your email"
-                    className="pl-10 h-11 text-base sm:text-sm"
+                    className="!pl-12 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="email"
@@ -272,7 +272,7 @@ export default function RegisterPage() {
                     value={formData.password}
                     onChange={handleInputChange}
                     placeholder="Create a password"
-                    className="pl-10 pr-12 h-11 text-base sm:text-sm"
+                    className="!pl-12 !pr-12 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="new-password"
@@ -301,7 +301,7 @@ export default function RegisterPage() {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     placeholder="Confirm your password"
-                    className="pl-10 pr-12 h-11 text-base sm:text-sm"
+                    className="!pl-10 !pr-12 h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="new-password"

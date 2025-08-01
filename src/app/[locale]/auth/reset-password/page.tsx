@@ -325,7 +325,7 @@ export default function ResetPasswordPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your new password"
-                    className="pl-10 pr-10"
+                    className="pl-12 pr-10"
                     required
                     disabled={loading}
                   />

@@ -401,7 +401,7 @@ export default function AdminResetPasswordPage() {
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       required
-                      className="pl-10 pr-10"
+                      className="pl-12 pr-10"
                       placeholder="Enter your new password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}

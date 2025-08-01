@@ -176,7 +176,7 @@ function LoginPageContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="pl-10 h-12 sm:h-11 text-base sm:text-sm"
+                    className="!pl-12 h-12 sm:h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="email"
@@ -194,7 +194,7 @@ function LoginPageContent() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="pl-10 pr-12 h-12 sm:h-11 text-base sm:text-sm"
+                    className="!pl-12 !pr-12 h-12 sm:h-11 text-base sm:text-sm"
                     required
                     disabled={loading}
                     autoComplete="current-password"
