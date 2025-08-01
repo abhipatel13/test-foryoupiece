@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
 import { formatPrice } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -42,7 +42,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
   const t = useTranslations('products')
-  const { addItem } = useCartStore()
+  const { addItem } = useSSRSafeCartStore()
   const { trackProductView, isReady } = useBehaviorTracking()
   const [isHovered, setIsHovered] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)

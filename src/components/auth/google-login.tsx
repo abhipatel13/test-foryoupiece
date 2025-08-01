@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
@@ -23,7 +23,7 @@ export function GoogleLogin({
   onError
 }: GoogleLoginProps) {
   const [loading, setLoading] = useState(false)
-  const { signInWithGoogle } = useAuth()
+  const { signInWithGoogle } = useSSRSafeAuth()
 
   const handleGoogleSignIn = async () => {
     try {
@@ -99,7 +99,7 @@ export function GoogleLoginCompact({
   onError?: (error: Error) => void
 }) {
   const [loading, setLoading] = useState(false)
-  const { signInWithGoogle } = useAuth()
+  const { signInWithGoogle } = useSSRSafeAuth()
 
   const handleGoogleSignIn = async () => {
     try {

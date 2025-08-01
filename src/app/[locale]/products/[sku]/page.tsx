@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { useAuth } from '@/lib/hooks/use-auth'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
 import { productQueries } from '@/lib/supabase/queries'
 import { formatPrice } from '@/lib/utils'
@@ -61,8 +61,8 @@ interface Product {
 export default function ProductDetailPage() {
   const params = useParams()
   const t = useTranslations('products')
-  const { isAuthenticated } = useAuth()
-  const { addItem } = useCartStore()
+  const { isAuthenticated } = useSSRSafeAuth()
+  const { addItem } = useSSRSafeCartStore()
   const { trackProductView, isReady } = useBehaviorTracking()
   
   const [product, setProduct] = useState<Product | null>(null)

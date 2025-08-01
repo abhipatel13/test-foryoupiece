@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Lock, Shield, AlertCircle, CheckCircle } from 'lucide-react'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { toast } from 'sonner'
 
 interface ChangePasswordDialogProps {
@@ -30,7 +30,7 @@ export function ChangePasswordDialog({ children }: ChangePasswordDialogProps) {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  const { changePassword, user } = useAuth()
+  const { changePassword, user } = useSSRSafeAuth()
 
   const resetForm = () => {
     setCurrentPassword('')

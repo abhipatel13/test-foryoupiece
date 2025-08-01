@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { adminQueries } from '@/lib/supabase/admin-queries'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -648,7 +648,7 @@ function AdminLoginForm() {
 
 // Main Layout Component
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { user, loading } = useAuth()
+  const { user, loading } = useSSRSafeAuth()
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingAdmin, setCheckingAdmin] = useState(true)
 

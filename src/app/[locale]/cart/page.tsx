@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
-import { useCartStore } from '@/lib/store/cart-store'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { formatPrice, generateCartItemKey } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +21,7 @@ import { CouponInput } from '@/components/cart/coupon-input'
 
 export default function CartPage() {
   const t = useTranslations('cart')
-  const { profile } = useAuth()
+  const { profile } = useSSRSafeAuth()
   const {
     items,
     updateQuantity,
@@ -41,7 +41,7 @@ export default function CartPage() {
     removeCoupon,
     getCouponDiscount,
     getFinalTotalWithCouponAndPoints
-  } = useCartStore()
+  } = useSSRSafeCartStore()
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
 
   const handleQuantityChange = async (itemId: string, newQuantity: number, variant?: string) => {

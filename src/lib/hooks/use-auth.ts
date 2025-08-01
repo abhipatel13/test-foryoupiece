@@ -6,12 +6,32 @@ import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/lib/store/user-store'
 import { useCartStore } from '@/lib/store/cart-store'
 import { userQueries } from '@/lib/supabase/queries'
+import { useIsClient } from './use-ssr-safe-store'
 
 export function useAuth() {
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
-  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = useUserStore()
-  const { setUserId, forceLoadCartForUser } = useCartStore()
+  const isClient = useIsClient()
+
+  // SSR-safe store access with fallback values
+  const userStoreData = isClient ? useUserStore() : {
+    user: null,
+    profile: null,
+    isHydrated: false,
+    setUser: () => {},
+    setProfile: () => {},
+    setLoading: () => {},
+    setHydrated: () => {},
+    clearUser: () => {}
+  }
+
+  const cartStoreData = isClient ? useCartStore() : {
+    setUserId: () => {},
+    forceLoadCartForUser: () => {}
+  }
+
+  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStoreData
+  const { setUserId, forceLoadCartForUser } = cartStoreData
   const supabase = createClient()
 
   // Create stable references to store functions using useRef to prevent re-creation

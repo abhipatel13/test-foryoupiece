@@ -15,7 +15,7 @@ import { useBoxHeroCategories } from '@/hooks/use-boxhero-categories';
 import { useCategoryImages } from '@/hooks/use-category-images';
 import { useTrendingProducts } from '@/presentation/hooks/useTrendingProducts';
 import { useHomepageBestSellers } from '@/presentation/hooks/useBestSellerProducts';
-import { useAuth } from '@/lib/hooks/use-auth';
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth';
 import { sortProductsByStockPriority } from '@/lib/utils';
 
 interface Product {
@@ -42,7 +42,7 @@ interface Product {
 
 export default function HomePage() {
   const t = useTranslations('navigation')
-  const { user } = useAuth()
+  const { user } = useSSRSafeAuth()
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [dealsProducts, setDealsProducts] = useState<Product[]>([])
   const [recentlyAddedProducts, setRecentlyAddedProducts] = useState<Product[]>([])

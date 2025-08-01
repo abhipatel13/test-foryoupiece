@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 
 export type BehaviorType =
   | 'search'
@@ -21,7 +21,7 @@ export interface TrackBehaviorOptions {
 }
 
 export function useBehaviorTracking() {
-  const { user, loading } = useAuth()
+  const { user, loading } = useSSRSafeAuth()
   const [isReady, setIsReady] = useState(false)
 
   // Wait for auth to be fully loaded before allowing tracking

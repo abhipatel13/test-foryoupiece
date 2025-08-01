@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Star, Gift, AlertCircle, CheckCircle } from 'lucide-react'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { pointsToDollars, formatPrice } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -24,7 +24,7 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
     getFinalTotal,
     validatePointsRedemption,
     clearPointsRedemption
-  } = useCartStore()
+  } = useSSRSafeCartStore()
 
   const [inputValue, setInputValue] = useState(pointsToRedeem.toString())
   const [validationMessage, setValidationMessage] = useState('')

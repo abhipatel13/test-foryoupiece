@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -72,7 +72,7 @@ export function EnhancedSearch({
   onSearch 
 }: EnhancedSearchProps) {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user } = useSSRSafeAuth()
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [isOpen, setIsOpen] = useState(false)

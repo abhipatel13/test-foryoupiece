@@ -95,6 +95,31 @@ function LoginPageContent() {
     }
   }
 
+  const handleFacebookLogin = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'facebook',
+        options: {
+          redirectTo: `${window.location.origin}/en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          scopes: 'email',
+        }
+      })
+
+      if (error) {
+        setError(error.message)
+        toast.error('Facebook login failed: ' + error.message)
+      }
+    } catch (err) {
+      setError('Failed to initiate Facebook login')
+      toast.error('Failed to initiate Facebook login')
+    } finally {
+      setLoading(false)
+    }
+  }
+
 
 
   return (
@@ -255,7 +280,21 @@ function LoginPageContent() {
                 Continue with Google
               </Button>
 
-
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+                onClick={handleFacebookLogin}
+                disabled={loading}
+              >
+                <svg className="w-5 h-5 mr-3 sm:w-4 sm:h-4 sm:mr-2" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+                  />
+                </svg>
+                Continue with Facebook
+              </Button>
             </div>
 
           </CardContent>

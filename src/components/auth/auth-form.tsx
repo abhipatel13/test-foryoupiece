@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator'
 
 import { GoogleLogin } from '@/components/auth/google-login'
+import { FacebookLogin } from '@/components/auth/facebook-login'
 import { toast } from 'sonner'
 
 interface AuthFormProps {
@@ -19,7 +20,7 @@ interface AuthFormProps {
 
 export function AuthForm({ mode, onSuccess }: AuthFormProps) {
   const t = useTranslations('auth')
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth()
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useSSRSafeAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
@@ -75,7 +76,12 @@ export function AuthForm({ mode, onSuccess }: AuthFormProps) {
             size="lg"
           />
 
-
+          {/* Facebook Login Button */}
+          <FacebookLogin
+            onSuccess={onSuccess}
+            className="w-full min-h-[44px]"
+            size="lg"
+          />
         </div>
 
         <div className="relative">

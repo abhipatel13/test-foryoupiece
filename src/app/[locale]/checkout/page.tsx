@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { useAuth } from '@/lib/hooks/use-auth'
-import { useCartStore } from '@/lib/store/cart-store'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { orderQueries } from '@/lib/supabase/queries'
 import { formatPrice, generateCartItemKey } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,7 @@ import { toast } from 'sonner'
 export default function CheckoutPage() {
   const t = useTranslations('checkout')
   const router = useRouter()
-  const { user, profile, isAuthenticated, updateProfile } = useAuth()
+  const { user, profile, isAuthenticated, updateProfile } = useSSRSafeAuth()
   const {
     items,
     getTotal,
@@ -38,7 +38,7 @@ export default function CheckoutPage() {
     appliedCoupon,
     getCouponDiscount,
     getFinalTotalWithCouponAndPoints
-  } = useCartStore()
+  } = useSSRSafeCartStore()
   const [loading, setLoading] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
 
