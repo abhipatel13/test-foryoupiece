@@ -267,6 +267,17 @@ export const PUT = withAdminAuth(async (
       }
     });
 
+    // PRODUCTION DEBUG: Add enhanced logging for best seller fields
+    console.log('🔍 PRODUCTION DEBUG: Best seller update details:', {
+      productId: id,
+      is_best_seller: updateData.is_best_seller,
+      best_seller_position: updateData.best_seller_position,
+      environment: process.env.NODE_ENV,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length,
+      timestamp: new Date().toISOString()
+    });
+
     // Update the product
     const { data: updatedProduct, error: updateError } = await supabase
       .from('products')
@@ -292,6 +303,23 @@ export const PUT = withAdminAuth(async (
         hint: updateError.hint
       });
 
+      // PRODUCTION DEBUG: Enhanced error logging for best seller updates
+      console.error('🔍 PRODUCTION DEBUG: Update failed with details:', {
+        productId: id,
+        updateData: {
+          is_best_seller: updateData.is_best_seller,
+          best_seller_position: updateData.best_seller_position,
+          sku: updateData.sku,
+          name_en: updateData.name_en
+        },
+        errorCode: updateError.code,
+        errorMessage: updateError.message,
+        errorDetails: updateError.details,
+        errorHint: updateError.hint,
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString()
+      });
+
       if (updateError.code === 'PGRST116') {
         return NextResponse.json({
           success: false,
@@ -311,6 +339,23 @@ export const PUT = withAdminAuth(async (
       name: updatedProduct.name_en,
       price: updatedProduct.price,
       stock_quantity: updatedProduct.stock_quantity
+    });
+
+    // PRODUCTION DEBUG: Log best seller fields in successful update
+    console.log('🔍 PRODUCTION DEBUG: Best seller fields after update:', {
+      productId: id,
+      is_best_seller: updatedProduct.is_best_seller,
+      best_seller_position: updatedProduct.best_seller_position,
+      originalRequest: {
+        is_best_seller: updateData.is_best_seller,
+        best_seller_position: updateData.best_seller_position
+      },
+      fieldsMatch: {
+        is_best_seller: updatedProduct.is_best_seller === updateData.is_best_seller,
+        best_seller_position: updatedProduct.best_seller_position === updateData.best_seller_position
+      },
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString()
     });
 
     return NextResponse.json({
