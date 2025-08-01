@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
@@ -52,7 +52,7 @@ import {
 
 export function Header() {
   const t = useTranslations('navigation')
-  const { user, profile, signOut, isAuthenticated, loading } = useAuth()
+  const { user, profile, signOut, isAuthenticated, loading } = useSSRSafeAuth()
   const isHydrated = useHydration()
   const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useSSRSafeCartStore()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)

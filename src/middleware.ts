@@ -50,6 +50,12 @@ export default async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
+  // Redirect common shop routes to the correct product catalog
+  if (request.nextUrl.pathname === '/shop' || request.nextUrl.pathname === '/shop/') {
+    const redirectUrl = new URL('/en/products', request.url)
+    return NextResponse.redirect(redirectUrl)
+  }
+
   // Exclude API routes from internationalization
   if (request.nextUrl.pathname.startsWith('/api')) {
     return supabaseResponse

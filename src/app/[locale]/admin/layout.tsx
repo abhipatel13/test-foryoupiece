@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useAdminConfig } from '@/hooks/use-admin-config'
 import { adminQueries } from '@/lib/supabase/admin-queries'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,7 @@ interface AdminLayoutProps {
 }
 
 function AdminLoginForm() {
-  const { signInWithEmail } = useAuth()
+  const { signInWithEmail } = useSSRSafeAuth()
   const { adminEmail, loading: configLoading, error: configError } = useAdminConfig()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -198,7 +198,7 @@ function AdminLoginForm() {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { user, isAuthenticated, loading } = useAuth()
+  const { user, isAuthenticated, loading } = useSSRSafeAuth()
   const router = useRouter()
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingAdmin, setCheckingAdmin] = useState(true)

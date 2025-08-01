@@ -3,6 +3,7 @@ import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/config';
 import { QueryProvider } from "@/lib/providers/query-provider";
+import { AuthProvider } from '@/lib/providers/auth-provider';
 import { MainLayout } from '@/components/layout/main-layout';
 import { ErrorBoundary } from '@/components/error-boundary';
 
@@ -31,11 +32,13 @@ export default async function LocaleLayout({
   return (
     <ErrorBoundary>
       <QueryProvider>
-        <NextIntlClientProvider messages={messages}>
-          <MainLayout>
-            {children}
-          </MainLayout>
-        </NextIntlClientProvider>
+        <AuthProvider>
+          <NextIntlClientProvider messages={messages}>
+            <MainLayout>
+              {children}
+            </MainLayout>
+          </NextIntlClientProvider>
+        </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>
   );

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
-import { useAuth } from '@/lib/hooks/use-auth'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { userQueries, orderQueries } from '@/lib/supabase/queries'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,7 +41,7 @@ interface Order {
 
 export default function ProfilePage() {
   const t = useTranslations('profile')
-  const { user, profile, isAuthenticated, loading, updateProfile } = useAuth()
+  const { user, profile, isAuthenticated, loading, updateProfile } = useSSRSafeAuth()
 
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)

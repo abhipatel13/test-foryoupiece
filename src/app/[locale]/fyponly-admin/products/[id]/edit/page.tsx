@@ -251,10 +251,24 @@ export default function ProductEditPage() {
   }
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [field]: value
+      }
+
+      // When bestseller is toggled OFF, clear the position
+      if (field === 'is_best_seller' && value === false) {
+        newData.best_seller_position = 0
+      }
+
+      // When trending is toggled OFF, clear the position
+      if (field === 'is_trending' && value === false) {
+        newData.trending_position = 0
+      }
+
+      return newData
+    })
   }
 
   if (loading) {

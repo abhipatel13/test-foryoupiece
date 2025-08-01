@@ -63,69 +63,12 @@ export function useSSRSafeAuth() {
     return profileLoadPromise.current
   }, [setProfile, setProfileLoading, isClient])
 
-  // Initialize auth state
+  // Set loading state based on hydration
   useEffect(() => {
-    if (!isClient) return
-
-    let mounted = true
-
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (!mounted) return
-
-        if (session?.user) {
-          setUser(session.user)
-          setUserId(session.user.id)
-          await loadUserProfile(session.user.id)
-          await forceLoadCartForUser(session.user.id)
-        } else {
-          clearUser()
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error)
-      } finally {
-        if (mounted) {
-          setLoading(false)
-          setStoreLoading(false)
-          if (isInitialLoad.current) {
-            setHydrated(true)
-            isInitialLoad.current = false
-          }
-        }
-      }
-    }
-
-    initializeAuth()
-
-    return () => {
-      mounted = false
-    }
-  }, [isClient, supabase.auth, setUser, setUserId, loadUserProfile, forceLoadCartForUser, clearUser, setLoading, setStoreLoading, setHydrated])
-
-  // Listen for auth changes
-  useEffect(() => {
-    if (!isClient) return
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state change:', { event, userId: session?.user?.id })
-
-      if (session?.user) {
-        setUser(session.user)
-        setUserId(session.user.id)
-        await loadUserProfile(session.user.id)
-        await forceLoadCartForUser(session.user.id)
-      } else {
-        clearUser()
-      }
-
+    if (isClient && isHydrated) {
       setLoading(false)
-      setStoreLoading(false)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [isClient, supabase.auth, setUser, setUserId, loadUserProfile, forceLoadCartForUser, clearUser, setLoading, setStoreLoading])
+    }
+  }, [isClient, isHydrated])
 
   // Authentication methods
   const signOut = useCallback(async () => {
