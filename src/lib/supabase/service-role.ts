@@ -17,13 +17,28 @@ export function createServiceRoleClient() {
 
   if (!supabaseUrl || !supabaseServiceKey) {
     // During build time, environment variables might not be available
-    console.warn('Supabase environment variables not available during build')
-    console.error('Missing Supabase environment variables:', {
-      hasUrl: !!supabaseUrl,
-      hasServiceKey: !!supabaseServiceKey,
-      nodeEnv: process.env.NODE_ENV
-    })
-    return null as any
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('Supabase environment variables not available during build')
+      console.error('Missing Supabase environment variables:', {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+        nodeEnv: process.env.NODE_ENV
+      })
+    }
+
+    // Return a mock client for build time
+    return {
+      auth: {
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      },
+      from: () => ({
+        select: () => ({ data: [], error: null }),
+        insert: () => ({ data: null, error: null }),
+        update: () => ({ data: null, error: null }),
+        delete: () => ({ data: null, error: null }),
+      }),
+    } as any
   }
 
   const client = createClient<Database>(

@@ -135,7 +135,26 @@ const nextConfig: NextConfig = {
     ];
   },
   // Conditional webpack configuration (only when not using Turbopack)
-  webpack: (config, { dev, isServer }) => {
+  webpack: (config, { dev, isServer, webpack }) => {
+    // Add polyfill for 'self' global to fix build errors
+    if (isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+
+      // Define 'self' as 'global' in server environment
+      config.plugins = config.plugins || [];
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          'typeof self': JSON.stringify('undefined'),
+          self: 'global',
+        })
+      );
+    }
+
     // Only apply webpack config when not using Turbopack
     // Turbopack handles file watching and optimizations internally
     if (process.env.NODE_ENV !== 'development' || !process.env.TURBOPACK) {
@@ -147,7 +166,7 @@ const nextConfig: NextConfig = {
         };
       }
 
-      // Production optimizations - avoid aggressive chunk splitting that can cause SSR issues
+      // Simplified production optimizations to avoid SSR issues
       if (!dev) {
         config.optimization = {
           ...config.optimization,
@@ -159,21 +178,14 @@ const nextConfig: NextConfig = {
                 priority: -20,
                 reuseExistingChunk: true,
               },
-              vendors: {
+              vendor: {
                 test: /[\\/]node_modules[\\/]/,
-                priority: -10,
-                reuseExistingChunk: true,
                 name: 'vendors',
-              },
-              commons: {
-                minChunks: 2,
-                priority: -5,
+                priority: 10,
+                chunks: 'all',
                 reuseExistingChunk: true,
               },
             },
-          },
-          runtimeChunk: {
-            name: 'runtime',
           },
         };
       }
