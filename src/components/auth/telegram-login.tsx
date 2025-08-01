@@ -35,6 +35,9 @@ export function TelegramLogin({
   const [loading, setLoading] = useState(false)
   const widgetRef = useRef<HTMLDivElement>(null)
   const scriptLoadedRef = useRef(false)
+  const callbackNameRef = useRef<string>('')
+
+  console.log('🔄 TelegramLogin component mounted/rendered')
 
   // Telegram bot configuration from environment variables
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_AUTH_BOT_USERNAME || 'Authenticationfypbot'
@@ -94,7 +97,11 @@ export function TelegramLogin({
   }
 
   const loadTelegramWidget = () => {
-    if (scriptLoadedRef.current || !widgetRef.current) return
+    console.log('🔄 loadTelegramWidget called, scriptLoaded:', scriptLoadedRef.current, 'widgetRef:', !!widgetRef.current)
+    if (scriptLoadedRef.current || !widgetRef.current) {
+      console.log('⚠️ Skipping widget load - already loaded or no widget ref')
+      return
+    }
 
     console.log('🔄 Loading Telegram widget with bot:', botUsername, 'ID:', botId)
 
@@ -110,6 +117,7 @@ export function TelegramLogin({
 
     // Set up the callback function
     const callbackName = `telegramLoginCallback_${Date.now()}`
+    callbackNameRef.current = callbackName
     console.log('🔄 Setting up Telegram callback:', callbackName)
     ;(window as any)[callbackName] = (user: TelegramUser) => {
       console.log('🎯 Telegram callback triggered with user:', user)
@@ -144,16 +152,18 @@ export function TelegramLogin({
   }
 
   useEffect(() => {
+    console.log('🔄 TelegramLogin useEffect called, window available:', typeof window !== 'undefined')
     // Only load the widget on the client side
     if (typeof window !== 'undefined') {
+      console.log('🔄 Calling loadTelegramWidget()')
       loadTelegramWidget()
     }
 
     return () => {
-      // Cleanup callback function
-      const callbackName = `telegramLoginCallback_${Date.now()}`
-      if ((window as any)[callbackName]) {
-        delete (window as any)[callbackName]
+      // Clean up the global callback function
+      if (callbackNameRef.current && (window as any)[callbackNameRef.current]) {
+        console.log('🧹 Cleaning up Telegram callback:', callbackNameRef.current)
+        delete (window as any)[callbackNameRef.current]
       }
     }
   }, [])
