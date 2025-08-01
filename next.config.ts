@@ -3,6 +3,16 @@ import type { NextConfig } from "next";
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
+// Global polyfill for 'self' in Node.js environment
+if (typeof globalThis !== 'undefined' && typeof globalThis.self === 'undefined') {
+  globalThis.self = globalThis;
+}
+
+// Ensure 'self' is defined in global scope for server-side rendering
+if (typeof global !== 'undefined' && typeof (global as any).self === 'undefined') {
+  (global as any).self = global;
+}
+
 const nextConfig: NextConfig = {
   eslint: {
     // Warning: This allows production builds to successfully complete even if
@@ -136,20 +146,42 @@ const nextConfig: NextConfig = {
   },
   // Conditional webpack configuration (only when not using Turbopack)
   webpack: (config, { dev, isServer, webpack }) => {
-    // Add polyfill for 'self' global to fix build errors
+    // Add comprehensive polyfills for browser globals in server environment
     if (isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
         net: false,
         tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
       };
 
-      // Define 'self' as 'global' in server environment
+      // Define browser globals for server environment
       config.plugins = config.plugins || [];
       config.plugins.push(
         new webpack.DefinePlugin({
-          'typeof self': JSON.stringify('undefined'),
+          'typeof window': JSON.stringify('undefined'),
+          'typeof document': JSON.stringify('undefined'),
+          'typeof navigator': JSON.stringify('undefined'),
+          'typeof self': JSON.stringify('object'),
+          'self': 'global',
+          'window': 'undefined',
+          'document': 'undefined',
+          'navigator': 'undefined',
+        })
+      );
+
+      // Add ProvidePlugin to provide global polyfills
+      config.plugins.push(
+        new webpack.ProvidePlugin({
           self: 'global',
         })
       );

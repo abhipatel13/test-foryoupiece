@@ -1,3 +1,6 @@
+// Import polyfills first to ensure globals are available
+import './lib/polyfills'
+
 import createMiddleware from 'next-intl/middleware'
 import { routing } from './i18n/config'
 import { NextRequest, NextResponse } from 'next/server'
