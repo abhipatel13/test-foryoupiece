@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { TelegramLogin } from '@/components/auth/telegram-login'
+import TelegramLoginUrl from '@/components/auth/telegram-login-url'
 
 function LoginPageContent() {
   const [email, setEmail] = useState('')
@@ -276,18 +276,7 @@ function LoginPageContent() {
                 Continue with Google
               </Button>
 
-              <TelegramLogin
-                className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
-                variant="outline"
-                size="lg"
-                onSuccess={() => {
-                  // Redirect will be handled by the TelegramLogin component
-                  toast.success('Successfully signed in with Telegram!')
-                }}
-                onError={(error) => {
-                  toast.error(`Telegram login failed: ${error.message}`)
-                }}
-              />
+              <TelegramLoginUrl />
             </div>
 
           </CardContent>

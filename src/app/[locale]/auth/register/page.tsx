@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { TelegramLogin } from '@/components/auth/telegram-login'
+import TelegramLoginUrl from '@/components/auth/telegram-login-url'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -357,20 +357,7 @@ export default function RegisterPage() {
                 Sign up with Google
               </Button>
 
-              <TelegramLogin
-                className="w-full h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
-                variant="outline"
-                size="lg"
-                onSuccess={() => {
-                  // Redirect will be handled by the TelegramLogin component
-                  toast.success('Successfully signed up with Telegram!')
-                }}
-                onError={(error) => {
-                  toast.error(`Telegram signup failed: ${error.message}`)
-                }}
-              >
-                Sign up with Telegram
-              </TelegramLogin>
+              <TelegramLoginUrl />
             </div>
           </CardContent>
         </Card>
