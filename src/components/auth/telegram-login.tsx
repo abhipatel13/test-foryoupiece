@@ -158,6 +158,23 @@ export function TelegramLogin({
     if (typeof window !== 'undefined') {
       console.log('🔄 Calling loadTelegramWidget()')
       loadTelegramWidget()
+
+      // Set a timeout to show fallback button if widget fails to load
+      const fallbackTimeout = setTimeout(() => {
+        if (widgetRef.current && widgetRef.current.children.length === 0) {
+          console.log('⚠️ Telegram widget failed to load, showing fallback button')
+          // Widget failed to load, the CSS will automatically show the fallback button
+        }
+      }, 5000) // 5 second timeout
+
+      return () => {
+        clearTimeout(fallbackTimeout)
+        // Clean up the global callback function
+        if (callbackNameRef.current && (window as any)[callbackNameRef.current]) {
+          console.log('🧹 Cleaning up Telegram callback:', callbackNameRef.current)
+          delete (window as any)[callbackNameRef.current]
+        }
+      }
     }
 
     return () => {
@@ -169,9 +186,9 @@ export function TelegramLogin({
     }
   }, [])
 
-  // Direct OAuth redirect - bypasses popup blockers and third-party cookie issues
-  const handleDirectOAuth = () => {
-    console.log('🔄 Direct OAuth redirect initiated')
+  // Fallback method when widget fails - uses direct OAuth redirect
+  const handleFallbackOAuth = () => {
+    console.log('🔄 Fallback OAuth redirect initiated')
 
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       toast.info('Telegram Login Widget only works on public domains. Please deploy to test Telegram authentication.')
@@ -179,6 +196,8 @@ export function TelegramLogin({
     }
 
     try {
+      setLoading(true)
+
       // Create direct OAuth URL that redirects back to our callback
       const returnUrl = `${window.location.origin}/api/auth/telegram/callback`
       const telegramOAuthUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&return_to=${encodeURIComponent(returnUrl)}&request_access=write`
@@ -192,32 +211,27 @@ export function TelegramLogin({
       window.location.href = telegramOAuthUrl
 
     } catch (error) {
-      console.error('❌ Direct OAuth failed:', error)
+      console.error('❌ Fallback OAuth failed:', error)
       toast.error('Authentication failed. Please try again.')
+      setLoading(false)
     }
-  }
-
-  // Enhanced fallback with popup authentication (secondary option)
-  const handleFallbackClick = () => {
-    console.log('🔄 Fallback button clicked - trying direct OAuth first')
-    handleDirectOAuth()
   }
 
   return (
     <div className="relative">
-      {/* Telegram Widget Container */}
-      <div 
-        ref={widgetRef} 
+      {/* Telegram Widget Container - Primary authentication method */}
+      <div
+        ref={widgetRef}
         className={`telegram-widget-container ${loading ? 'opacity-50 pointer-events-none' : ''}`}
         style={{ minHeight: '44px' }}
       />
-      
-      {/* Direct OAuth Button - always visible as primary option */}
+
+      {/* Fallback Button - only shown when widget fails to load */}
       <Button
         variant={variant}
         size={size}
-        className={`w-full min-h-[44px] ${className}`}
-        onClick={handleDirectOAuth}
+        className={`telegram-fallback-btn w-full min-h-[44px] ${className} hidden`}
+        onClick={handleFallbackOAuth}
         disabled={loading}
       >
         {children || (
@@ -228,34 +242,34 @@ export function TelegramLogin({
         )}
       </Button>
 
-      {/* Fallback Button - hidden, only shown if widget fails */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute inset-0 w-full min-h-[44px] telegram-fallback-btn opacity-0 pointer-events-none"
-        onClick={handleFallbackClick}
-        disabled={loading}
-        style={{ display: 'none' }}
-      >
-        Telegram Widget Fallback
-      </Button>
-
       {/* Third-party cookie warning */}
       <div className="mt-2 text-xs text-muted-foreground text-center">
         <p>Having trouble? Modern browsers may block third-party cookies.</p>
         <p>Try enabling cookies or use a different browser if the button doesn't work.</p>
       </div>
 
-      {/* Custom styling to hide fallback when widget loads */}
+      {/* Custom styling to show fallback when widget fails */}
       <style jsx>{`
+        /* Show fallback button only when widget container is empty */
         .telegram-widget-container:empty + .telegram-fallback-btn {
           display: flex !important;
         }
 
+        /* Hide fallback button when widget loads successfully */
+        .telegram-widget-container:not(:empty) + .telegram-fallback-btn {
+          display: none !important;
+        }
+
+        /* Style the widget iframe */
         .telegram-widget-container iframe {
           width: 100% !important;
           min-height: 44px !important;
           border-radius: 8px !important;
+        }
+
+        /* Ensure widget container takes full width */
+        .telegram-widget-container {
+          width: 100%;
         }
       `}</style>
     </div>
