@@ -234,8 +234,64 @@ export default function ProductEditPage() {
         throw new Error(result.error || 'Failed to update product')
       }
 
+      // Update form state with the response data to reflect current database values
+      if (result.data) {
+        console.log('🔄 Updating form state with API response data:', {
+          currentFormData: {
+            is_best_seller: formData.is_best_seller,
+            best_seller_position: formData.best_seller_position,
+            is_trending: formData.is_trending,
+            trending_position: formData.trending_position
+          },
+          responseData: {
+            is_best_seller: result.data.is_best_seller,
+            best_seller_position: result.data.best_seller_position,
+            is_trending: result.data.is_trending,
+            trending_position: result.data.trending_position
+          }
+        })
+
+        setFormData(prev => ({
+          ...prev,
+          // Update all fields with the response data to ensure consistency
+          sku: result.data.sku || prev.sku,
+          name_en: result.data.name_en || prev.name_en,
+          name_ja: result.data.name_ja || prev.name_ja,
+          description_en: result.data.description_en || prev.description_en,
+          description_ja: result.data.description_ja || prev.description_ja,
+          short_description_en: result.data.short_description_en || prev.short_description_en,
+          short_description_ja: result.data.short_description_ja || prev.short_description_ja,
+          price: result.data.price || prev.price,
+          compare_at_price: result.data.compare_at_price || prev.compare_at_price,
+          cost_price: result.data.cost_price || prev.cost_price,
+          stock_quantity: result.data.stock_quantity || prev.stock_quantity,
+          low_stock_threshold: result.data.low_stock_threshold || prev.low_stock_threshold,
+          weight_grams: result.data.weight_grams || prev.weight_grams,
+          brand: result.data.brand || prev.brand,
+          is_active: result.data.is_active ?? prev.is_active,
+          is_featured: result.data.is_featured ?? prev.is_featured,
+          is_preorder: result.data.is_preorder ?? prev.is_preorder,
+          preorder_limit: result.data.preorder_limit || prev.preorder_limit,
+          requires_shipping: result.data.requires_shipping ?? prev.requires_shipping,
+          is_digital: result.data.is_digital ?? prev.is_digital,
+          track_inventory: result.data.track_inventory ?? prev.track_inventory,
+          allow_backorder: result.data.allow_backorder ?? prev.allow_backorder,
+          seo_title: result.data.seo_title || prev.seo_title,
+          seo_description: result.data.seo_description || prev.seo_description,
+          // Critical fields for the issue we're fixing
+          is_trending: result.data.is_trending ?? prev.is_trending,
+          is_best_seller: result.data.is_best_seller ?? prev.is_best_seller,
+          trending_position: result.data.trending_position || prev.trending_position,
+          best_seller_position: result.data.best_seller_position || prev.best_seller_position,
+          images: result.data.images || prev.images,
+        }))
+
+        console.log('✅ Form state updated with current database values')
+      }
+
       toast.success('Product updated successfully!')
-      router.push(`/${params.locale}/fyponly-admin/products`)
+      // Don't redirect immediately - let user see the updated values and continue editing if needed
+      // router.push(`/${params.locale}/fyponly-admin/products`)
     } catch (error) {
       console.error('❌ Error updating product:', {
         error: error instanceof Error ? error.message : error,

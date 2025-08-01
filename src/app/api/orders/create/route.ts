@@ -158,6 +158,70 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // CRITICAL: Reserve stock atomically BEFORE creating order to prevent race conditions
+    console.log('🔒 Attempting to reserve stock for order items...');
+
+    try {
+      // Prepare order items for stock reservation
+      const stockReservationItems = orderItems.map((item: any) => ({
+        product_id: item.product_id,
+        quantity: item.quantity
+      }));
+
+      console.log('📦 Stock reservation request:', {
+        itemCount: stockReservationItems.length,
+        items: stockReservationItems.map((item: any) => ({
+          product_id: item.product_id,
+          quantity: item.quantity
+        }))
+      });
+
+      // Atomically reserve stock using database function with row-level locking
+      const { data: reservationResult, error: reservationError } = await supabase.rpc(
+        'reserve_stock_for_order',
+        { order_items: stockReservationItems }
+      );
+
+      if (reservationError) {
+        console.error('❌ Stock reservation database error:', reservationError);
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to reserve stock: ' + reservationError.message
+        }, { status: 500 });
+      }
+
+      if (!reservationResult.success) {
+        console.error('❌ Stock reservation failed:', reservationResult);
+
+        // Return detailed error information for insufficient stock
+        const errorDetails = {
+          message: reservationResult.error,
+          failures: reservationResult.failures || [],
+          failedItems: reservationResult.failed_reservations || 0,
+          totalItems: reservationResult.total_items || 0
+        };
+
+        return NextResponse.json({
+          success: false,
+          error: 'Insufficient stock for one or more items',
+          details: errorDetails
+        }, { status: 400 });
+      }
+
+      console.log('✅ Stock reserved successfully:', {
+        totalItems: reservationResult.total_items,
+        totalQuantityReserved: reservationResult.total_quantity_reserved,
+        reservationDetails: reservationResult.reservations
+      });
+
+    } catch (error: any) {
+      console.error('❌ Stock reservation error:', error);
+      return NextResponse.json({
+        success: false,
+        error: 'Stock reservation failed: ' + error.message
+      }, { status: 500 });
+    }
+
     // Process coupon application if applicable
     if (orderData.coupon_code && orderData.coupon_discount_amount > 0) {
       console.log(`🎫 Processing coupon application: ${orderData.coupon_code}`);
@@ -176,6 +240,21 @@ export async function POST(request: NextRequest) {
 
         if (!validationResult.isValid) {
           console.error('❌ Coupon validation failed:', validationResult.errorMessage);
+
+          // Rollback stock reservation since order creation will fail
+          console.log('🔄 Rolling back stock reservation due to coupon validation failure...');
+          try {
+            await supabase.rpc('rollback_stock_reservation', {
+              order_items: orderItems.map((item: any) => ({
+                product_id: item.product_id,
+                quantity: item.quantity
+              }))
+            });
+            console.log('✅ Stock reservation rolled back successfully');
+          } catch (rollbackError: any) {
+            console.error('🚨 CRITICAL: Failed to rollback stock reservation:', rollbackError);
+          }
+
           return NextResponse.json({
             success: false,
             error: validationResult.errorMessage || 'Invalid coupon'
@@ -185,6 +264,21 @@ export async function POST(request: NextRequest) {
         console.log('✅ Coupon validation successful');
       } catch (error: any) {
         console.error('❌ Coupon validation error:', error);
+
+        // Rollback stock reservation since order creation will fail
+        console.log('🔄 Rolling back stock reservation due to coupon validation error...');
+        try {
+          await supabase.rpc('rollback_stock_reservation', {
+            order_items: orderItems.map((item: any) => ({
+              product_id: item.product_id,
+              quantity: item.quantity
+            }))
+          });
+          console.log('✅ Stock reservation rolled back successfully');
+        } catch (rollbackError: any) {
+          console.error('🚨 CRITICAL: Failed to rollback stock reservation:', rollbackError);
+        }
+
         return NextResponse.json({
           success: false,
           error: 'Coupon validation failed: ' + error.message
@@ -198,6 +292,26 @@ export async function POST(request: NextRequest) {
       order = await createOrderWithRetry(supabase, orderData, 3);
     } catch (orderError: any) {
       console.error('❌ Order creation failed after all retries:', orderError);
+
+      // CRITICAL: Rollback stock reservation since order creation failed
+      console.log('🔄 Rolling back stock reservation due to order creation failure...');
+      try {
+        const rollbackResult = await supabase.rpc('rollback_stock_reservation', {
+          order_items: orderItems.map((item: any) => ({
+            product_id: item.product_id,
+            quantity: item.quantity
+          }))
+        });
+
+        if (rollbackResult.error) {
+          console.error('🚨 CRITICAL: Stock rollback failed:', rollbackResult.error);
+        } else {
+          console.log('✅ Stock reservation rolled back successfully:', rollbackResult.data);
+        }
+      } catch (rollbackError: any) {
+        console.error('🚨 CRITICAL: Failed to rollback stock reservation:', rollbackError);
+        // This is a critical error that requires manual intervention
+      }
 
       // If order creation fails and points were redeemed, refund them
       if (pointsTransactionId && orderData.points_used > 0) {
@@ -255,6 +369,43 @@ export async function POST(request: NextRequest) {
 
     if (itemsError) {
       console.error('❌ Order items creation failed:', itemsError);
+
+      // CRITICAL: Rollback stock reservation since order items creation failed
+      console.log('🔄 Rolling back stock reservation due to order items creation failure...');
+      try {
+        const rollbackResult = await supabase.rpc('rollback_stock_reservation', {
+          order_items: orderItems.map((item: any) => ({
+            product_id: item.product_id,
+            quantity: item.quantity
+          }))
+        });
+
+        if (rollbackResult.error) {
+          console.error('🚨 CRITICAL: Stock rollback failed:', rollbackResult.error);
+        } else {
+          console.log('✅ Stock reservation rolled back successfully');
+        }
+      } catch (rollbackError: any) {
+        console.error('🚨 CRITICAL: Failed to rollback stock reservation:', rollbackError);
+      }
+
+      // Also rollback points if they were redeemed
+      if (pointsTransactionId && orderData.points_used > 0) {
+        console.log('🔄 Attempting to refund points due to order items creation failure...');
+        try {
+          const pointsService = new PointsService(true);
+          await pointsService.addPoints(
+            orderData.user_id,
+            orderData.points_used,
+            'Points refunded due to order items creation failure',
+            pointsTransactionId
+          );
+          console.log('✅ Points refunded successfully');
+        } catch (refundError: any) {
+          console.error('🚨 CRITICAL: Failed to refund points:', refundError);
+        }
+      }
+
       return NextResponse.json({
         success: false,
         error: 'Failed to create order items: ' + (itemsError.message || 'Unknown error'),
@@ -268,22 +419,9 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Order items created successfully');
 
-    // Update stock for each item
-    for (const item of orderItems) {
-      console.log(`📦 Updating stock for product ${item.product_id}, reducing by ${item.quantity}`);
-
-      const { error: stockError } = await supabase.rpc('update_product_stock', {
-        product_id: item.product_id,
-        quantity_change: -item.quantity
-      });
-
-      if (stockError) {
-        console.error(`❌ Stock update failed for product ${item.product_id}:`, stockError);
-        // Continue with other items even if one fails
-      } else {
-        console.log(`✅ Stock updated for product ${item.product_id}`);
-      }
-    }
+    // NOTE: Stock has already been reserved atomically before order creation
+    // No additional stock deduction needed - this prevents race conditions
+    console.log('📦 Stock was already reserved during order validation - no additional deduction needed');
 
     // Update points reference with order ID if points were redeemed
     if (orderData.points_used > 0 && pointsTransactionId) {
