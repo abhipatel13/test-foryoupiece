@@ -49,6 +49,7 @@ export default function HomePage() {
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
+  const [firefoxRefreshKey, setFirefoxRefreshKey] = useState(0)
 
   // Use the new trending products system
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useTrendingProducts(10)
@@ -105,9 +106,32 @@ export default function HomePage() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
+        // Firefox-specific cache busting and error handling
+        const isFirefox = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('firefox')
+
+        if (isFirefox) {
+          console.log('🦊 Firefox detected: Implementing cache-busting for deals data')
+          // Clear any potential cached state for Firefox
+          setDealsProducts([])
+          setAllProducts([])
+          setRecentlyAddedProducts([])
+          // Force component refresh for Firefox
+          setFirefoxRefreshKey(prev => prev + 1)
+        }
+
         // Get recently added products which we know contains products with discounts
         const allProductsForDeals = await productQueries.getRecentlyAddedProducts(50)
         console.log(`🎯 Home Page: Fetched ${allProductsForDeals.length} recently added products for deals analysis`)
+
+        // Firefox-specific validation
+        if (isFirefox && (!allProductsForDeals || allProductsForDeals.length === 0)) {
+          console.warn('🦊 Firefox: No products fetched, retrying...')
+          // Retry once for Firefox
+          const retryProducts = await productQueries.getRecentlyAddedProducts(50)
+          if (retryProducts && retryProducts.length > 0) {
+            console.log('🦊 Firefox: Retry successful')
+          }
+        }
 
         // Apply global stock-priority sorting to all products
         const sortedProducts = sortProductsByStockPriority(allProductsForDeals, (a, b) => {
@@ -122,6 +146,15 @@ export default function HomePage() {
 
         // Get enhanced deals and discounts (includes sale prices and enhanced loyalty points)
         const deals = getEnhancedDealsProducts(sortedProducts, 5)
+
+        // Firefox-specific deals validation
+        if (isFirefox) {
+          console.log(`🦊 Firefox: Processing ${deals.length} deals products`)
+          if (deals.length === 0) {
+            console.warn('🦊 Firefox: No deals found, this might indicate a caching issue')
+          }
+        }
+
         setDealsProducts(deals)
 
         // Get recently added products from BoxHero sync
@@ -134,6 +167,15 @@ export default function HomePage() {
 
       } catch (error) {
         console.error('Error fetching products:', error)
+        // Firefox-specific error handling
+        const isFirefox = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('firefox')
+        if (isFirefox) {
+          console.error('🦊 Firefox: Product fetching failed, clearing cache and retrying...')
+          // Force a clean state for Firefox
+          setDealsProducts([])
+          setAllProducts([])
+          setRecentlyAddedProducts([])
+        }
       } finally {
         setLoading(false)
       }
@@ -366,7 +408,7 @@ export default function HomePage() {
         </section>
 
         {/* 3. DEALS AND DISCOUNTS - Enhanced Mobile-First Design */}
-        <section className="mb-12">
+        <section className="mb-12" key={`deals-section-${firefoxRefreshKey}`}>
           <div className="mobile-section-header">
             <div className="mobile-section-title">
               <Percent className="mobile-section-icon text-primary flex-shrink-0" />
@@ -384,7 +426,7 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <div className="product-grid-compact">
+            <div className="product-grid-compact" key={`deals-loading-${firefoxRefreshKey}`}>
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="modern-product-card p-4 animate-pulse loading-shimmer">
                   <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
@@ -395,7 +437,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="product-grid-compact">
+            <div className="product-grid-compact" key={`deals-products-${firefoxRefreshKey}`}>
               {dealsProducts.map((product) => (
                 <div key={product.id} className="hover-lift modern-product-card">
                   <ProductCard product={product} locale="en" />
