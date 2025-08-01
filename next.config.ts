@@ -1,9 +1,13 @@
-// Load Node.js polyfills before any imports
-require('./scripts/node-polyfills.js');
+// Global polyfill for 'self' - must be at the very top before any imports
+if (typeof global !== 'undefined' && typeof (global as any).self === 'undefined') {
+  (global as any).self = global;
+}
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).self === 'undefined') {
+  (globalThis as any).self = globalThis;
+}
 
 import createNextIntlPlugin from 'next-intl/plugin';
 import type { NextConfig } from "next";
-const VendorPolyfillPlugin = require('./scripts/vendor-polyfill-plugin.js');
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
@@ -141,111 +145,36 @@ const nextConfig: NextConfig = {
   },
   // Webpack configuration for server-side compatibility
   webpack: (config, { dev, isServer, webpack }) => {
-    // Apply our custom polyfill plugin to all builds
-    config.plugins = config.plugins || [];
-    config.plugins.push(new VendorPolyfillPlugin());
-
     if (isServer) {
-      // Enhanced polyfill configuration
+      // Simple polyfill configuration
+      config.plugins = config.plugins || [];
       config.plugins.push(
         new webpack.DefinePlugin({
-          'typeof self': JSON.stringify('object'),
           'self': 'global',
         })
       );
 
-      // Banner plugin to inject polyfill at the top of bundles
-      config.plugins.push(
-        new webpack.BannerPlugin({
-          banner: `
-if (typeof self === 'undefined') {
-  if (typeof global !== 'undefined') {
-    self = global;
-  } else if (typeof globalThis !== 'undefined') {
-    self = globalThis;
-  }
-}`,
-          raw: true,
-          entryOnly: false,
-        })
-      );
-
-      // More comprehensive externals configuration
+      // Simple externals configuration
       config.externals = config.externals || [];
       if (Array.isArray(config.externals)) {
-        // Client-side only packages that should not run during SSR
-        const clientOnlyPackages = [
-          'sonner',
-          'lucide-react',
-          '@tanstack/react-query-devtools',
-          'zustand',
-          'zustand/middleware',
-          // All Radix UI packages that might use browser globals
-          '@radix-ui/react-toast',
-          '@radix-ui/react-icons',
-          '@radix-ui/react-dialog',
-          '@radix-ui/react-dropdown-menu',
-          '@radix-ui/react-navigation-menu',
-          '@radix-ui/react-select',
-          '@radix-ui/react-tabs',
-          '@radix-ui/react-tooltip',
-        ];
-
-        clientOnlyPackages.forEach(pkg => {
-          config.externals.push({
-            [pkg]: `commonjs ${pkg}`,
-          });
+        config.externals.push({
+          'sonner': 'commonjs sonner',
+          'lucide-react': 'commonjs lucide-react',
+          '@tanstack/react-query-devtools': 'commonjs @tanstack/react-query-devtools',
+          'zustand': 'commonjs zustand',
+          '@radix-ui/react-toast': 'commonjs @radix-ui/react-toast',
+          '@radix-ui/react-icons': 'commonjs @radix-ui/react-icons',
         });
       }
+    }
 
-      // Resolve configuration to handle problematic modules
-      config.resolve = config.resolve || {};
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        // Force server-safe versions of problematic modules
-        'self': require.resolve('./scripts/node-polyfills.js'),
+    // Simple development configuration
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+        ignored: /node_modules/,
       };
-    }
-
-    // Only apply webpack config when not using Turbopack
-    // Turbopack handles file watching and optimizations internally
-    if (process.env.NODE_ENV !== 'development' || !process.env.TURBOPACK) {
-      if (dev) {
-        config.watchOptions = {
-          poll: 1000, // Check for changes every second
-          aggregateTimeout: 300, // Delay before rebuilding
-          ignored: /node_modules/,
-        };
-      }
-
-      // Simplified production optimizations to avoid SSR issues
-      if (!dev) {
-        config.optimization = {
-          ...config.optimization,
-          splitChunks: {
-            chunks: 'all',
-            cacheGroups: {
-              default: {
-                minChunks: 2,
-                priority: -20,
-                reuseExistingChunk: true,
-              },
-              vendor: {
-                test: /[\\/]node_modules[\\/]/,
-                name: 'vendors',
-                priority: 10,
-                chunks: 'all',
-                reuseExistingChunk: true,
-              },
-            },
-          },
-        };
-      }
-    }
-
-    // Fix for ChunkLoadError - add proper chunk naming
-    if (!dev && !isServer) {
-      config.output.chunkFilename = 'static/chunks/[name].[contenthash].js';
     }
 
     return config;
