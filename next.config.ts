@@ -55,7 +55,8 @@ const nextConfig: NextConfig = {
       ],
     },
     // Enable optimizations - disable optimizeCss to avoid critters dependency issue
-    optimizePackageImports: ['@radix-ui/react-icons'],
+    // Removed @radix-ui/react-icons to fix 'self is not defined' error
+    optimizePackageImports: [],
   },
   // Stable Turbopack configuration (moved from experimental.turbo)
   turbopack: {
@@ -163,6 +164,7 @@ const nextConfig: NextConfig = {
           'zustand': 'commonjs zustand',
           'zustand/middleware': 'commonjs zustand/middleware',
           '@radix-ui/react-toast': 'commonjs @radix-ui/react-toast',
+          '@radix-ui/react-icons': 'commonjs @radix-ui/react-icons',
         });
       }
     }
