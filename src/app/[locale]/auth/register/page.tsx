@@ -13,7 +13,6 @@ import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import TelegramLoginUrl from '@/components/auth/telegram-login-url'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -356,8 +355,6 @@ export default function RegisterPage() {
                 </svg>
                 Sign up with Google
               </Button>
-
-              <TelegramLoginUrl />
             </div>
           </CardContent>
         </Card>

@@ -14,7 +14,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import TelegramLoginUrl from '@/components/auth/telegram-login-url'
 
 function LoginPageContent() {
   const [email, setEmail] = useState('')
@@ -38,17 +37,12 @@ function LoginPageContent() {
     }
     checkUser()
 
-    // Handle Telegram OAuth callback errors
+    // Handle OAuth callback errors
     const error = searchParams.get('error')
     if (error) {
       const errorMessages: Record<string, string> = {
-        'missing_telegram_data': 'Missing required Telegram authentication data. Please try again.',
-        'telegram_not_configured': 'Telegram authentication is not properly configured.',
-        'telegram_verification_failed': 'Telegram authentication verification failed. Please try again.',
-        'telegram_auth_expired': 'Telegram authentication has expired. Please try again.',
         'user_creation_failed': 'Failed to create user account. Please try again.',
-        'session_creation_failed': 'Failed to create session. Please try again.',
-        'telegram_callback_error': 'Telegram authentication error. Please try again.'
+        'session_creation_failed': 'Failed to create session. Please try again.'
       }
 
       const errorMessage = errorMessages[error] || 'Authentication failed. Please try again.'
@@ -275,8 +269,6 @@ function LoginPageContent() {
                 </svg>
                 Continue with Google
               </Button>
-
-              <TelegramLoginUrl />
             </div>
 
           </CardContent>

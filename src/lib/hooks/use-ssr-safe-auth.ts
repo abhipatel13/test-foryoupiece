@@ -185,35 +185,7 @@ export function useSSRSafeAuth() {
     return data
   }, [supabase.auth, isClient])
 
-  const signInWithTelegram = useCallback(async (telegramUser: any) => {
-    if (!isClient) return
 
-    const response = await fetch('/api/auth/telegram', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(telegramUser),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || 'Failed to authenticate with Telegram')
-    }
-
-    const result = await response.json()
-
-    if (!result.success) {
-      throw new Error(result.error || 'Authentication failed')
-    }
-
-    // If there's a redirect URL, navigate to it to complete the session
-    if (result.redirect_url) {
-      window.location.href = result.redirect_url
-    }
-
-    return result
-  }, [isClient])
 
 
 
@@ -249,7 +221,6 @@ export function useSSRSafeAuth() {
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
-    signInWithTelegram,
     changePassword,
     updateProfile,
     isAdmin: profile?.tier_level === 'platinum' // Simplified admin check

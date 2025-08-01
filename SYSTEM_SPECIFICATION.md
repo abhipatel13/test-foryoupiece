@@ -28,13 +28,11 @@
 ## 🔐 Authentication System
 
 ### Multi-Authentication Support
-1. **Telegram Login Widget**
-   - Bot Token: `8066090295:AAHmPDgCvuCA7qrQAF6lGFl1j-AGSZG0zio`
-   - Bot Username: `Authenticationfypbot`
-   - Bot ID: `8066090295`
-   - **Limitation**: Only works on public domains (not localhost)
+1. **Google OAuth 2.0**
+   - Standard OAuth implementation
+   - Works on localhost for development
 
-2. **Google OAuth 2.0**
+2. **Facebook OAuth**
    - Standard OAuth implementation
    - Works on localhost for development
 
@@ -458,25 +456,11 @@ Response: {
 
 ### Authentication APIs
 ```typescript
-// POST /api/auth/telegram
-// Telegram OAuth authentication
-Request: {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
-}
-Response: {
-  success: boolean;
-  user: UserProfile;
-  accessToken?: string;
-}
-
 // POST /api/auth/google
 // Google OAuth authentication (standard OAuth 2.0 flow)
+
+// POST /api/auth/facebook
+// Facebook OAuth authentication (standard OAuth 2.0 flow)
 ```
 
 ### Product Management APIs
