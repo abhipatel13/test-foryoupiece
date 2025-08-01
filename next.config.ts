@@ -78,10 +78,10 @@ const nextConfig: NextConfig = {
         // Apply security headers to all routes
         source: '/(.*)',
         headers: [
-          // Prevent clickjacking attacks
+          // Prevent clickjacking attacks - Allow Telegram for authentication
           {
             key: 'X-Frame-Options',
-            value: 'DENY',
+            value: 'SAMEORIGIN',
           },
           // Prevent MIME type sniffing
           {
@@ -98,17 +98,17 @@ const nextConfig: NextConfig = {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
           },
-          // Content Security Policy
+          // Content Security Policy - Updated for Telegram authentication
           {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://oauth.telegram.org https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https: http:",
-              "connect-src 'self' https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com https://api.telegram.org wss://*.supabase.co",
-              "frame-src 'self' https://accounts.google.com https://www.facebook.com https://oauth.telegram.org",
+              "connect-src 'self' https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com https://api.telegram.org https://oauth.telegram.org wss://*.supabase.co",
+              "frame-src 'self' https://accounts.google.com https://www.facebook.com https://oauth.telegram.org https://telegram.org",
               "worker-src 'self' blob:",
               "object-src 'none'",
               "base-uri 'self'",

@@ -55,6 +55,7 @@ export function TelegramLogin({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(user),
+        credentials: 'include', // Include cookies for cross-origin requests
       })
 
       if (!response.ok) {
@@ -168,14 +169,55 @@ export function TelegramLogin({
     }
   }, [])
 
-  // Fallback button for when Telegram widget doesn't load or for localhost
+  // Enhanced fallback with popup authentication
   const handleFallbackClick = () => {
     console.log('🔄 Fallback button clicked on hostname:', window.location.hostname)
+
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       toast.info('Telegram Login Widget only works on public domains. Please deploy to test Telegram authentication.')
-    } else {
-      console.log('❌ Telegram widget failed to load on production domain')
-      toast.error('Telegram Login Widget failed to load. Please try again.')
+      return
+    }
+
+    // Try popup-based authentication as fallback
+    try {
+      console.log('🔄 Attempting popup-based Telegram authentication')
+      const telegramUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&return_to=${encodeURIComponent(window.location.href)}`
+
+      const popup = window.open(
+        telegramUrl,
+        'telegram-auth',
+        'width=400,height=500,scrollbars=yes,resizable=yes'
+      )
+
+      if (!popup) {
+        toast.error('Popup blocked. Please enable popups and try again, or check your browser settings for third-party cookies.')
+        return
+      }
+
+      // Monitor popup for completion
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed)
+          console.log('🔄 Telegram popup closed')
+          // The authentication should be handled by the redirect URL
+          setTimeout(() => {
+            window.location.reload()
+          }, 1000)
+        }
+      }, 1000)
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        if (!popup.closed) {
+          popup.close()
+          clearInterval(checkClosed)
+          toast.error('Authentication timeout. Please try again.')
+        }
+      }, 300000)
+
+    } catch (error) {
+      console.error('❌ Popup authentication failed:', error)
+      toast.error('Authentication failed. Please check your browser settings and try again.')
     }
   }
 
@@ -205,12 +247,18 @@ export function TelegramLogin({
         )}
       </Button>
 
+      {/* Third-party cookie warning */}
+      <div className="mt-2 text-xs text-muted-foreground text-center">
+        <p>Having trouble? Modern browsers may block third-party cookies.</p>
+        <p>Try enabling cookies or use a different browser if the button doesn't work.</p>
+      </div>
+
       {/* Custom styling to hide fallback when widget loads */}
       <style jsx>{`
         .telegram-widget-container:empty + .telegram-fallback-btn {
           display: flex !important;
         }
-        
+
         .telegram-widget-container iframe {
           width: 100% !important;
           min-height: 44px !important;

@@ -48,6 +48,14 @@ function isAuthDataFresh(authDate: number): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // Add CORS headers for cross-origin requests
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  }
+
   try {
     console.log('🔄 Telegram auth API called')
     const telegramUser: TelegramUser = await request.json()
@@ -70,7 +78,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: 'Missing required Telegram authentication data'
-      }, { status: 400 })
+      }, {
+        status: 400,
+        headers: corsHeaders
+      })
     }
 
     // Get bot token from environment
@@ -248,13 +259,29 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📤 Sending response:', { ...response, redirect_url: response.redirect_url ? 'Present' : 'Missing' })
-    return NextResponse.json(response)
+    return NextResponse.json(response, { headers: corsHeaders })
 
   } catch (error) {
     console.error('❌ Telegram auth error:', error)
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
-    }, { status: 500 })
+    }, {
+      status: 500,
+      headers: corsHeaders
+    })
   }
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true',
+    },
+  })
 }
