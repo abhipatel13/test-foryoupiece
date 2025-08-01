@@ -1,13 +1,9 @@
-// Global polyfill for 'self' - must be at the very top before any imports
-if (typeof global !== 'undefined' && typeof (global as any).self === 'undefined') {
-  (global as any).self = global;
-}
-if (typeof globalThis !== 'undefined' && typeof globalThis.self === 'undefined') {
-  globalThis.self = globalThis;
-}
+// Load Node.js polyfills before any imports
+require('./scripts/node-polyfills.js');
 
 import createNextIntlPlugin from 'next-intl/plugin';
 import type { NextConfig } from "next";
+const VendorPolyfillPlugin = require('./scripts/vendor-polyfill-plugin.js');
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
@@ -145,28 +141,70 @@ const nextConfig: NextConfig = {
   },
   // Webpack configuration for server-side compatibility
   webpack: (config, { dev, isServer, webpack }) => {
+    // Apply our custom polyfill plugin to all builds
+    config.plugins = config.plugins || [];
+    config.plugins.push(new VendorPolyfillPlugin());
+
     if (isServer) {
-      // Add simple polyfill for 'self' global
-      config.plugins = config.plugins || [];
+      // Enhanced polyfill configuration
       config.plugins.push(
         new webpack.DefinePlugin({
+          'typeof self': JSON.stringify('object'),
           'self': 'global',
         })
       );
 
-      // Exclude client-side packages from server-side bundling
+      // Banner plugin to inject polyfill at the top of bundles
+      config.plugins.push(
+        new webpack.BannerPlugin({
+          banner: `
+if (typeof self === 'undefined') {
+  if (typeof global !== 'undefined') {
+    self = global;
+  } else if (typeof globalThis !== 'undefined') {
+    self = globalThis;
+  }
+}`,
+          raw: true,
+          entryOnly: false,
+        })
+      );
+
+      // More comprehensive externals configuration
       config.externals = config.externals || [];
       if (Array.isArray(config.externals)) {
-        config.externals.push({
-          'sonner': 'commonjs sonner',
-          'lucide-react': 'commonjs lucide-react',
-          '@tanstack/react-query-devtools': 'commonjs @tanstack/react-query-devtools',
-          'zustand': 'commonjs zustand',
-          'zustand/middleware': 'commonjs zustand/middleware',
-          '@radix-ui/react-toast': 'commonjs @radix-ui/react-toast',
-          '@radix-ui/react-icons': 'commonjs @radix-ui/react-icons',
+        // Client-side only packages that should not run during SSR
+        const clientOnlyPackages = [
+          'sonner',
+          'lucide-react',
+          '@tanstack/react-query-devtools',
+          'zustand',
+          'zustand/middleware',
+          // All Radix UI packages that might use browser globals
+          '@radix-ui/react-toast',
+          '@radix-ui/react-icons',
+          '@radix-ui/react-dialog',
+          '@radix-ui/react-dropdown-menu',
+          '@radix-ui/react-navigation-menu',
+          '@radix-ui/react-select',
+          '@radix-ui/react-tabs',
+          '@radix-ui/react-tooltip',
+        ];
+
+        clientOnlyPackages.forEach(pkg => {
+          config.externals.push({
+            [pkg]: `commonjs ${pkg}`,
+          });
         });
       }
+
+      // Resolve configuration to handle problematic modules
+      config.resolve = config.resolve || {};
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        // Force server-safe versions of problematic modules
+        'self': require.resolve('./scripts/node-polyfills.js'),
+      };
     }
 
     // Only apply webpack config when not using Turbopack

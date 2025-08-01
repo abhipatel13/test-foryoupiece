@@ -11,7 +11,8 @@
     "dev:fresh": "npm run clear-cache && npm run dev",
     "scrape-products": "node scripts/scrape-product-descriptions.js",
     "update-descriptions": "node scripts/update-product-descriptions.js",
-    "preview-updates": "node scripts/update-product-descriptions.js --preview"
+    "preview-updates": "node scripts/update-product-descriptions.js --preview",
+    "test-build": "node scripts/test-build.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
