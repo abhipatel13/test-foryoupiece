@@ -49,10 +49,24 @@ function isAuthDataFresh(authDate: number): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 Telegram auth API called')
     const telegramUser: TelegramUser = await request.json()
+    console.log('📥 Received Telegram user data:', {
+      id: telegramUser.id,
+      first_name: telegramUser.first_name,
+      username: telegramUser.username,
+      auth_date: telegramUser.auth_date,
+      hasHash: !!telegramUser.hash
+    })
 
     // Validate required fields
     if (!telegramUser.id || !telegramUser.first_name || !telegramUser.auth_date || !telegramUser.hash) {
+      console.error('❌ Missing required Telegram authentication data:', {
+        hasId: !!telegramUser.id,
+        hasFirstName: !!telegramUser.first_name,
+        hasAuthDate: !!telegramUser.auth_date,
+        hasHash: !!telegramUser.hash
+      })
       return NextResponse.json({
         success: false,
         error: 'Missing required Telegram authentication data'
@@ -217,8 +231,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Telegram authentication successful for user:', userId)
+    console.log('🔗 Generated magic link:', sessionData.properties?.action_link ? 'Yes' : 'No')
 
-    return NextResponse.json({
+    const response = {
       success: true,
       user: {
         id: userId,
@@ -230,7 +245,10 @@ export async function POST(request: NextRequest) {
         is_new_user: isNewUser
       },
       redirect_url: sessionData.properties?.action_link
-    })
+    }
+
+    console.log('📤 Sending response:', { ...response, redirect_url: response.redirect_url ? 'Present' : 'Missing' })
+    return NextResponse.json(response)
 
   } catch (error) {
     console.error('❌ Telegram auth error:', error)

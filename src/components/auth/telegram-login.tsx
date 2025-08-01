@@ -96,6 +96,8 @@ export function TelegramLogin({
   const loadTelegramWidget = () => {
     if (scriptLoadedRef.current || !widgetRef.current) return
 
+    console.log('🔄 Loading Telegram widget with bot:', botUsername, 'ID:', botId)
+
     // Create the Telegram Login Widget script
     const script = document.createElement('script')
     script.async = true
@@ -105,16 +107,39 @@ export function TelegramLogin({
     script.setAttribute('data-radius', '8')
     script.setAttribute('data-request-access', 'write')
     script.setAttribute('data-userpic', 'false')
-    
+
     // Set up the callback function
     const callbackName = `telegramLoginCallback_${Date.now()}`
-    ;(window as any)[callbackName] = handleTelegramAuth
+    console.log('🔄 Setting up Telegram callback:', callbackName)
+    ;(window as any)[callbackName] = (user: TelegramUser) => {
+      console.log('🎯 Telegram callback triggered with user:', user)
+      handleTelegramAuth(user)
+    }
     script.setAttribute('data-onauth', callbackName)
+
+    // Handle script loading
+    script.onload = () => {
+      console.log('✅ Telegram widget script loaded successfully')
+    }
+
+    script.onerror = (error) => {
+      console.error('❌ Failed to load Telegram widget script:', error)
+      setLoading(false)
+    }
+
+    // Debug: Log all script attributes
+    console.log('🔧 Telegram widget script attributes:', {
+      src: script.src,
+      'data-telegram-login': script.getAttribute('data-telegram-login'),
+      'data-size': script.getAttribute('data-size'),
+      'data-onauth': script.getAttribute('data-onauth'),
+      'data-request-access': script.getAttribute('data-request-access')
+    })
 
     // Clear any existing content and append the script
     widgetRef.current.innerHTML = ''
     widgetRef.current.appendChild(script)
-    
+
     scriptLoadedRef.current = true
   }
 
@@ -135,9 +160,11 @@ export function TelegramLogin({
 
   // Fallback button for when Telegram widget doesn't load or for localhost
   const handleFallbackClick = () => {
+    console.log('🔄 Fallback button clicked on hostname:', window.location.hostname)
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       toast.info('Telegram Login Widget only works on public domains. Please deploy to test Telegram authentication.')
     } else {
+      console.log('❌ Telegram widget failed to load on production domain')
       toast.error('Telegram Login Widget failed to load. Please try again.')
     }
   }
