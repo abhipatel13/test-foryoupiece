@@ -1,6 +1,3 @@
-// Import polyfills first to ensure globals are available
-import "@/lib/polyfills";
-
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { MainLayout } from '@/components/layout/main-layout';

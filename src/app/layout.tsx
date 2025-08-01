@@ -1,6 +1,3 @@
-// Import polyfills first to ensure globals are available
-import "@/lib/polyfills";
-
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
