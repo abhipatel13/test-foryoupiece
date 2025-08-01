@@ -199,7 +199,11 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user && isAuthenticated && !loading) {
-      loadOrders()
+      loadOrders().catch((error) => {
+        console.error('❌ Unhandled error in loadOrders:', error)
+        setOrders([])
+        setOrdersLoading(false)
+      })
     }
   }, [user?.id, isAuthenticated, loading, loadOrders]) // Only depend on user.id to prevent unnecessary re-renders
 

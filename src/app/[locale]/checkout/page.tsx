@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
@@ -43,15 +43,62 @@ export default function CheckoutPage() {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
 
   const [shippingAddress, setShippingAddress] = useState({
-    firstName: profile?.first_name || '',
-    lastName: profile?.last_name || '',
-    email: profile?.email || '',
-    phone: profile?.phone || '',
-    address1: profile?.address_line_1 || '',
-    address2: profile?.address_line_2 || '',
-    abaBankName: profile?.aba_bank_name || '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address1: '',
+    address2: '',
+    abaBankName: '',
     country: 'Cambodia'
   })
+
+  const [saveAddress, setSaveAddress] = useState(false)
+  const [showSaveAddressDialog, setShowSaveAddressDialog] = useState(false)
+  const [addressChanged, setAddressChanged] = useState(false)
+
+  // Auto-populate form when profile data becomes available
+  useEffect(() => {
+    if (profile) {
+      const newAddress = {
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+        address1: profile.address_line_1 || '',
+        address2: profile.address_line_2 || '',
+        abaBankName: profile.aba_bank_name || '',
+        country: 'Cambodia'
+      }
+
+      setShippingAddress(newAddress)
+
+      // Check if this is a first-time user (no saved address data)
+      const hasExistingAddress = profile.first_name || profile.last_name || profile.address_line_1 || profile.aba_bank_name
+      if (!hasExistingAddress) {
+        setSaveAddress(true) // Default to saving for first-time users
+      }
+    }
+  }, [profile])
+
+  // Track address changes for update prompt
+  const handleAddressChange = (field: string, value: string) => {
+    setShippingAddress(prev => ({ ...prev, [field]: value }))
+
+    // Check if address has changed from saved profile data
+    if (profile) {
+      const originalValue = profile[field === 'firstName' ? 'first_name' :
+                                   field === 'lastName' ? 'last_name' :
+                                   field === 'address1' ? 'address_line_1' :
+                                   field === 'address2' ? 'address_line_2' :
+                                   field === 'abaBankName' ? 'aba_bank_name' :
+                                   field] || ''
+
+      if (value !== originalValue) {
+        setAddressChanged(true)
+      }
+    }
+  }
 
   const [orderNotes, setOrderNotes] = useState('')
 
