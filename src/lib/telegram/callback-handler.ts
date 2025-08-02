@@ -279,7 +279,8 @@ export class TelegramCallbackHandler {
         orderNumber: order.order_number,
         hasUserData: !!order.users,
         hasOrderItems: !!(order.order_items && order.order_items.length > 0),
-        shippingAddressType: typeof order.shipping_address
+        shippingAddressType: typeof order.shipping_address,
+        fixVersion: 'v2.0-na-fix' // Added to track deployment version
       });
 
       return order;
