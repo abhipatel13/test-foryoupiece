@@ -46,7 +46,11 @@ export function useSSRSafeCartStore() {
     getStockMessage: (stockQuantity: number) => '',
     calculateShipping: () => Promise.resolve(),
     getShippingMessage: () => '',
-    getShippingCalculation: () => null
+    getShippingCalculation: () => null,
+    // Real-time stock validation functions
+    validateCartStock: () => Promise.resolve({ success: true, hasIssues: false, canCheckout: true }),
+    refreshStockStatus: () => Promise.resolve(),
+    isStockValidationNeeded: () => false
   })
 
   useEffect(() => {
@@ -95,7 +99,11 @@ export function useSSRSafeCartStore() {
             getStockMessage: state.getStockMessage,
             calculateShipping: state.calculateShipping,
             getShippingMessage: state.getShippingMessage,
-            getShippingCalculation: state.getShippingCalculation
+            getShippingCalculation: state.getShippingCalculation,
+            // Real-time stock validation functions
+            validateCartStock: state.validateCartStock,
+            refreshStockStatus: state.refreshStockStatus,
+            isStockValidationNeeded: state.isStockValidationNeeded
           })
         })
 
@@ -137,7 +145,11 @@ export function useSSRSafeCartStore() {
           getStockMessage: data.getStockMessage,
           calculateShipping: data.calculateShipping,
           getShippingMessage: data.getShippingMessage,
-          getShippingCalculation: data.getShippingCalculation
+          getShippingCalculation: data.getShippingCalculation,
+          // Real-time stock validation functions
+          validateCartStock: data.validateCartStock,
+          refreshStockStatus: data.refreshStockStatus,
+          isStockValidationNeeded: data.isStockValidationNeeded
         })
 
         return subscribe

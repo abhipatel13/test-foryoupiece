@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, CreditCard, Heart, Gift, Truck, Shield, Star } from 'lucide-react'
+import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, CreditCard, Heart, Gift, Truck, Shield, Star, RefreshCw, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { PointsRedemption } from '@/components/cart/points-redemption'
 import { CouponInput } from '@/components/cart/coupon-input'
@@ -40,9 +40,63 @@ export default function CartPage() {
     applyCoupon,
     removeCoupon,
     getCouponDiscount,
-    getFinalTotalWithCouponAndPoints
+    getFinalTotalWithCouponAndPoints,
+    validateCartStock,
+    refreshStockStatus,
+    isStockValidationNeeded
   } = useSSRSafeCartStore()
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
+  const [isValidatingStock, setIsValidatingStock] = useState(false)
+  const [stockValidationResult, setStockValidationResult] = useState<{
+    hasIssues: boolean
+    canCheckout: boolean
+  } | null>(null)
+
+  // Real-time stock validation
+  const performStockValidation = async () => {
+    if (items.length === 0) return
+
+    setIsValidatingStock(true)
+    try {
+      const result = await validateCartStock()
+      setStockValidationResult({
+        hasIssues: result.hasIssues,
+        canCheckout: result.canCheckout
+      })
+
+      if (result.hasIssues) {
+        toast.warning('Some items in your cart have stock issues. Please review before checkout.')
+      }
+    } catch (error) {
+      console.error('Stock validation failed:', error)
+      toast.error('Failed to validate stock. Please refresh the page.')
+    } finally {
+      setIsValidatingStock(false)
+    }
+  }
+
+  // Validate stock on page load and when items change
+  useEffect(() => {
+    if (items.length > 0 && isStockValidationNeeded()) {
+      performStockValidation()
+    } else if (items.length === 0) {
+      // Reset stock validation when cart is empty
+      setStockValidationResult(null)
+    }
+  }, [items.length])
+
+  // Periodic stock validation (every 2 minutes)
+  useEffect(() => {
+    if (items.length === 0) return
+
+    const interval = setInterval(() => {
+      if (isStockValidationNeeded()) {
+        performStockValidation()
+      }
+    }, 2 * 60 * 1000) // 2 minutes
+
+    return () => clearInterval(interval)
+  }, [items.length])
 
   const handleQuantityChange = async (itemId: string, newQuantity: number, variant?: string) => {
     if (newQuantity < 1) return
@@ -76,7 +130,18 @@ export default function CartPage() {
     try {
       await removeItem(itemId, variant)
       toast.success('Item removed from cart')
+
+      // Trigger stock validation after item removal to update checkout button state
+      setTimeout(() => {
+        if (items.length > 0) {
+          performStockValidation()
+        } else {
+          // Reset validation state if cart is now empty
+          setStockValidationResult(null)
+        }
+      }, 200)
     } catch (error) {
+      console.error('Failed to remove item:', error)
       toast.error('Failed to remove item')
     }
   }
@@ -194,16 +259,33 @@ export default function CartPage() {
                     <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
                       {itemCount} {itemCount === 1 ? 'item' : 'items'}
                     </span>
+                    {stockValidationResult?.hasIssues && (
+                      <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full font-medium">
+                        Stock issues detected
+                      </span>
+                    )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearCart}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear Cart
-                  </Button>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={performStockValidation}
+                      disabled={isValidatingStock}
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm px-3 py-2 rounded-lg transition-all duration-200 font-medium"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${isValidatingStock ? 'animate-spin' : ''}`} />
+                      {isValidatingStock ? 'Checking...' : 'Check Stock'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearCart}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear Cart
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -238,15 +320,48 @@ export default function CartPage() {
                               {item.name}
                             </h3>
 
-                            {/* Stock Status - Clean Design */}
+                            {/* Stock Status - Dynamic Design */}
                             <div className="flex items-center space-x-3">
-                              <div className="flex items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1 rounded-md">
-                                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                                <span>In Stock</span>
-                              </div>
-                              {item.stockQuantity && item.stockQuantity <= 5 && (
-                                <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-1 rounded-md">
-                                  Only {item.stockQuantity} left
+                              {(() => {
+                                const status = item.stockStatus || 'in_stock'
+                                const message = item.stockMessage || 'In stock'
+                                const stockQuantity = item.stockQuantity || 0
+
+                                if (status === 'out_of_stock') {
+                                  return (
+                                    <div className="flex items-center text-sm text-red-700 font-medium bg-red-50 px-2 py-1 rounded-md">
+                                      <AlertTriangle className="w-3 h-3 mr-2" />
+                                      <span>Out of Stock</span>
+                                    </div>
+                                  )
+                                } else if (status === 'insufficient_stock') {
+                                  return (
+                                    <div className="flex items-center text-sm text-orange-700 font-medium bg-orange-50 px-2 py-1 rounded-md">
+                                      <AlertTriangle className="w-3 h-3 mr-2" />
+                                      <span>{message}</span>
+                                    </div>
+                                  )
+                                } else if (status === 'low_stock') {
+                                  return (
+                                    <div className="flex items-center text-sm text-yellow-700 font-medium bg-yellow-50 px-2 py-1 rounded-md">
+                                      <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+                                      <span>{message}</span>
+                                    </div>
+                                  )
+                                } else {
+                                  return (
+                                    <div className="flex items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1 rounded-md">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                      <span>In Stock</span>
+                                    </div>
+                                  )
+                                }
+                              })()}
+
+                              {/* Show last stock check time if available */}
+                              {item.lastStockCheck && (
+                                <span className="text-xs text-gray-500">
+                                  Updated {new Date(item.lastStockCheck).toLocaleTimeString()}
                                 </span>
                               )}
                             </div>
@@ -426,27 +541,57 @@ export default function CartPage() {
                 </div>
 
                 {/* ENHANCED CHECKOUT BUTTON - Better sizing and responsive */}
-                <Button asChild className="group relative w-full min-h-[44px] h-14 sm:h-16 lg:h-18 text-sm sm:text-base lg:text-lg font-semibold bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 mb-4">
-                  <Link href="/en/checkout" className="flex items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:py-5 lg:py-6">
-                    {/* Icon */}
-                    <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-slate-600 group-hover:text-slate-700 transition-colors duration-200" strokeWidth={1.5} />
-
-                    {/* Text content */}
-                    <div className="flex flex-col items-center">
-                      <span className="font-semibold text-slate-900 leading-tight text-sm sm:text-base lg:text-lg">
-                        Proceed to Checkout
-                      </span>
-                      <span className="text-xs sm:text-sm lg:text-base text-slate-600 group-hover:text-slate-700 transition-colors duration-200 mt-0.5">
-                        Pay {formatPrice(finalTotalWithCouponAndPoints)}
-                      </span>
+                {stockValidationResult?.canCheckout === false ? (
+                  <div className="space-y-3">
+                    <Button
+                      disabled
+                      className="group relative w-full min-h-[44px] h-14 sm:h-16 lg:h-18 text-sm sm:text-base lg:text-lg font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
+                    >
+                      <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:py-5 lg:py-6">
+                        <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-gray-400" strokeWidth={1.5} />
+                        <div className="flex flex-col items-center">
+                          <span className="font-semibold text-gray-400 leading-tight text-sm sm:text-base lg:text-lg">
+                            Cannot Proceed to Checkout
+                          </span>
+                          <span className="text-xs sm:text-sm lg:text-base text-gray-400 mt-0.5">
+                            Please resolve stock issues
+                          </span>
+                        </div>
+                      </div>
+                    </Button>
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-start space-x-2">
+                        <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-orange-800">
+                          <p className="font-medium">Stock Issues Detected</p>
+                          <p className="mt-1">Some items in your cart are out of stock or have insufficient quantity. Please update your cart or remove unavailable items to continue.</p>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+                ) : (
+                  <Button asChild className="group relative w-full min-h-[44px] h-14 sm:h-16 lg:h-18 text-sm sm:text-base lg:text-lg font-semibold bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 mb-4">
+                    <Link href="/en/checkout" className="flex items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:py-5 lg:py-6">
+                      {/* Icon */}
+                      <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-slate-600 group-hover:text-slate-700 transition-colors duration-200" strokeWidth={1.5} />
 
-                    {/* Arrow indicator */}
-                    <svg className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </Link>
-                </Button>
+                      {/* Text content */}
+                      <div className="flex flex-col items-center">
+                        <span className="font-semibold text-slate-900 leading-tight text-sm sm:text-base lg:text-lg">
+                          Proceed to Checkout
+                        </span>
+                        <span className="text-xs sm:text-sm lg:text-base text-slate-600 group-hover:text-slate-700 transition-colors duration-200 mt-0.5">
+                          Pay {formatPrice(finalTotalWithCouponAndPoints)}
+                        </span>
+                      </div>
+
+                      {/* Arrow indicator */}
+                      <svg className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </Link>
+                  </Button>
+                )}
 
                 {/* Security Notice */}
                 <div className="flex items-center justify-center text-sm text-gray-600">

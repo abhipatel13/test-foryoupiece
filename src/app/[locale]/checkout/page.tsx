@@ -152,6 +152,40 @@ export default function CheckoutPage() {
     e.preventDefault()
     if (!user) return
 
+    // Validate stock before proceeding with checkout
+    setLoading(true)
+    try {
+      const validationItems = items.map(item => ({
+        id: item.id,
+        variant: item.variant,
+        quantity: item.quantity
+      }))
+
+      const stockResponse = await fetch('/api/cart/validate-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ items: validationItems })
+      })
+
+      if (stockResponse.ok) {
+        const stockData = await stockResponse.json()
+
+        if (!stockData.canProceedToCheckout) {
+          setLoading(false)
+          toast.error('Some items in your cart are out of stock. Please update your cart before checkout.')
+          return
+        }
+      } else {
+        console.warn('Stock validation failed, proceeding with caution')
+      }
+    } catch (error) {
+      console.error('Stock validation error:', error)
+      // Continue with checkout but log the error
+    }
+    setLoading(false)
+
     // Only show save information dialog if information has changed
     if (hasInformationChanged()) {
       setShowSaveDialog(true)

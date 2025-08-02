@@ -44,6 +44,9 @@ export type CartItem = {
   sku?: string
   stockQuantity?: number // Available stock for validation
   points_rate?: number // Points rate percentage (e.g., 1.00 = 1%)
+  stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock' | 'insufficient_stock' // Real-time stock status
+  stockMessage?: string // Human-readable stock message
+  lastStockCheck?: string // Timestamp of last stock validation
 }
 
 type CartStore = {
@@ -73,6 +76,10 @@ type CartStore = {
   validateStock: (id: string, requestedQuantity: number, currentStock?: number) => { isValid: boolean; message: string }
   getStockMessage: (stockQuantity: number) => string
   cleanupInvalidQuantities: () => Promise<void>
+  // Real-time stock validation functions
+  validateCartStock: () => Promise<{ success: boolean; hasIssues: boolean; canCheckout: boolean }>
+  refreshStockStatus: () => Promise<void>
+  isStockValidationNeeded: () => boolean
   // Points redemption functions
   setPointsToRedeem: (points: number) => void
   getPointsDiscount: () => number
@@ -303,12 +310,19 @@ export const useCartStore = create<CartStore>()(
         // Sync with database if user is logged in
         if (userId) {
           try {
-            const cartItem = await cartQueries.getCartItems(userId)
-            const dbItemToRemove = cartItem.find(
-              (item) => item.product_id === id && item.variant_id === variant
+            // Get fresh cart items from database
+            const cartItems = await cartQueries.getCartItems(userId)
+            const dbItemToRemove = cartItems.find(
+              (item) => item.product_id === id &&
+                       (item.variant_id === variant ||
+                        (item.variant_id === null && variant === undefined) ||
+                        (item.variant_id === null && variant === null))
             )
+
             if (dbItemToRemove) {
+              console.log('Removing item from database:', dbItemToRemove.id)
               await cartQueries.removeFromCart(dbItemToRemove.id)
+              console.log('Successfully removed item from database')
 
               // Track cart remove behavior
               if (itemToRemove) {
@@ -320,9 +334,14 @@ export const useCartStore = create<CartStore>()(
                   source: 'cart_store'
                 })
               }
+            } else {
+              console.warn('Item not found in database for removal:', { id, variant })
             }
           } catch (error) {
             console.error('Failed to remove item from database:', error)
+            // Revert the local state change if database operation failed
+            set({ items })
+            throw error
           }
         }
       },
@@ -517,9 +536,15 @@ export const useCartStore = create<CartStore>()(
       },
 
       syncWithDatabase: async () => {
-        const { userId, items } = get()
+        const { userId, items, isLoading } = get()
         if (!userId) {
           console.log('🛒 Skipping sync - no user ID')
+          return
+        }
+
+        // Prevent concurrent sync operations
+        if (isLoading) {
+          console.log('🛒 Sync already in progress, skipping')
           return
         }
 
@@ -529,24 +554,29 @@ export const useCartStore = create<CartStore>()(
           items: items.map(item => ({ id: item.id, quantity: item.quantity, variant: item.variant }))
         })
 
+        set({ isLoading: true })
         try {
           // Clear existing cart in database
           await cartQueries.clearCart(userId)
           console.log('🛒 Cleared existing cart in database')
 
-          // Add all current items to database
-          for (const item of items) {
-            await cartQueries.addToCart({
+          // Add all current items to database in a single transaction-like operation
+          const addPromises = items.map(item =>
+            cartQueries.addToCart({
               user_id: userId,
               product_id: item.id,
               variant_id: item.variant || null,
               quantity: item.quantity
             })
-          }
+          )
+
+          await Promise.all(addPromises)
           console.log('✅ Cart synced successfully to database')
         } catch (error) {
           console.error('❌ Failed to sync cart with database:', error)
           throw error // Re-throw to allow caller to handle
+        } finally {
+          set({ isLoading: false })
         }
       },
 
@@ -743,6 +773,89 @@ export const useCartStore = create<CartStore>()(
         const { shippingCalculation } = get()
         return shippingCalculation
       },
+
+      // Real-time stock validation functions
+      validateCartStock: async () => {
+        const { items } = get()
+
+        if (items.length === 0) {
+          return { success: true, hasIssues: false, canCheckout: true }
+        }
+
+        try {
+          const validationItems = items.map(item => ({
+            id: item.id,
+            variant: item.variant,
+            quantity: item.quantity
+          }))
+
+          const response = await fetch('/api/cart/validate-stock', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ items: validationItems })
+          })
+
+          if (!response.ok) {
+            throw new Error('Failed to validate stock')
+          }
+
+          const data = await response.json()
+
+          if (data.success) {
+            // Update cart items with current stock information
+            const updatedItems = items.map(item => {
+              const validation = data.results.find((r: any) =>
+                r.id === item.id && r.variant === item.variant
+              )
+
+              if (validation) {
+                return {
+                  ...item,
+                  stockQuantity: validation.currentStock,
+                  stockStatus: validation.status,
+                  stockMessage: validation.message,
+                  lastStockCheck: new Date().toISOString()
+                }
+              }
+
+              return item
+            })
+
+            set({ items: updatedItems })
+
+            return {
+              success: true,
+              hasIssues: data.hasOutOfStock || data.hasInsufficientStock,
+              canCheckout: data.canProceedToCheckout
+            }
+          } else {
+            console.error('Stock validation failed:', data.message)
+            return { success: false, hasIssues: true, canCheckout: false }
+          }
+        } catch (error) {
+          console.error('Error validating cart stock:', error)
+          return { success: false, hasIssues: true, canCheckout: false }
+        }
+      },
+
+      refreshStockStatus: async () => {
+        const { validateCartStock } = get()
+        await validateCartStock()
+      },
+
+      isStockValidationNeeded: () => {
+        const { items } = get()
+        const now = new Date()
+        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+
+        return items.some(item => {
+          if (!item.lastStockCheck) return true
+          const lastCheck = new Date(item.lastStockCheck)
+          return lastCheck < fiveMinutesAgo
+        })
+      }
     }),
     {
       name: 'foryoupiece-cart',
