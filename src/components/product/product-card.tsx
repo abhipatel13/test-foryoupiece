@@ -115,10 +115,10 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* ENHANCED: Pixel-Perfect Professional E-commerce Card */}
-      <div className="modern-product-card h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 min-h-[360px] sm:min-h-[370px]">
+      <div className="modern-product-card h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
 
         {/* Product Image Container - Fixed 1:1 Aspect Ratio */}
-        <div className="relative aspect-square bg-gray-50 rounded-t-lg overflow-hidden flex-shrink-0">
+        <div className="relative aspect-square bg-gray-50 rounded-t-lg overflow-hidden">
           <Link
             href={`/en/products/${product.sku}`}
             className="relative block w-full h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"

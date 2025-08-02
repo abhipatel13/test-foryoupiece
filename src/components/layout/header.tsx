@@ -169,7 +169,7 @@ export function Header() {
             ) : isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-sm h-auto">
+                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-44 h-auto">
                     <div className="text-right mr-1 sm:mr-2 min-w-0">
                       <div className="text-xs text-muted-foreground truncate hidden lg:block">Hello, {profile?.first_name || 'User'}</div>
                       <div className="font-medium flex items-center text-xs sm:text-sm">

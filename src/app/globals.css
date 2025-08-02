@@ -154,15 +154,23 @@ img {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-  padding-left: 0.75rem; /* 12px - tighter mobile padding */
-  padding-right: 0.75rem;
+  padding-left: 0.25rem; /* 4px - ultra-minimal padding for maximum card width on smallest screens */
+  padding-right: 0.25rem;
+}
+
+/* Ultra-small screens (320-340px) - Maximum space utilization */
+@media (min-width: 341px) {
+  .desktop-container {
+    padding-left: 0.5rem; /* 8px - slightly more padding for larger screens */
+    padding-right: 0.5rem;
+  }
 }
 
 /* FIXED: Add specific padding for 326px and intermediate screens */
 @media (min-width: 321px) and (max-width: 374px) {
   .desktop-container {
-    padding-left: 0.625rem; /* 10px - tighter padding for 326px range */
-    padding-right: 0.625rem;
+    padding-left: 0.375rem; /* 6px - ultra-tight padding for 326px range to maximize card width */
+    padding-right: 0.375rem;
   }
 }
 
@@ -667,8 +675,7 @@ input, textarea, select {
     height: 100%;
     display: flex;
     flex-direction: column;
-    /* IMPROVED: More flexible minimum heights for better responsive behavior */
-    min-height: 350px; /* Reduced mobile minimum height */
+    /* FIXED: Remove fixed minimum heights to allow aspect-square containers to work properly */
   }
 
   .modern-product-card:hover {
@@ -677,17 +684,17 @@ input, textarea, select {
     transform: translateY(-2px);
   }
 
-  /* Tablet responsive heights - More flexible */
+  /* Tablet responsive heights - Removed fixed heights */
   @media (min-width: 640px) {
     .modern-product-card {
-      min-height: 380px; /* Slightly increased tablet height */
+      /* Allow natural height based on content */
     }
   }
 
-  /* Desktop responsive heights - Optimized */
+  /* Desktop responsive heights - Removed fixed heights */
   @media (min-width: 1024px) {
     .modern-product-card {
-      min-height: 400px; /* Reduced desktop height for better fit */
+      /* Allow natural height based on content */
     }
 
     .modern-product-card:hover {
@@ -997,15 +1004,17 @@ input, textarea, select {
     }
   }
 
-  /* ENHANCED: Pixel-Perfect Product Grid Layout - Consistent Dimensions */
+  /* ENHANCED: Mobile-First Product Grid Layout - Enterprise Level */
   .product-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr); /* Mobile: 2 products per row */
-    gap: 0.75rem; /* 12px - consistent mobile spacing */
+    gap: 0.5rem; /* 8px - tighter mobile spacing to maximize card width */
     min-height: 0; /* Prevent grid overflow */
     width: 100%;
+    max-width: 100%; /* Prevent horizontal overflow */
     align-items: stretch; /* Ensure equal height cards */
     grid-auto-rows: minmax(360px, auto); /* Fixed minimum height for consistency */
+    overflow-x: hidden; /* Prevent horizontal scroll */
   }
 
   /* ENHANCED: Ensure all product cards have identical dimensions */
@@ -1016,34 +1025,38 @@ input, textarea, select {
     min-height: 360px; /* Fixed minimum height */
   }
 
-  /* ENHANCED: Responsive grid adjustments for different mobile viewports */
-  @media (max-width: 320px) {
+  /* ENHANCED: Mobile-First Responsive Grid - Enterprise Level */
+  @media (max-width: 340px) {
     .product-grid {
-      gap: 0.5rem; /* 8px - tighter spacing for smallest screens */
-      grid-auto-rows: minmax(340px, auto); /* Slightly smaller for 320px */
+      gap: 0.25rem; /* 4px - ultra-minimal spacing for maximum card width */
+      grid-auto-rows: minmax(340px, auto); /* Slightly smaller for ultra-small screens */
+      padding: 0; /* Remove any padding that might cause overflow */
+      margin: 0; /* Remove any margin that might cause overflow */
     }
 
     .product-grid > * {
       min-height: 340px;
+      max-width: 100%; /* Ensure cards don't exceed container */
     }
   }
 
-  /* FIXED: Add specific rules for 326px and intermediate small screens */
-  @media (min-width: 321px) and (max-width: 374px) {
+  /* FIXED: Add specific rules for small screens - Optimized for content fit */
+  @media (min-width: 341px) and (max-width: 374px) {
     .product-grid {
-      gap: 0.5rem; /* 8px - tighter spacing for 326px range */
-      grid-auto-rows: minmax(360px, auto); /* Increased height for better content fit */
+      gap: 0.375rem; /* 6px - tight spacing to maximize card width */
+      grid-auto-rows: minmax(400px, auto); /* Increased height for better content fit */
       grid-template-columns: repeat(2, 1fr); /* Ensure 2 columns */
+      padding: 0; /* Remove padding to maximize available width */
     }
 
     .product-grid > * {
-      min-height: 360px;
+      min-height: 400px; /* Increased to accommodate content properly */
     }
   }
 
   @media (min-width: 375px) and (max-width: 414px) {
     .product-grid {
-      gap: 0.75rem; /* 12px - standard spacing */
+      gap: 0.625rem; /* 10px - optimized spacing for better card width */
       grid-auto-rows: minmax(370px, auto); /* Optimal for 375px-414px */
     }
 
@@ -1055,7 +1068,7 @@ input, textarea, select {
   /* Small mobile improvements */
   @media (min-width: 375px) {
     .product-grid {
-      gap: 1rem; /* 16px - better spacing on larger mobile */
+      gap: 0.75rem; /* 12px - optimized spacing for better card width on larger mobile */
     }
   }
 
@@ -1107,15 +1120,15 @@ input, textarea, select {
   }
 
   /* FIXED: Add responsive rules for compact grid at small screens */
-  @media (max-width: 320px) {
+  @media (max-width: 340px) {
     .product-grid-compact {
-      gap: 0.5rem; /* 8px - tighter spacing for smallest screens */
+      gap: 0.25rem; /* 4px - ultra-minimal spacing for maximum card width */
     }
   }
 
-  @media (min-width: 321px) and (max-width: 374px) {
+  @media (min-width: 341px) and (max-width: 374px) {
     .product-grid-compact {
-      gap: 0.5rem; /* 8px - tighter spacing for 326px range */
+      gap: 0.375rem; /* 6px - tight spacing for small screens */
       grid-template-columns: repeat(2, 1fr); /* Ensure 2 columns */
     }
   }
@@ -1479,14 +1492,17 @@ input, textarea, select {
     }
   }
 
-  /* ENHANCED: Mobile-optimized cards with improved spacing and layout */
+  /* ENHANCED: Enterprise Mobile Product Cards */
   @media (max-width: 768px) {
     .modern-product-card {
       border-radius: 0.5rem;
       padding: 0; /* Remove padding conflicts */
-      min-height: 340px; /* Slightly increased for better content fit */
+      /* FIXED: Remove fixed min-height to allow aspect-square containers to work properly */
       display: flex;
       flex-direction: column;
+      width: 100%; /* Ensure full width within grid */
+      max-width: 100%; /* Prevent overflow */
+      overflow: hidden; /* Prevent content overflow */
     }
 
     .modern-product-card:active {
@@ -1500,6 +1516,55 @@ input, textarea, select {
       justify-content: space-between;
       min-height: 0; /* Allow flex shrinking */
     }
+  }
+
+  /* ENHANCED: Specific optimizations for narrow viewports (341px-374px) */
+  @media (min-width: 341px) and (max-width: 374px) {
+    .modern-product-card {
+      /* Ensure adequate content spacing for narrow cards */
+      min-height: 400px; /* Match grid row height */
+    }
+
+    .modern-product-card .flex-1 {
+      padding: 0.75rem; /* Slightly more padding for better content fit */
+    }
+
+    /* Ensure buttons are fully visible */
+    .modern-product-card button {
+      min-height: 2.75rem; /* 44px - ensure touch target */
+      font-size: 0.875rem; /* 14px - readable text */
+      white-space: nowrap; /* Prevent text wrapping */
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  /* ENHANCED: Ultra-small screens (320px-340px) - Maximum space utilization */
+  @media (max-width: 340px) {
+    .modern-product-card {
+      min-height: 340px; /* Match grid row height */
+    }
+
+    .modern-product-card .flex-1 {
+      padding: 0.5rem; /* Minimal padding for maximum content space */
+    }
+
+    /* Compact buttons for ultra-small screens */
+    .modern-product-card button {
+      min-height: 2.5rem; /* 40px - still touch-friendly */
+      font-size: 0.8125rem; /* 13px - compact but readable */
+      padding: 0.5rem 0.75rem; /* Tighter padding */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Optimize text sizing for narrow cards */
+    .modern-product-card h3 {
+      font-size: 0.875rem; /* 14px */
+      line-height: 1.25; /* Tighter line height */
+    }
+  }
 
     /* Better mobile typography with consistent spacing */
     .modern-product-card h3 {
@@ -1524,22 +1589,79 @@ input, textarea, select {
     }
 
     /* Ensure buttons are properly sized for touch with better spacing */
-    .modern-product-card button {
+    .modern-product-card button:not(.aspect-square) {
       min-height: 44px;
       font-size: 0.875rem; /* 14px - readable size */
       padding: 0.75rem 1rem; /* Better mobile padding */
       margin-top: 0.75rem; /* Increased top margin for spacing */
     }
 
-    /* Improve image container on mobile */
+    /* CRITICAL: Ensure aspect-square containers are NEVER treated as buttons */
+    .modern-product-card .aspect-square {
+      min-height: 0 !important;
+      height: auto !important;
+      padding: 0 !important;
+      margin-top: 0 !important;
+    }
+
+    /* FIXED: Improve image container on mobile with proper aspect ratio */
     .modern-product-card .aspect-square {
       margin-bottom: 0.75rem; /* Better bottom margin */
+      height: auto !important; /* Override any fixed height */
+      aspect-ratio: 1 / 1 !important; /* Force square aspect ratio */
+      min-height: 0; /* Allow natural sizing */
     }
 
     /* Better badge positioning on mobile */
     .modern-product-card .absolute {
       top: 0.75rem; /* 12px - consistent positioning */
     }
+  }
+
+  /* CRITICAL FIX: Ensure aspect-square containers maintain proper aspect ratios */
+  .aspect-square {
+    aspect-ratio: 1 / 1 !important;
+    height: auto !important; /* Override any fixed height that breaks aspect ratio */
+    min-height: 0 !important; /* Allow natural sizing */
+  }
+
+  /* ULTRA-SPECIFIC FIX: Override any button styling that might affect aspect-square containers */
+  .modern-product-card .aspect-square,
+  .product-grid .aspect-square,
+  div.aspect-square,
+  .aspect-square:not(button) {
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  /* NUCLEAR OPTION: Force aspect-square containers to work properly */
+  .aspect-square {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    aspect-ratio: 1 / 1 !important;
+    display: block !important;
+    position: relative !important;
+    overflow: hidden !important;
+    width: 100% !important;
+  }
+
+  /* Override any flex constraints that might be causing the issue */
+  .flex .aspect-square,
+  .flex-col .aspect-square {
+    flex-shrink: 0 !important;
+    flex-grow: 0 !important;
+    flex-basis: auto !important;
+    height: auto !important;
+  }
+
+  /* Ensure product images fill their containers properly */
+  .aspect-square img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
   }
 
   /* FIXED: Professional Typography with Consistent Sizing */
@@ -1736,7 +1858,7 @@ input, textarea, select {
     }
   }
 
-  /* ENHANCED: Prevent horizontal scroll and improve mobile UX */
+  /* ENHANCED: Enterprise Mobile UX - Prevent Horizontal Scroll */
   @media (max-width: 768px) {
     html, body {
       overflow-x: hidden;
@@ -1747,25 +1869,96 @@ input, textarea, select {
     .container, .desktop-container {
       max-width: 100vw;
       overflow-x: hidden;
+      padding-left: 1rem;
+      padding-right: 1rem;
     }
 
     /* Ensure all grid containers respect viewport width */
     .product-grid, .product-grid-compact, .product-grid-featured {
       max-width: 100%;
       overflow-x: hidden;
+      width: 100%;
     }
 
-    /* Improve touch targets on mobile */
+    /* Enterprise Touch Targets - WCAG AA Compliance */
     button, a, [role="button"] {
       min-height: 44px;
       min-width: 44px;
     }
 
-    /* Better mobile typography */
-    h1, h2, h3, h4, h5, h6 {
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+    /* Mobile-specific layout fixes */
+    .flex {
+      flex-wrap: wrap;
     }
+
+    /* Prevent content from exceeding viewport */
+    * {
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* Mobile Navigation Controls */
+    .mobile-controls {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .mobile-controls .flex {
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    /* Mobile Select Controls */
+    select, .select-trigger {
+      min-height: 44px;
+      font-size: 16px; /* Prevent zoom on iOS */
+      padding: 12px 16px;
+    }
+
+    /* Mobile Button Groups */
+    .button-group {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+
+    .button-group button {
+      min-height: 44px;
+      min-width: 44px;
+      padding: 12px;
+    }
+
+    /* Mobile-First Responsive Utilities */
+    .mobile-stack {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .mobile-full-width {
+      width: 100%;
+    }
+
+    .mobile-center {
+      text-align: center;
+      justify-content: center;
+    }
+
+    /* Mobile Spacing */
+    .mobile-spacing {
+      padding: 1rem;
+      margin: 0;
+    }
+
+    .mobile-gap {
+      gap: 1rem;
+    }
+  }
+
+  /* Better mobile typography */
+  h1, h2, h3, h4, h5, h6 {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   /* FIXED: Additional overflow and text handling for very small screens */
@@ -1795,7 +1988,7 @@ input, textarea, select {
       gap: 0.5rem;
     }
 
-    /* FIXED: Better product card text handling for 326px */
+    /* FIXED: Better product card text handling for ultra-small screens */
     .modern-product-card h3 {
       font-size: 0.8125rem; /* 13px - smaller text for 326px */
       line-height: 1.3;
@@ -1943,7 +2136,6 @@ input, textarea, select {
     color: oklch(0.5 0.02 250);
     line-height: 1.4;
   }
-}
 
 /* Desktop Authentication Form Width - Optimized for Desktop Usability */
 .auth-form-container {

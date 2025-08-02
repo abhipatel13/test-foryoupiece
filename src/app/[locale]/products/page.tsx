@@ -14,7 +14,8 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Pagination } from '@/components/ui/pagination'
-import { Search, Filter, Grid, List, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { Search, Filter, Grid, List, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 
 interface Product {
   id: string
@@ -309,7 +310,7 @@ function ProductsPageContent() {
     <div className="bg-gray-50 min-h-screen">
       {/* Breadcrumb */}
       <div className="bg-white border-b">
-        <div className="container mx-auto px-4 py-3">
+        <div className="w-full max-w-none px-1 sm:px-4 md:px-6 lg:container lg:mx-auto py-3">
           <div className="text-sm text-gray-600">
             <span>Home</span> &gt; <span className="text-gray-900">
               {isSearchView ? `Search Results for "${searchQuery}"` :
@@ -322,7 +323,7 @@ function ProductsPageContent() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6 max-w-screen-2xl">
+      <div className="w-full max-w-none px-1 sm:px-4 md:px-6 lg:container lg:mx-auto py-4 lg:py-6 lg:max-w-screen-2xl">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-medium text-gray-900 mb-2">
@@ -355,21 +356,99 @@ function ProductsPageContent() {
 
         {/* Sort and Filter Bar - Hidden for recommendations, search, and deals */}
         {!isRecommendedView && !isSearchView && !isDealsView && (
-          <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-lg shadow-sm">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="lg:hidden"
-            >
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Filters
-            </Button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm">
+          <div className="flex items-center space-x-4 w-full sm:w-auto">
+            {/* Mobile Filter Sheet */}
+            <Sheet open={showFilters} onOpenChange={setShowFilters}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="lg:hidden min-h-[44px] px-4"
+                >
+                  <SlidersHorizontal className="h-4 w-4 mr-2" />
+                  Filters
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0">
+                <SheetHeader className="p-4 border-b">
+                  <SheetTitle>Filter Products</SheetTitle>
+                  <SheetDescription>
+                    Refine your search with these filters
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="flex flex-col h-full overflow-y-auto">
+                  <div className="p-4 space-y-6">
+                    {/* Categories Filter */}
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-3">Categories</h3>
+                      <div className="space-y-3">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <Checkbox
+                            checked={selectedCategory === null}
+                            onCheckedChange={() => setSelectedCategory(null)}
+                          />
+                          <span className="text-sm">All Categories</span>
+                        </label>
+                        {categories.map((category) => (
+                          <label key={category.id} className="flex items-center space-x-3 cursor-pointer">
+                            <Checkbox
+                              checked={selectedCategory === category.slug}
+                              onCheckedChange={() => setSelectedCategory(category.slug)}
+                            />
+                            <span className="text-sm">{category.name_en}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">Sort by:</span>
+                    {/* Price Range Filter */}
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-3">Price Range</h3>
+                      <div className="space-y-4">
+                        <Slider
+                          value={priceRange}
+                          onValueChange={setPriceRange}
+                          max={500}
+                          step={10}
+                          className="w-full"
+                        />
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <span>${priceRange[0]}</span>
+                          <span>${priceRange[1]}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Brand Filter */}
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-3">Brand</h3>
+                      <div className="space-y-3">
+                        {brands.map((brand) => (
+                          <label key={brand} className="flex items-center space-x-3 cursor-pointer">
+                            <Checkbox
+                              checked={selectedBrands.includes(brand)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedBrands([...selectedBrands, brand])
+                                } else {
+                                  setSelectedBrands(selectedBrands.filter(b => b !== brand))
+                                }
+                              }}
+                            />
+                            <span className="text-sm">{brand}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            <div className="flex items-center space-x-2 flex-1 sm:flex-none">
+              <span className="text-sm text-gray-600 hidden sm:inline">Sort by:</span>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48 min-h-[44px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -382,11 +461,12 @@ function ProductsPageContent() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setViewMode('grid')}
+              className="min-h-[44px] min-w-[44px] px-3"
             >
               <Grid className="h-4 w-4" />
             </Button>
@@ -394,6 +474,7 @@ function ProductsPageContent() {
               variant={viewMode === 'list' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setViewMode('list')}
+              className="min-h-[44px] min-w-[44px] px-3"
             >
               <List className="h-4 w-4" />
             </Button>
@@ -402,10 +483,10 @@ function ProductsPageContent() {
         )}
 
         {/* Main Content */}
-        <div className={`flex gap-6 ${isRecommendedView || isSearchView || isDealsView ? 'justify-center' : ''}`}>
-          {/* Sidebar Filters - Hidden for recommendations, search, and deals */}
+        <div className={`${isRecommendedView || isSearchView || isDealsView ? 'flex justify-center' : 'block lg:flex lg:gap-6'}`}>
+          {/* Desktop Sidebar Filters - Hidden on mobile, only shown on desktop */}
           {!isRecommendedView && !isSearchView && !isDealsView && (
-            <aside className={`w-64 space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+            <aside className="hidden lg:block w-64 space-y-6">
             {/* Categories Filter */}
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <h3 className="font-medium text-gray-900 mb-3">Categories</h3>
@@ -474,7 +555,7 @@ function ProductsPageContent() {
           )}
 
           {/* Products Grid */}
-          <main className={`${isRecommendedView || isSearchView || isDealsView ? 'w-full max-w-6xl' : 'flex-1'}`}>
+          <main className={`w-full ${isRecommendedView || isSearchView || isDealsView ? 'max-w-6xl mx-auto' : 'lg:flex-1'}`}>
 
             {loading ? (
               <div className="product-grid">
