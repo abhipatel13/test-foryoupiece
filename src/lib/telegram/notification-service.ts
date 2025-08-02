@@ -384,18 +384,60 @@ ${specialNotes ? `📝 <b>Special Notes:</b>\n${specialNotes}\n\n` : ''}📅 <b>
    * Format confirmation message for Telegram
    */
   private formatConfirmationMessage(order: OrderData, action: 'confirmed' | 'cancelled', processedBy: string): string {
-    const emoji = action === 'confirmed' ? '✅' : '❌';
-    const actionText = action === 'confirmed' ? 'CONFIRMED' : 'CANCELLED';
-    
+    const emoji = action === 'confirmed' ? '✅✅' : '❌';
+    const actionText = action === 'confirmed' ? 'PAID' : 'CANCELLED';
+
+    // Extract customer information
+    const firstName = order.shipping_address?.firstName || 'N/A';
+    const lastName = order.shipping_address?.lastName || 'N/A';
+    const email = order.email || 'N/A';
+    const phone = order.phone || 'N/A';
+    const abaBankName = order.shipping_address?.abaBankName || 'N/A';
+
+    // Extract shipping address
+    const address1 = order.shipping_address?.address1 || order.shipping_address?.address_line_1 || 'N/A';
+    const address2 = order.shipping_address?.address2 || order.shipping_address?.address_line_2 || '';
+    const city = order.shipping_address?.city || '';
+    const country = order.shipping_address?.country || '';
+
+    // Build full address
+    let fullAddress = address1;
+    if (address2) fullAddress += `, ${address2}`;
+    if (city) fullAddress += `, ${city}`;
+    if (country) fullAddress += `, ${country}`;
+
+    // Format order items
+    let itemsText = '';
+    if (order.order_items && order.order_items.length > 0) {
+      itemsText = order.order_items.map(item =>
+        `• ${item.title}\n  Qty: ${item.quantity} × $${item.price.toFixed(2)} = $${item.total.toFixed(2)}`
+      ).join('\n\n');
+    } else {
+      itemsText = '• No items found';
+    }
+
     return `
-${emoji} <b>ORDER ${actionText}</b>
+🛒 <b>NEW ORDER RECEIVED - ${actionText}${emoji}</b>
 
-📋 <b>Order:</b> ${order.order_number}
-💰 <b>Total:</b> $${order.total_amount.toFixed(2)}
-👤 <b>Processed by:</b> ${processedBy}
-📅 <b>Processed at:</b> ${new Date().toLocaleString()}
+📋 <b>Order Number:</b> ${order.order_number}
 
-${action === 'confirmed' ? '🚚 Order will be processed and shipped.' : '🚫 Order has been cancelled.'}
+👤 <b>CUSTOMER INFORMATION</b>
+• Name: ${firstName} ${lastName}
+• Email: ${email}
+• Phone: ${phone}
+• ABA Bank Name: ${abaBankName}
+
+📍 <b>SHIPPING ADDRESS</b>
+${fullAddress}
+
+💰 <b>ORDER SUMMARY</b>
+• Subtotal: $${(order.subtotal || 0).toFixed(2)}
+• Shipping: $${(order.shipping_cost || 0).toFixed(2)}
+• Total Amount: $${order.total_amount.toFixed(2)}
+• Payment Method: ${order.payment_method || 'qr_code'}
+
+📦 <b>ORDER ITEMS</b>
+${itemsText}
     `.trim();
   }
 
