@@ -420,8 +420,8 @@ ${emoji} <b>ORDER ${actionText}</b>
     const pointsValue = pointsUsed / 1000; // 1000 points = $1
 
     return `
-🛒 NEW ORDER RECEIVED
-✅ PAID
+🛒 NEW ORDER RECEIVED - PAID✅✅
+
 📋 Order Number: ${order.order_number}
 
 👤 CUSTOMER INFORMATION
@@ -436,7 +436,7 @@ ${shippingAddress}
 💰 ORDER SUMMARY
 • Subtotal: $${parseFloat(order.subtotal || '0').toFixed(2)}
 • Shipping: $${parseFloat(order.shipping_cost || '0').toFixed(2)}
-${discountAmount > 0 ? `💸 Discount: -$${discountAmount.toFixed(2)}\n` : ''}${pointsUsed > 0 ? `⭐ Points Used: ${pointsUsed}\n` : ''}• Total Amount: $${parseFloat(order.total_amount || '0').toFixed(2)}
+${discountAmount > 0 ? `• Discount: -$${discountAmount.toFixed(2)}\n` : ''}${pointsUsed > 0 ? `• Points Used: ${pointsUsed} points (-$${pointsValue.toFixed(2)})\n` : ''}• Total Amount: $${parseFloat(order.total_amount || '0').toFixed(2)}
 • Payment Method: ${order.payment_method || 'qr_code'}
 
 📦 ORDER ITEMS
