@@ -238,7 +238,14 @@ function MfaEnrollmentForm({ user, onSuccess, onBack }: any) {
             <>
               {qrCode && (
                 <div className="text-center">
-                  <img src={qrCode} alt="QR Code" className="mx-auto" />
+                  <Image
+                    src={qrCode}
+                    alt="QR Code"
+                    width={200}
+                    height={200}
+                    className="mx-auto"
+                    unoptimized={true} // QR codes should not be optimized
+                  />
                   <p className="text-sm text-gray-600 mt-2">Secret: {secret}</p>
                 </div>
               )}

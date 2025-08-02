@@ -52,6 +52,7 @@ export type CartItem = {
 type CartStore = {
   items: CartItem[]
   isLoading: boolean
+  isHydrated: boolean
   userId: string | null
   pointsToRedeem: number
   appliedCoupon: AppliedCoupon | null
@@ -73,6 +74,7 @@ type CartStore = {
   deduplicateItems: () => void
   syncWithDatabase: () => Promise<void>
   loadCartFromDatabase: () => Promise<void>
+  setHydrated: (hydrated: boolean) => void
   validateStock: (id: string, requestedQuantity: number, currentStock?: number) => { isValid: boolean; message: string }
   getStockMessage: (stockQuantity: number) => string
   cleanupInvalidQuantities: () => Promise<void>
@@ -153,6 +155,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       isLoading: false,
+      isHydrated: false,
       userId: null,
       pointsToRedeem: 0,
       shippingCalculation: null,
@@ -425,7 +428,12 @@ export const useCartStore = create<CartStore>()(
         console.log('🧹 Clearing local cart state on logout')
         set({ items: [], userId: null })
       },
-      
+
+      setHydrated: (hydrated: boolean) => {
+        console.log('🔄 Cart store: Setting hydrated state:', hydrated)
+        set({ isHydrated: hydrated })
+      },
+
       getTotal: () => {
         const { items } = get()
         return items.reduce((total, item) => total + item.price * item.quantity, 0)
@@ -891,6 +899,7 @@ export const useCartStore = create<CartStore>()(
           // Reset loading state on hydration to prevent stuck loading states
           if (state) {
             state.isLoading = false
+            state.isHydrated = true // Mark as hydrated after successful rehydration
             // Ensure other states have safe defaults
             if (!state.pointsToRedeem) {
               state.pointsToRedeem = 0
@@ -908,6 +917,7 @@ export const useCartStore = create<CartStore>()(
           if (state) {
             state.items = []
             state.isLoading = false
+            state.isHydrated = true // Still mark as hydrated even on error
             state.pointsToRedeem = 0
             state.appliedCoupon = null
             state.shippingCalculation = null

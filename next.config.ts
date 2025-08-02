@@ -42,9 +42,11 @@ const nextConfig: NextConfig = {
         hostname: 'foryoupiece.com',
       },
     ],
-    // Performance optimizations for images
-    formats: ['image/webp', 'image/avif'],
-    minimumCacheTTL: 60,
+    // COST OPTIMIZATION: Reduced formats and extended cache TTL
+    formats: ['image/webp'], // Single format to reduce transformations
+    minimumCacheTTL: 2678400, // 31 days cache for product images
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   experimental: {
     serverActions: {
@@ -126,6 +128,26 @@ const nextConfig: NextConfig = {
               'geolocation=()',
               'interest-cohort=()'
             ].join(', '),
+          },
+        ],
+      },
+      {
+        // COST OPTIMIZATION: Long-term caching for static product images
+        source: '/images/products/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=2678400, immutable', // 31 days cache
+          },
+        ],
+      },
+      {
+        // COST OPTIMIZATION: Long-term caching for static assets
+        source: '/(favicon|logo|qr-payment|file|globe|next|vercel|window)\\.(jpg|jpeg|png|svg|webp|avif)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable', // 1 year cache for static assets
           },
         ],
       },

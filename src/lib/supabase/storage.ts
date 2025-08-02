@@ -18,7 +18,7 @@ export const storageService = {
       const { data, error } = await supabase.storage
         .from(bucket)
         .upload(path, file, {
-          cacheControl: options?.cacheControl || '3600',
+          cacheControl: options?.cacheControl || '2678400', // 31 days default cache
           contentType: options?.contentType || file.type,
           upsert: options?.upsert || false
         })

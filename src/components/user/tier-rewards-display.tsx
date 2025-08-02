@@ -64,11 +64,23 @@ export default function TierRewardsDisplay({ userId, userProfile }: TierRewardsD
   const [rewards, setRewards] = useState<TierRewardHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [tierInfo, setTierInfo] = useState<TierInfo | null>(null)
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    loadRewards()
-    calculateTierInfo()
-  }, [userId, userProfile])
+    // Only load rewards if userId changed to prevent duplicate API calls
+    if (userId && userId !== lastLoadedUserId) {
+      console.log('🔄 TierRewardsDisplay: Loading rewards for new userId:', userId)
+      loadRewards()
+      setLastLoadedUserId(userId)
+    }
+  }, [userId, lastLoadedUserId])
+
+  useEffect(() => {
+    // Calculate tier info when userProfile changes
+    if (userProfile) {
+      calculateTierInfo()
+    }
+  }, [userProfile])
 
   const loadRewards = async () => {
     try {

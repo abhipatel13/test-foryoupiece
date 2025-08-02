@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -407,11 +408,14 @@ export function EnhancedSearch({
                     }}
                   >
                     {product.images[0] && (
-                      <div className="flex-shrink-0">
-                        <img
+                      <div className="flex-shrink-0 relative w-12 h-12">
+                        <Image
                           src={product.images[0]}
                           alt={product.name_en}
-                          className="w-12 h-12 object-cover rounded-md border border-border/20 group-hover:border-primary/20 transition-colors duration-200"
+                          width={48}
+                          height={48}
+                          className="object-cover rounded-md border border-border/20 group-hover:border-primary/20 transition-colors duration-200"
+                          sizes="48px"
                         />
                       </div>
                     )}

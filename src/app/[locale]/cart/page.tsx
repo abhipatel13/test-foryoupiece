@@ -24,6 +24,8 @@ export default function CartPage() {
   const { profile } = useSSRSafeAuth()
   const {
     items,
+    isLoading,
+    isInitialized,
     updateQuantity,
     removeItem,
     clearCart,
@@ -171,9 +173,32 @@ export default function CartPage() {
     pointsDiscount,
     pointsToRedeem,
     appliedCoupon: appliedCoupon?.code,
-    finalTotalWithCouponAndPoints
+    finalTotalWithCouponAndPoints,
+    isLoading,
+    isInitialized,
+    itemsLength: items.length
   })
 
+  // Show loading state while cart is initializing to prevent flash of empty cart
+  if (isLoading || !isInitialized) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="bg-white rounded-lg p-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-6"></div>
+              <h1 className="text-2xl font-medium text-gray-900 mb-4">Loading your cart...</h1>
+              <p className="text-gray-600">
+                Please wait while we load your cart items.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show empty cart only after initialization is complete
   if (items.length === 0) {
     return (
       <div className="bg-gray-50 min-h-screen">

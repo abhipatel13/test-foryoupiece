@@ -9,9 +9,10 @@ import { useCartStore } from './cart-store'
  */
 export function useSSRSafeCartStore() {
   const [isClient, setIsClient] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
   const [storeData, setStoreData] = useState({
     items: [],
-    isLoading: false,
+    isLoading: true, // Start with loading state to prevent flash of empty cart
     isHydrated: false,
     userId: null as string | null,
     pointsToRedeem: 0,
@@ -57,11 +58,24 @@ export function useSSRSafeCartStore() {
     setIsClient(true)
   }, [])
 
+
+
   useEffect(() => {
     if (isClient) {
+      console.log('🔄 SSR-safe cart store: Initializing')
+
       try {
         const data = useCartStore.getState()
+
+        // Enhanced subscription with proper state synchronization
         const subscribe = useCartStore.subscribe((state) => {
+          console.log('🔄 SSR-safe cart store: Cart state updated', {
+            itemCount: state.getItemCount(),
+            isHydrated: state.isHydrated,
+            isLoading: state.isLoading,
+            userId: state.userId
+          })
+
           setStoreData({
             items: state.items,
             isLoading: state.isLoading,
@@ -105,9 +119,22 @@ export function useSSRSafeCartStore() {
             refreshStockStatus: state.refreshStockStatus,
             isStockValidationNeeded: state.isStockValidationNeeded
           })
+
+          // Mark as initialized once we have proper cart data
+          if (state.isHydrated && !isInitialized) {
+            console.log('✅ SSR-safe cart store: Initialization complete')
+            setIsInitialized(true)
+          }
         })
 
-        // Set initial state
+        // Set initial state with enhanced logging
+        console.log('🔄 SSR-safe cart store: Setting initial state', {
+          itemCount: data.getItemCount(),
+          isHydrated: data.isHydrated,
+          isLoading: data.isLoading,
+          userId: data.userId
+        })
+
         setStoreData({
           items: data.items,
           isLoading: data.isLoading,
@@ -152,12 +179,25 @@ export function useSSRSafeCartStore() {
           isStockValidationNeeded: data.isStockValidationNeeded
         })
 
+        // Mark as initialized if cart is already hydrated
+        if (data.isHydrated) {
+          console.log('✅ SSR-safe cart store: Already hydrated, marking as initialized')
+          setIsInitialized(true)
+        }
+
         return subscribe
       } catch (error) {
         console.warn('Error accessing cart store:', error)
+        setIsInitialized(true) // Prevent infinite loading on error
       }
     }
   }, [isClient])
 
-  return storeData
+  // Return enhanced store data with initialization state
+  return {
+    ...storeData,
+    isInitialized,
+    // Override isLoading to show loading state until properly initialized
+    isLoading: storeData.isLoading || !isInitialized
+  }
 }

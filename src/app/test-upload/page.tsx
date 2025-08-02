@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
@@ -112,9 +113,11 @@ export default function TestUploadPage() {
                 {uploadedImages.map((url, index) => (
                   <div key={index} className="p-2 bg-gray-100 rounded">
                     <p className="text-sm font-mono break-all">{url}</p>
-                    <img 
-                      src={url} 
-                      alt={`Upload ${index + 1}`} 
+                    <Image
+                      src={url}
+                      alt={`Upload ${index + 1}`}
+                      width={300}
+                      height={200}
                       className="mt-2 max-w-xs h-auto rounded"
                       onLoad={() => console.log('Image loaded:', url)}
                       onError={() => console.error('Image failed to load:', url)}

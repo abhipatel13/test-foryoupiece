@@ -47,22 +47,28 @@ const tierColors = {
   diamond: 'text-blue-600 bg-blue-50 border-blue-200'
 }
 
-export function PointsBreakdownComponent({ 
-  userId, 
-  variant = 'full', 
+export function PointsBreakdownComponent({
+  userId,
+  variant = 'full',
   showTierProgress = true,
-  className = '' 
+  className = ''
 }: PointsBreakdownProps) {
   const [pointsBreakdown, setPointsBreakdown] = useState<PointsBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(variant === 'full')
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null)
 
   const pointsService = new PointsService()
 
   useEffect(() => {
-    loadPointsBreakdown()
-  }, [userId])
+    // Only load points breakdown if userId changed to prevent duplicate API calls
+    if (userId && userId !== lastLoadedUserId) {
+      console.log('🔄 PointsBreakdownComponent: Loading points for new userId:', userId)
+      loadPointsBreakdown()
+      setLastLoadedUserId(userId)
+    }
+  }, [userId, lastLoadedUserId])
 
   const loadPointsBreakdown = async () => {
     try {

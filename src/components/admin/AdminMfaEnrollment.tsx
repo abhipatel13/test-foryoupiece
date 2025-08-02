@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -190,12 +191,13 @@ export default function AdminMfaEnrollment({ user, onEnrollmentSuccess, onBack }
         {enrollmentData?.qrCode && (
           <div className="flex justify-center">
             <div className="p-4 bg-white border rounded-lg">
-              <img
+              <Image
                 src={enrollmentData.qrCode}
                 alt="MFA QR Code"
                 width={200}
                 height={200}
                 className="mx-auto"
+                unoptimized={true} // QR codes should not be optimized
               />
             </div>
           </div>
