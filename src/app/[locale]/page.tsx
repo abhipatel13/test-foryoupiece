@@ -14,7 +14,8 @@ import { RecommendationEngine, getEnhancedDealsProducts } from '@/lib/recommenda
 import { useBoxHeroCategories } from '@/hooks/use-boxhero-categories';
 import { useCategoryImages } from '@/hooks/use-category-images';
 import { useTrendingProducts } from '@/presentation/hooks/useTrendingProducts';
-import { useHomepageBestSellers } from '@/presentation/hooks/useBestSellerProducts';
+import { useHomepageBestSellers } from '@/presentation/hooks/useBestSellerProducts'
+import { useHomepageData } from '@/presentation/hooks/useHomepageData';
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth';
 import { sortProductsByStockPriority } from '@/lib/utils';
 
@@ -43,6 +44,11 @@ interface Product {
 export default function HomePage() {
   const t = useTranslations('navigation')
   const { user } = useSSRSafeAuth()
+
+  // Performance optimization flag - set to true to use optimized API
+  const USE_OPTIMIZED_API = true
+
+  // Legacy state (for fallback)
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [dealsProducts, setDealsProducts] = useState<Product[]>([])
   const [recentlyAddedProducts, setRecentlyAddedProducts] = useState<Product[]>([])
@@ -50,6 +56,18 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
   const [firefoxRefreshKey, setFirefoxRefreshKey] = useState(0)
+
+  // New optimized data loading
+  const {
+    data: homepageData,
+    isLoading: homepageLoading,
+    error: homepageError
+  } = useHomepageData({
+    dealsLimit: 5,
+    recentlyAddedLimit: 5,
+    includeTrending: false,
+    enabled: USE_OPTIMIZED_API
+  })
 
   // Use the new trending products system
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useTrendingProducts(10)
@@ -181,8 +199,37 @@ export default function HomePage() {
       }
     }
 
-    fetchProducts()
-  }, [])
+    // Only run legacy data loading if optimized API is disabled
+    if (!USE_OPTIMIZED_API) {
+      fetchProducts()
+    }
+  }, [USE_OPTIMIZED_API])
+
+  // Handle optimized homepage data when available
+  useEffect(() => {
+    if (USE_OPTIMIZED_API && homepageData?.success) {
+      console.log('🚀 Using optimized homepage data:', homepageData.data.metadata)
+
+      // Set the data from optimized API
+      setDealsProducts(homepageData.data.deals || [])
+      setRecentlyAddedProducts(homepageData.data.recently_added || [])
+      setAllProducts([...homepageData.data.deals, ...homepageData.data.recently_added])
+      setLoading(false)
+
+      console.log(`✅ Optimized data loaded: ${homepageData.data.deals.length} deals, ${homepageData.data.recently_added.length} recently added`)
+    } else if (USE_OPTIMIZED_API && homepageError) {
+      console.error('❌ Optimized homepage data error:', homepageError)
+      // Fallback to legacy loading
+      setLoading(false)
+    }
+  }, [USE_OPTIMIZED_API, homepageData, homepageError])
+
+  // Update loading state based on optimized API
+  useEffect(() => {
+    if (USE_OPTIMIZED_API) {
+      setLoading(homepageLoading)
+    }
+  }, [USE_OPTIMIZED_API, homepageLoading])
 
   // Separate effect for personalized recommendations
   useEffect(() => {
