@@ -387,57 +387,80 @@ ${specialNotes ? `📝 <b>Special Notes:</b>\n${specialNotes}\n\n` : ''}📅 <b>
     const emoji = action === 'confirmed' ? '✅✅' : '❌';
     const actionText = action === 'confirmed' ? 'PAID' : 'CANCELLED';
 
-    // Extract customer information
-    const firstName = order.shipping_address?.firstName || 'N/A';
-    const lastName = order.shipping_address?.lastName || 'N/A';
-    const email = order.email || 'N/A';
-    const phone = order.phone || 'N/A';
-    const abaBankName = order.shipping_address?.abaBankName || 'N/A';
+    // DIRECT IMPLEMENTATION - SAME AS CALLBACK HANDLER TO AVOID N/A VALUES
 
-    // Extract shipping address
-    const address1 = order.shipping_address?.address1 || order.shipping_address?.address_line_1 || 'N/A';
-    const address2 = order.shipping_address?.address2 || order.shipping_address?.address_line_2 || '';
-    const city = order.shipping_address?.city || '';
-    const country = order.shipping_address?.country || '';
-
-    // Build full address
-    let fullAddress = address1;
-    if (address2) fullAddress += `, ${address2}`;
-    if (city) fullAddress += `, ${city}`;
-    if (country) fullAddress += `, ${country}`;
-
-    // Format order items
-    let itemsText = '';
-    if (order.order_items && order.order_items.length > 0) {
-      itemsText = order.order_items.map(item =>
-        `• ${item.title}\n  Qty: ${item.quantity} × $${item.price.toFixed(2)} = $${item.total.toFixed(2)}`
-      ).join('\n\n');
-    } else {
-      itemsText = '• No items found';
+    // Get customer name directly
+    let customerName = 'Not provided';
+    if (order.users?.first_name || order.users?.last_name) {
+      customerName = `${order.users.first_name || ''} ${order.users.last_name || ''}`.trim();
+    } else if (order.shipping_address?.firstName || order.shipping_address?.lastName) {
+      customerName = `${order.shipping_address.firstName || ''} ${order.shipping_address.lastName || ''}`.trim();
+    } else if (order.email) {
+      customerName = order.email.split('@')[0];
     }
 
+    // Get customer info directly
+    const customerEmail = order.email || 'Not provided';
+    const customerPhone = order.phone || 'Not provided';
+
+    // Get ABA Bank Name directly
+    const abaBank = order.shipping_address?.abaBankName || 'Not provided';
+
+    // Format shipping address directly
+    let shippingAddress = 'Not provided';
+    if (order.shipping_address) {
+      const parts = [];
+      if (order.shipping_address.address1) parts.push(order.shipping_address.address1);
+      if (order.shipping_address.address2) parts.push(order.shipping_address.address2);
+      if (order.shipping_address.city) parts.push(order.shipping_address.city);
+      if (order.shipping_address.country) parts.push(order.shipping_address.country);
+      if (parts.length > 0) {
+        shippingAddress = parts.join(', ');
+      }
+    }
+
+    // Format order items directly
+    let orderItemsText = '• No items found';
+    if (order.order_items && order.order_items.length > 0) {
+      orderItemsText = order.order_items.map((item: any) => {
+        const title = item.title || 'Unknown Item';
+        const quantity = item.quantity || 1;
+        const price = parseFloat(item.price || '0');
+        const total = parseFloat(item.total || '0');
+        return `• ${title}\n  Qty: ${quantity} × $${price.toFixed(2)} = $${total.toFixed(2)}`;
+      }).join('\n');
+    }
+
+    // Calculate discount and points
+    const discountAmount = parseFloat(order.discount_amount || '0') + parseFloat(order.coupon_discount_amount || '0');
+    const pointsUsed = order.points_used || 0;
+    const pointsValue = pointsUsed / 1000; // 1000 points = $1
+
     return `
-🛒 <b>NEW ORDER RECEIVED - ${actionText}${emoji}</b>
+🛒 NEW ORDER RECEIVED - ${actionText}${emoji}
 
-📋 <b>Order Number:</b> ${order.order_number}
+📋 Order Number: ${order.order_number}
 
-👤 <b>CUSTOMER INFORMATION</b>
-• Name: ${firstName} ${lastName}
-• Email: ${email}
-• Phone: ${phone}
-• ABA Bank Name: ${abaBankName}
+👤 CUSTOMER INFORMATION
+• Name: ${customerName}
+• Email: ${customerEmail}
+• Phone: ${customerPhone}
+• ABA Bank Name: ${abaBank}
 
-📍 <b>SHIPPING ADDRESS</b>
-${fullAddress}
+📍 SHIPPING ADDRESS
+${shippingAddress}
 
-💰 <b>ORDER SUMMARY</b>
-• Subtotal: $${(order.subtotal || 0).toFixed(2)}
-• Shipping: $${(order.shipping_cost || 0).toFixed(2)}
-• Total Amount: $${order.total_amount.toFixed(2)}
+💰 ORDER SUMMARY
+• Subtotal: $${parseFloat(order.subtotal || '0').toFixed(2)}
+• Shipping: $${parseFloat(order.shipping_cost || '0').toFixed(2)}
+${discountAmount > 0 ? `• Discount: -$${discountAmount.toFixed(2)}\n` : ''}${pointsUsed > 0 ? `• Points Used: ${pointsUsed} points (-$${pointsValue.toFixed(2)})\n` : ''}• Total Amount: $${parseFloat(order.total_amount || '0').toFixed(2)}
 • Payment Method: ${order.payment_method || 'qr_code'}
 
-📦 <b>ORDER ITEMS</b>
-${itemsText}
+📦 ORDER ITEMS
+${orderItemsText}
+
+👤 Processed by: ${processedBy}
+📅 Processed at: ${new Date().toLocaleString()}
     `.trim();
   }
 
