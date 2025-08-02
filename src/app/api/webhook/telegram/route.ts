@@ -24,7 +24,21 @@ export async function POST(request: NextRequest) {
     const update = JSON.parse(bodyText);
 
     // Log the update for debugging (remove sensitive data in production)
-    console.log('📱 Telegram update received from:', update.callback_query?.from?.username || 'unknown');
+    const updateType = update.callback_query ? 'callback_query' :
+                      update.message ? 'message' :
+                      update.edited_message ? 'edited_message' : 'unknown';
+    const username = update.callback_query?.from?.username ||
+                    update.message?.from?.username ||
+                    update.edited_message?.from?.username || 'unknown';
+
+    console.log(`📱 Telegram ${updateType} received from: ${username}`);
+
+    if (update.message?.text) {
+      console.log(`📱 Message text: "${update.message.text}"`);
+    }
+    if (update.edited_message?.text) {
+      console.log(`📱 Edited message text: "${update.edited_message.text}"`);
+    }
 
     // Validate the update structure
     if (!update) {

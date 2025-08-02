@@ -18,8 +18,31 @@ interface TelegramCallbackQuery {
   data: string;
 }
 
+interface TelegramMessage {
+  message_id: number;
+  from: {
+    id: number;
+    first_name: string;
+    last_name?: string;
+    username?: string;
+  };
+  chat: {
+    id: number;
+    type: string;
+  };
+  message_thread_id?: number;
+  text: string;
+  date: number;
+  reply_to_message?: {
+    message_id: number;
+    text: string;
+  };
+}
+
 interface TelegramUpdate {
-  callback_query: TelegramCallbackQuery;
+  callback_query?: TelegramCallbackQuery;
+  message?: TelegramMessage;
+  edited_message?: TelegramMessage;
 }
 
 export class TelegramCallbackHandler {
@@ -49,6 +72,80 @@ export class TelegramCallbackHandler {
     // If no specific users are configured, allow any user (less secure but more flexible)
     console.log(`📱 User ${userId} (${username || 'unknown'}) processing order - no authorization restrictions configured`);
     return true;
+  }
+
+  /**
+   * Handle incoming Telegram text messages
+   */
+  async handleTextMessage(message: TelegramMessage): Promise<boolean> {
+    try {
+      console.log(`📱 Handling Telegram text message: "${message.text}" from user ${message.from.id}`);
+
+      // Check if message is from the notification group and thread
+      const notificationGroupId = process.env.TELEGRAM_NOTIFICATION_GROUP_ID;
+      const notificationThreadId = process.env.TELEGRAM_NOTIFICATION_THREAD_ID;
+
+      if (!notificationGroupId || !notificationThreadId) {
+        console.error('❌ Telegram notification group configuration missing');
+        return false;
+      }
+
+      // Verify message is from correct group and thread
+      if (message.chat.id.toString() !== notificationGroupId) {
+        console.log(`📱 Message not from notification group (${message.chat.id} !== ${notificationGroupId}), ignoring`);
+        return true; // Not an error, just not relevant
+      }
+
+      if (message.message_thread_id?.toString() !== notificationThreadId) {
+        console.log(`📱 Message not from notification thread (${message.message_thread_id} !== ${notificationThreadId}), ignoring`);
+        return true; // Not an error, just not relevant
+      }
+
+      // Check if message is "/done" command
+      const messageText = message.text.trim().toLowerCase();
+      if (messageText !== '/done') {
+        console.log(`📱 Message is not "/done" command: "${message.text}", ignoring`);
+        return true; // Not an error, just not the command we're looking for
+      }
+
+      // Security check: Validate user authorization
+      if (!this.isAuthorizedUser(message.from.id, message.from.username)) {
+        console.error(`❌ Unauthorized user ${message.from.id} attempted to confirm arrival`);
+        await this.sendReplyMessage(message.chat.id, message.message_id, '🚫 You are not authorized to confirm arrivals');
+        return false;
+      }
+
+      // Find the most recent pending order notification in this thread
+      const pendingOrder = await this.findPendingOrderFromThread(message.chat.id, message.message_thread_id);
+
+      if (!pendingOrder) {
+        console.log('❌ No pending order found for /done command');
+        await this.sendReplyMessage(message.chat.id, message.message_id, '❌ No pending order found to mark as done');
+        return false;
+      }
+
+      console.log(`🎯 Processing /done for order: ${pendingOrder.order_number}`);
+
+      // Process the arrival confirmation
+      const processedBy = this.formatUserName(message.from);
+      const success = await this.processArrivalConfirmation(pendingOrder, processedBy);
+
+      if (success) {
+        await this.sendReplyMessage(message.chat.id, message.message_id,
+          `✅ Order ${pendingOrder.order_number} marked as done and completed!`);
+        console.log(`✅ Successfully processed /done for order ${pendingOrder.order_number}`);
+        return true;
+      } else {
+        await this.sendReplyMessage(message.chat.id, message.message_id,
+          `❌ Failed to process completion for order ${pendingOrder.order_number}`);
+        console.error(`❌ Failed to process /done for order ${pendingOrder.order_number}`);
+        return false;
+      }
+
+    } catch (error) {
+      console.error('❌ Error handling text message:', error);
+      return false;
+    }
   }
 
   /**
@@ -536,6 +633,136 @@ ${emoji} <b>ORDER ${actionText}</b>
       console.error('❌ Error editing message:', error);
     }
   }
+
+  /**
+   * Send a reply message to a specific message
+   */
+  private async sendReplyMessage(chatId: number, replyToMessageId: number, text: string): Promise<boolean> {
+    try {
+      const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_thread_id: process.env.TELEGRAM_NOTIFICATION_THREAD_ID,
+          text: text,
+          reply_to_message_id: replyToMessageId,
+          parse_mode: 'HTML'
+        })
+      });
+
+      const result = await response.json();
+      return result.ok;
+    } catch (error) {
+      console.error('❌ Error sending reply message:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Find the most recent pending order from the thread
+   */
+  private async findPendingOrderFromThread(chatId: number, threadId?: number): Promise<any> {
+    try {
+      const supabase = createServiceRoleClient();
+
+      // Find the most recent order with notification_sent workflow state (waiting for arrival confirmation)
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          telegram_status,
+          telegram_workflow_state,
+          telegram_message_id,
+          created_at,
+          user_id,
+          email,
+          total_amount,
+          order_items (
+            title,
+            quantity,
+            price,
+            total
+          )
+        `)
+        .eq('telegram_workflow_state', 'notification_sent')
+        .not('telegram_message_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Error finding pending order:', error);
+        return null;
+      }
+
+      if (!orders || orders.length === 0) {
+        console.log('📱 No orders waiting for arrival confirmation found');
+        return null;
+      }
+
+      console.log(`📱 Found order ${orders[0].order_number} waiting for arrival confirmation`);
+      return orders[0];
+    } catch (error) {
+      console.error('❌ Error finding pending order from thread:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Process arrival confirmation and update order status
+   */
+  private async processArrivalConfirmation(order: any, processedBy: string): Promise<boolean> {
+    try {
+      console.log(`🔄 Processing arrival confirmation for order ${order.order_number}`);
+
+      const supabase = createServiceRoleClient();
+
+      // Use the new database function to handle arrival confirmation workflow
+      const { data, error } = await supabase.rpc('confirm_order_arrival', {
+        p_order_id: order.id,
+        p_confirmed_by: processedBy
+      });
+
+      if (error) {
+        console.error(`❌ Failed to confirm arrival for order ${order.order_number}:`, error);
+        return false;
+      }
+
+      console.log(`✅ Order ${order.order_number} arrival confirmed successfully`);
+
+      // Send delivery notification to the second group
+      const { telegramNotificationService } = await import('@/lib/telegram/notification-service');
+      const deliveryNotificationSent = await telegramNotificationService.sendConfirmationMessage(
+        order,
+        'confirmed',
+        processedBy
+      );
+
+      if (deliveryNotificationSent) {
+        // Mark delivery notification as sent in database
+        const { error: notificationError } = await supabase.rpc('mark_delivery_notification_sent', {
+          p_order_id: order.id
+        });
+
+        if (notificationError) {
+          console.error(`❌ Failed to mark delivery notification as sent for ${order.order_number}:`, notificationError);
+        } else {
+          console.log(`✅ Delivery notification sent and marked for order ${order.order_number}`);
+        }
+      } else {
+        console.error(`❌ Failed to send delivery notification for order ${order.order_number}`);
+        // Don't return false here as the order was already updated successfully
+      }
+
+      console.log(`✅ Arrival confirmation processed successfully for order ${order.order_number}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Error processing arrival confirmation:', error);
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
@@ -548,7 +775,15 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<bool
   if (update.callback_query) {
     return await telegramCallbackHandler.handleCallback(update.callback_query);
   }
-  
-  console.log('📱 Received Telegram update without callback query');
+
+  if (update.message) {
+    return await telegramCallbackHandler.handleTextMessage(update.message);
+  }
+
+  if (update.edited_message) {
+    return await telegramCallbackHandler.handleTextMessage(update.edited_message);
+  }
+
+  console.log('📱 Received Telegram update without callback query or message');
   return true;
 }

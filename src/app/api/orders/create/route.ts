@@ -506,23 +506,18 @@ export async function POST(request: NextRequest) {
       };
 
       if (completeOrderData && !orderError) {
-        // Send notification to notification group
+        // Send notification ONLY to notification group (first step of sequential workflow)
         const notificationSent = await telegramNotificationService.sendOrderNotification(completeOrderData);
 
         if (notificationSent) {
-          console.log('✅ Telegram notification sent successfully');
+          console.log('✅ Telegram notification sent successfully to notification group');
+          console.log('📱 Waiting for "/arrived" confirmation before sending delivery notification');
         } else {
           console.error('❌ Failed to send Telegram notification');
         }
 
-        // 📦 Send ORDER CONFIRMATION message to stock group for automatic stock processing
-        try {
-          console.log('📦 Sending ORDER CONFIRMATION message to stock group for automatic processing');
-          await sendOrderConfirmationToStockGroup(completeOrderData);
-        } catch (stockError) {
-          console.error('❌ Error sending ORDER CONFIRMATION to stock group:', stockError);
-          // Don't fail the order if stock group message fails
-        }
+        // ⚠️ REMOVED: Automatic stock group notification - now only sent after "/arrived" confirmation
+        // This implements the sequential workflow: notification -> wait for /arrived -> delivery notification
       } else {
         console.error('❌ Failed to fetch order details for Telegram notification:', orderError);
       }

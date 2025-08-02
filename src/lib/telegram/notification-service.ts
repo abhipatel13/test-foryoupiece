@@ -164,16 +164,12 @@ export class TelegramNotificationService {
       console.log(`📱 Sending Telegram notification for order ${order.order_number}`);
 
       const message = this.formatOrderMessage(order);
-      const keyboard = this.createOrderKeyboard(order.id);
 
       const response = await this.sendMessage({
         chat_id: this.config.notificationGroupId,
         message_thread_id: this.config.notificationThreadId,
         text: message,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: keyboard
-        }
+        parse_mode: 'HTML'
       });
 
       if (response.ok && response.result) {
@@ -186,13 +182,14 @@ export class TelegramNotificationService {
           message_type: 'notification'
         });
 
-        // Update order with Telegram message ID
+        // Update order with Telegram message ID and workflow state
         const supabase = createServiceRoleClient();
         await supabase
           .from('orders')
-          .update({ 
+          .update({
             telegram_message_id: response.result.message_id.toString(),
-            telegram_status: 'pending'
+            telegram_status: 'pending',
+            telegram_workflow_state: 'notification_sent'
           })
           .eq('id', order.id);
 
@@ -379,7 +376,7 @@ ${items}
 ${specialNotes ? `📝 <b>Special Notes:</b>\n${specialNotes}\n\n` : ''}📅 <b>Order Date:</b> ${new Date(order.created_at).toLocaleString()}
 🔄 <b>Status:</b> ${order.payment_status} / ${order.fulfillment_status}
 
-<b>Please confirm this order:</b>
+💬 <b>Reply with /done when order is completed</b>
     `.trim();
   }
 
@@ -402,17 +399,7 @@ ${action === 'confirmed' ? '🚚 Order will be processed and shipped.' : '🚫 O
     `.trim();
   }
 
-  /**
-   * Create inline keyboard for order actions
-   */
-  private createOrderKeyboard(orderId: string): Array<Array<{text: string, callback_data: string}>> {
-    return [
-      [
-        { text: '✅ Confirm Order', callback_data: `confirm_${orderId}` },
-        { text: '❌ Cancel Order', callback_data: `cancel_${orderId}` }
-      ]
-    ];
-  }
+
 
   /**
    * Send message to Telegram
