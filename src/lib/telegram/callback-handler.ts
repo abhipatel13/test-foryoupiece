@@ -244,10 +244,24 @@ export class TelegramCallbackHandler {
     try {
       const supabase = createServiceRoleClient();
 
-      // First get the order details
+      // Get order with all related data in a single query
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+          *,
+          order_items (
+            title,
+            quantity,
+            price,
+            total
+          ),
+          users!orders_user_id_fkey (
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
         .eq('id', orderId)
         .single();
 
@@ -261,37 +275,14 @@ export class TelegramCallbackHandler {
         return null;
       }
 
-      // Get order items separately
-      const { data: orderItems, error: itemsError } = await supabase
-        .from('order_items')
-        .select('title, quantity, price, total')
-        .eq('order_id', orderId);
+      console.log('✅ Order details retrieved successfully:', {
+        orderNumber: order.order_number,
+        hasUserData: !!order.users,
+        hasOrderItems: !!(order.order_items && order.order_items.length > 0),
+        shippingAddressType: typeof order.shipping_address
+      });
 
-      if (itemsError) {
-        console.error('❌ Error fetching order items:', itemsError);
-        // Continue without items rather than failing completely
-      }
-
-      // Get user profile separately using user_id
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('first_name, last_name, email')
-        .eq('id', order.user_id)
-        .single();
-
-      if (profileError) {
-        console.error('❌ Error fetching user profile:', profileError);
-        // Continue without profile rather than failing completely
-      }
-
-      // Combine all data
-      const completeOrder = {
-        ...order,
-        order_items: orderItems || [],
-        profiles: profile || null
-      };
-
-      return completeOrder;
+      return order;
     } catch (error) {
       console.error('❌ Error in getOrderDetails:', error);
       return null;
@@ -448,7 +439,16 @@ ${orderItemsText}
    * Get customer name from order data
    */
   private getCustomerName(order: any): string {
-    // Try to get name from profile first
+    // Try to get name from user profile first (joined data)
+    if (order.users) {
+      const firstName = order.users.first_name || '';
+      const lastName = order.users.last_name || '';
+      if (firstName || lastName) {
+        return `${firstName} ${lastName}`.trim();
+      }
+    }
+
+    // Try to get name from profiles (if using old structure)
     if (order.profiles) {
       const firstName = order.profiles.first_name || '';
       const lastName = order.profiles.last_name || '';
@@ -459,6 +459,13 @@ ${orderItemsText}
 
     // Try to get name from shipping address
     if (order.shipping_address && typeof order.shipping_address === 'object') {
+      const firstName = order.shipping_address.firstName || '';
+      const lastName = order.shipping_address.lastName || '';
+      if (firstName || lastName) {
+        return `${firstName} ${lastName}`.trim();
+      }
+
+      // Fallback to other name fields
       const name = order.shipping_address.name || order.shipping_address.full_name;
       if (name) return name;
     }
@@ -477,13 +484,17 @@ ${orderItemsText}
   private getABABankName(order: any): string {
     // Try to get from shipping address first
     if (order.shipping_address && typeof order.shipping_address === 'object') {
-      const abaBank = order.shipping_address.aba_bank_name || order.shipping_address.bank_name;
+      const abaBank = order.shipping_address.abaBankName ||
+                     order.shipping_address.aba_bank_name ||
+                     order.shipping_address.bank_name;
       if (abaBank) return abaBank;
     }
 
     // Try to get from billing address
     if (order.billing_address && typeof order.billing_address === 'object') {
-      const abaBank = order.billing_address.aba_bank_name || order.billing_address.bank_name;
+      const abaBank = order.billing_address.abaBankName ||
+                     order.billing_address.aba_bank_name ||
+                     order.billing_address.bank_name;
       if (abaBank) return abaBank;
     }
 
@@ -500,8 +511,18 @@ ${orderItemsText}
 
     const parts = [];
 
-    if (shippingAddress.address_line_1) parts.push(shippingAddress.address_line_1);
-    if (shippingAddress.address_line_2) parts.push(shippingAddress.address_line_2);
+    // Try new field names first (address1, address2)
+    if (shippingAddress.address1) parts.push(shippingAddress.address1);
+    if (shippingAddress.address2) parts.push(shippingAddress.address2);
+
+    // Try old field names as fallback (address_line_1, address_line_2)
+    if (!shippingAddress.address1 && shippingAddress.address_line_1) {
+      parts.push(shippingAddress.address_line_1);
+    }
+    if (!shippingAddress.address2 && shippingAddress.address_line_2) {
+      parts.push(shippingAddress.address_line_2);
+    }
+
     if (shippingAddress.city) parts.push(shippingAddress.city);
     if (shippingAddress.state) parts.push(shippingAddress.state);
     if (shippingAddress.country) parts.push(shippingAddress.country);
