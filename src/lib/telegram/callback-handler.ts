@@ -465,6 +465,9 @@ ${discountAmount > 0 ? `• Discount: -$${discountAmount.toFixed(2)}\n` : ''}${p
 
 📦 ORDER ITEMS
 ${orderItemsText}
+
+👤 Processed by: ${processedBy}
+📅 Processed at: ${new Date().toLocaleString()}
     `.trim();
   }
 
@@ -722,23 +725,22 @@ ${emoji} <b>ORDER ${actionText}</b>
       const supabase = createServiceRoleClient();
 
       // Find the most recent order with notification_sent workflow state (waiting for arrival confirmation)
+      // FIXED: Use the SAME COMPLETE QUERY as getOrderDetails to ensure all customer data is available
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
-          id,
-          order_number,
-          telegram_status,
-          telegram_workflow_state,
-          telegram_message_id,
-          created_at,
-          user_id,
-          email,
-          total_amount,
+          *,
           order_items (
             title,
             quantity,
             price,
             total
+          ),
+          users!orders_user_id_fkey (
+            first_name,
+            last_name,
+            email,
+            phone
           )
         `)
         .eq('telegram_workflow_state', 'notification_sent')
@@ -756,8 +758,22 @@ ${emoji} <b>ORDER ${actionText}</b>
         return null;
       }
 
-      console.log(`📱 Found order ${orders[0].order_number} waiting for arrival confirmation`);
-      return orders[0];
+      const order = orders[0];
+      console.log(`📱 Found order ${order.order_number} waiting for arrival confirmation`);
+      console.log('✅ Order data completeness check:', {
+        orderNumber: order.order_number,
+        hasUserData: !!order.users,
+        hasOrderItems: !!(order.order_items && order.order_items.length > 0),
+        hasShippingAddress: !!order.shipping_address,
+        shippingAddressType: typeof order.shipping_address,
+        customerName: order.users ? `${order.users.first_name || ''} ${order.users.last_name || ''}`.trim() : 'No user data',
+        customerPhone: order.phone || 'No phone in order',
+        userPhone: order.users?.phone || 'No phone in user profile',
+        abaBank: order.shipping_address?.abaBankName || 'No ABA bank',
+        fixVersion: 'v3.0-complete-query-fix' // Track this fix
+      });
+
+      return order;
     } catch (error) {
       console.error('❌ Error finding pending order from thread:', error);
       return null;
