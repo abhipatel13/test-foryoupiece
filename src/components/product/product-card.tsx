@@ -239,16 +239,33 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             )}
           </div>
 
-          {/* ENHANCED: Add to Cart Button - Better Mobile UX */}
+          {/* ENHANCED: Add to Cart Button - Enterprise-Grade UI/UX */}
           <div className="mt-auto">
             <Button
               onClick={handleAddToCart}
-              className="w-full bg-black hover:bg-gray-800 text-white font-semibold text-sm h-11 sm:h-12 shadow-sm hover:shadow-md transition-all duration-200 rounded-md flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed touch-target-44"
+              className="
+                w-full bg-black hover:bg-gray-900 active:bg-gray-950
+                text-white font-semibold text-base
+                h-12 sm:h-14
+                shadow-lg hover:shadow-xl active:shadow-md
+                transition-all duration-300 ease-out
+                rounded-lg
+                flex items-center justify-center gap-3
+                disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-sm
+                transform hover:scale-[1.02] active:scale-[0.98]
+                focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2
+                border border-transparent hover:border-gray-700
+                min-h-[44px] touch-manipulation
+                group relative overflow-hidden
+              "
               disabled={product.stock_quantity <= 0}
               aria-label={product.stock_quantity <= 0 ? `Preorder ${productName}` : `Add ${productName} to cart`}
             >
-              <ShoppingCart className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">
+              {/* Subtle gradient overlay for depth */}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/0 via-white/5 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+              <ShoppingCart className="h-5 w-5 flex-shrink-0 relative z-10 transition-transform duration-200 group-hover:scale-110" />
+              <span className="relative z-10 font-medium tracking-wide">
                 {product.stock_quantity <= 0 ? 'Preorder' : 'Add to Cart'}
               </span>
             </Button>

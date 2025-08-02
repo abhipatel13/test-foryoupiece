@@ -1253,6 +1253,41 @@ input, textarea, select {
     box-shadow: 0 4px 12px oklch(0.15 0 0 / 0.25);
   }
 
+  /* Enterprise-Grade Add to Cart Button Enhancements */
+  .enterprise-cart-button {
+    /* Ensure optimal touch targets on all devices */
+    min-height: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .enterprise-cart-button:focus-visible {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+  }
+
+  /* Smooth micro-interactions for professional feel */
+  .enterprise-cart-button:active {
+    transform: scale(0.98);
+    transition-duration: 0.1s;
+  }
+
+  /* Enhanced hover states for desktop */
+  @media (hover: hover) {
+    .enterprise-cart-button:hover {
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+  }
+
+  /* Mobile-specific optimizations */
+  @media (max-width: 640px) {
+    .enterprise-cart-button {
+      font-size: 0.9rem;
+      padding: 0.75rem 1rem;
+      min-height: 48px; /* Slightly larger on mobile for better touch */
+    }
+  }
+
   /* Amazon-Style Cart Components */
   .amazon-cart-summary {
     background: white;

@@ -701,9 +701,17 @@ export default function ProductDetailPage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 lg:gap-6">
+            {/* Enhanced Grid Layout for Optimal Button Visibility */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-5 lg:gap-6 xl:gap-7">
               {relatedProducts.slice(0, 6).map((relatedProduct) => (
-                <div key={relatedProduct.id} className="transform hover:scale-105 transition-transform duration-200">
+                <div
+                  key={relatedProduct.id}
+                  className="
+                    transform hover:scale-[1.03] transition-all duration-300 ease-out
+                    hover:z-10 relative
+                    focus-within:scale-[1.03] focus-within:z-10
+                  "
+                >
                   <ProductCard
                     product={relatedProduct}
                     locale="en"
