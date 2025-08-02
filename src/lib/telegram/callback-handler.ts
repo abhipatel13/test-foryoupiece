@@ -394,17 +394,49 @@ ${emoji} <b>ORDER ${actionText}</b>
    * Format detailed confirmation message for confirmed orders
    */
   private formatDetailedConfirmationMessage(order: any, processedBy: string): string {
-    // Extract customer information
-    const customerName = this.getCustomerName(order);
+    // DIRECT IMPLEMENTATION - NO HELPER METHODS TO AVOID ISSUES
+
+    // Get customer name directly
+    let customerName = 'Not provided';
+    if (order.users?.first_name || order.users?.last_name) {
+      customerName = `${order.users.first_name || ''} ${order.users.last_name || ''}`.trim();
+    } else if (order.shipping_address?.firstName || order.shipping_address?.lastName) {
+      customerName = `${order.shipping_address.firstName || ''} ${order.shipping_address.lastName || ''}`.trim();
+    } else if (order.email) {
+      customerName = order.email.split('@')[0];
+    }
+
+    // Get customer info directly
     const customerEmail = order.email || 'Not provided';
     const customerPhone = order.phone || 'Not provided';
-    const abaBank = this.getABABankName(order);
 
-    // Extract shipping address
-    const shippingAddress = this.formatShippingAddress(order.shipping_address);
+    // Get ABA Bank Name directly
+    const abaBank = order.shipping_address?.abaBankName || 'Not provided';
 
-    // Format order items
-    const orderItemsText = this.formatOrderItems(order.order_items || []);
+    // Format shipping address directly
+    let shippingAddress = 'Not provided';
+    if (order.shipping_address) {
+      const parts = [];
+      if (order.shipping_address.address1) parts.push(order.shipping_address.address1);
+      if (order.shipping_address.address2) parts.push(order.shipping_address.address2);
+      if (order.shipping_address.city) parts.push(order.shipping_address.city);
+      if (order.shipping_address.country) parts.push(order.shipping_address.country);
+      if (parts.length > 0) {
+        shippingAddress = parts.join(', ');
+      }
+    }
+
+    // Format order items directly
+    let orderItemsText = '• No items found';
+    if (order.order_items && order.order_items.length > 0) {
+      orderItemsText = order.order_items.map((item: any) => {
+        const title = item.title || 'Unknown Item';
+        const quantity = item.quantity || 1;
+        const price = parseFloat(item.price || '0');
+        const total = parseFloat(item.total || '0');
+        return `• ${title}\n  Qty: ${quantity} × $${price.toFixed(2)} = $${total.toFixed(2)}`;
+      }).join('\n');
+    }
 
     // Calculate discount and points
     const discountAmount = parseFloat(order.discount_amount || '0') + parseFloat(order.coupon_discount_amount || '0');
