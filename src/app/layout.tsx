@@ -18,10 +18,15 @@ export const metadata: Metadata = {
   description: "Discover premium Japanese products delivered directly from Japan to Cambodia. Experience authentic quality with our modern e-commerce platform featuring loyalty points and seamless shopping experience.",
   keywords: "premium Japanese products, Japan to Cambodia shipping, authentic Japanese goods, e-commerce, online shopping, quality products",
   icons: {
-    icon: '/favicon.jpg',
+    icon: [
+      { url: '/favicon.jpg', sizes: '16x16 32x32', type: 'image/jpeg' },
+    ],
     shortcut: '/favicon.jpg',
-    apple: '/favicon.jpg',
+    apple: [
+      { url: '/favicon.jpg', sizes: '180x180', type: 'image/jpeg' },
+    ],
   },
+  manifest: '/site.webmanifest',
 };
 
 export const viewport = {
