@@ -786,6 +786,8 @@ export class PointsService {
             case 'earned':
               if (transaction.reference_type === 'order') {
                 earnedFromOrders += transaction.points
+              } else if (transaction.reference_type === 'admin_adjustment') {
+                adminAdjustments += transaction.points
               } else {
                 other += transaction.points
               }
@@ -802,6 +804,9 @@ export class PointsService {
               break
             case 'admin_adjustment':
               adminAdjustments += transaction.points
+              break
+            case 'refund':
+              // Refunds are handled separately in the calculation logic, don't include in breakdown
               break
             default:
               other += transaction.points
@@ -822,13 +827,11 @@ export class PointsService {
       let totalRefundedPoints = 0
 
       transactions.forEach((transaction) => {
-        if (transaction.transaction_type === 'earned' ||
-            (transaction.transaction_type === 'bonus' &&
-             transaction.reference_type !== 'admin_adjustment' &&
-             transaction.reference_type !== 'tier_reward' &&
-             !transaction.description?.includes('Tier reward'))) {
-          // Only add positive points to earned points (excluding tier rewards)
-          if (transaction.points > 0) {
+        if (transaction.points > 0) {
+          // Count all positive points as earned EXCEPT tier rewards
+          if (!(transaction.transaction_type === 'bonus' &&
+                (transaction.reference_type === 'tier_reward' ||
+                 transaction.description?.includes('Tier reward')))) {
             totalEarnedPoints += transaction.points
           }
         } else if (transaction.transaction_type === 'redeemed') {
@@ -840,24 +843,47 @@ export class PointsService {
         }
       })
 
-      // Logic: When points are used, they come from earned points first, then tier rewards
-      // Net redeemed = total redeemed - total refunded
-      const netRedeemedPoints = Math.max(0, totalRedeemedPoints - totalRefundedPoints)
+      // Use the database points_balance as the authoritative source for available points
+      const actualAvailablePoints = userData.points_balance || 0
 
-      // Calculate remaining earned points after redemptions
-      const remainingEarnedPoints = Math.max(0, totalEarnedPoints - netRedeemedPoints)
+      // Calculate remaining points with correct logic:
+      // - Tier rewards are one-time bonuses that get spent first
+      // - Available points are primarily from recent purchases (earned points)
+      // - Only show tier rewards as available if they haven't been spent yet
 
-      // Calculate how much was taken from tier rewards (if earned points weren't enough)
-      const usedFromTierRewards = Math.max(0, netRedeemedPoints - totalEarnedPoints)
-      const remainingTierRewards = Math.max(0, totalTierRewardPoints - usedFromTierRewards)
+      let remainingEarnedPoints = 0
+      let remainingTierRewards = 0
 
-      // Calculate actual available points: remaining earned + remaining tier rewards
-      const actualAvailablePoints = remainingEarnedPoints + remainingTierRewards
+      if (actualAvailablePoints > 0) {
+        // Since tier rewards are one-time bonuses and typically get spent first,
+        // most available points should be from recent purchases (earned points)
+        // Only allocate to tier rewards if there are unspent tier reward points
+
+        const totalSpent = Math.max(0, (totalEarnedPoints + tierRewards) - actualAvailablePoints)
+
+        // Assume tier rewards get spent first (since they're bonus points)
+        const tierRewardsSpent = Math.min(tierRewards, totalSpent)
+        const earnedPointsSpent = Math.max(0, totalSpent - tierRewards)
+
+        remainingTierRewards = Math.max(0, tierRewards - tierRewardsSpent)
+        remainingEarnedPoints = Math.max(0, totalEarnedPoints - earnedPointsSpent)
+
+        // Ensure the total matches available points
+        const calculatedTotal = remainingEarnedPoints + remainingTierRewards
+        if (calculatedTotal !== actualAvailablePoints) {
+          // If there's a discrepancy, prioritize earned points (recent purchases)
+          remainingEarnedPoints = actualAvailablePoints - remainingTierRewards
+          if (remainingEarnedPoints < 0) {
+            remainingTierRewards = actualAvailablePoints
+            remainingEarnedPoints = 0
+          }
+        }
+      }
 
       const breakdown: PointsBreakdown = {
         total_available: actualAvailablePoints,
-        earned_points: remainingEarnedPoints, // Remaining earned points after redemptions
-        tier_reward_points: remainingTierRewards, // Remaining tier rewards after redemptions
+        earned_points: remainingEarnedPoints, // Currently available earned points (after redemptions)
+        tier_reward_points: remainingTierRewards, // Currently available tier reward points (after redemptions)
         breakdown_by_source: {
           orders: earnedFromOrders,
           welcome_bonus: welcomeBonus,

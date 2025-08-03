@@ -167,11 +167,12 @@ export class CouponService {
    */
   async getCouponByCode(code: string): Promise<Coupon | null> {
     try {
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .from('coupons')
         .select('*')
         .eq('code', code.toUpperCase().trim())
@@ -193,11 +194,12 @@ export class CouponService {
    */
   async getCouponById(id: string): Promise<Coupon | null> {
     try {
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .from('coupons')
         .select('*')
         .eq('id', id)
@@ -221,7 +223,8 @@ export class CouponService {
     try {
       console.log('🎫 Creating new coupon:', formData)
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
@@ -233,7 +236,7 @@ export class CouponService {
 
       const insertData = convertCouponFormDataToCouponInsert(formData, createdBy)
 
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .from('coupons')
         .insert(insertData)
         .select()
@@ -259,7 +262,8 @@ export class CouponService {
     try {
       console.log('🎫 Updating coupon:', { id, formData })
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
@@ -290,7 +294,7 @@ export class CouponService {
       if (formData.expiresAt !== undefined) updateData.expires_at = formData.expiresAt?.toISOString() || null
       if (formData.status) updateData.status = formData.status
 
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .from('coupons')
         .update(updateData)
         .eq('id', id)
@@ -317,12 +321,13 @@ export class CouponService {
     try {
       console.log('🎫 Deleting coupon:', id)
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
       // Check if coupon has been used
-      const { data: usageData } = await this.serviceClient
+      const { data: usageData } = await serviceClient
         .from('coupon_usage')
         .select('id')
         .eq('coupon_id', id)
@@ -332,7 +337,7 @@ export class CouponService {
         throw new Error('Cannot delete coupon that has been used. Consider deactivating it instead.')
       }
 
-      const { error } = await this.serviceClient
+      const { error } = await serviceClient
         .from('coupons')
         .delete()
         .eq('id', id)
@@ -362,14 +367,15 @@ export class CouponService {
     try {
       console.log('🎫 Listing coupons:', request)
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
       const { page = 1, limit = 20, filters = {}, sort } = request
       const offset = (page - 1) * limit
 
-      let query = this.serviceClient.from('coupons').select('*', { count: 'exact' })
+      let query = serviceClient.from('coupons').select('*', { count: 'exact' })
 
       // Apply filters
       if (filters.status) {
@@ -427,7 +433,8 @@ export class CouponService {
     try {
       console.log('📊 Getting coupon statistics')
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
@@ -438,17 +445,17 @@ export class CouponService {
         { data: topCouponsData }
       ] = await Promise.all([
         // Get coupon counts by status
-        this.serviceClient
+        serviceClient
           .from('coupons')
           .select('status'),
 
         // Get usage statistics
-        this.serviceClient
+        serviceClient
           .from('coupon_usage')
           .select('discount_amount'),
 
         // Get top coupons with usage count
-        this.serviceClient
+        serviceClient
           .from('coupons')
           .select('id, code, name, current_usage_count')
           .order('current_usage_count', { ascending: false })
@@ -506,13 +513,14 @@ export class CouponService {
     try {
       console.log('📊 Getting coupon usage history:', { couponId, userId, page, limit })
 
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
       const offset = (page - 1) * limit
 
-      let query = this.serviceClient
+      let query = serviceClient
         .from('coupon_usage')
         .select('*', { count: 'exact' })
 
@@ -551,11 +559,12 @@ export class CouponService {
    */
   async getUserCouponUsageCount(couponId: string, userId: string): Promise<number> {
     try {
-      if (!this.serviceClient) {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
         throw new Error('Service client not available')
       }
 
-      const { data, error } = await this.serviceClient
+      const { data, error } = await serviceClient
         .from('coupon_usage')
         .select('id')
         .eq('coupon_id', couponId)
