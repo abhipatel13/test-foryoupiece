@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Filter, Mail, MessageCircle, User, Calendar, DollarSign, ShoppingBag, Star, Phone, Globe, Shield, Eye, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Pagination } from '@/components/ui/pagination'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -63,12 +64,26 @@ const tierIcons = {
 
 export default function UsersPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const locale = params.locale as string || 'en'
+
+  // User data state
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Filter state
   const [searchTerm, setSearchTerm] = useState('')
   const [filterTier, setFilterTier] = useState<string>('all')
   const [filterLanguage, setFilterLanguage] = useState<string>('all')
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalUsers, setTotalUsers] = useState(0)
+  const [itemsPerPage] = useState(40) // Fixed at 40 users per page
+
+  // Dialog state
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [userOrders, setUserOrders] = useState<UserOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
@@ -79,47 +94,97 @@ export default function UsersPage() {
 
   const supabase = createClient()
 
+  // Handle URL parameters on component mount
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    const pageParam = searchParams.get('page')
+    const searchParam = searchParams.get('search')
+    const tierParam = searchParams.get('tier')
+    const languageParam = searchParams.get('language')
+
+    if (pageParam) {
+      setCurrentPage(parseInt(pageParam) || 1)
+    }
+    if (searchParam) {
+      setSearchTerm(searchParam)
+    }
+    if (tierParam) {
+      setFilterTier(tierParam)
+    }
+    if (languageParam) {
+      setFilterLanguage(languageParam)
+    }
+  }, [searchParams])
+
+  // Fetch users when filters or page changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchUsers()
+    }, searchTerm ? 300 : 0) // 300ms debounce for search, immediate for other changes
+
+    return () => clearTimeout(timeoutId)
+  }, [currentPage, searchTerm, filterTier, filterLanguage])
+
+  // Reset to first page when filters change (except for initial load)
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+      updateURL(1, searchTerm, filterTier, filterLanguage)
+    }
+  }, [searchTerm, filterTier, filterLanguage])
+
+  // Update URL with current filter and pagination state
+  const updateURL = (page: number, search: string, tier: string, language: string) => {
+    const params = new URLSearchParams()
+
+    if (page > 1) params.set('page', page.toString())
+    if (search.trim()) params.set('search', search.trim())
+    if (tier !== 'all') params.set('tier', tier)
+    if (language !== 'all') params.set('language', language)
+
+    const newURL = params.toString() ? `?${params.toString()}` : ''
+    router.replace(newURL, { scroll: false })
+  }
 
   const fetchUsers = async () => {
     try {
       setLoading(true)
 
-      // Fetch users with calculated order statistics
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select(`
-          *,
-          orders!orders_user_id_fkey(
-            total_amount,
-            payment_status
-          )
-        `)
-        .order('created_at', { ascending: false })
-
-      if (usersError) throw usersError
-
-      // Calculate actual order statistics for each user
-      const usersWithStats = (usersData || []).map(user => {
-        // Include ALL orders (not just verified) to match the detailed dialog behavior
-        const allOrders = user.orders || []
-        const totalOrders = allOrders.length
-        const totalSpent = allOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0)
-
-        return {
-          ...user,
-          total_orders: totalOrders,
-          total_spent: totalSpent,
-          orders: undefined // Remove orders array from final object
-        }
+      // Build API URL with pagination and filters
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString()
       })
 
-      setUsers(usersWithStats)
+      if (searchTerm.trim()) {
+        params.set('search', searchTerm.trim())
+      }
+      if (filterTier !== 'all') {
+        params.set('tier', filterTier)
+      }
+      if (filterLanguage !== 'all') {
+        params.set('language', filterLanguage)
+      }
+
+      const response = await fetch(`/api/admin/users/list?${params.toString()}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch users')
+      }
+
+      if (data.success) {
+        setUsers(data.users || [])
+        setTotalPages(data.pagination.totalPages)
+        setTotalUsers(data.pagination.totalUsers)
+      } else {
+        throw new Error(data.error || 'Failed to fetch users')
+      }
     } catch (error) {
       console.error('Error fetching users:', error)
       toast.error('Failed to load users')
+      setUsers([])
+      setTotalPages(0)
+      setTotalUsers(0)
     } finally {
       setLoading(false)
     }
@@ -158,11 +223,11 @@ export default function UsersPage() {
 
     try {
       setSendingMessage(true)
-      
+
       // Here you would implement the actual messaging logic
       // For now, we'll just simulate sending a message
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
       toast.success(`Message sent to ${selectedUser.first_name || selectedUser.email}`)
       setMessageDialogOpen(false)
       setMessageSubject('')
@@ -175,18 +240,29 @@ export default function UsersPage() {
     }
   }
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = !searchTerm || 
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.telegram_username?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    updateURL(page, searchTerm, filterTier, filterLanguage)
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
-    const matchesTier = filterTier === 'all' || user.tier_level === filterTier
-    const matchesLanguage = filterLanguage === 'all' || user.preferred_language === filterLanguage
+  // Filter handlers that update URL
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    // URL will be updated by useEffect when searchTerm changes
+  }
 
-    return matchesSearch && matchesTier && matchesLanguage
-  })
+  const handleTierFilterChange = (value: string) => {
+    setFilterTier(value)
+    // URL will be updated by useEffect when filterTier changes
+  }
+
+  const handleLanguageFilterChange = (value: string) => {
+    setFilterLanguage(value)
+    // URL will be updated by useEffect when filterLanguage changes
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -243,8 +319,13 @@ export default function UsersPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-sm">
-            {filteredUsers.length} users
+            {totalUsers} total users
           </Badge>
+          {totalPages > 1 && (
+            <Badge variant="outline" className="text-sm">
+              Page {currentPage} of {totalPages}
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -257,11 +338,11 @@ export default function UsersPage() {
               <Input
                 placeholder="Search by email, name, or telegram username..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10"
               />
             </div>
-            <Select value={filterTier} onValueChange={setFilterTier}>
+            <Select value={filterTier} onValueChange={handleTierFilterChange}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Filter by tier" />
               </SelectTrigger>
@@ -271,9 +352,10 @@ export default function UsersPage() {
                 <SelectItem value="silver">Silver</SelectItem>
                 <SelectItem value="gold">Gold</SelectItem>
                 <SelectItem value="platinum">Platinum</SelectItem>
+                <SelectItem value="diamond">Diamond</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterLanguage} onValueChange={setFilterLanguage}>
+            <Select value={filterLanguage} onValueChange={handleLanguageFilterChange}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Filter by language" />
               </SelectTrigger>
@@ -289,7 +371,7 @@ export default function UsersPage() {
 
       {/* Users List */}
       <div className="grid gap-4">
-        {filteredUsers.map((user) => (
+        {users.map((user) => (
           <Card key={user.id} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -363,7 +445,7 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {filteredUsers.length === 0 && (
+      {!loading && users.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center">
             <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -375,6 +457,18 @@ export default function UsersPage() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalUsers}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          className="mt-6"
+        />
       )}
 
       {/* User Details Dialog */}

@@ -5,7 +5,7 @@ import { getTierFromPoints } from '@/lib/utils';
 
 /**
  * Admin User List API with Pagination and Search
- * GET /api/admin/users/list?page=1&limit=20&search=query
+ * GET /api/admin/users/list?page=1&limit=40&search=query&tier=silver&language=en
  */
 export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
@@ -25,13 +25,15 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = parseInt(searchParams.get('limit') || '40'); // Default to 40 users per page
     const search = searchParams.get('search') || '';
+    const tierFilter = searchParams.get('tier') || '';
+    const languageFilter = searchParams.get('language') || '';
     const offset = (page - 1) * limit;
 
-    console.log('📋 Query params:', { page, limit, search, offset });
+    console.log('📋 Query params:', { page, limit, search, tierFilter, languageFilter, offset });
 
-    // Build base query
+    // Build base query with additional fields needed for filtering
     let query = serviceClient
       .from('users')
       .select(`
@@ -45,14 +47,30 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         avatar_url,
         total_spent,
         total_orders,
+        preferred_language,
+        telegram_username,
         created_at,
-        updated_at
+        updated_at,
+        orders!orders_user_id_fkey(
+          total_amount,
+          payment_status
+        )
       `, { count: 'exact' });
 
     // Add search filter if provided
     if (search.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
-      query = query.or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm},email.ilike.${searchTerm}`);
+      query = query.or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm},email.ilike.${searchTerm},telegram_username.ilike.${searchTerm}`);
+    }
+
+    // Add tier filter if provided
+    if (tierFilter && tierFilter !== 'all') {
+      query = query.eq('tier_level', tierFilter);
+    }
+
+    // Add language filter if provided
+    if (languageFilter && languageFilter !== 'all') {
+      query = query.eq('preferred_language', languageFilter);
     }
 
     // Add pagination and ordering
@@ -76,15 +94,27 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       const totalPointsEarned = user.total_points_earned || 0;
       const calculatedTier = getTierFromPoints(totalPointsEarned);
 
+      // Calculate order statistics from the orders relation
+      const orders = user.orders || [];
+      const totalSpent = orders
+        .filter(order => order.payment_status === 'paid')
+        .reduce((sum, order) => sum + (order.total_amount || 0), 0);
+      const totalOrders = orders.filter(order => order.payment_status === 'paid').length;
+
       return {
         ...user,
-        fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email.split('@')[0],
+        fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email?.split('@')[0] || 'Unknown User',
         pointsValue: (user.points_balance / 1000).toFixed(2),
         tierInfo: getTierInfo(calculatedTier), // Use calculated tier instead of stored tier
         calculatedTier,
         storedTier: user.tier_level,
         tierMismatch: user.tier_level !== calculatedTier,
-        searchRelevance: search.trim() ? calculateSearchRelevance(user, search.trim().toLowerCase()) : 0
+        searchRelevance: search.trim() ? calculateSearchRelevance(user, search.trim().toLowerCase()) : 0,
+        // Add computed order statistics
+        computed_total_spent: totalSpent,
+        computed_total_orders: totalOrders,
+        // Clean up the orders field to avoid sending unnecessary data
+        orders: undefined
       };
     });
 
@@ -111,7 +141,11 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         startIndex: offset + 1,
         endIndex: Math.min(offset + limit, count || 0)
       },
-      search: search.trim(),
+      filters: {
+        search: search.trim(),
+        tier: tierFilter,
+        language: languageFilter
+      },
       count: formattedUsers.length
     });
 
@@ -140,14 +174,14 @@ function getTierInfo(tier: string) {
 function calculateSearchRelevance(user: any, searchTerm: string): number {
   let relevance = 0;
   const term = searchTerm.toLowerCase();
-  
+
   // Exact email match gets highest score
-  if (user.email.toLowerCase() === term) {
+  if (user.email && user.email.toLowerCase() === term) {
     relevance += 100;
-  } else if (user.email.toLowerCase().includes(term)) {
+  } else if (user.email && user.email.toLowerCase().includes(term)) {
     relevance += 50;
   }
-  
+
   // Name matches
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').toLowerCase();
   if (fullName === term) {
@@ -155,20 +189,27 @@ function calculateSearchRelevance(user: any, searchTerm: string): number {
   } else if (fullName.includes(term)) {
     relevance += 40;
   }
-  
+
   // First name exact match
   if (user.first_name && user.first_name.toLowerCase() === term) {
     relevance += 80;
   } else if (user.first_name && user.first_name.toLowerCase().includes(term)) {
     relevance += 30;
   }
-  
+
   // Last name exact match
   if (user.last_name && user.last_name.toLowerCase() === term) {
     relevance += 80;
   } else if (user.last_name && user.last_name.toLowerCase().includes(term)) {
     relevance += 30;
   }
-  
+
+  // Telegram username matches
+  if (user.telegram_username && user.telegram_username.toLowerCase() === term) {
+    relevance += 70;
+  } else if (user.telegram_username && user.telegram_username.toLowerCase().includes(term)) {
+    relevance += 25;
+  }
+
   return relevance;
 }

@@ -26,6 +26,7 @@ export function ProductImagesDisplay({
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
   const [showAllImages, setShowAllImages] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImageError = (index: number) => {
@@ -157,6 +158,40 @@ export function ProductImagesDisplay({
     }
   }
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (isEditable && !isUploading) {
+      setIsDragOver(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    if (!isEditable || isUploading) {
+      return
+    }
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      // Create a synthetic event to reuse the existing upload logic
+      const syntheticEvent = {
+        target: { files }
+      } as React.ChangeEvent<HTMLInputElement>
+
+      handleFileUpload(syntheticEvent)
+    }
+  }
+
   const handleUploadClick = () => {
     console.log('Upload button clicked', {
       fileInputRef: !!fileInputRef.current,
@@ -166,24 +201,33 @@ export function ProductImagesDisplay({
 
     if (!fileInputRef.current) {
       console.error('File input ref is null')
+      toast.error('File input not available. Please refresh the page and try again.')
       return
     }
 
     if (!isEditable) {
       console.error('Component is not editable')
+      toast.error('Image upload is not available in view mode.')
       return
     }
 
     if (isUploading) {
       console.error('Upload already in progress')
+      toast.error('Upload already in progress. Please wait.')
       return
     }
 
     try {
-      fileInputRef.current.click()
-      console.log('File input clicked successfully')
+      // Add a small delay to ensure the file input is ready
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.click()
+          console.log('File input clicked successfully')
+        }
+      }, 10)
     } catch (error) {
       console.error('Error clicking file input:', error)
+      toast.error('Failed to open file browser. Please try again.')
     }
   }
 
@@ -198,12 +242,24 @@ export function ProductImagesDisplay({
       multiple
       onChange={handleFileUpload}
       className="hidden"
+      style={{ display: 'none' }}
+      tabIndex={-1}
+      aria-hidden="true"
     />
   ) : null
 
   if (!images || images.length === 0) {
     return (
-      <Card className={className}>
+      <Card
+        className={`${className} ${
+          isEditable ? 'border-2 border-dashed transition-colors' : ''
+        } ${
+          isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+        }`}
+        onDragOver={isEditable ? handleDragOver : undefined}
+        onDragLeave={isEditable ? handleDragLeave : undefined}
+        onDrop={isEditable ? handleDrop : undefined}
+      >
         {fileInput}
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -213,7 +269,10 @@ export function ProductImagesDisplay({
                 Product Images
               </CardTitle>
               <CardDescription>
-                No images available for this product
+                {isEditable
+                  ? 'No images available. Click "Add Images" or drag and drop image files here.'
+                  : 'No images available for this product'
+                }
               </CardDescription>
             </div>
             {isEditable && (
@@ -224,6 +283,8 @@ export function ProductImagesDisplay({
                 onClick={handleUploadClick}
                 disabled={isUploading}
                 className="flex items-center gap-2 cursor-pointer"
+                title={isUploading ? "Upload in progress..." : "Click to select image files"}
+                aria-label={isUploading ? "Upload in progress" : "Add product images"}
               >
                 {isUploading ? (
                   <>
@@ -265,7 +326,16 @@ export function ProductImagesDisplay({
   }
 
   return (
-    <Card className={className}>
+    <Card
+      className={`${className} ${
+        isEditable ? 'border-2 transition-colors' : ''
+      } ${
+        isDragOver ? 'border-blue-500 bg-blue-50' : ''
+      }`}
+      onDragOver={isEditable ? handleDragOver : undefined}
+      onDragLeave={isEditable ? handleDragLeave : undefined}
+      onDrop={isEditable ? handleDrop : undefined}
+    >
       {fileInput}
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -276,6 +346,7 @@ export function ProductImagesDisplay({
             </CardTitle>
             <CardDescription>
               {images.length} image{images.length !== 1 ? 's' : ''} available for {productSku}
+              {isEditable && ' • Drag and drop to add more images'}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -287,6 +358,8 @@ export function ProductImagesDisplay({
                 onClick={handleUploadClick}
                 disabled={isUploading}
                 className="flex items-center gap-2 cursor-pointer"
+                title={isUploading ? "Upload in progress..." : "Click to select additional image files"}
+                aria-label={isUploading ? "Upload in progress" : "Add more product images"}
               >
                 {isUploading ? (
                   <>
