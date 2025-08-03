@@ -88,30 +88,89 @@ export default function ProductEditPage() {
     images: [],
   })
 
-  // Load product data
+  // Load product data - PHASE 1 FIX: Force fresh load on page navigation
   useEffect(() => {
     if (params.id) {
-      loadProduct(params.id as string)
+      console.log('🔄 Page loaded - forcing fresh product data fetch')
+      loadProduct(params.id as string, true) // Force refresh on page load
     }
   }, [params.id])
 
-  const loadProduct = async (productId: string) => {
+  // PHASE 1 FIX: Cleanup form state when component unmounts
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Cleaning up form state on component unmount')
+      setFormData({
+        sku: '',
+        name_en: '',
+        name_ja: '',
+        description_en: '',
+        description_ja: '',
+        short_description_en: '',
+        short_description_ja: '',
+        price: 0,
+        compare_at_price: 0,
+        cost_price: 0,
+        stock_quantity: 0,
+        low_stock_threshold: 10,
+        weight_grams: 0,
+        brand: '',
+        is_active: true,
+        is_featured: false,
+        is_preorder: false,
+        preorder_limit: 0,
+        requires_shipping: true,
+        is_digital: false,
+        track_inventory: true,
+        allow_backorder: false,
+        seo_title: '',
+        seo_description: '',
+        is_trending: false,
+        is_best_seller: false,
+        trending_position: 0,
+        best_seller_position: 0,
+        images: [],
+      })
+      setProduct(null)
+    }
+  }, [])
+
+  const loadProduct = async (productId: string, forceRefresh = false) => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/admin/products/${productId}`)
-      
+
+      // PHASE 1 FIX: Add cache-busting parameter to force fresh database fetch
+      const cacheBuster = forceRefresh ? `?timestamp=${Date.now()}&refresh=true` : `?timestamp=${Date.now()}`
+      const response = await fetch(`/api/admin/products/${productId}${cacheBuster}`)
+
+      console.log('🔄 Loading product with cache-busting:', {
+        productId,
+        forceRefresh,
+        url: `/api/admin/products/${productId}${cacheBuster}`,
+        timestamp: new Date().toISOString()
+      })
+
       if (!response.ok) {
         throw new Error('Failed to load product')
       }
 
       const result = await response.json()
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to load product')
       }
 
       const productData = result.data
       setProduct(productData)
+
+      console.log('✅ Product loaded successfully:', {
+        productId,
+        price: productData.price,
+        is_best_seller: productData.is_best_seller,
+        best_seller_position: productData.best_seller_position,
+        is_trending: productData.is_trending,
+        trending_position: productData.trending_position
+      })
 
       // Set form data with product data
       setFormData({
@@ -234,60 +293,14 @@ export default function ProductEditPage() {
         throw new Error(result.error || 'Failed to update product')
       }
 
-      // Update form state with the response data to reflect current database values
-      if (result.data) {
-        console.log('🔄 Updating form state with API response data:', {
-          currentFormData: {
-            is_best_seller: formData.is_best_seller,
-            best_seller_position: formData.best_seller_position,
-            is_trending: formData.is_trending,
-            trending_position: formData.trending_position
-          },
-          responseData: {
-            is_best_seller: result.data.is_best_seller,
-            best_seller_position: result.data.best_seller_position,
-            is_trending: result.data.is_trending,
-            trending_position: result.data.trending_position
-          }
-        })
+      // PHASE 1 FIX: Force fresh database fetch after successful save
+      console.log('✅ Product update successful - forcing fresh data reload')
 
-        setFormData(prev => ({
-          ...prev,
-          // Update all fields with the response data to ensure consistency
-          sku: result.data.sku || prev.sku,
-          name_en: result.data.name_en || prev.name_en,
-          name_ja: result.data.name_ja || prev.name_ja,
-          description_en: result.data.description_en || prev.description_en,
-          description_ja: result.data.description_ja || prev.description_ja,
-          short_description_en: result.data.short_description_en || prev.short_description_en,
-          short_description_ja: result.data.short_description_ja || prev.short_description_ja,
-          price: result.data.price || prev.price,
-          compare_at_price: result.data.compare_at_price || prev.compare_at_price,
-          cost_price: result.data.cost_price || prev.cost_price,
-          stock_quantity: result.data.stock_quantity || prev.stock_quantity,
-          low_stock_threshold: result.data.low_stock_threshold || prev.low_stock_threshold,
-          weight_grams: result.data.weight_grams || prev.weight_grams,
-          brand: result.data.brand || prev.brand,
-          is_active: result.data.is_active ?? prev.is_active,
-          is_featured: result.data.is_featured ?? prev.is_featured,
-          is_preorder: result.data.is_preorder ?? prev.is_preorder,
-          preorder_limit: result.data.preorder_limit || prev.preorder_limit,
-          requires_shipping: result.data.requires_shipping ?? prev.requires_shipping,
-          is_digital: result.data.is_digital ?? prev.is_digital,
-          track_inventory: result.data.track_inventory ?? prev.track_inventory,
-          allow_backorder: result.data.allow_backorder ?? prev.allow_backorder,
-          seo_title: result.data.seo_title || prev.seo_title,
-          seo_description: result.data.seo_description || prev.seo_description,
-          // Critical fields for the issue we're fixing
-          is_trending: result.data.is_trending ?? prev.is_trending,
-          is_best_seller: result.data.is_best_seller ?? prev.is_best_seller,
-          trending_position: result.data.trending_position || prev.trending_position,
-          best_seller_position: result.data.best_seller_position || prev.best_seller_position,
-          images: result.data.images || prev.images,
-        }))
+      // Instead of updating form state with response data, force a fresh database fetch
+      // This ensures we get the absolute latest data from the database
+      await loadProduct(params.id as string, true)
 
-        console.log('✅ Form state updated with current database values')
-      }
+      console.log('🔄 Fresh product data reloaded after save')
 
       toast.success('Product updated successfully!')
       // Don't redirect immediately - let user see the updated values and continue editing if needed

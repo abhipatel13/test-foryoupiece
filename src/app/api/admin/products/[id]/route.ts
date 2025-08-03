@@ -14,6 +14,20 @@ export const GET = withAdminAuth(async (
   try {
     const { id } = await params;
 
+    // PHASE 1 FIX: Extract cache-busting parameters for logging
+    const url = new URL(request.url);
+    const timestamp = url.searchParams.get('timestamp');
+    const refresh = url.searchParams.get('refresh');
+
+    console.log('🔄 Admin product fetch request:', {
+      productId: id,
+      timestamp,
+      refresh,
+      cacheBusting: !!timestamp,
+      forceRefresh: refresh === 'true',
+      requestTime: new Date().toISOString()
+    });
+
     if (!id) {
       return NextResponse.json({
         success: false,
@@ -62,10 +76,28 @@ export const GET = withAdminAuth(async (
       }, { status: 500 });
     }
 
-    return NextResponse.json({
+    // PHASE 1 FIX: Add cache-busting headers to prevent browser caching
+    const response = NextResponse.json({
       success: true,
       data: product,
     });
+
+    // Prevent caching of admin product data
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+
+    console.log('✅ Product fetched successfully with cache-busting headers:', {
+      productId: id,
+      price: product.price,
+      is_best_seller: product.is_best_seller,
+      best_seller_position: product.best_seller_position,
+      is_trending: product.is_trending,
+      trending_position: product.trending_position,
+      timestamp: new Date().toISOString()
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Failed to fetch product:', error);
@@ -358,11 +390,19 @@ export const PUT = withAdminAuth(async (
       timestamp: new Date().toISOString()
     });
 
-    return NextResponse.json({
+    // PHASE 1 FIX: Add cache-busting headers to update response
+    const response = NextResponse.json({
       success: true,
       data: updatedProduct,
       message: 'Product updated successfully',
     });
+
+    // Prevent caching of admin update responses
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+
+    return response;
 
   } catch (error) {
     console.error('❌ Unexpected error updating product:', {
