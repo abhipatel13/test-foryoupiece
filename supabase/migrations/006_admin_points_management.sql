@@ -127,13 +127,14 @@ BEGIN
     SET is_current = FALSE, reset_at = NOW()
     WHERE is_current = TRUE;
 
-    -- Reset all user points to 0 and tier to bronze
+    -- Reset all user points to 0, total points earned to 0, and tier to bronze
     UPDATE users
     SET
         points_balance = 0,
+        total_points_earned = 0,
         tier_level = 'bronze',
         updated_at = NOW()
-    WHERE points_balance > 0;
+    WHERE points_balance > 0 OR total_points_earned > 0;
 
     -- Create new bronze rank records for all users
     INSERT INTO user_ranks (user_id, rank, points_at_rank, achieved_at, is_current)

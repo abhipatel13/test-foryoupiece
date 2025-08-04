@@ -488,7 +488,7 @@ export class PointsService {
       // Get actual transaction data for validation
       const { data: transactions, error: transactionError } = await this.supabase
         .from('point_transactions')
-        .select('points, transaction_type')
+        .select('points, transaction_type, created_at')
         .eq('user_id', userId)
 
       if (transactionError) {
@@ -508,15 +508,23 @@ export class PointsService {
       startOfWeek.setDate(now.getDate() - now.getDay())
       startOfWeek.setHours(0, 0, 0, 0)
 
+      // Calculate start of current year (January 1st)
+      const startOfYear = new Date(now.getFullYear(), 0, 1)
+
       if (transactions) {
         transactions.forEach((transaction: any) => {
+          const transactionDate = new Date(transaction.created_at)
+
           if (transaction.points > 0) {
-            actualTotalEarned += transaction.points
+            // Only count earned points from current year for total_points_earned validation
+            if (transactionDate >= startOfYear) {
+              actualTotalEarned += transaction.points
+            }
           } else {
+            // Count all redemptions for balance calculation (regardless of year)
             actualTotalRedeemed += Math.abs(transaction.points)
 
             // Check if transaction is from this week for weekly usage calculation
-            const transactionDate = new Date(transaction.created_at)
             if (transactionDate >= startOfWeek) {
               weeklyPointsUsed += Math.abs(transaction.points)
             }
