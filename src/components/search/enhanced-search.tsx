@@ -313,7 +313,7 @@ export function EnhancedSearch({
 
       {/* Search Dropdown - Enhanced for Production */}
       {isOpen && (hasResults || hasSuggestions || hasHistory) && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-lg shadow-xl z-[100] max-h-[32rem] overflow-y-auto backdrop-blur-sm">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-lg shadow-xl z-[100] max-h-[70vh] sm:max-h-[60vh] lg:max-h-[50vh] overflow-y-auto backdrop-blur-sm">
           {/* Search History */}
           {hasHistory && (
             <div className="p-4 border-b border-border/50">

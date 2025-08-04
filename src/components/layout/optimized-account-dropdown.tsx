@@ -7,14 +7,7 @@ import { useHydration } from '@/lib/hooks/use-hydration'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+// Removed Radix DropdownMenu imports - using custom dropdown instead
 import {
   ChevronDown,
   User,
@@ -81,6 +74,80 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
     }
   }, [isAuthenticated, user, profile, loading])
 
+  // Handle clicks outside dropdown to close it
+  useEffect(() => {
+    if (!dropdownOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('[data-dropdown-container]')) {
+        setDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [dropdownOpen])
+
+  // Aggressive fix for Radix UI mobile positioning bug
+  useEffect(() => {
+    if (dropdownOpen && typeof window !== 'undefined' && window.innerWidth < 640) {
+      let rafId1: number, rafId2: number;
+
+      const forcePosition = () => {
+        const wrapper = document.querySelector('[data-radix-popper-content-wrapper]');
+        const dropdown = wrapper?.querySelector('[role="menu"]') as HTMLElement;
+
+        if (wrapper && dropdown) {
+          // Kill all transforms and positioning
+          (wrapper as HTMLElement).style.cssText = '';
+          dropdown.style.cssText = '';
+
+          // Force new positioning with double RAF
+          rafId1 = requestAnimationFrame(() => {
+            rafId2 = requestAnimationFrame(() => {
+              const viewportWidth = window.innerWidth;
+              const dropdownWidth = 256;
+              const rightPadding = 16;
+
+              // Apply positioning to BOTH elements
+              const positioning = `
+                position: fixed !important;
+                top: 62px !important;
+                left: auto !important;
+                right: ${rightPadding}px !important;
+                transform: none !important;
+                width: ${dropdownWidth}px !important;
+                z-index: 60 !important;
+              `;
+
+              (wrapper as HTMLElement).setAttribute('style', positioning);
+              dropdown.setAttribute('style', positioning + 'border-radius: 0.375rem; background: white; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);');
+            });
+          });
+        }
+      };
+
+      // Initial positioning
+      forcePosition();
+
+      // Watch for Radix trying to reposition
+      const observer = new MutationObserver(forcePosition);
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style']
+      });
+
+      return () => {
+        observer.disconnect();
+        if (rafId1) cancelAnimationFrame(rafId1);
+        if (rafId2) cancelAnimationFrame(rafId2);
+      };
+    }
+  }, [dropdownOpen])
+
   // Show loading state during hydration
   if (!mounted || loading) {
     return (
@@ -133,95 +200,131 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
   }
 
   return (
-    <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
-          className={`flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-44 h-auto ${className}`}
-        >
-          <div className="text-right mr-1 sm:mr-2 min-w-0">
-            <div className="text-xs text-muted-foreground truncate hidden lg:block">
-              Hello, {userDisplayData?.displayName || 'User'}
-            </div>
-            <div className="font-medium flex items-center text-xs sm:text-sm">
-              <span className="hidden lg:inline">Account & Lists</span>
-              <span className="lg:hidden truncate max-w-[50px] sm:max-w-[70px]">
-                {userDisplayData?.displayName || 'Account'}
-              </span>
-              <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
-            </div>
+    <div className="relative" data-dropdown-container>
+      {/* Account Button */}
+      <Button
+        variant="ghost"
+        className={`flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-44 h-auto ${className}`}
+        onClick={() => setDropdownOpen(!dropdownOpen)}
+        aria-expanded={dropdownOpen}
+        aria-haspopup="menu"
+      >
+        <div className="text-right mr-1 sm:mr-2 min-w-0">
+          <div className="text-xs text-muted-foreground truncate hidden lg:block">
+            Hello, {userDisplayData?.displayName || 'User'}
           </div>
-        </Button>
-      </DropdownMenuTrigger>
-      
-      <DropdownMenuContent className="w-64" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={userDisplayData?.avatar || ''} alt={userDisplayData?.displayName || ''} />
-              <AvatarFallback>
-                {userDisplayData?.initials || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">
-                {userDisplayData?.displayName || 'User'}
-              </p>
-              <p className="text-xs leading-none text-muted-foreground">
-                {userDisplayData?.email || 'No email'}
-              </p>
-              
-              {/* Enhanced Points Display - Only load when dropdown is open */}
-              {dropdownOpen && user?.id && (
-                <div className="pt-2 border-t border-gray-100 mt-2">
-                  <PointsBreakdownComponent
-                    userId={user.id}
-                    variant="header"
-                    showTierProgress={true}
-                  />
+          <div className="font-medium flex items-center text-xs sm:text-sm">
+            <span className="hidden lg:inline">Account & Lists</span>
+            <span className="lg:hidden truncate max-w-[50px] sm:max-w-[70px]">
+              {userDisplayData?.displayName || 'Account'}
+            </span>
+            <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
+          </div>
+        </div>
+      </Button>
+
+      {/* Custom Dropdown - No Radix UI positioning issues! */}
+      {dropdownOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-50"
+            onClick={() => setDropdownOpen(false)}
+          />
+
+          {/* Custom Dropdown Content */}
+          <div
+            className="fixed right-4 top-16 w-64 sm:w-72 bg-white rounded-md shadow-lg border z-[60] p-0"
+            role="menu"
+            aria-orientation="vertical"
+          >
+            {/* User Info Header */}
+            <div className="p-4 border-b">
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={userDisplayData?.avatar || ''} alt={userDisplayData?.displayName || ''} />
+                  <AvatarFallback>
+                    {userDisplayData?.initials || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">
+                    {userDisplayData?.displayName || 'User'}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {userDisplayData?.email || 'No email'}
+                  </p>
+
+                  {/* Enhanced Points Display */}
+                  {user?.id && (
+                    <div className="pt-2 border-t border-gray-100 mt-2">
+                      <PointsBreakdownComponent
+                        userId={user.id}
+                        variant="header"
+                        showTierProgress={true}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
+
+            {/* Menu Items */}
+            <div className="py-1">
+              <Link
+                href="/en/profile"
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                onClick={() => setDropdownOpen(false)}
+                role="menuitem"
+              >
+                <User className="mr-2 h-4 w-4" />
+                <span>Your Account</span>
+              </Link>
+
+              <Link
+                href="/en/orders"
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                onClick={() => setDropdownOpen(false)}
+                role="menuitem"
+              >
+                <Package className="mr-2 h-4 w-4" />
+                <span>Your Orders</span>
+              </Link>
+
+              <Link
+                href="/en/wishlist"
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                onClick={() => setDropdownOpen(false)}
+                role="menuitem"
+              >
+                <Heart className="mr-2 h-4 w-4" />
+                <span>Your Wish List</span>
+              </Link>
+
+              <Link
+                href="/en/settings"
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                onClick={() => setDropdownOpen(false)}
+                role="menuitem"
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+
+              <div className="border-t border-gray-100 my-1"></div>
+
+              <button
+                onClick={handleSignOut}
+                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
+                role="menuitem"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign Out</span>
+              </button>
             </div>
           </div>
-        </DropdownMenuLabel>
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem asChild>
-          <Link href="/en/profile">
-            <User className="mr-2 h-4 w-4" />
-            <span>Your Account</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem asChild>
-          <Link href="/en/orders">
-            <Package className="mr-2 h-4 w-4" />
-            <span>Your Orders</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem asChild>
-          <Link href="/en/wishlist">
-            <Heart className="mr-2 h-4 w-4" />
-            <span>Your Wish List</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem asChild>
-          <Link href="/en/settings">
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem onClick={handleSignOut}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Sign Out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </>
+      )}
+    </div>
   )
 }

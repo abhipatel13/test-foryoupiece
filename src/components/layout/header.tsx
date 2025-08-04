@@ -134,16 +134,18 @@ export function Header() {
               showCategoryFilter={true}
             />
 
-            {/* Mobile Search Button - Enhanced Touch Target */}
+            {/* Mobile Search Button - Enterprise Touch Target */}
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 touch-target transition-all duration-200 rounded-lg"
+              className="md:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 touch-target-44 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200 rounded-lg"
               onClick={() => setShowMobileSearch(true)}
               aria-label="Open search"
+              aria-describedby="search-hint"
             >
               <Search className="h-5 w-5" />
               <span className="sr-only">Search</span>
+              <span id="search-hint" className="sr-only">Opens search dialog</span>
             </Button>
 
             {/* Language Switcher - Enhanced */}
@@ -169,7 +171,7 @@ export function Header() {
             ) : isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-44 h-auto">
+                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-44 h-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Account menu" aria-haspopup="menu">
                     <div className="text-right mr-1 sm:mr-2 min-w-0">
                       <div className="text-xs text-muted-foreground truncate hidden lg:block">Hello, {profile?.first_name || 'User'}</div>
                       <div className="font-medium flex items-center text-xs sm:text-sm">
@@ -180,7 +182,7 @@ export function Header() {
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-64" align="end" forceMount>
+                <DropdownMenuContent className="w-64 z-[60] mt-2 sm:w-72" align="end" forceMount sideOffset={8} alignOffset={0}>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex items-center space-x-3">
                       <Avatar className="h-10 w-10">
@@ -468,11 +470,11 @@ export function Header() {
         </SheetContent>
       </Sheet>
 
-      {/* Mobile Search Modal */}
+      {/* Mobile Search Modal - Tailwind CSS Implementation */}
       <Dialog open={showMobileSearch} onOpenChange={setShowMobileSearch}>
-        <DialogContent className="top-0 translate-y-0 max-w-full h-full sm:max-w-lg sm:h-auto sm:top-[50%] sm:translate-y-[-50%]">
+        <DialogContent className="fixed top-[15%] left-4 right-4 w-auto max-w-none h-auto max-h-[70vh] overflow-y-auto transform-none translate-x-0 translate-y-0 sm:max-w-lg sm:top-[50%] sm:left-[50%] sm:right-auto sm:translate-x-[-50%] sm:translate-y-[-50%] z-50 bg-background border border-border rounded-lg shadow-xl p-6">
           <DialogHeader>
-            <DialogTitle>Search Products</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">Search Products</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
             <EnhancedSearch
