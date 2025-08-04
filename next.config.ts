@@ -1,22 +1,16 @@
-import { withSentryConfig } from "@sentry/nextjs";
+import {withSentryConfig} from '@sentry/nextjs';
 // Global polyfill for 'self' - must be at the very top before any imports
-if (
-  typeof global !== "undefined" &&
-  typeof (global as any).self === "undefined"
-) {
+if (typeof global !== 'undefined' && typeof (global as any).self === 'undefined') {
   (global as any).self = global;
 }
-if (
-  typeof globalThis !== "undefined" &&
-  typeof (globalThis as any).self === "undefined"
-) {
+if (typeof globalThis !== 'undefined' && typeof (globalThis as any).self === 'undefined') {
   (globalThis as any).self = globalThis;
 }
 
-import createNextIntlPlugin from "next-intl/plugin";
+import createNextIntlPlugin from 'next-intl/plugin';
 import type { NextConfig } from "next";
 
-const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   eslint: {
@@ -34,31 +28,33 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        port: "",
-        pathname: "/storage/v1/object/public/**",
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/**',
       },
       {
-        protocol: "https",
-        hostname: "images.unsplash.com",
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
       },
       {
-        protocol: "https",
-        hostname: "foryoupiece.com",
+        protocol: 'https',
+        hostname: 'foryoupiece.com',
       },
     ],
-    // Performance optimizations for images
-    formats: ["image/webp", "image/avif"],
-    minimumCacheTTL: 60,
+    // COST OPTIMIZATION: Reduced formats and extended cache TTL
+    formats: ['image/webp'], // Single format to reduce transformations
+    minimumCacheTTL: 2678400, // 31 days cache for product images
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   experimental: {
     serverActions: {
       allowedOrigins: [
-        "localhost:3000",
-        "*.vercel.app",
-        "foryoupiece.vercel.app",
-        "foryoupiece-ecommerce.vercel.app",
+        'localhost:3000',
+        '*.vercel.app',
+        'foryoupiece.vercel.app',
+        'foryoupiece-ecommerce.vercel.app'
       ],
     },
     // Enable optimizations - disable optimizeCss to avoid critters dependency issue
@@ -68,9 +64,9 @@ const nextConfig: NextConfig = {
   // Stable Turbopack configuration (moved from experimental.turbo)
   turbopack: {
     rules: {
-      "*.svg": {
-        loaders: ["@svgr/webpack"],
-        as: "*.js",
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
       },
     },
   },
@@ -82,70 +78,90 @@ const nextConfig: NextConfig = {
     return [
       {
         // Apply security headers to all routes
-        source: "/(.*)",
+        source: '/(.*)',
         headers: [
           // Prevent clickjacking attacks - Allow Telegram for authentication
           {
-            key: "X-Frame-Options",
-            value: "SAMEORIGIN",
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
           },
           // Prevent MIME type sniffing
           {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
           },
           // Control referrer information
           {
-            key: "Referrer-Policy",
-            value: "origin-when-cross-origin",
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
           },
           // XSS Protection (legacy browsers)
           {
-            key: "X-XSS-Protection",
-            value: "1; mode=block",
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
           },
           // Content Security Policy - Updated for OAuth authentication
           {
-            key: "Content-Security-Policy",
+            key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://telegram.org https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://vercel.live",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https: http:",
               "connect-src 'self' https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com wss://*.supabase.co",
-              "frame-src 'self' https://telegram.org https://t.me https://oauth.telegram.org https://accounts.google.com https://www.facebook.com",
+              "frame-src 'self' https://accounts.google.com https://www.facebook.com",
               "worker-src 'self' blob:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
-              "upgrade-insecure-requests",
-            ].join("; "),
+              "upgrade-insecure-requests"
+            ].join('; '),
           },
           // Permissions Policy (Feature Policy)
           {
-            key: "Permissions-Policy",
+            key: 'Permissions-Policy',
             value: [
-              "camera=()",
-              "microphone=()",
-              "geolocation=()",
-              "interest-cohort=()",
-            ].join(", "),
+              'camera=()',
+              'microphone=()',
+              'geolocation=()',
+              'interest-cohort=()'
+            ].join(', '),
+          },
+        ],
+      },
+      {
+        // COST OPTIMIZATION: Long-term caching for static product images
+        source: '/images/products/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=2678400, immutable', // 31 days cache
+          },
+        ],
+      },
+      {
+        // COST OPTIMIZATION: Long-term caching for static assets
+        source: '/(favicon|logo|qr-payment|file|globe|next|vercel|window)\\.(jpg|jpeg|png|svg|webp|avif)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable', // 1 year cache for static assets
           },
         ],
       },
       {
         // Additional security for admin routes
-        source: "/en/fyponly-admin/:path*",
+        source: '/en/fyponly-admin/:path*',
         headers: [
           {
-            key: "X-Robots-Tag",
-            value: "noindex, nofollow, noarchive, nosnippet",
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive, nosnippet',
           },
           {
-            key: "Cache-Control",
-            value: "no-store, no-cache, must-revalidate, proxy-revalidate",
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
           },
         ],
       },
@@ -158,7 +174,7 @@ const nextConfig: NextConfig = {
       config.plugins = config.plugins || [];
       config.plugins.push(
         new webpack.DefinePlugin({
-          self: "global",
+          'self': 'global',
         })
       );
 
@@ -166,13 +182,12 @@ const nextConfig: NextConfig = {
       config.externals = config.externals || [];
       if (Array.isArray(config.externals)) {
         config.externals.push({
-          sonner: "commonjs sonner",
-          "lucide-react": "commonjs lucide-react",
-          "@tanstack/react-query-devtools":
-            "commonjs @tanstack/react-query-devtools",
-          zustand: "commonjs zustand",
-          "@radix-ui/react-toast": "commonjs @radix-ui/react-toast",
-          "@radix-ui/react-icons": "commonjs @radix-ui/react-icons",
+          'sonner': 'commonjs sonner',
+          'lucide-react': 'commonjs lucide-react',
+          '@tanstack/react-query-devtools': 'commonjs @tanstack/react-query-devtools',
+          'zustand': 'commonjs zustand',
+          '@radix-ui/react-toast': 'commonjs @radix-ui/react-toast',
+          '@radix-ui/react-icons': 'commonjs @radix-ui/react-icons',
         });
       }
     }
@@ -190,67 +205,64 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(
-  withSentryConfig(withNextIntl(nextConfig), {
-    // For all available options, see:
-    // https://www.npmjs.com/package/@sentry/webpack-plugin#options
+export default withSentryConfig(withSentryConfig(withNextIntl(nextConfig), {
+// For all available options, see:
+// https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-    org: "aoyama",
-    project: "javascript-nextjs",
+org: "aoyama",
+project: "javascript-nextjs",
 
-    // Only print logs for uploading source maps in CI
-    silent: !process.env.CI,
+// Only print logs for uploading source maps in CI
+silent: !process.env.CI,
 
-    // For all available options, see:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+// For all available options, see:
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
-    // Upload a larger set of source maps for prettier stack traces (increases build time)
-    widenClientFileUpload: true,
+// Upload a larger set of source maps for prettier stack traces (increases build time)
+widenClientFileUpload: true,
 
-    // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-    // This can increase your server load as well as your hosting bill.
-    // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-    // side errors will fail.
-    tunnelRoute: "/monitoring",
+// Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
+// This can increase your server load as well as your hosting bill.
+// Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
+// side errors will fail.
+tunnelRoute: "/monitoring",
 
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
+// Automatically tree-shake Sentry logger statements to reduce bundle size
+disableLogger: true,
 
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
-  }),
-  {
-    // For all available options, see:
-    // https://www.npmjs.com/package/@sentry/webpack-plugin#options
+// Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
+// See the following for more information:
+// https://docs.sentry.io/product/crons/
+// https://vercel.com/docs/cron-jobs
+automaticVercelMonitors: true,
+}), {
+// For all available options, see:
+// https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-    org: "aoyama",
-    project: "javascript-nextjs",
+org: "aoyama",
+project: "javascript-nextjs",
 
-    // Only print logs for uploading source maps in CI
-    silent: !process.env.CI,
+// Only print logs for uploading source maps in CI
+silent: !process.env.CI,
 
-    // For all available options, see:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+// For all available options, see:
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
-    // Upload a larger set of source maps for prettier stack traces (increases build time)
-    widenClientFileUpload: true,
+// Upload a larger set of source maps for prettier stack traces (increases build time)
+widenClientFileUpload: true,
 
-    // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-    // This can increase your server load as well as your hosting bill.
-    // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-    // side errors will fail.
-    tunnelRoute: "/monitoring",
+// Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
+// This can increase your server load as well as your hosting bill.
+// Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
+// side errors will fail.
+tunnelRoute: "/monitoring",
 
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
+// Automatically tree-shake Sentry logger statements to reduce bundle size
+disableLogger: true,
 
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
-  }
-);
+// Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
+// See the following for more information:
+// https://docs.sentry.io/product/crons/
+// https://vercel.com/docs/cron-jobs
+automaticVercelMonitors: true,
+});

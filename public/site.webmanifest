@@ -1,0 +1,22 @@
+{
+  "name": "Foryoupiece - Premium E-commerce",
+  "short_name": "Foryoupiece",
+  "description": "Premium Japanese products delivered directly from Japan to Cambodia",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "32x32",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/"
+}

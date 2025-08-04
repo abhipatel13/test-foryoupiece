@@ -1,0 +1,213 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/client'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
+
+// GET - Retrieve user's search history
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('user_id')
+    const limit = parseInt(searchParams.get('limit') || '5')
+
+    if (!userId) {
+      return NextResponse.json({
+        success: false,
+        error: 'User ID is required'
+      }, { status: 400 })
+    }
+
+    console.log('📜 Getting search history for user:', userId)
+
+    const supabase = createServiceRoleClient()
+
+    // Get user's recent search history with enhanced metadata
+    const { data: history, error } = await supabase
+      .from('user_search_history')
+      .select(`
+        id,
+        search_query,
+        search_category,
+        results_count,
+        search_source,
+        clicked_product_id,
+        created_at
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.error('❌ Error fetching search history:', error)
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to fetch search history'
+      }, { status: 500 })
+    }
+
+    console.log(`✅ Retrieved ${history?.length || 0} search history items`)
+
+    return NextResponse.json({
+      success: true,
+      data: history || [],
+      meta: {
+        userId,
+        count: history?.length || 0,
+        limit
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Search history API error:', error)
+    return NextResponse.json({
+      success: false,
+      error: 'Internal server error'
+    }, { status: 500 })
+  }
+}
+
+// POST - Add new search to history
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { 
+      userId, 
+      searchQuery, 
+      searchCategory, 
+      resultsCount, 
+      clickedProductId,
+      searchSource = 'header',
+      metadata = {}
+    } = body
+
+    if (!userId || !searchQuery) {
+      return NextResponse.json({
+        success: false,
+        error: 'User ID and search query are required'
+      }, { status: 400 })
+    }
+
+    console.log('📝 Adding search to history:', { userId, searchQuery, resultsCount })
+
+    const supabase = createServiceRoleClient()
+
+    // Insert search history record
+    const { data, error } = await supabase
+      .from('user_search_history')
+      .insert({
+        user_id: userId,
+        search_query: searchQuery.trim(),
+        search_category: searchCategory,
+        results_count: resultsCount || 0,
+        clicked_product_id: clickedProductId,
+        search_source: searchSource,
+        user_agent: metadata.userAgent,
+        ip_address: metadata.ipAddress,
+        session_id: metadata.sessionId
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error adding search to history:', error)
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to add search to history'
+      }, { status: 500 })
+    }
+
+    console.log('✅ Search added to history successfully')
+
+    return NextResponse.json({
+      success: true,
+      data: data,
+      message: 'Search added to history'
+    })
+
+  } catch (error) {
+    console.error('❌ Add search history API error:', error)
+    return NextResponse.json({
+      success: false,
+      error: 'Internal server error'
+    }, { status: 500 })
+  }
+}
+
+// DELETE - Remove search history item
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('user_id')
+    const historyId = searchParams.get('history_id')
+    const clearAll = searchParams.get('clear_all') === 'true'
+
+    if (!userId) {
+      return NextResponse.json({
+        success: false,
+        error: 'User ID is required'
+      }, { status: 400 })
+    }
+
+    console.log('🗑️ Deleting search history:', { userId, historyId, clearAll })
+
+    const supabase = createServiceRoleClient()
+
+    if (clearAll) {
+      // Clear all search history for the user
+      const { error } = await supabase
+        .from('user_search_history')
+        .delete()
+        .eq('user_id', userId)
+
+      if (error) {
+        console.error('❌ Error clearing search history:', error)
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to clear search history'
+        }, { status: 500 })
+      }
+
+      console.log('✅ All search history cleared for user')
+
+      return NextResponse.json({
+        success: true,
+        message: 'All search history cleared'
+      })
+
+    } else if (historyId) {
+      // Delete specific search history item
+      const { error } = await supabase
+        .from('user_search_history')
+        .delete()
+        .eq('id', historyId)
+        .eq('user_id', userId) // Ensure user can only delete their own history
+
+      if (error) {
+        console.error('❌ Error deleting search history item:', error)
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to delete search history item'
+        }, { status: 500 })
+      }
+
+      console.log('✅ Search history item deleted')
+
+      return NextResponse.json({
+        success: true,
+        message: 'Search history item deleted'
+      })
+
+    } else {
+      return NextResponse.json({
+        success: false,
+        error: 'Either history_id or clear_all=true is required'
+      }, { status: 400 })
+    }
+
+  } catch (error) {
+    console.error('❌ Delete search history API error:', error)
+    return NextResponse.json({
+      success: false,
+      error: 'Internal server error'
+    }, { status: 500 })
+  }
+}
