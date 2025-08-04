@@ -141,9 +141,39 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
     }
   }, [signOut, router])
 
-  // Don't render if not authenticated or still loading
-  if (!isAuthenticated || loading) {
-    return null
+  // Show sign in link if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className={`flex items-center flex-shrink-0 min-w-0 ${className}`}>
+        <Link
+          href="/en/auth/login"
+          className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary touch-target-44"
+        >
+          <div className="text-right mr-1 sm:mr-2 min-w-0">
+            <div className="text-xs text-muted-foreground hidden lg:block">Hello, sign in</div>
+            <div className="font-medium flex items-center truncate text-xs sm:text-sm">
+              <span className="hidden lg:inline">Account & Lists</span>
+              <span className="lg:hidden">Sign In</span>
+              <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
+            </div>
+          </div>
+        </Link>
+      </div>
+    )
+  }
+
+  // Don't render if still loading
+  if (loading) {
+    return (
+      <div className={`flex items-center flex-shrink-0 min-w-0 ${className}`}>
+        <div className="flex items-center text-foreground text-sm px-1 sm:px-2 lg:px-3 py-2">
+          <div className="text-right mr-1 sm:mr-2 min-w-0">
+            <Skeleton className="h-3 w-16 mb-1 hidden lg:block" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -227,7 +257,7 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
           {/* Menu Items */}
           <div className="py-2">
             <Link
-              href="/en/account"
+              href="/en/profile"
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
               role="menuitem"
               onClick={() => setIsOpen(false)}

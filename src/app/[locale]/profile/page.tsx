@@ -600,7 +600,7 @@ export default function ProfilePage() {
                 </CardTitle>
                 <CardDescription>Your latest order history</CardDescription>
               </div>
-              <Link href="/orders">
+              <Link href="/en/orders">
                 <Button variant="outline" size="sm">
                   <Eye className="h-4 w-4 mr-2" />
                   View All
@@ -657,7 +657,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">{formatPrice(order.total_amount)}</p>
-                      <Link href={`/orders/${order.id}`}>
+                      <Link href={`/en/orders/${order.id}`}>
                         <Button variant="ghost" size="sm" className="mt-1">
                           <Eye className="h-4 w-4 mr-1" />
                           View

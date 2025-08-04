@@ -205,7 +205,7 @@ export default function OrdersPage() {
                       </div>
                       {notification.related_order_id && (
                         <Button asChild variant="ghost" size="sm">
-                          <Link href={`/orders/${notification.related_order_id}`}>
+                          <Link href={`/en/orders/${notification.related_order_id}`}>
                             <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
@@ -284,7 +284,7 @@ export default function OrdersPage() {
                       
                       <div className="flex items-center space-x-2">
                         <Button asChild variant="outline" size="sm">
-                          <Link href={`/orders/${order.id}`}>
+                          <Link href={`/en/orders/${order.id}`}>
                             <Eye className="h-4 w-4 mr-1" />
                             View Details
                           </Link>

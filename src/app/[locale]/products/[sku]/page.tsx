@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
+import { useWishlist } from '@/lib/hooks/use-wishlist'
 import { productQueries } from '@/lib/supabase/queries'
 import { formatPrice } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -64,6 +65,7 @@ export default function ProductDetailPage() {
   const { isAuthenticated } = useSSRSafeAuth()
   const { addItem } = useSSRSafeCartStore()
   const { trackProductView, isReady } = useBehaviorTracking()
+  const { toggleWishlist, isInWishlist } = useWishlist()
   
   const [product, setProduct] = useState<Product | null>(null)
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
@@ -157,8 +159,10 @@ export default function ProductDetailPage() {
     }
   }
 
-  const handleWishlist = () => {
-    toast.info('Wishlist feature coming soon!')
+  const handleWishlist = async () => {
+    if (product) {
+      await toggleWishlist(product.id, selectedVariant || undefined)
+    }
   }
 
   // Calculate discount percentage
@@ -510,8 +514,15 @@ export default function ProductDetailPage() {
                   onClick={handleWishlist}
                   className="w-full h-14 text-base font-medium border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer"
                 >
-                  <Heart className="h-5 w-5 mr-2" />
-                  Save for Later
+                  <Heart className={`h-5 w-5 mr-2 transition-colors ${
+                    product && isInWishlist(product.id, selectedVariant || undefined)
+                      ? 'text-red-500 fill-red-500'
+                      : 'text-gray-600'
+                  }`} />
+                  {product && isInWishlist(product.id, selectedVariant || undefined)
+                    ? 'Saved'
+                    : 'Save for Later'
+                  }
                 </Button>
               </div>
             </div>

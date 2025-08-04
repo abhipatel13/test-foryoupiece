@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
+import { useWishlist } from '@/lib/hooks/use-wishlist'
 import { formatPrice } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
   const t = useTranslations('products')
   const { addItem } = useSSRSafeCartStore()
   const { trackProductView, isReady } = useBehaviorTracking()
+  const { toggleWishlist, isInWishlist } = useWishlist()
   const [isHovered, setIsHovered] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
 
@@ -84,11 +86,10 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
     }
   }
 
-  const handleWishlist = (e: React.MouseEvent) => {
+  const handleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    // TODO: Implement wishlist functionality
-    toast.success('Added to wishlist')
+    await toggleWishlist(product.id)
   }
 
   const handleProductClick = () => {
@@ -173,7 +174,11 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             onClick={handleWishlist}
             aria-label={`Add ${productName} to wishlist`}
           >
-            <Heart className="h-3.5 w-3.5 text-gray-600 hover:text-red-500" />
+            <Heart className={`h-3.5 w-3.5 transition-colors ${
+              isInWishlist(product.id)
+                ? 'text-red-500 fill-red-500'
+                : 'text-gray-600 hover:text-red-500'
+            }`} />
           </Button>
         </div>
 

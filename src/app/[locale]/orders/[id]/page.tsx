@@ -6,13 +6,15 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { orderQueries } from '@/lib/supabase/queries'
 import { formatPrice, formatDateTime } from '@/lib/utils'
+import { toast } from 'sonner'
+import Image from 'next/image'
 import { SHIPPING_CONFIG } from '@/shared/constants'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CheckCircle, Package, Truck, MapPin, CreditCard, ArrowLeft } from 'lucide-react'
+import { CheckCircle, Package, Truck, MapPin, CreditCard, ArrowLeft, QrCode, ExternalLink, Copy } from 'lucide-react'
 
 interface Order {
   id: string
@@ -35,6 +37,20 @@ export default function OrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Payment link - same as used in thank-you page
+  const paymentLink = 'https://link.payway.com.kh/ABAPAYKq337533G'
+
+  // Helper function to copy payment link
+  const copyPaymentLink = () => {
+    navigator.clipboard.writeText(paymentLink)
+    toast.success('Payment link copied to clipboard!')
+  }
+
+  // Helper function to check if order needs payment
+  const needsPayment = (order: Order) => {
+    return order.payment_status === 'pending' || order.payment_status === 'on_hold'
+  }
 
   useEffect(() => {
     if (params.id) {
@@ -116,7 +132,7 @@ export default function OrderDetailsPage() {
               <p className="text-gray-600">Placed on {formatDateTime(order.created_at)}</p>
             </div>
             <Button asChild variant="outline">
-              <Link href="/orders">
+              <Link href="/en/orders">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 All Orders
               </Link>
@@ -164,17 +180,34 @@ export default function OrderDetailsPage() {
                 </Badge>
               </div>
               
-              {order.payment_status === 'pending' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-yellow-900 mb-2">Payment Instructions</h4>
-                  <p className="text-sm text-yellow-800">
-                    Please transfer the total amount to our bank account. Your order will be processed after payment verification.
+              {needsPayment(order) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Complete Payment
+                  </h4>
+                  <p className="text-sm text-blue-800 mb-4">
+                    Your order is waiting for payment. Complete your payment of <strong>{formatPrice(order.total_amount)}</strong> to process your order.
                   </p>
-                  <div className="mt-3 text-sm text-yellow-800">
-                    <p><strong>Bank:</strong> Example Bank</p>
-                    <p><strong>Account:</strong> 1234-5678-9012</p>
-                    <p><strong>Amount:</strong> {formatPrice(order.total_amount)}</p>
-                    <p><strong>Reference:</strong> {order.order_number}</p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      asChild
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <a href={paymentLink} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Pay Now
+                      </a>
+                    </Button>
+                    <Button
+                      onClick={copyPaymentLink}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Payment Link
+                    </Button>
                   </div>
                 </div>
               )}
@@ -206,6 +239,100 @@ export default function OrderDetailsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Payment Section - Only show for pending/on hold orders */}
+        {needsPayment(order) && (
+          <Card className="mb-8 border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-blue-900">
+                <QrCode className="h-5 w-5" />
+                <span>Complete Your Payment</span>
+              </CardTitle>
+              <CardDescription className="text-blue-700">
+                Your order is waiting for payment verification. Complete your payment to process your order.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Payment Amount */}
+              <div className="text-center p-4 bg-white rounded-lg border border-blue-200">
+                <div className="text-2xl font-bold text-gray-900">
+                  {formatPrice(order.total_amount)}
+                </div>
+                <div className="text-sm text-gray-600">Total Amount Due</div>
+              </div>
+
+              {/* QR Code */}
+              <div className="text-center">
+                <div className="inline-block p-4 bg-white border border-blue-200 rounded-lg">
+                  <a href={paymentLink} target="_blank" rel="noopener noreferrer" className="block">
+                    <Image
+                      src="/93155.jpg"
+                      alt="Payment QR Code"
+                      width={160}
+                      height={160}
+                      className="cursor-pointer hover:opacity-80 transition-opacity duration-200"
+                    />
+                  </a>
+                </div>
+                <p className="text-sm text-blue-700 mt-2">
+                  Scan with your banking app or click to open payment page
+                </p>
+              </div>
+
+              {/* Payment Link */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-blue-900">Payment Link:</h4>
+                <div className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-blue-200">
+                  <CreditCard className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                  <code className="text-sm text-gray-700 flex-1 break-all">
+                    {paymentLink}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyPaymentLink}
+                    className="flex-shrink-0"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  asChild
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <a href={paymentLink} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Complete Payment
+                  </a>
+                </Button>
+                <Button
+                  onClick={copyPaymentLink}
+                  variant="outline"
+                  className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-100"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Payment Link
+                </Button>
+              </div>
+
+              {/* Payment Instructions */}
+              <div className="bg-white p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">Payment Instructions:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Scan the QR code with your banking app or click "Complete Payment"</li>
+                  <li>• Enter the exact amount: <strong>{formatPrice(order.total_amount)}</strong></li>
+                  <li>• Use order number <strong>{order.order_number}</strong> as reference</li>
+                  <li>• Payment verification may take a few hours</li>
+                  <li>• You'll receive a notification when your order is processed</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Order Items */}
         <Card>
