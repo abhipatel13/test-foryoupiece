@@ -177,18 +177,9 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
       {isOpen && (
         <div
           ref={refs.setFloating}
-          style={{
-            ...floatingStyles,
-            // Ensure dropdown appears below header on mobile
-            ...(window.innerWidth < 640 && {
-              top: Math.max(parseFloat(floatingStyles.top || '0'), 70),
-              right: '5vw',
-              left: 'auto',
-              transform: 'none'
-            })
-          }}
+          style={floatingStyles}
           {...getFloatingProps()}
-          className="w-64 sm:w-72 bg-white rounded-md shadow-lg border z-[100] p-0 max-h-[80vh] overflow-y-auto"
+          className="w-64 sm:w-72 bg-white rounded-md shadow-lg border z-[100] p-0 max-h-[80vh] overflow-y-auto sm:max-h-[60vh]"
           role="menu"
           aria-orientation="vertical"
         >

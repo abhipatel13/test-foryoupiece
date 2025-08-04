@@ -296,17 +296,26 @@ export function Header() {
 
       {/* Mobile Search Modal */}
       <Dialog open={showMobileSearch} onOpenChange={setShowMobileSearch}>
-        <DialogContent className="top-0 translate-y-0 max-w-full h-full sm:max-w-lg sm:h-auto sm:top-[50%] sm:translate-y-[-50%]">
-          <DialogHeader>
-            <DialogTitle>Search Products</DialogTitle>
+        <DialogContent className="top-[5%] translate-y-0 max-w-full h-auto max-h-[90vh] sm:max-w-lg sm:h-auto sm:top-[50%] sm:translate-y-[-50%] md:top-[20%] md:h-auto p-2 sm:p-6">
+          <DialogHeader className="pb-2 mb-0">
+            <DialogTitle className="text-base font-medium">Search Products</DialogTitle>
           </DialogHeader>
-          <div className="mt-4">
+          <div className="mt-0">
             <EnhancedSearch
               className="w-full"
               placeholder="Search for products..."
               showCategoryFilter={true}
               autoFocus
-              onSearch={() => setShowMobileSearch(false)}
+              onSearch={(query, category) => {
+                setShowMobileSearch(false)
+                // Navigate to search results
+                const searchParams = new URLSearchParams()
+                searchParams.set('search', query)
+                if (category) {
+                  searchParams.set('category', category)
+                }
+                window.location.href = `/en/products?${searchParams.toString()}`
+              }}
             />
           </div>
         </DialogContent>

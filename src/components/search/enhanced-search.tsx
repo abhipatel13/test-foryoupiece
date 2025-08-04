@@ -82,6 +82,7 @@ export function EnhancedSearch({
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [dropdownKey, setDropdownKey] = useState(0) // For forcing re-renders
 
   const searchRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -231,7 +232,7 @@ export function EnhancedSearch({
     }
   }, [user?.id])
 
-  // Handle click outside to close dropdown
+  // Handle click outside to close dropdown and window resize/scroll for repositioning
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -240,8 +241,47 @@ export function EnhancedSearch({
       }
     }
 
+    const handleResize = () => {
+      // Force re-render to update dropdown position
+      if (isOpen) {
+        setDropdownKey(prev => prev + 1)
+      }
+    }
+
+    const handleScroll = (event: Event) => {
+      // Only close dropdown if scrolling outside the dropdown itself
+      if (isOpen && searchRef.current) {
+        const target = event.target as Element
+        const dropdown = document.querySelector('[data-search-dropdown]')
+
+        // Don't close if scrolling within the dropdown
+        if (dropdown && (dropdown.contains(target) || dropdown === target)) {
+          return
+        }
+
+        // Close dropdown on external scroll to prevent positioning issues
+        setIsOpen(false)
+        setShowHistory(false)
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleScroll, true)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [isOpen])
+
+  // Cleanup on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      setIsOpen(false)
+      setShowHistory(false)
+    }
   }, [])
 
   const hasResults = searchResults.length > 0
@@ -292,7 +332,20 @@ export function EnhancedSearch({
           type="text"
           placeholder={placeholder}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value
+            setQuery(value)
+
+            // Reset any previous state when user starts typing
+
+            if (value.trim()) {
+              setIsOpen(true)
+              setShowHistory(false)
+            } else {
+              setShowHistory(true)
+              setIsOpen(searchHistory.length > 0)
+            }
+          }}
           onFocus={handleInputFocus}
           className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground/70 w-full min-w-0 text-sm lg:text-base px-4 lg:px-5 font-medium"
         />
@@ -311,9 +364,22 @@ export function EnhancedSearch({
         </Button>
       </form>
 
-      {/* Search Dropdown - Enhanced for Production */}
+      {/* Search Dropdown - Enhanced for Production with Fixed Positioning */}
       {isOpen && (hasResults || hasSuggestions || hasHistory) && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-lg shadow-xl z-[100] max-h-[70vh] sm:max-h-[60vh] lg:max-h-[50vh] overflow-y-auto backdrop-blur-sm">
+        <div
+          key={dropdownKey}
+          data-search-dropdown
+          className="fixed bg-background border border-border rounded-lg shadow-xl z-[9999] min-h-[300px] max-h-[80vh] overflow-y-auto backdrop-blur-sm"
+          style={{
+            minHeight: '300px',
+            maxHeight: '80vh',
+            top: searchRef.current ? Math.max(searchRef.current.getBoundingClientRect().bottom + 8, 120) : 120,
+            left: searchRef.current ? searchRef.current.getBoundingClientRect().left : 0,
+            width: searchRef.current ? searchRef.current.getBoundingClientRect().width : 'auto',
+            maxWidth: '100vw'
+          }}
+          onScroll={(e) => e.stopPropagation()}
+        >
           {/* Search History */}
           {hasHistory && (
             <div className="p-4 border-b border-border/50">
@@ -345,12 +411,12 @@ export function EnhancedSearch({
 
           {/* Suggestions */}
           {hasSuggestions && (
-            <div className="p-4 border-b border-border/50">
+            <div className="p-4 border-b border-border/50 flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-4 w-4 text-primary" />
                 <span className="text-sm font-semibold text-foreground">Suggestions</span>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-h-[150px]">
                 {suggestions.map((suggestion, index) => (
                   <div
                     key={index}

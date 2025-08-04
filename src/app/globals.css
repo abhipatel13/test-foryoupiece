@@ -2213,6 +2213,51 @@ input, textarea, select {
     padding: 1rem !important;
   }
 
+  /* Mobile search modal positioning - upper portion of viewport */
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) {
+    top: 5% !important;
+    transform: translateX(-50%) translateY(0) !important;
+    height: auto !important;
+    max-height: 85vh !important;
+    padding: 0.5rem !important;
+    min-height: auto !important;
+  }
+
+  /* Compact header in mobile search modal */
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) [data-radix-dialog-header] {
+    padding-bottom: 0.5rem !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Reduce spacing in mobile search modal */
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) .mt-4 {
+    margin-top: 0 !important;
+  }
+
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) .mt-2 {
+    margin-top: 0 !important;
+  }
+
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) .mt-1 {
+    margin-top: 0 !important;
+  }
+
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) .pb-2 {
+    padding-bottom: 0.5rem !important;
+  }
+
+  /* Compact header styling in search modal */
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) h2 {
+    margin-bottom: 0 !important;
+    font-size: 1rem !important;
+    font-weight: 500 !important;
+  }
+
+  /* Ensure search form is positioned at the top */
+  [data-radix-dialog-content]:has([role="textbox"][placeholder*="Search"]) form {
+    margin-top: 0 !important;
+  }
+
   /* Ensure touch targets are minimum 44px */
   .auth-form-container button,
   .auth-form-container input {
