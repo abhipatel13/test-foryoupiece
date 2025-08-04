@@ -6,6 +6,7 @@ import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
+import { usePerformanceOptimization } from '@/lib/hooks/use-performance-optimization'
 
 // Create auth context
 const AuthContext = createContext<{
@@ -21,14 +22,22 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const isClient = useIsClient()
   const initializationRef = useRef(false)
-  
+
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
   const cartStore = useSSRSafeCartStore()
-  
+
   const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser } = cartStore
   const supabase = createClient()
+
+  // Initialize performance optimization for user data prefetching
+  usePerformanceOptimization({
+    prefetchUserData: true,
+    prefetchPointsData: true,
+    enableBackgroundRefresh: true,
+    backgroundRefreshInterval: 5 * 60 * 1000 // 5 minutes
+  })
 
   // Load user profile function
   const loadUserProfile = async (userId: string) => {

@@ -258,21 +258,77 @@ export const requestUtils = {
     return deduplicator.execute(
       `points_breakdown_${userId}`,
       async (signal) => {
-        const response = await fetch(`/api/users/${userId}/points/breakdown`, {
-          signal,
-          headers: {
-            'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=60'
-          }
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Points breakdown fetch failed: ${response.status}`)
+        // Use PointsService directly for better performance
+        const { PointsService } = await import('@/lib/services/points-service')
+        const pointsService = new PointsService()
+        const result = await pointsService.getPointsBreakdown(userId)
+
+        if (result.error) {
+          throw new Error(result.error)
         }
-        
-        return response.json()
+
+        return result.breakdown
       },
-      { ttl: 2 * 60 * 1000, forceRefresh } // 2 minute cache
+      { ttl: 5 * 60 * 1000, forceRefresh } // 5 minute cache for points data
     )
+  },
+
+  /**
+   * Deduplicated user points summary fetch
+   */
+  fetchUserPointsSummary: async (userId: string, forceRefresh = false) => {
+    const deduplicator = getRequestDeduplicator()
+    return deduplicator.execute(
+      `user_points_summary_${userId}`,
+      async (signal) => {
+        const { PointsService } = await import('@/lib/services/points-service')
+        const pointsService = new PointsService()
+        const result = await pointsService.getUserPointsSummary(userId)
+
+        if (result.error) {
+          throw new Error(result.error)
+        }
+
+        return result.summary
+      },
+      { ttl: 3 * 60 * 1000, forceRefresh } // 3 minute cache for summary
+    )
+  },
+
+  /**
+   * Prefetch user data for dropdown performance
+   */
+  prefetchUserData: async (userId: string) => {
+    const deduplicator = getRequestDeduplicator()
+
+    // Prefetch profile and points data in parallel
+    const promises = [
+      deduplicator.execute(
+        `user_profile_${userId}`,
+        async () => {
+          const { userQueries } = await import('@/lib/supabase/queries')
+          return userQueries.getProfile(userId)
+        },
+        { ttl: 10 * 60 * 1000 } // 10 minute cache
+      ),
+      deduplicator.execute(
+        `user_points_summary_${userId}`,
+        async () => {
+          const { PointsService } = await import('@/lib/services/points-service')
+          const pointsService = new PointsService()
+          const result = await pointsService.getUserPointsSummary(userId)
+          return result.error ? null : result.summary
+        },
+        { ttl: 3 * 60 * 1000 } // 3 minute cache
+      )
+    ]
+
+    try {
+      await Promise.allSettled(promises)
+      console.log('🚀 User data prefetched successfully for:', userId)
+    } catch (error) {
+      console.warn('⚠️ User data prefetch failed:', error)
+    }
   },
 
   /**

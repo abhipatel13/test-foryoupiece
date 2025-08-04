@@ -9,17 +9,9 @@ import { useHydration } from '@/lib/hooks/use-hydration'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
+import { OptimizedFloatingAccountDropdown } from '@/components/layout/optimized-floating-account-dropdown'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import {
   Dialog,
@@ -29,21 +21,14 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog'
-import { AuthForm } from '@/components/auth/auth-form'
 import { Input } from '@/components/ui/input'
 import { EnhancedSearch } from '@/components/search/enhanced-search'
 import {
   ShoppingCart,
-  User,
   Menu,
   Heart,
   Search,
-  LogOut,
-  Settings,
-  Package,
-  Star,
   ChevronDown,
-  MapPin,
   Globe,
   TrendingUp,
   Percent,
@@ -55,10 +40,7 @@ export function Header() {
   const { user, profile, signOut, isAuthenticated, loading } = useSSRSafeAuth()
   const isHydrated = useHydration()
   const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useSSRSafeCartStore()
-  const [authDialogOpen, setAuthDialogOpen] = useState(false)
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [mounted, setMounted] = useState(false)
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const cartItemCount = getItemCount()
   const showCartCount = isHydrated && mounted && !cartLoading
@@ -67,18 +49,7 @@ export function Header() {
     setMounted(true)
   }, [])
 
-  const handleAuthSuccess = () => {
-    setAuthDialogOpen(false)
-  }
 
-  const handleSignOut = async () => {
-    try {
-      await signOut()
-      clearCartOnLogout()
-    } catch (error) {
-      console.error('Sign out error:', error)
-    }
-  }
 
   const handleScrollToCategories = () => {
     // Smooth scroll to categories section on the current page
@@ -134,18 +105,16 @@ export function Header() {
               showCategoryFilter={true}
             />
 
-            {/* Mobile Search Button - Enterprise Touch Target */}
+            {/* Mobile Search Button - Enhanced Touch Target */}
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 touch-target-44 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200 rounded-lg"
+              className="md:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 touch-target transition-all duration-200 rounded-lg"
               onClick={() => setShowMobileSearch(true)}
               aria-label="Open search"
-              aria-describedby="search-hint"
             >
               <Search className="h-5 w-5" />
               <span className="sr-only">Search</span>
-              <span id="search-hint" className="sr-only">Opens search dialog</span>
             </Button>
 
             {/* Language Switcher - Enhanced */}
@@ -155,153 +124,8 @@ export function Header() {
               <ChevronDown className="h-3 w-3 ml-2" />
             </div>
 
-            {/* Account & Lists - Mobile Optimized */}
-            {!mounted ? (
-              // Show loading state to prevent flash of unauthenticated content during hydration
-              <div className="flex items-center text-foreground text-sm px-1 sm:px-2 lg:px-3 py-2 rounded-lg flex-shrink-0 min-w-0">
-                <div className="text-right mr-1 sm:mr-2 min-w-0">
-                  <div className="text-xs text-muted-foreground hidden sm:block">Loading...</div>
-                  <div className="font-medium flex items-center truncate text-xs sm:text-sm">
-                    <span className="hidden md:inline">Account</span>
-                    <span className="md:hidden">...</span>
-                    <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
-                  </div>
-                </div>
-              </div>
-            ) : isAuthenticated ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center text-foreground text-sm cursor-pointer hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0 touch-target-44 h-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Account menu" aria-haspopup="menu">
-                    <div className="text-right mr-1 sm:mr-2 min-w-0">
-                      <div className="text-xs text-muted-foreground truncate hidden lg:block">Hello, {profile?.first_name || 'User'}</div>
-                      <div className="font-medium flex items-center text-xs sm:text-sm">
-                        <span className="hidden lg:inline">Account & Lists</span>
-                        <span className="lg:hidden truncate max-w-[50px] sm:max-w-[70px]">{profile?.first_name || 'Account'}</span>
-                        <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
-                      </div>
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-64 z-[60] mt-2 sm:w-72" align="end" forceMount sideOffset={8} alignOffset={0}>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={profile?.avatar_url || ''} alt={profile?.first_name || ''} />
-                        <AvatarFallback>
-                          {profile?.first_name?.[0] || profile?.telegram_username?.[0] || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {profile?.first_name || profile?.telegram_username || 'User'}
-                        </p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                          {profile?.email || 'Telegram User'}
-                        </p>
-                        {/* Enhanced Points Display */}
-                        <div className="pt-2 border-t border-gray-100 mt-2">
-                          <PointsBreakdownComponent
-                            userId={user?.id || ''}
-                            variant="header"
-                            showTierProgress={true}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/en/profile">
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Your Account</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/en/orders">
-                      <Package className="mr-2 h-4 w-4" />
-                      <span>Your Orders</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/en/wishlist">
-                      <Heart className="mr-2 h-4 w-4" />
-                      <span>Your Wish List</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/en/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Sign Out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <div className="flex items-center space-x-1 sm:space-x-2">
-                <Link href="/en/auth/login" className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0">
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground hidden lg:block">Hello, sign in</div>
-                    <div className="font-medium flex items-center text-xs sm:text-sm">
-                      <span className="hidden lg:inline">Account & Lists</span>
-                      <span className="lg:hidden">Account</span>
-                      <ChevronDown className="h-3 w-3 ml-1 hidden sm:block" />
-                    </div>
-                  </div>
-                </Link>
-                <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs px-2 sm:px-3 py-1.5 sm:py-2 h-8 sm:h-9 flex-shrink-0">
-                      <span className="hidden sm:inline">Quick Login</span>
-                      <span className="sm:hidden">Login</span>
-                    </Button>
-                  </DialogTrigger>
-                <DialogContent className="w-full max-w-[calc(100vw-1rem)] sm:max-w-[440px] mx-auto p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {authMode === 'login' ? 'Sign in to ForYouPiece' : 'Create Account'}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {authMode === 'login'
-                        ? 'Sign in to your account to continue shopping'
-                        : 'Create a new account to start shopping'
-                      }
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="px-1">
-                    <AuthForm mode={authMode} onSuccess={handleAuthSuccess} />
-                  </div>
-                  <div className="text-center text-sm text-muted-foreground border-t pt-4">
-                    {authMode === 'login' ? (
-                      <span>
-                        New to ForYouPiece?{' '}
-                        <button
-                          onClick={() => setAuthMode('signup')}
-                          className="text-primary hover:underline font-medium transition-colors"
-                        >
-                          Create your account
-                        </button>
-                      </span>
-                    ) : (
-                      <span>
-                        Already have an account?{' '}
-                        <button
-                          onClick={() => setAuthMode('login')}
-                          className="text-primary hover:underline font-medium transition-colors"
-                        >
-                          Sign in
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                </DialogContent>
-                </Dialog>
-              </div>
-            )}
+            {/* Account & Lists - Mobile Optimized with OptimizedFloatingAccountDropdown */}
+            <OptimizedFloatingAccountDropdown className="flex-shrink-0 min-w-0" />
 
             {/* FIXED Cart - Better Visibility & Sizing */}
             <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-2 sm:px-3 lg:px-4 py-2 rounded-lg flex-shrink-0 touch-target-lg focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[80px] sm:min-w-[100px]" aria-label="View shopping cart">
@@ -470,11 +294,11 @@ export function Header() {
         </SheetContent>
       </Sheet>
 
-      {/* Mobile Search Modal - Tailwind CSS Implementation */}
+      {/* Mobile Search Modal */}
       <Dialog open={showMobileSearch} onOpenChange={setShowMobileSearch}>
-        <DialogContent className="fixed top-[15%] left-4 right-4 w-auto max-w-none h-auto max-h-[70vh] overflow-y-auto transform-none translate-x-0 translate-y-0 sm:max-w-lg sm:top-[50%] sm:left-[50%] sm:right-auto sm:translate-x-[-50%] sm:translate-y-[-50%] z-50 bg-background border border-border rounded-lg shadow-xl p-6">
+        <DialogContent className="top-0 translate-y-0 max-w-full h-full sm:max-w-lg sm:h-auto sm:top-[50%] sm:translate-y-[-50%]">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">Search Products</DialogTitle>
+            <DialogTitle>Search Products</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
             <EnhancedSearch

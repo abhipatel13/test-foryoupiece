@@ -89,64 +89,7 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [dropdownOpen])
 
-  // Aggressive fix for Radix UI mobile positioning bug
-  useEffect(() => {
-    if (dropdownOpen && typeof window !== 'undefined' && window.innerWidth < 640) {
-      let rafId1: number, rafId2: number;
 
-      const forcePosition = () => {
-        const wrapper = document.querySelector('[data-radix-popper-content-wrapper]');
-        const dropdown = wrapper?.querySelector('[role="menu"]') as HTMLElement;
-
-        if (wrapper && dropdown) {
-          // Kill all transforms and positioning
-          (wrapper as HTMLElement).style.cssText = '';
-          dropdown.style.cssText = '';
-
-          // Force new positioning with double RAF
-          rafId1 = requestAnimationFrame(() => {
-            rafId2 = requestAnimationFrame(() => {
-              const viewportWidth = window.innerWidth;
-              const dropdownWidth = 256;
-              const rightPadding = 16;
-
-              // Apply positioning to BOTH elements
-              const positioning = `
-                position: fixed !important;
-                top: 62px !important;
-                left: auto !important;
-                right: ${rightPadding}px !important;
-                transform: none !important;
-                width: ${dropdownWidth}px !important;
-                z-index: 60 !important;
-              `;
-
-              (wrapper as HTMLElement).setAttribute('style', positioning);
-              dropdown.setAttribute('style', positioning + 'border-radius: 0.375rem; background: white; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);');
-            });
-          });
-        }
-      };
-
-      // Initial positioning
-      forcePosition();
-
-      // Watch for Radix trying to reposition
-      const observer = new MutationObserver(forcePosition);
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style']
-      });
-
-      return () => {
-        observer.disconnect();
-        if (rafId1) cancelAnimationFrame(rafId1);
-        if (rafId2) cancelAnimationFrame(rafId2);
-      };
-    }
-  }, [dropdownOpen])
 
   // Show loading state during hydration
   if (!mounted || loading) {

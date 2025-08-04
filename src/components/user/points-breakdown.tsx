@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { 
-  Star, 
-  Trophy, 
-  Gift, 
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Star,
+  Trophy,
+  Gift,
   Coins,
   TrendingUp,
   Award,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react'
 import { PointsService, PointsBreakdown } from '@/lib/services/points-service'
 import { formatPrice } from '@/lib/utils'
+import { requestUtils } from '@/lib/utils/request-deduplication'
 
 interface PointsBreakdownProps {
   userId: string
@@ -59,7 +61,8 @@ export function PointsBreakdownComponent({
   const [showDetails, setShowDetails] = useState(variant === 'full')
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null)
 
-  const pointsService = new PointsService()
+  // Memoize the points service to prevent recreation
+  const pointsService = useMemo(() => new PointsService(), [])
 
   useEffect(() => {
     // Only load points breakdown if userId changed to prevent duplicate API calls
@@ -74,10 +77,9 @@ export function PointsBreakdownComponent({
     try {
       setLoading(true)
       setError(null)
-      
-      const { breakdown, error: breakdownError } = await pointsService.getPointsBreakdown(userId)
-      if (breakdownError) throw new Error(breakdownError)
-      
+
+      // Use cached request deduplication for better performance
+      const breakdown = await requestUtils.fetchPointsBreakdown(userId)
       setPointsBreakdown(breakdown)
     } catch (err: any) {
       console.error('Error loading points breakdown:', err)
@@ -87,14 +89,62 @@ export function PointsBreakdownComponent({
     }
   }
 
+  // Enhanced loading state with skeleton UI
   if (loading) {
+    if (variant === 'header') {
+      return (
+        <div className={`space-y-2 ${className}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-3 w-16" />
+        </div>
+      )
+    }
+
+    if (variant === 'compact') {
+      return (
+        <Card className={className}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+              <Skeleton className="h-6 w-6" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Full variant skeleton
     return (
       <Card className={className}>
-        <CardContent className="p-4">
-          <div className="animate-pulse space-y-3">
-            <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
+        <CardHeader>
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-6 w-32" />
+          </div>
+          <Skeleton className="h-4 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-24" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Skeleton className="h-16 rounded-lg" />
+                <Skeleton className="h-16 rounded-lg" />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
