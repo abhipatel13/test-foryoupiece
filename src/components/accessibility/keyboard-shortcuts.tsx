@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import {
   Dialog,
   DialogContent,
@@ -25,35 +26,12 @@ export function KeyboardShortcuts() {
   const router = useRouter()
   const [showHelp, setShowHelp] = useState(false)
   const isClient = useIsClient()
-  const [cartStore, setCartStore] = useState<any>(null)
-
-  // Load cart store dynamically only on client side
-  useEffect(() => {
-    if (isClient) {
-      const loadCartStore = async () => {
-        try {
-          const { useCartStore } = await import('@/lib/store/cart-store')
-          setCartStore(useCartStore.getState())
-        } catch (error) {
-          console.warn('Failed to load cart store:', error)
-        }
-      }
-
-      loadCartStore()
-    }
-  }, [isClient])
+  // Use SSR-safe cart store
+  const { getItemCount } = useSSRSafeCartStore()
 
   // Don't render anything on server side
   if (!isClient) {
     return null
-  }
-
-  const getItemCount = () => {
-    try {
-      return cartStore?.getItemCount?.() || 0
-    } catch (error) {
-      return 0
-    }
   }
 
   const shortcuts: KeyboardShortcut[] = [

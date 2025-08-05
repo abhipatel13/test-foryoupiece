@@ -79,7 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear Zustand stores with proper cart cleanup
     await clearCartOnLogout()
     clearUser()
-  }, [supabase, clearUser, clearCart, isClient])
+  }, [supabase, clearUser, clearCartOnLogout, isClient])
 
   // Session expiration handler for auth interceptor
   const handleSessionExpiration = useCallback(async () => {
@@ -259,7 +259,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [isClient, supabase.auth, setUser, setUserId, clearUser, clearCart, router])
+  }, [isClient, supabase.auth, setUser, setUserId, clearUser, clearCartOnLogout, router])
 
   // Register auth handler for interceptor
   useEffect(() => {

@@ -20,7 +20,7 @@ export function useSSRSafeAuth() {
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
   const cartStore = useSSRSafeCartStore()
-  
+
   const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCartOnLogout } = cartStore
   const supabase = createClient()

@@ -213,9 +213,10 @@ export function useWishlist() {
     if (isAuthenticated && user) {
       loadWishlist()
     } else {
-      clearWishlist()
+      setItems([])
+      setInitialized(false)
     }
-  }, [isAuthenticated, user]) // Removed loadWishlist and clearWishlist to prevent infinite loop
+  }, [isAuthenticated, user?.id]) // Only depend on user.id to prevent infinite loops
 
   return {
     items,
