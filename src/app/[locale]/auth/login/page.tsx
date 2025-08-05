@@ -24,7 +24,7 @@ function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo') || '/'
-  
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -32,6 +32,7 @@ function LoginPageContent() {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        console.log('🔄 User already authenticated, redirecting to:', redirectTo)
         router.push(redirectTo)
       }
     }

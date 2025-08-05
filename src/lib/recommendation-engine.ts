@@ -283,12 +283,14 @@ export function calculateEnhancedPersonalizationScore(product: Product, userBeha
   if (userBehavior.searchHistory && userBehavior.searchHistory.length > 0) {
     let searchRelevanceScore = 0;
 
+    // Define these variables outside the loop so they can be used later
+    const nameLower = product.name_en?.toLowerCase() || '';
+    const brandLower = product.brand?.toLowerCase() || '';
+    const categoryLower = product.category?.name_en?.toLowerCase() || '';
+
     userBehavior.searchHistory.forEach(searchTerm => {
       const searchLower = searchTerm.toLowerCase();
-      const nameLower = product.name_en?.toLowerCase() || '';
-      const brandLower = product.brand?.toLowerCase() || '';
       const descLower = product.description_en?.toLowerCase() || '';
-      const categoryLower = product.category?.name_en?.toLowerCase() || '';
 
       // Exact matches get highest score
       if (nameLower.includes(searchLower)) searchRelevanceScore += 15; // Increased from 8

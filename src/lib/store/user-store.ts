@@ -1,8 +1,11 @@
 'use client'
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { User } from '@supabase/supabase-js'
+
+// Add version control for storage migration
+const STORAGE_VERSION = 3
 
 export type UserProfile = {
   id: string
@@ -24,10 +27,12 @@ type UserStore = {
   profile: UserProfile | null
   isLoading: boolean
   isHydrated: boolean
+  lastValidated: number | null
   setUser: (user: User | null) => void
   setProfile: (profile: UserProfile | null) => void
   setLoading: (loading: boolean) => void
   setHydrated: (hydrated: boolean) => void
+  setLastValidated: (timestamp: number) => void
   updatePoints: (points: number) => void
   updateTier: (tier: string) => void
   clearUser: () => void
@@ -40,9 +45,12 @@ export const useUserStore = create<UserStore>()(
       profile: null,
       isLoading: true,
       isHydrated: false,
+      lastValidated: null,
 
       setUser: (user) => {
+        console.log('🏪 User store setUser called:', { userId: user?.id, email: user?.email })
         set({ user })
+        console.log('✅ User store state updated')
       },
 
       setProfile: (profile) => {
@@ -55,6 +63,10 @@ export const useUserStore = create<UserStore>()(
 
       setHydrated: (isHydrated) => {
         set({ isHydrated })
+      },
+
+      setLastValidated: (timestamp) => {
+        set({ lastValidated: timestamp })
       },
 
       updatePoints: (points) => {
@@ -86,21 +98,25 @@ export const useUserStore = create<UserStore>()(
           user: null,
           profile: null,
           isLoading: false,
+          lastValidated: null,
         })
       },
     }),
     {
       name: 'foryoupiece-user',
-      version: 1,
+      version: STORAGE_VERSION,
+      storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: any, version: number) => {
-        // Handle migration from older versions
-        if (version === 0) {
-          // Reset state for version 0 to 1 migration
+        // Handle storage migration when version changes
+        if (version < STORAGE_VERSION) {
+          console.log('🔄 Migrating user store from version', version, 'to', STORAGE_VERSION)
+          // Clear old data on version mismatch to prevent conflicts
           return {
             user: null,
             profile: null,
             isLoading: false,
             isHydrated: false,
+            lastValidated: null,
           }
         }
         return persistedState
@@ -114,6 +130,10 @@ export const useUserStore = create<UserStore>()(
             if (state.isLoading === undefined) {
               state.isLoading = false
             }
+            // Initialize lastValidated if missing
+            if (state.lastValidated === undefined) {
+              state.lastValidated = null
+            }
           }
         } catch (error) {
           console.warn('User store hydration error:', error)
@@ -123,14 +143,16 @@ export const useUserStore = create<UserStore>()(
             state.profile = null
             state.isLoading = false
             state.isHydrated = true
+            state.lastValidated = null
           }
         }
       },
-      // Add error handling for storage operations
+      // Persist user authentication data for proper session management
       partialize: (state) => ({
         user: state.user,
         profile: state.profile,
-        // Don't persist loading or hydration states
+        lastValidated: state.lastValidated,
+        // Don't persist loading states to avoid hydration issues
       }),
     }
   )

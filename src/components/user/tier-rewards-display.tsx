@@ -22,6 +22,7 @@ import {
 import { TierRewardHistory } from '@/lib/services/tier-rewards-service'
 import { getTierStyling, getTierFromPoints, formatPrice } from '@/lib/utils'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/utils/auth-interceptor'
 
 interface TierRewardsDisplayProps {
   userId: string
@@ -102,7 +103,7 @@ export default function TierRewardsDisplay({ userId, userProfile }: TierRewardsD
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          response = await fetch(apiUrl, {
+          response = await authFetch(apiUrl, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',

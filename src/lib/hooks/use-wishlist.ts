@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSSRSafeAuth } from './use-ssr-safe-auth'
 import { toast } from 'sonner'
+import { authFetch } from '@/lib/utils/auth-interceptor'
 
 interface WishlistItem {
   id: string
@@ -47,7 +48,7 @@ export function useWishlist() {
 
     try {
       setLoading(true)
-      const response = await fetch('/api/wishlist')
+      const response = await authFetch('/api/wishlist')
 
       if (!response.ok) {
         // Handle HTTP errors gracefully
@@ -105,7 +106,7 @@ export function useWishlist() {
     }
 
     try {
-      const response = await fetch('/api/wishlist', {
+      const response = await authFetch('/api/wishlist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -158,7 +159,7 @@ export function useWishlist() {
       const params = new URLSearchParams({ productId })
       if (variantId) params.append('variantId', variantId)
 
-      const response = await fetch(`/api/wishlist?${params}`, {
+      const response = await authFetch(`/api/wishlist?${params}`, {
         method: 'DELETE'
       })
 
@@ -214,7 +215,7 @@ export function useWishlist() {
     } else {
       clearWishlist()
     }
-  }, [isAuthenticated, user, loadWishlist, clearWishlist])
+  }, [isAuthenticated, user]) // Removed loadWishlist and clearWishlist to prevent infinite loop
 
   return {
     items,

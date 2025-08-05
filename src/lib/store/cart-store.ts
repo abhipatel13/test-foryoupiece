@@ -64,6 +64,7 @@ type CartStore = {
   clearCartOnLogout: () => Promise<void>
   getTotal: () => number
   getItemCount: () => number
+  getTotalQuantity: () => number
   getShippingFee: () => number
   getTotalSavings: () => number
   getFinalTotal: () => number
@@ -182,7 +183,14 @@ export const useCartStore = create<CartStore>()(
         // Handle user authentication state changes
         if (userId) {
           if (userId !== currentUserId) {
-            console.log('👤 User changed, loading cart from database')
+            console.log('👤 User changed, clearing localStorage and loading from database')
+            // Clear localStorage to prevent cross-browser conflicts
+            try {
+              localStorage.removeItem('foryoupiece-cart')
+              console.log('🧹 Cleared cart localStorage for user change')
+            } catch (error) {
+              console.warn('Failed to clear cart localStorage:', error)
+            }
           } else if (forceReload) {
             console.log('👤 Same user but forcing cart reload from database')
           }
@@ -193,10 +201,22 @@ export const useCartStore = create<CartStore>()(
           // Recalculate shipping for the new user
           get().calculateShipping()
         } else if (!userId && currentUserId) {
-          // User logged out - local cart will be cleared by clearCartOnLogout
-          console.log('🚪 User logged out, cart will be handled by logout process')
-          // Reset shipping calculation on logout
-          set({ shippingCalculation: null })
+          // User logged out - clear all cart data immediately
+          console.log('🚪 User logged out, clearing all cart data')
+          set({
+            items: [],
+            userId: null,
+            pointsToRedeem: 0,
+            appliedCoupon: null,
+            shippingCalculation: null
+          })
+          // Clear localStorage immediately on logout
+          try {
+            localStorage.removeItem('foryoupiece-cart')
+            console.log('🧹 Cleared cart localStorage on logout')
+          } catch (error) {
+            console.warn('Failed to clear cart localStorage on logout:', error)
+          }
         }
       },
 
@@ -230,11 +250,32 @@ export const useCartStore = create<CartStore>()(
         const currentCartQuantity = existingItemIndex !== -1 ? items[existingItemIndex].quantity : 0
         const totalRequestedQuantity = currentCartQuantity + item.quantity
 
+        // DEBUG: Log the values being used for stock validation
+        console.log('🛒 Cart addItem debug:', {
+          itemId: item.id,
+          itemName: item.name,
+          requestedQuantity: item.quantity,
+          currentCartQuantity,
+          totalRequestedQuantity,
+          stockQuantity,
+          existingItemIndex
+        })
+
         // Validate stock if stockQuantity is provided
         if (stockQuantity !== undefined) {
           const validation = get().validateStock(item.id, totalRequestedQuantity, stockQuantity)
+          console.log('🛒 Stock validation result:', {
+            isValid: validation.isValid,
+            message: validation.message,
+            totalRequestedQuantity,
+            stockQuantity
+          })
           if (!validation.isValid) {
             console.warn('Stock validation failed:', validation.message)
+            // Show the validation message to the user
+            if (typeof window !== 'undefined' && window.toast) {
+              window.toast.error(validation.message)
+            }
             return false
           }
         }
@@ -395,12 +436,27 @@ export const useCartStore = create<CartStore>()(
 
       clearCart: async () => {
         const { userId } = get()
-        set({ items: [], pointsToRedeem: 0, appliedCoupon: null })
+        console.log('🧹 Clearing cart completely')
+        set({
+          items: [],
+          pointsToRedeem: 0,
+          appliedCoupon: null,
+          shippingCalculation: null
+        })
+
+        // Clear localStorage to prevent conflicts
+        try {
+          localStorage.removeItem('foryoupiece-cart')
+          console.log('🧹 Cleared cart localStorage')
+        } catch (error) {
+          console.warn('Failed to clear cart localStorage:', error)
+        }
 
         // Clear database cart if user is logged in
         if (userId) {
           try {
             await cartQueries.clearCart(userId)
+            console.log('🧹 Cleared cart in database')
           } catch (error) {
             console.error('Failed to clear cart in database:', error)
           }
@@ -409,7 +465,7 @@ export const useCartStore = create<CartStore>()(
 
       clearCartOnLogout: async () => {
         const { userId, items } = get()
-        console.log('🧹 Saving cart to database before logout:', {
+        console.log('🧹 Starting cart logout cleanup:', {
           userId,
           itemCount: items.length
         })
@@ -418,15 +474,30 @@ export const useCartStore = create<CartStore>()(
         if (userId && items.length > 0) {
           try {
             await get().syncWithDatabase()
-            console.log('✅ Cart saved to database successfully')
+            console.log('✅ Cart saved to database successfully before logout')
           } catch (error) {
             console.error('❌ Failed to save cart to database on logout:', error)
           }
         }
 
-        // Clear only local state, preserve database cart
-        console.log('🧹 Clearing local cart state on logout')
-        set({ items: [], userId: null })
+        // Clear all cart state completely
+        console.log('🧹 Clearing all cart state on logout')
+        set({
+          items: [],
+          userId: null,
+          pointsToRedeem: 0,
+          appliedCoupon: null,
+          shippingCalculation: null,
+          isLoading: false
+        })
+
+        // Clear localStorage to prevent cross-browser conflicts
+        try {
+          localStorage.removeItem('foryoupiece-cart')
+          console.log('🧹 Cleared cart localStorage on logout')
+        } catch (error) {
+          console.warn('Failed to clear cart localStorage on logout:', error)
+        }
       },
 
       setHydrated: (hydrated: boolean) => {
@@ -441,6 +512,11 @@ export const useCartStore = create<CartStore>()(
 
       getItemCount: () => {
         const { items } = get()
+        return items.length
+      },
+
+      getTotalQuantity: () => {
+        const { items } = get()
         return items.reduce((count, item) => count + item.quantity, 0)
       },
 
@@ -453,7 +529,7 @@ export const useCartStore = create<CartStore>()(
         }
 
         // Fallback to basic quantity-based calculation
-        const totalQuantity = items.reduce((count, item) => count + item.quantity, 0)
+        const totalQuantity = get().getTotalQuantity()
         return totalQuantity >= 4 ? 0 : 1.50
       },
 
@@ -485,6 +561,7 @@ export const useCartStore = create<CartStore>()(
         const { userId, isLoading } = get()
         if (!userId) {
           console.log('🛒 Skipping cart load - no userId')
+          set({ isLoading: false }) // Ensure loading state is cleared
           return
         }
 
@@ -496,6 +573,14 @@ export const useCartStore = create<CartStore>()(
         console.log('🛒 Loading cart from database for user:', userId)
         set({ isLoading: true })
         try {
+          // Clear localStorage before loading from database to ensure consistency
+          try {
+            localStorage.removeItem('foryoupiece-cart')
+            console.log('🧹 Cleared cart localStorage before database load')
+          } catch (error) {
+            console.warn('Failed to clear cart localStorage:', error)
+          }
+
           const cartItems = await cartQueries.getCartItems(userId)
           console.log('🛒 Retrieved cart items from database:', {
             count: cartItems.length,
@@ -534,11 +619,22 @@ export const useCartStore = create<CartStore>()(
           await get().cleanupInvalidQuantities()
         } catch (error) {
           console.error('❌ Failed to load cart from database:', error)
+          console.error('❌ Cart loading error details:', {
+            message: error.message,
+            stack: error.stack,
+            userId
+          })
+
           // Only clear items if there was an error and we don't have any local items
           const currentItems = get().items
           if (currentItems.length === 0) {
             set({ items: [] })
           }
+
+          // Always clear loading state on error
+          set({ isLoading: false })
+        } finally {
+          // Ensure loading state is always cleared
           set({ isLoading: false })
         }
       },
@@ -867,12 +963,12 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'foryoupiece-cart',
-      version: 1,
-      version: 1,
+      version: 2, // Increment version to fix duplicate issue
       migrate: (persistedState: any, version: number) => {
         // Handle migration from older versions
-        if (version === 0) {
-          // Reset state for version 0 to 1 migration
+        if (version < 2) {
+          console.log('🔄 Migrating cart store to version 2, clearing old data')
+          // Reset state for version migration to prevent conflicts
           return {
             items: [],
             isLoading: false,
@@ -880,10 +976,11 @@ export const useCartStore = create<CartStore>()(
             appliedCoupon: null,
             shippingCalculation: null,
             userId: null,
+            isHydrated: false,
           }
         }
         return persistedState
-      }, // Add version for better cache management
+      },
       onRehydrateStorage: () => (state) => {
         try {
           // Deduplicate items when loading from localStorage
@@ -927,10 +1024,14 @@ export const useCartStore = create<CartStore>()(
       },
       // Add better error handling for production environments
       partialize: (state) => ({
-        items: state.items,
+        // Only persist minimal data to reduce cross-browser conflicts
+        // For authenticated users, cart data should come from database
         userId: state.userId,
-        pointsToRedeem: state.pointsToRedeem,
-        appliedCoupon: state.appliedCoupon,
+        // Don't persist items for authenticated users - they come from database
+        items: state.userId ? [] : state.items,
+        // Don't persist user-specific data that should come from database
+        pointsToRedeem: state.userId ? 0 : state.pointsToRedeem,
+        appliedCoupon: state.userId ? null : state.appliedCoupon,
         // Don't persist shippingCalculation as it should be recalculated
         // Don't persist loading state
       }),

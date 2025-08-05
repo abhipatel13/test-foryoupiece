@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { calculatePoints, calculateOrderPoints, getTierFromPoints } from '@/lib/utils'
+import { handleAuthError } from '@/lib/utils/auth-interceptor'
 
 export interface PointTransaction {
   id: string
@@ -84,6 +85,22 @@ export class PointsService {
     if (useServiceRole && typeof window === 'undefined') {
       // Only create service role client on server side
       this.serviceClient = createServiceRoleClient()
+    }
+  }
+
+  /**
+   * Handle Supabase errors and check for authentication issues
+   */
+  private async handleSupabaseError(error: any, operation: string) {
+    if (error) {
+      console.error(`PointsService ${operation} error:`, error)
+
+      // Check for authentication errors
+      if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('unauthorized')) {
+        await handleAuthError({ status: 401, message: error.message }, operation)
+      }
+
+      throw error
     }
   }
 
@@ -483,7 +500,7 @@ export class PointsService {
         .eq('id', userId)
         .single()
 
-      if (userError) throw userError
+      await this.handleSupabaseError(userError, 'getUserPointsSummary - user data')
 
       // Get actual transaction data for validation
       const { data: transactions, error: transactionError } = await this.supabase
@@ -493,6 +510,7 @@ export class PointsService {
 
       if (transactionError) {
         console.warn('Could not fetch transactions for validation:', transactionError)
+        await this.handleSupabaseError(transactionError, 'getUserPointsSummary - transactions')
       }
 
       const dataIntegrityIssues: string[] = []
@@ -639,7 +657,7 @@ export class PointsService {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
-      if (error) throw error
+      await this.handleSupabaseError(error, 'getUserPointHistory')
 
       return { transactions: data || [] }
     } catch (error: any) {
@@ -778,7 +796,7 @@ export class PointsService {
         .eq('id', userId)
         .single()
 
-      if (userError) throw userError
+      await this.handleSupabaseError(userError, 'getPointsBreakdown - user data')
 
       // Calculate breakdown by source
       let earnedFromOrders = 0

@@ -39,10 +39,43 @@ export function Header() {
   const t = useTranslations('navigation')
   const { user, profile, signOut, isAuthenticated, loading } = useSSRSafeAuth()
   const isHydrated = useHydration()
-  const { getItemCount, clearCartOnLogout, isLoading: cartLoading } = useSSRSafeCartStore()
+  const { clearCartOnLogout } = useSSRSafeCartStore()
   const [mounted, setMounted] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
-  const cartItemCount = getItemCount()
+
+  // Use cart store directly for reactive cart count (like cart page does)
+  const [cartItemCount, setCartItemCount] = useState(0)
+  const [cartLoading, setCartLoading] = useState(true)
+
+  // Load cart store dynamically only on client side for reactive updates
+  useEffect(() => {
+    if (isHydrated && mounted) {
+      const loadCartStore = async () => {
+        try {
+          const { useCartStore } = await import('@/lib/store/cart-store')
+          const store = useCartStore.getState()
+
+          // Set initial values
+          setCartItemCount(store.getItemCount())
+          setCartLoading(store.isLoading)
+
+          // Subscribe to changes
+          const unsubscribe = useCartStore.subscribe((state) => {
+            setCartItemCount(state.getItemCount())
+            setCartLoading(state.isLoading)
+          })
+
+          return unsubscribe
+        } catch (error) {
+          console.warn('Failed to load cart store:', error)
+          setCartLoading(false)
+        }
+      }
+
+      loadCartStore()
+    }
+  }, [isHydrated, mounted])
+
   const showCartCount = isHydrated && mounted && !cartLoading
 
   useEffect(() => {

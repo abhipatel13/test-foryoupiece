@@ -1,5 +1,7 @@
 'use client'
 
+import { authFetch, handleAuthError } from './auth-interceptor'
+
 /**
  * Request deduplication utility to prevent concurrent identical API calls
  * Especially useful for admin status checks and profile loading
@@ -208,17 +210,19 @@ export const requestUtils = {
     return deduplicator.execute(
       `admin_status_${userId}`,
       async (signal) => {
-        const response = await fetch('/api/admin/check-status', {
+        const response = await authFetch('/api/admin/check-status', {
           signal,
           headers: {
             'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=300'
           }
         })
-        
+
         if (!response.ok) {
-          throw new Error(`Admin status check failed: ${response.status}`)
+          const error = new Error(`Admin status check failed: ${response.status}`)
+          await handleAuthError(error, '/api/admin/check-status')
+          throw error
         }
-        
+
         return response.json()
       },
       { ttl: 5 * 60 * 1000, forceRefresh } // 5 minute cache
@@ -233,17 +237,19 @@ export const requestUtils = {
     return deduplicator.execute(
       `user_profile_${userId}`,
       async (signal) => {
-        const response = await fetch(`/api/users/${userId}/profile`, {
+        const response = await authFetch(`/api/users/${userId}/profile`, {
           signal,
           headers: {
             'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=300'
           }
         })
-        
+
         if (!response.ok) {
-          throw new Error(`Profile fetch failed: ${response.status}`)
+          const error = new Error(`Profile fetch failed: ${response.status}`)
+          await handleAuthError(error, `/api/users/${userId}/profile`)
+          throw error
         }
-        
+
         return response.json()
       },
       { ttl: 10 * 60 * 1000, forceRefresh } // 10 minute cache

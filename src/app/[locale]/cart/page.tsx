@@ -22,6 +22,7 @@ import { CouponInput } from '@/components/cart/coupon-input'
 export default function CartPage() {
   const t = useTranslations('cart')
   const { profile } = useSSRSafeAuth()
+  // Use SSR-safe cart store to prevent SSR errors
   const {
     items,
     isLoading,
@@ -31,6 +32,7 @@ export default function CartPage() {
     clearCart,
     getTotal,
     getItemCount,
+    getTotalQuantity,
     getShippingFee,
     getTotalSavings,
     getFinalTotal,
@@ -158,7 +160,8 @@ export default function CartPage() {
   const shippingFee = getShippingFee()
   const totalSavings = getTotalSavings()
   const finalTotal = getFinalTotal()
-  const itemCount = getItemCount()
+  const itemCount = getItemCount() // Number of unique items
+  const totalQuantity = getTotalQuantity() // Total quantity of all items
   const totalPointsEarned = getTotalPointsEarned()
   const couponDiscount = getCouponDiscount()
   const pointsDiscount = getPointsDiscount()
@@ -179,7 +182,9 @@ export default function CartPage() {
     itemsLength: items.length
   })
 
-  // Show loading state while cart is initializing to prevent flash of empty cart
+
+
+  // Show loading if cart is loading or not yet initialized
   if (isLoading || !isInitialized) {
     return (
       <div className="bg-gray-50 min-h-screen">
@@ -260,7 +265,7 @@ export default function CartPage() {
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 mb-2">Shopping Cart</h1>
           <div className="flex items-center justify-between">
             <p className="text-sm sm:text-base text-gray-600">
-              {getItemCount()} {getItemCount() === 1 ? 'item' : 'items'} in your cart
+              {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'} in your cart
             </p>
             {totalSavings > 0 && (
               <div className="text-sm font-medium text-green-700 bg-green-50 px-3 py-1 rounded-full">
@@ -282,7 +287,7 @@ export default function CartPage() {
                     <Checkbox className="h-4 w-4" />
                     <span className="text-sm font-semibold text-gray-900">Select all items</span>
                     <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
-                      {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                      {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'}
                     </span>
                     {stockValidationResult?.hasIssues && (
                       <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full font-medium">
@@ -521,7 +526,7 @@ export default function CartPage() {
                 {/* Order Breakdown */}
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</span>
+                    <span className="text-gray-600">Subtotal ({totalQuantity} {totalQuantity === 1 ? 'item' : 'items'})</span>
                     <span className="text-gray-900 font-medium">{formatPrice(subtotal)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
@@ -643,7 +648,7 @@ export default function CartPage() {
                     {shippingFee === 0 ? (
                       <span className="text-green-700 font-medium">FREE Delivery (4+ items)</span>
                     ) : (
-                      <span>Add {4 - itemCount} more for FREE delivery</span>
+                      <span>Add {4 - totalQuantity} more for FREE delivery</span>
                     )}
                   </div>
                 </div>
@@ -692,7 +697,7 @@ export default function CartPage() {
                   <h3 className="text-sm font-medium text-gray-900 mb-3">Quick Summary</h3>
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex justify-between">
-                      <span>Items ({itemCount}):</span>
+                      <span>Items ({totalQuantity}):</span>
                       <span>{formatPrice(subtotal)}</span>
                     </div>
                     <div className="flex justify-between">

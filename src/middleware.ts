@@ -27,11 +27,11 @@ export default async function middleware(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+            cookiesToSet.forEach(({ name, value, options }) =>
+              request.cookies.set(name, value)
+            )
             supabaseResponse = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
+              request,
             })
             cookiesToSet.forEach(({ name, value, options }) =>
               supabaseResponse.cookies.set(name, value, options)
@@ -41,8 +41,35 @@ export default async function middleware(request: NextRequest) {
       }
     )
 
-    // Refresh session if expired - required for Server Components
-    await supabase.auth.getUser()
+    // Validate session with getUser() - never trust getSession() on server
+    const { data: { user }, error } = await supabase.auth.getUser()
+
+    // Protected routes that require authentication
+    const protectedPaths = ['/en/account', '/en/checkout', '/en/orders']
+    const isProtectedPath = protectedPaths.some(path =>
+      request.nextUrl.pathname.startsWith(path)
+    )
+
+    // Redirect to login if accessing protected route without valid session
+    if (isProtectedPath && (error || !user)) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/en/auth/login'
+      redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+      return NextResponse.redirect(redirectUrl)
+    }
+
+    // Auth pages that should redirect if already authenticated
+    const authPaths = ['/en/auth/login', '/en/auth/register']
+    const isAuthPath = authPaths.some(path =>
+      request.nextUrl.pathname.startsWith(path)
+    )
+
+    // Redirect to home if accessing auth pages while authenticated
+    if (isAuthPath && user && !error) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/en'
+      return NextResponse.redirect(redirectUrl)
+    }
   }
 
   // Allow root path to be served directly without locale redirect

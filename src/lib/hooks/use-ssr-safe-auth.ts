@@ -22,7 +22,7 @@ export function useSSRSafeAuth() {
   const cartStore = useSSRSafeCartStore()
   
   const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
-  const { setUserId, forceLoadCartForUser } = cartStore
+  const { setUserId, forceLoadCartForUser, clearCartOnLogout } = cartStore
   const supabase = createClient()
 
   const isInitialLoad = useRef(true)
@@ -78,16 +78,81 @@ export function useSSRSafeAuth() {
     }
   }, [isClient, isHydrated])
 
-  // Authentication methods
+  // Session expiration detection and automatic sign-out
+  const handleSessionExpiration = useCallback(async () => {
+    if (!isClient) return
+
+    try {
+      console.log('🔄 Session expired, signing out automatically...')
+      await supabase.auth.signOut()
+      clearUser()
+
+      // Optionally redirect to login page
+      if (typeof window !== 'undefined') {
+        window.location.href = '/en/auth/login?expired=true'
+      }
+    } catch (error) {
+      console.error('Auto sign out error:', error)
+      // Force clear user state even if sign out fails
+      clearUser()
+    }
+  }, [supabase.auth, clearUser, isClient])
+
+  // Enhanced sign out with complete cleanup
   const signOut = useCallback(async () => {
     if (!isClient) return
 
     try {
-      await supabase.auth.signOut()
+      console.log('🚪 Starting enhanced sign out process...')
+
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Supabase sign out error:', error)
+        // Continue with cleanup even if sign out fails
+      }
+
+      // Clear all auth-related localStorage items
+      const authKeys = [
+        'supabase.auth.token',
+        'foryoupiece-user',
+        'foryoupiece-cart',
+        'session_validated_at'
+      ]
+
+      authKeys.forEach(key => {
+        try {
+          localStorage.removeItem(key)
+        } catch (e) {
+          console.error(`Failed to remove ${key}:`, e)
+        }
+      })
+
+      // Clear sessionStorage
+      try {
+        sessionStorage.clear()
+      } catch (e) {
+        console.error('Failed to clear session storage:', e)
+      }
+
+      // Clear Zustand stores with proper cart cleanup
+      await clearCartOnLogout()
       clearUser()
+
+      console.log('✅ Sign out cleanup completed')
+
+      // Force redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/en/auth/login'
+      }
     } catch (error) {
       console.error('Sign out error:', error)
-      throw error
+      // Force cleanup even on error
+      await clearCartOnLogout()
+      clearUser()
+      if (typeof window !== 'undefined') {
+        window.location.href = '/en/auth/login'
+      }
     }
   }, [supabase.auth, clearUser, isClient])
 
@@ -174,6 +239,7 @@ export function useSSRSafeAuth() {
     signInWithGoogle,
     changePassword,
     updateProfile,
+    handleSessionExpiration,
     isAdmin: profile?.tier_level === 'platinum' // Simplified admin check
   }
 }

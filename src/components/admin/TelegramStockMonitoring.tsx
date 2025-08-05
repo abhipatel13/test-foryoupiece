@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { authFetch } from '@/lib/utils/auth-interceptor';
 
 interface StockUpdate {
   id: string;
@@ -49,7 +50,7 @@ export default function TelegramStockMonitoring() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/admin/telegram/stock-monitoring');
+      const response = await authFetch('/api/admin/telegram/stock-monitoring');
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
