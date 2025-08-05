@@ -173,5 +173,27 @@
     "copyOrderNumber": "Copy Order Number",
     "paymentLinkCopied": "Payment link copied to clipboard!",
     "orderNumberCopied": "Order number copied to clipboard!"
+  },
+  "wishlist": {
+    "title": "Your Wishlist",
+    "subtitle": "Save items you love to buy them later",
+    "empty": "Your wishlist is empty",
+    "emptyMessage": "Save items you love to buy them later",
+    "itemsCount": "saved items",
+    "loading": "Loading...",
+    "addToWishlist": "Add to Wishlist",
+    "removeFromWishlist": "Remove from Wishlist",
+    "addedToWishlist": "Added to wishlist",
+    "removedFromWishlist": "Removed from wishlist",
+    "addToCart": "Add to Cart",
+    "continueShopping": "Continue Shopping",
+    "startShopping": "Start Shopping",
+    "outOfStock": "Out of Stock",
+    "limitedStock": "Only {count} left",
+    "loginRequired": "Please log in to view your wishlist",
+    "loginMessage": "You need to be logged in to access your saved items.",
+    "loginButton": "Log In",
+    "saved": "Saved",
+    "saveForLater": "Save for Later"
   }
 }

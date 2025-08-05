@@ -65,10 +65,24 @@ export function useWishlist() {
     }
   }, [isAuthenticated, user])
 
+  // Check if item is in wishlist
+  const isInWishlist = useCallback((productId: string, variantId?: string) => {
+    return items.some(item =>
+      item.product.id === productId &&
+      (variantId ? item.variant?.id === variantId : !item.variant)
+    )
+  }, [items])
+
   // Add item to wishlist
   const addToWishlist = useCallback(async (productId: string, variantId?: string) => {
     if (!isAuthenticated) {
       toast.error('Please log in to add items to your wishlist')
+      return false
+    }
+
+    // Check if item is already in wishlist
+    if (isInWishlist(productId, variantId)) {
+      toast.info('This item is already in your wishlist')
       return false
     }
 
@@ -87,12 +101,26 @@ export function useWishlist() {
       const result = await response.json()
 
       if (result.success) {
-        // Add the new item to the local state
-        setItems(prev => [result.data, ...prev])
+        // Add the new item to the local state only if it's not already there
+        setItems(prev => {
+          const exists = prev.some(item =>
+            item.product.id === productId &&
+            (variantId ? item.variant?.id === variantId : !item.variant)
+          )
+          if (exists) {
+            return prev
+          }
+          return [result.data, ...prev]
+        })
         toast.success(result.message || 'Item added to wishlist')
         return true
       } else {
-        toast.error(result.error || 'Failed to add item to wishlist')
+        // Handle duplicate case specifically
+        if (result.isAlreadyInWishlist) {
+          toast.info('This item is already in your wishlist')
+        } else {
+          toast.error(result.error || 'Failed to add item to wishlist')
+        }
         return false
       }
     } catch (error) {
@@ -100,7 +128,7 @@ export function useWishlist() {
       toast.error('Failed to add item to wishlist')
       return false
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, isInWishlist])
 
   // Remove item from wishlist
   const removeFromWishlist = useCallback(async (productId: string, variantId?: string) => {
@@ -139,13 +167,7 @@ export function useWishlist() {
     }
   }, [isAuthenticated])
 
-  // Check if item is in wishlist
-  const isInWishlist = useCallback((productId: string, variantId?: string) => {
-    return items.some(item => 
-      item.product.id === productId && 
-      (variantId ? item.variant?.id === variantId : !item.variant)
-    )
-  }, [items])
+
 
   // Toggle item in wishlist
   const toggleWishlist = useCallback(async (productId: string, variantId?: string) => {

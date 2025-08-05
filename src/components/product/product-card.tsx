@@ -172,7 +172,14 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             size="sm"
             className="absolute bottom-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-white/90 hover:bg-white shadow-md rounded-full z-10 hidden sm:flex items-center justify-center"
             onClick={handleWishlist}
-            aria-label={`Add ${productName} to wishlist`}
+            aria-label={isInWishlist(product.id)
+              ? `Remove ${productName} from wishlist`
+              : `Add ${productName} to wishlist`
+            }
+            title={isInWishlist(product.id)
+              ? `Remove from wishlist`
+              : `Add to wishlist`
+            }
           >
             <Heart className={`h-3.5 w-3.5 transition-colors ${
               isInWishlist(product.id)

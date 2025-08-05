@@ -171,5 +171,27 @@
     "copyOrderNumber": "注文番号をコピー",
     "paymentLinkCopied": "支払いリンクがクリップボードにコピーされました！",
     "orderNumberCopied": "注文番号がクリップボードにコピーされました！"
+  },
+  "wishlist": {
+    "title": "ウィッシュリスト",
+    "subtitle": "お気に入りの商品を保存して後で購入",
+    "empty": "ウィッシュリストは空です",
+    "emptyMessage": "お気に入りの商品を保存して後で購入しましょう",
+    "itemsCount": "保存済み商品",
+    "loading": "読み込み中...",
+    "addToWishlist": "ウィッシュリストに追加",
+    "removeFromWishlist": "ウィッシュリストから削除",
+    "addedToWishlist": "ウィッシュリストに追加しました",
+    "removedFromWishlist": "ウィッシュリストから削除しました",
+    "addToCart": "カートに追加",
+    "continueShopping": "ショッピングを続ける",
+    "startShopping": "ショッピングを開始",
+    "outOfStock": "在庫切れ",
+    "limitedStock": "残り{count}個",
+    "loginRequired": "ウィッシュリストを表示するにはログインしてください",
+    "loginMessage": "保存した商品にアクセスするにはログインが必要です。",
+    "loginButton": "ログイン",
+    "saved": "保存済み",
+    "saveForLater": "後で保存"
   }
 }

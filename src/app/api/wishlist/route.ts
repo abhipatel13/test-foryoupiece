@@ -126,15 +126,30 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // Add to wishlist (upsert to handle duplicates)
+    // Check if item already exists in wishlist
+    const { data: existingItem } = await supabase
+      .from('wishlist_items')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('product_id', productId)
+      .eq('variant_id', variantId || null)
+      .single()
+
+    if (existingItem) {
+      return NextResponse.json({
+        success: false,
+        error: 'This item is already in your wishlist',
+        isAlreadyInWishlist: true
+      }, { status: 409 })
+    }
+
+    // Add to wishlist
     const { data: wishlistItem, error } = await supabase
       .from('wishlist_items')
-      .upsert({
+      .insert({
         user_id: user.id,
         product_id: productId,
         variant_id: variantId || null
-      }, {
-        onConflict: 'user_id,product_id,variant_id'
       })
       .select(`
         id,

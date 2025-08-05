@@ -270,9 +270,9 @@ export default function CartPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
           {/* Left Side - Cart Items and Key Actions (3/4 width on desktop) */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-3 space-y-4 lg:space-y-6">
             {/* Cart Items Section - Improved Layout */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               {/* Clean Header */}
@@ -565,15 +565,15 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                {/* ENHANCED CHECKOUT BUTTON - Better sizing and responsive */}
+                {/* MOBILE-OPTIMIZED CHECKOUT BUTTON - Reduced sizing for better mobile UX */}
                 {stockValidationResult?.canCheckout === false ? (
                   <div className="space-y-3">
                     <Button
                       disabled
-                      className="group relative w-full min-h-[44px] h-14 sm:h-16 lg:h-18 text-sm sm:text-base lg:text-lg font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
+                      className="group relative w-full min-h-[44px] h-12 sm:h-14 lg:h-16 text-sm sm:text-base lg:text-lg font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
                     >
-                      <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:py-5 lg:py-6">
-                        <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-gray-400" strokeWidth={1.5} />
+                      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-3 sm:py-4 lg:py-5">
+                        <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-gray-400" strokeWidth={1.5} />
                         <div className="flex flex-col items-center">
                           <span className="font-semibold text-gray-400 leading-tight text-sm sm:text-base lg:text-lg">
                             Cannot Proceed to Checkout
@@ -595,10 +595,10 @@ export default function CartPage() {
                     </div>
                   </div>
                 ) : (
-                  <Button asChild className="group relative w-full min-h-[44px] h-14 sm:h-16 lg:h-18 text-sm sm:text-base lg:text-lg font-semibold bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 mb-4">
-                    <Link href="/en/checkout" className="flex items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:py-5 lg:py-6">
+                  <Button asChild className="group relative w-full min-h-[44px] h-12 sm:h-14 lg:h-16 text-sm sm:text-base lg:text-lg font-semibold bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 mb-4">
+                    <Link href="/en/checkout" className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-3 sm:py-4 lg:py-5">
                       {/* Icon */}
-                      <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-slate-600 group-hover:text-slate-700 transition-colors duration-200" strokeWidth={1.5} />
+                      <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-slate-600 group-hover:text-slate-700 transition-colors duration-200" strokeWidth={1.5} />
 
                       {/* Text content */}
                       <div className="flex flex-col items-center">
@@ -611,7 +611,7 @@ export default function CartPage() {
                       </div>
 
                       {/* Arrow indicator */}
-                      <svg className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <svg className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
                     </Link>
@@ -627,8 +627,8 @@ export default function CartPage() {
             </div>
           </div>
 
-          {/* Simplified Right Sidebar - Additional Options */}
-          <div className="lg:col-span-1">
+          {/* Simplified Right Sidebar - Hidden on mobile/tablet for better UX */}
+          <div className="hidden lg:block lg:col-span-1">
             <div className="bg-white rounded-lg shadow-md border border-gray-200 lg:sticky lg:top-4">
               {/* Simplified Header */}
               <div className="p-4 sm:p-5 border-b border-gray-200">
@@ -665,8 +665,8 @@ export default function CartPage() {
                   <span className="text-sm text-gray-700">This order contains a gift</span>
                 </div>
 
-                {/* Coupon Input - Enhanced */}
-                <div className="border-t border-gray-200 pt-4">
+                {/* Mobile-First: Coupon Input - Moved to main flow on mobile */}
+                <div className="lg:border-t lg:border-gray-200 lg:pt-4">
                   <CouponInput
                     orderTotal={finalTotal}
                     appliedCoupon={appliedCoupon || undefined}
@@ -675,9 +675,9 @@ export default function CartPage() {
                   />
                 </div>
 
-                {/* Points Redemption - Enhanced */}
+                {/* Mobile-First: Points Redemption - Moved to main flow on mobile */}
                 {profile && (
-                  <div className="border-t border-gray-200 pt-4">
+                  <div className="lg:border-t lg:border-gray-200 lg:pt-4">
                     <PointsRedemption
                       userPointsBalance={profile.points_balance || 0}
                       onPointsChange={(points) => {
@@ -739,45 +739,58 @@ export default function CartPage() {
           </div>
         </div>
 
-        {/* Continue Shopping Section */}
-        <div className="mt-8 sm:mt-10">
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+        {/* Mobile-Optimized Continue Shopping Section */}
+        <div className="mt-6 sm:mt-8 lg:mt-10">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-3 sm:p-4 lg:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Need more items?</h3>
-                <p className="text-sm text-gray-600">Continue shopping to discover more products</p>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Need more items?</h3>
+                <p className="text-xs sm:text-sm text-gray-600">Continue shopping to discover more products</p>
               </div>
-              <Button asChild variant="outline" className="w-full sm:w-auto">
+              <Button asChild variant="outline" className="w-full sm:w-auto min-h-[44px] h-10 sm:h-auto">
                 <Link href="/en/products" className="flex items-center justify-center gap-2">
                   <ArrowLeft className="h-4 w-4" />
-                  Continue Shopping
+                  <span className="text-sm sm:text-base">Continue Shopping</span>
                 </Link>
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Enhanced Recommendations Section */}
-        <div className="mt-8 sm:mt-12">
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-                Customers who bought items in your cart also bought
+        {/* Mobile-Optimized Recommendations Section - Collapsible on mobile */}
+        <div className="mt-6 sm:mt-8 lg:mt-12">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-3 sm:p-4 lg:p-6">
+            <div className="flex items-center justify-between mb-4 lg:mb-6">
+              <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">
+                <span className="hidden sm:inline">Customers who bought items in your cart also bought</span>
+                <span className="sm:hidden">You might also like</span>
               </h2>
-              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
-                View all
+              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800 text-sm">
+                <span className="hidden sm:inline">View all</span>
+                <span className="sm:hidden">More</span>
               </Button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-              {/* Placeholder for recommended products */}
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer">
-                  <div className="aspect-square bg-gray-200 rounded-lg mb-3"></div>
-                  <div className="h-3 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded mb-2 w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
+              {/* Placeholder for recommended products - Show fewer on mobile */}
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 lg:p-4 hover:shadow-md transition-shadow cursor-pointer">
+                  <div className="aspect-square bg-gray-200 rounded-lg mb-2 sm:mb-3"></div>
+                  <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2"></div>
+                  <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2 w-3/4"></div>
+                  <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16"></div>
                 </div>
               ))}
+              {/* Show additional items only on larger screens */}
+              <div className="hidden md:block">
+                {[...Array(2)].map((_, i) => (
+                  <div key={i + 4} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 lg:p-4 hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="aspect-square bg-gray-200 rounded-lg mb-2 sm:mb-3"></div>
+                    <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2"></div>
+                    <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2 w-3/4"></div>
+                    <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16"></div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

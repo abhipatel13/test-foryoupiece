@@ -6,15 +6,16 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
+import { useWishlist } from '@/lib/hooks/use-wishlist'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { 
-  Heart, 
-  ShoppingCart, 
-  Trash2, 
-  Package, 
+import {
+  Heart,
+  ShoppingCart,
+  Trash2,
+  Package,
   ArrowLeft,
   Star,
   AlertCircle
@@ -52,66 +53,15 @@ export default function WishlistPage() {
   const t = useTranslations('wishlist')
   const { user, isAuthenticated, loading: authLoading } = useSSRSafeAuth()
   const { addItem } = useSSRSafeCartStore()
-  
-  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const { items: wishlistItems, loading, removeFromWishlist } = useWishlist()
+
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      loadWishlist()
-    } else if (!authLoading && !isAuthenticated) {
-      setLoading(false)
-    }
-  }, [isAuthenticated, user, authLoading])
+  const handleRemoveFromWishlist = async (productId: string, variantId?: string) => {
+    setRemovingItems(prev => new Set(prev).add(productId))
 
-  const loadWishlist = async () => {
     try {
-      setLoading(true)
-      const response = await fetch('/api/wishlist')
-      const result = await response.json()
-
-      if (result.success) {
-        setWishlistItems(result.data)
-      } else {
-        console.error('Failed to load wishlist:', result.error)
-        toast.error('Failed to load wishlist')
-      }
-    } catch (error) {
-      console.error('Error loading wishlist:', error)
-      toast.error('Failed to load wishlist')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const removeFromWishlist = async (productId: string, variantId?: string) => {
-    try {
-      setRemovingItems(prev => new Set(prev).add(productId))
-      
-      const params = new URLSearchParams({ productId })
-      if (variantId) params.append('variantId', variantId)
-      
-      const response = await fetch(`/api/wishlist?${params}`, {
-        method: 'DELETE'
-      })
-      
-      const result = await response.json()
-
-      if (result.success) {
-        setWishlistItems(prev => 
-          prev.filter(item => 
-            !(item.product.id === productId && 
-              (variantId ? item.variant?.id === variantId : !item.variant))
-          )
-        )
-        toast.success('Item removed from wishlist')
-      } else {
-        toast.error('Failed to remove item from wishlist')
-      }
-    } catch (error) {
-      console.error('Error removing from wishlist:', error)
-      toast.error('Failed to remove item from wishlist')
+      await removeFromWishlist(productId, variantId)
     } finally {
       setRemovingItems(prev => {
         const newSet = new Set(prev)
@@ -169,7 +119,7 @@ export default function WishlistPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <Skeleton className="h-8 w-48 mb-6" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {[...Array(6)].map((_, i) => (
               <Skeleton key={i} className="h-80" />
             ))}
@@ -215,13 +165,13 @@ export default function WishlistPage() {
 
         {/* Content */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {[...Array(6)].map((_, i) => (
               <Skeleton key={i} className="h-80" />
             ))}
           </div>
         ) : wishlistItems.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {wishlistItems.map((item) => {
               const product = item.product
               const variant = item.variant
@@ -245,7 +195,7 @@ export default function WishlistPage() {
                       
                       {/* Discount Badge */}
                       {discount && (
-                        <Badge className="absolute top-2 left-2 bg-red-500 text-white">
+                        <Badge className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-red-500 text-white text-xs">
                           -{discount}%
                         </Badge>
                       )}
@@ -254,36 +204,36 @@ export default function WishlistPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="absolute top-2 right-2 h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-md rounded-full"
-                        onClick={() => removeFromWishlist(product.id, variant?.id)}
+                        className="absolute top-1 right-1 sm:top-2 sm:right-2 h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/90 hover:bg-white shadow-md rounded-full"
+                        onClick={() => handleRemoveFromWishlist(product.id, variant?.id)}
                         disabled={isRemoving}
                         aria-label="Remove from wishlist"
                       >
-                        <Trash2 className="h-4 w-4 text-gray-600" />
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
                       </Button>
                     </div>
 
                     {/* Product Info */}
-                    <div className="p-4">
+                    <div className="p-2 sm:p-3 md:p-4">
                       <Link href={`/en/products/${product.sku}`}>
-                        <h3 className="font-medium text-gray-900 mb-2 line-clamp-2 hover:text-primary transition-colors">
+                        <h3 className="font-medium text-gray-900 mb-1 sm:mb-2 line-clamp-2 hover:text-primary transition-colors text-sm sm:text-base">
                           {product.name_en}
-                          {variant && <span className="text-sm text-gray-500"> - {variant.name}</span>}
+                          {variant && <span className="text-xs sm:text-sm text-gray-500"> - {variant.name}</span>}
                         </h3>
                       </Link>
 
                       {/* Category */}
                       {product.category && (
-                        <p className="text-sm text-gray-500 mb-2">{product.category.name_en}</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-1 sm:mb-2">{product.category.name_en}</p>
                       )}
 
                       {/* Price */}
-                      <div className="flex items-center space-x-2 mb-3">
-                        <span className="text-lg font-bold text-gray-900">
+                      <div className="flex items-center space-x-1 sm:space-x-2 mb-2 sm:mb-3">
+                        <span className="text-base sm:text-lg font-bold text-gray-900">
                           {formatPrice(finalPrice)}
                         </span>
                         {product.compare_at_price && product.compare_at_price > finalPrice && (
-                          <span className="text-sm text-gray-500 line-through">
+                          <span className="text-xs sm:text-sm text-gray-500 line-through">
                             {formatPrice(product.compare_at_price)}
                           </span>
                         )}
@@ -291,24 +241,24 @@ export default function WishlistPage() {
 
                       {/* Stock Status */}
                       {product.stock_quantity <= 0 ? (
-                        <div className="flex items-center text-red-600 text-sm mb-3">
-                          <AlertCircle className="h-4 w-4 mr-1" />
+                        <div className="flex items-center text-red-600 text-xs sm:text-sm mb-2 sm:mb-3">
+                          <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                           Out of Stock
                         </div>
                       ) : product.stock_quantity <= 5 && (
-                        <div className="flex items-center text-orange-600 text-sm mb-3">
-                          <AlertCircle className="h-4 w-4 mr-1" />
+                        <div className="flex items-center text-orange-600 text-xs sm:text-sm mb-2 sm:mb-3">
+                          <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                           Only {product.stock_quantity} left
                         </div>
                       )}
 
                       {/* Actions */}
                       <Button
-                        className="w-full"
+                        className="w-full h-8 sm:h-10 text-xs sm:text-sm"
                         onClick={() => addToCart(item)}
                         disabled={product.stock_quantity <= 0 || !product.is_active}
                       >
-                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                         {product.stock_quantity <= 0 ? 'Out of Stock' : 'Add to Cart'}
                       </Button>
                     </div>

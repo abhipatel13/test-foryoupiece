@@ -103,16 +103,16 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
   if (userPointsBalance < 500) {
     return (
       <Card className="border-gray-200">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2 sm:pb-3">
           <CardTitle className="flex items-center space-x-2 text-sm">
             <Star className="h-4 w-4 text-orange-500" />
             <span>Loyalty Points</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-4">
-            <Gift className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 mb-1">
+          <div className="text-center py-3 sm:py-4">
+            <Gift className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 mx-auto mb-2" />
+            <p className="text-xs sm:text-sm text-gray-600 mb-1">
               You have {userPointsBalance.toLocaleString()} points
             </p>
             <p className="text-xs text-gray-500">
@@ -126,24 +126,24 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
 
   return (
     <Card className="border-gray-200">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2 sm:pb-3">
         <CardTitle className="flex items-center space-x-2 text-sm">
           <Star className="h-4 w-4 text-orange-500" />
           <span>Redeem Loyalty Points</span>
         </CardTitle>
 
-        {/* Prominent Points Balance Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
-          <div className="flex items-center justify-between">
+        {/* Mobile-Optimized Points Balance Display */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
             <div>
-              <p className="text-sm font-semibold text-blue-900">
+              <p className="text-xs sm:text-sm font-semibold text-blue-900">
                 Available: {userPointsBalance.toLocaleString()} points
               </p>
               <p className="text-xs text-blue-700">
                 1,000 points = $1.00
               </p>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-xs text-blue-600">
                 Worth up to
               </p>
@@ -154,27 +154,27 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Current Discount Display */}
+      <CardContent className="space-y-3 sm:space-y-4">
+        {/* Current Discount Display - Mobile Optimized */}
         {pointsToRedeem > 0 && isValid && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="flex items-center justify-between">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-green-800">
+                <span className="text-xs sm:text-sm font-medium text-green-800">
                   Using {pointsToRedeem.toLocaleString()} points
                 </span>
               </div>
-              <span className="text-sm font-bold text-green-800">
+              <span className="text-xs sm:text-sm font-bold text-green-800 ml-6 sm:ml-0">
                 -{formatPrice(pointsDiscount)} discount
               </span>
             </div>
           </div>
         )}
 
-        {/* Points Input */}
+        {/* Mobile-Optimized Points Input */}
         <div className="space-y-2">
-          <Label htmlFor="points-input" className="text-sm font-medium">
+          <Label htmlFor="points-input" className="text-xs sm:text-sm font-medium">
             Points to redeem
           </Label>
           <div className="flex space-x-2">
@@ -187,14 +187,14 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
               min="0"
               max={maxRedeemablePoints}
               step="10"
-              className={`flex-1 ${!isValid ? 'border-red-300 focus:border-red-500' : ''}`}
+              className={`flex-1 text-sm ${!isValid ? 'border-red-300 focus:border-red-500' : ''}`}
             />
             {pointsToRedeem > 0 && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleClearRedemption}
-                className="px-3"
+                className="px-2 sm:px-3 text-xs sm:text-sm min-h-[36px]"
               >
                 Clear
               </Button>
@@ -212,21 +212,22 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
           )}
         </div>
 
-        {/* Suggested Amounts */}
+        {/* Mobile-Optimized Suggested Amounts */}
         {suggestedAmounts.length > 0 && (
           <div className="space-y-2">
             <Label className="text-xs font-medium text-gray-600">Quick select:</Label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1 sm:gap-2">
               {suggestedAmounts.map((points) => (
                 <Button
                   key={points}
                   variant="outline"
                   size="sm"
                   onClick={() => handleSuggestedAmount(points)}
-                  className="text-xs px-2 py-1 h-auto"
+                  className="text-xs px-2 py-1 h-auto min-h-[32px] flex-shrink-0"
                   disabled={points === pointsToRedeem}
                 >
-                  {points.toLocaleString()} pts
+                  <span className="hidden sm:inline">{points.toLocaleString()} pts</span>
+                  <span className="sm:hidden">{points >= 1000 ? `${points/1000}k` : points}</span>
                   <Badge variant="secondary" className="ml-1 text-xs">
                     {formatPrice(pointsToDollars(points))}
                   </Badge>
@@ -236,11 +237,11 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
           </div>
         )}
 
-        {/* Redemption Rules */}
+        {/* Mobile-Optimized Redemption Rules */}
         <div className="text-xs text-gray-500 space-y-1">
-          <p>• Minimum redemption: 500 points</p>
-          <p>• Points must be redeemed in increments of 10</p>
-          <p>• Maximum redemption: {maxRedeemablePoints.toLocaleString()} points for this order</p>
+          <p>• Min: 500 points • Increments of 10</p>
+          <p className="hidden sm:block">• Maximum redemption: {maxRedeemablePoints.toLocaleString()} points for this order</p>
+          <p className="sm:hidden">• Max: {maxRedeemablePoints >= 1000 ? `${Math.floor(maxRedeemablePoints/1000)}k` : maxRedeemablePoints} pts for this order</p>
         </div>
       </CardContent>
     </Card>
