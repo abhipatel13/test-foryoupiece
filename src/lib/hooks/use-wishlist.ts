@@ -48,16 +48,34 @@ export function useWishlist() {
     try {
       setLoading(true)
       const response = await fetch('/api/wishlist')
+
+      if (!response.ok) {
+        // Handle HTTP errors gracefully
+        if (response.status === 401) {
+          // User not authenticated, clear wishlist
+          setItems([])
+          setInitialized(true)
+          return
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
       const result = await response.json()
 
       if (result.success) {
-        setItems(result.data)
+        setItems(result.data || [])
       } else {
-        console.error('Failed to load wishlist:', result.error)
+        // Log error for debugging but don't throw
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to load wishlist:', result.error)
+        }
         setItems([])
       }
     } catch (error) {
-      console.error('Error loading wishlist:', error)
+      // Log error for debugging but don't throw
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Error loading wishlist:', error)
+      }
       setItems([])
     } finally {
       setLoading(false)

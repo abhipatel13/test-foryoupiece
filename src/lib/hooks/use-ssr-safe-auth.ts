@@ -37,19 +37,27 @@ export function useSSRSafeAuth() {
     profileLoading
   }), [user, profile, loading, isHydrated, profileLoading])
 
-  // Load user profile with caching
+  // Load user profile with enhanced caching and deduplication
   const loadUserProfile = useCallback(async (userId: string, forceReload = false) => {
     if (!isClient) return
+
+    // Check if we already have a valid profile for this user
+    if (profile && profile.id === userId && !forceReload) {
+      return Promise.resolve()
+    }
 
     if (profileLoadPromise.current && !forceReload) {
       return profileLoadPromise.current
     }
 
     setProfileLoading(true)
-    
+
     profileLoadPromise.current = (async () => {
       try {
-        const profileData = await userQueries.getProfile(userId)
+        // Use request deduplication for better performance
+        const { requestUtils } = await import('@/lib/utils/request-deduplication')
+        const profileData = await requestUtils.fetchUserProfile(userId)
+
         if (profileData) {
           setProfile(profileData)
         }
@@ -61,7 +69,7 @@ export function useSSRSafeAuth() {
     })()
 
     return profileLoadPromise.current
-  }, [setProfile, setProfileLoading, isClient])
+  }, [setProfile, setProfileLoading, isClient, profile])
 
   // Set loading state based on hydration
   useEffect(() => {

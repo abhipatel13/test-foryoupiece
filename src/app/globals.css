@@ -1624,11 +1624,29 @@ input, textarea, select {
     }
 
     /* Ensure buttons are properly sized for touch with better spacing */
-    .modern-product-card button:not(.aspect-square) {
+    .modern-product-card button:not(.aspect-square):not(.group\/wishlist) {
       min-height: 44px;
       font-size: 0.875rem; /* 14px - readable size */
       padding: 0.75rem 1rem; /* Better mobile padding */
       margin-top: 0.75rem; /* Increased top margin for spacing */
+    }
+
+    /* Enhanced Wishlist Button Mobile Optimization */
+    .modern-product-card .group\/wishlist {
+      /* Ensure proper touch target on mobile */
+      min-height: 44px !important;
+      min-width: 44px !important;
+      /* Better backdrop for visibility */
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      /* Improved shadow for mobile */
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Wishlist button hover states on mobile (touch devices) */
+    .modern-product-card .group\/wishlist:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
     /* CRITICAL: Ensure aspect-square containers are NEVER treated as buttons */
@@ -1647,8 +1665,20 @@ input, textarea, select {
       min-height: 0; /* Allow natural sizing */
     }
 
-    /* Better badge positioning on mobile */
-    .modern-product-card .absolute {
+    /* Wishlist button accessibility improvements */
+    .modern-product-card .group\/wishlist:focus-visible {
+      outline: 2px solid #ef4444;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+    }
+
+    /* Ensure wishlist button doesn't interfere with other elements */
+    .modern-product-card .group\/wishlist {
+      z-index: 30 !important;
+    }
+
+    /* Better badge positioning on mobile - exclude wishlist button */
+    .modern-product-card .absolute:not(.group\/wishlist) {
       top: 0.75rem; /* 12px - consistent positioning */
     }
   }

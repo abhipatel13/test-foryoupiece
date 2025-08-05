@@ -166,11 +166,28 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </div>
           )}
 
-          {/* Wishlist Button - Desktop Only */}
+          {/* Enhanced Wishlist Button - Mobile & Desktop Optimized - REPOSITIONED TO BOTTOM-RIGHT */}
           <Button
             variant="ghost"
             size="sm"
-            className="absolute bottom-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-white/90 hover:bg-white shadow-md rounded-full z-10 hidden sm:flex items-center justify-center"
+            className={`
+              absolute bottom-2 right-2 z-30
+              min-h-[44px] min-w-[44px] h-11 w-11 p-0
+              sm:h-9 sm:w-9 sm:min-h-[36px] sm:min-w-[36px]
+              bg-white/95 hover:bg-white active:bg-gray-50
+              shadow-lg hover:shadow-xl active:shadow-md
+              rounded-full border border-gray-200/50
+              transition-all duration-300 ease-out
+              transform hover:scale-105 active:scale-95
+              focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+              touch-manipulation
+              backdrop-blur-sm
+              ${isInWishlist(product.id)
+                ? 'bg-red-50/95 border-red-200/50 hover:bg-red-100'
+                : 'hover:border-red-200/50'
+              }
+              group/wishlist
+            `}
             onClick={handleWishlist}
             aria-label={isInWishlist(product.id)
               ? `Remove ${productName} from wishlist`
@@ -181,11 +198,15 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
               : `Add to wishlist`
             }
           >
-            <Heart className={`h-3.5 w-3.5 transition-colors ${
-              isInWishlist(product.id)
-                ? 'text-red-500 fill-red-500'
-                : 'text-gray-600 hover:text-red-500'
-            }`} />
+            <Heart className={`
+              h-5 w-5 sm:h-4 sm:w-4
+              transition-all duration-300 ease-out
+              group-hover/wishlist:scale-110
+              ${isInWishlist(product.id)
+                ? 'text-red-500 fill-red-500 drop-shadow-sm'
+                : 'text-gray-600 hover:text-red-500 group-hover/wishlist:text-red-500'
+              }
+            `} />
           </Button>
         </div>
 

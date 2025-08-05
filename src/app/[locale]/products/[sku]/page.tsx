@@ -512,17 +512,38 @@ export default function ProductDetailPage() {
                 <Button
                   variant="outline"
                   onClick={handleWishlist}
-                  className="w-full h-14 text-base font-medium border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-xl transition-all duration-200 hover:shadow-md cursor-pointer"
-                >
-                  <Heart className={`h-5 w-5 mr-2 transition-colors ${
-                    product && isInWishlist(product.id, selectedVariant || undefined)
-                      ? 'text-red-500 fill-red-500'
-                      : 'text-gray-600'
-                  }`} />
-                  {product && isInWishlist(product.id, selectedVariant || undefined)
-                    ? 'Saved'
-                    : 'Save for Later'
+                  className={`
+                    w-full h-14 text-base font-medium rounded-xl
+                    transition-all duration-300 ease-out
+                    hover:shadow-lg active:shadow-md
+                    transform hover:scale-[1.02] active:scale-[0.98]
+                    focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+                    touch-manipulation
+                    ${product && isInWishlist(product.id, selectedVariant || undefined)
+                      ? 'border-2 border-red-300 bg-red-50 hover:bg-red-100 hover:border-red-400 text-red-700'
+                      : 'border-2 border-gray-300 hover:border-red-300 hover:bg-red-50 text-gray-700 hover:text-red-600'
+                    }
+                    group/wishlist-detail
+                  `}
+                  aria-label={product && isInWishlist(product.id, selectedVariant || undefined)
+                    ? `Remove ${product.name_en} from wishlist`
+                    : `Add ${product.name_en} to wishlist`
                   }
+                >
+                  <Heart className={`
+                    h-5 w-5 mr-3 transition-all duration-300 ease-out
+                    group-hover/wishlist-detail:scale-110
+                    ${product && isInWishlist(product.id, selectedVariant || undefined)
+                      ? 'text-red-500 fill-red-500 drop-shadow-sm'
+                      : 'text-gray-600 group-hover/wishlist-detail:text-red-500'
+                    }
+                  `} />
+                  <span className="font-semibold">
+                    {product && isInWishlist(product.id, selectedVariant || undefined)
+                      ? '❤️ Saved to Wishlist'
+                      : 'Save for Later'
+                    }
+                  </span>
                 </Button>
               </div>
             </div>

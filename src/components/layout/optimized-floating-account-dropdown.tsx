@@ -13,6 +13,7 @@ import { requestUtils } from '@/lib/utils/request-deduplication'
 import { useDropdownPerformance, useDropdownPerformanceMonitoring } from '@/lib/hooks/use-performance-optimization'
 import dynamic from 'next/dynamic'
 
+
 // Lazy load the PointsBreakdownComponent for better performance
 const PointsBreakdownComponent = dynamic(
   () => import('@/components/user/points-breakdown').then(mod => ({ default: mod.PointsBreakdownComponent })),
@@ -53,21 +54,58 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
   // Use optimized auth hook with caching
   const { user, profile, isAuthenticated, loading, signOut } = useSSRSafeAuth()
 
-  // Performance optimization hooks
+  // Performance optimization hooks with memoization
   const { handlePrefetchTrigger } = useDropdownPerformance()
   const { startTiming, endTiming } = useDropdownPerformanceMonitoring()
+
+  // Memoize user display data to prevent unnecessary recalculations
+  const memoizedUserDisplayData = useMemo(() => {
+    if (!user || !profile) return null
+
+    const firstName = profile.first_name || ''
+    const lastName = profile.last_name || ''
+    const displayName = firstName && lastName
+      ? `${firstName} ${lastName}`
+      : firstName || lastName || user.email?.split('@')[0] || 'User'
+
+    const initials = firstName && lastName
+      ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+      : displayName.slice(0, 2).toUpperCase()
+
+    return {
+      displayName,
+      email: user.email || '',
+      avatar: profile.avatar_url,
+      initials
+    }
+  }, [user, profile])
+
+  // Update user display data when memoized data changes
+  useEffect(() => {
+    if (memoizedUserDisplayData) {
+      setUserDisplayData(memoizedUserDisplayData)
+      setProfileError(false)
+    } else if (isAuthenticated && !loading) {
+      setProfileError(true)
+    }
+  }, [memoizedUserDisplayData, isAuthenticated, loading])
+
+  // Optimized dropdown open/close handler
+  const handleDropdownToggle = useCallback((open: boolean) => {
+    if (open) {
+      startTiming()
+      // Prefetch data when opening dropdown
+      handlePrefetchTrigger()
+    } else {
+      endTiming()
+    }
+    setIsOpen(open)
+  }, [startTiming, endTiming, handlePrefetchTrigger])
 
   // Enhanced floating UI configuration with performance monitoring
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
-    onOpenChange: (open) => {
-      if (open) {
-        startTiming()
-      } else {
-        endTiming()
-      }
-      setIsOpen(open)
-    },
+    onOpenChange: handleDropdownToggle,
     middleware: [
       offset(8),
       flip({ padding: 16 }),

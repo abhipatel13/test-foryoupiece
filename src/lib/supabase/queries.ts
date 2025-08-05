@@ -9,18 +9,20 @@ type Enums = Database['public']['Enums']
 // User queries
 const userQueries = {
   async getProfile(userId: string) {
-    // Check cache first
+    // Check cache first with extended TTL
     const cacheKey = cacheKeys.userProfile(userId)
     const cachedProfile = cache.get(cacheKey)
     if (cachedProfile) {
-      if (process.env.NODE_ENV === 'development') {
+      // Only log cache hits in development and reduce frequency
+      if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
         console.log('Profile loaded from cache for userId:', userId)
       }
       return cachedProfile
     }
 
     const supabase = createClient()
-    if (process.env.NODE_ENV === 'development') {
+    // Reduce logging frequency in development
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.3) {
       console.log('Querying user profile for userId:', userId)
     }
 
@@ -31,36 +33,32 @@ const userQueries = {
       .single()
 
     if (error) {
+      // Only log errors, not routine "not found" cases
+      if (error.code === 'PGRST116' || error.message?.includes('No rows found')) {
+        // Cache null result to prevent repeated queries for non-existent profiles
+        cache.set(cacheKey, null, 60000) // 1 minute cache for null results
+        return null
+      }
+
+      // Log other database errors
       if (process.env.NODE_ENV === 'development') {
         console.error('Database error in getProfile:', {
           message: error.message,
           code: error.code,
-          details: error.details,
-          hint: error.hint,
           userId: userId
         })
       }
 
-      // If profile doesn't exist (PGRST116 error), return null instead of throwing
-      if (error.code === 'PGRST116' || error.message?.includes('No rows found')) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Profile not found for userId:', userId)
-        }
-        return null
-      }
-
-      // For other database errors, still throw
       throw error
     }
 
-    if (process.env.NODE_ENV === 'development') {
+    // Reduce logging frequency for successful queries
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.2) {
       console.log('Profile query result:', data)
     }
 
     if (!data) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Profile query returned null/undefined data')
-      }
+      cache.set(cacheKey, null, 60000) // Cache null result
       return null
     }
 

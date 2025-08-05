@@ -1,15 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useCartStore } from './cart-store'
 
 /**
  * SSR-safe wrapper for the cart store
  * Returns default values during SSR and actual store values after hydration
+ * Optimized to prevent repeated initializations and reduce console logging
  */
 export function useSSRSafeCartStore() {
   const [isClient, setIsClient] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const initializationRef = useRef(false)
+  const subscriptionRef = useRef<(() => void) | null>(null)
+
   const [storeData, setStoreData] = useState({
     items: [],
     isLoading: true, // Start with loading state to prevent flash of empty cart
@@ -58,23 +62,28 @@ export function useSSRSafeCartStore() {
     setIsClient(true)
   }, [])
 
-
-
   useEffect(() => {
-    if (isClient) {
-      console.log('🔄 SSR-safe cart store: Initializing')
+    if (isClient && !initializationRef.current) {
+      initializationRef.current = true
 
       try {
         const data = useCartStore.getState()
 
-        // Enhanced subscription with proper state synchronization
+        // Enhanced subscription with proper state synchronization and reduced logging
         const subscribe = useCartStore.subscribe((state) => {
-          console.log('🔄 SSR-safe cart store: Cart state updated', {
-            itemCount: state.getItemCount(),
-            isHydrated: state.isHydrated,
-            isLoading: state.isLoading,
-            userId: state.userId
-          })
+          // Only log significant state changes to reduce console spam
+          const shouldLog = state.isHydrated !== storeData.isHydrated ||
+                           state.getItemCount() !== storeData.getItemCount() ||
+                           state.userId !== storeData.userId
+
+          if (shouldLog) {
+            console.log('🔄 SSR-safe cart store: Cart state updated', {
+              itemCount: state.getItemCount(),
+              isHydrated: state.isHydrated,
+              isLoading: state.isLoading,
+              userId: state.userId
+            })
+          }
 
           setStoreData({
             items: state.items,
@@ -127,13 +136,18 @@ export function useSSRSafeCartStore() {
           }
         })
 
-        // Set initial state with enhanced logging
-        console.log('🔄 SSR-safe cart store: Setting initial state', {
-          itemCount: data.getItemCount(),
-          isHydrated: data.isHydrated,
-          isLoading: data.isLoading,
-          userId: data.userId
-        })
+        // Store subscription reference for cleanup
+        subscriptionRef.current = subscribe
+
+        // Set initial state with reduced logging
+        if (data.isHydrated || data.getItemCount() > 0) {
+          console.log('🔄 SSR-safe cart store: Setting initial state', {
+            itemCount: data.getItemCount(),
+            isHydrated: data.isHydrated,
+            isLoading: data.isLoading,
+            userId: data.userId
+          })
+        }
 
         setStoreData({
           items: data.items,
@@ -192,6 +206,16 @@ export function useSSRSafeCartStore() {
       }
     }
   }, [isClient])
+
+  // Cleanup subscription on unmount
+  useEffect(() => {
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current()
+        subscriptionRef.current = null
+      }
+    }
+  }, [])
 
   // Return enhanced store data with initialization state
   return {
