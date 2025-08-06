@@ -9,7 +9,7 @@ import { useHydration } from '@/lib/hooks/use-hydration'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
-import { OptimizedFloatingAccountDropdown } from '@/components/layout/optimized-floating-account-dropdown'
+import { SimpleAccountDropdown } from '@/components/layout/simple-account-dropdown'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -128,8 +128,8 @@ export function Header() {
               <ChevronDown className="h-3 w-3 ml-2" />
             </div>
 
-            {/* Account & Lists - Mobile Optimized with OptimizedFloatingAccountDropdown */}
-            <OptimizedFloatingAccountDropdown className="flex-shrink-0 min-w-0" />
+            {/* Account & Lists - Simple and Fast */}
+            <SimpleAccountDropdown className="flex-shrink-0 min-w-0" />
 
             {/* FIXED Cart - Better Visibility & Sizing */}
             <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-2 sm:px-3 lg:px-4 py-2 rounded-lg flex-shrink-0 touch-target-lg focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[80px] sm:min-w-[100px]" aria-label="View shopping cart">
