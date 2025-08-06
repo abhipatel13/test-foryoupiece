@@ -7,7 +7,7 @@ import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
-import { usePerformanceOptimization } from '@/lib/hooks/use-performance-optimization'
+
 import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
 
 // Simplified auth provider - no complex session validation
@@ -91,13 +91,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [clearUser, clearCartOnLogout, isClient, router])
 
-  // Initialize performance optimization for user data prefetching
-  usePerformanceOptimization({
-    prefetchUserData: true,
-    prefetchPointsData: true,
-    enableBackgroundRefresh: true,
-    backgroundRefreshInterval: 5 * 60 * 1000 // 5 minutes
-  })
+  // Removed performance optimization hooks to improve dropdown speed
 
   // Load user profile function
   const loadUserProfile = async (userId: string) => {
