@@ -8,7 +8,7 @@ import React from 'react'
  */
 
 interface TabSyncMessage {
-  type: 'AUTH_STATE_CHANGE' | 'ADMIN_STATUS_CHANGE' | 'PROFILE_UPDATE' | 'CACHE_INVALIDATE'
+  type: 'AUTH_STATE_CHANGE' | 'ADMIN_STATUS_CHANGE' | 'PROFILE_UPDATE' | 'CACHE_INVALIDATE' | 'SESSION_EXPIRED' | 'SESSION_VALIDATED'
   payload: any
   timestamp: number
   tabId: string
@@ -19,6 +19,8 @@ interface TabSyncOptions {
   onAdminStatusChange?: (payload: any) => void
   onProfileUpdate?: (payload: any) => void
   onCacheInvalidate?: (payload: any) => void
+  onSessionExpired?: (payload: any) => void
+  onSessionValidated?: (payload: any) => void
 }
 
 class MultiTabSync {
@@ -72,6 +74,12 @@ class MultiTabSync {
         break
       case 'CACHE_INVALIDATE':
         this.listeners.onCacheInvalidate?.(payload)
+        break
+      case 'SESSION_EXPIRED':
+        this.listeners.onSessionExpired?.(payload)
+        break
+      case 'SESSION_VALIDATED':
+        this.listeners.onSessionValidated?.(payload)
         break
     }
   }
@@ -190,5 +198,13 @@ export const tabSyncUtils = {
 
   broadcastCacheInvalidate: (keys: string[]) => {
     getTabSync().broadcast('CACHE_INVALIDATE', { keys })
+  },
+
+  broadcastSessionExpired: (reason?: string) => {
+    getTabSync().broadcast('SESSION_EXPIRED', { reason, timestamp: Date.now() })
+  },
+
+  broadcastSessionValidated: (userId: string) => {
+    getTabSync().broadcast('SESSION_VALIDATED', { userId, timestamp: Date.now() })
   }
 }

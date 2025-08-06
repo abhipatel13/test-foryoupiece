@@ -1,100 +1,220 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
+import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 
 interface SessionMonitorProps {
   checkInterval?: number // in milliseconds
   enabled?: boolean
+  maxRetries?: number // Maximum retry attempts for failed validations
 }
 
 /**
- * Session Monitor Component
- * Continuously monitors session health and automatically signs out on invalid sessions
+ * Enhanced Session Monitor Component
+ * Continuously monitors session health, automatically signs out on invalid sessions,
+ * and coordinates session state across multiple browser tabs
  */
-export function SessionMonitor({ 
+export function SessionMonitor({
   checkInterval = 5 * 60 * 1000, // 5 minutes default
-  enabled = true 
+  enabled = true,
+  maxRetries = 3
 }: SessionMonitorProps) {
   const { user, signOut } = useSSRSafeAuth()
+  const { forceLoadCartForUser } = useSSRSafeCartStore()
   const intervalRef = useRef<NodeJS.Timeout>()
   const isCheckingRef = useRef(false)
+  const retryCountRef = useRef(0)
+  const [lastValidationTime, setLastValidationTime] = useState<number>(0)
+
+  // Multi-tab synchronization for session management
+  const { broadcast } = useMultiTabSync({
+    onAuthStateChange: (payload) => {
+      console.log('🔄 SessionMonitor: Auth state change from another tab:', payload)
+      if (!payload.user) {
+        // Another tab signed out, sign out this tab too
+        console.log('🚪 SessionMonitor: Signing out due to cross-tab auth change')
+        signOut()
+      }
+    },
+    onCacheInvalidate: (payload) => {
+      if (payload.keys?.includes('session_expired')) {
+        console.log('🔄 SessionMonitor: Session expired in another tab, signing out')
+        signOut()
+      }
+    },
+    onSessionValidated: (payload) => {
+      console.log('🔄 SessionMonitor: Session validated in another tab:', payload)
+      // If this tab has the same user, ensure cart is loaded
+      if (user?.id === payload.userId) {
+        console.log('🛒 SessionMonitor: Reloading cart due to cross-tab session validation')
+        forceLoadCartForUser(payload.userId).catch(error => {
+          console.warn('⚠️ SessionMonitor: Failed to reload cart from cross-tab validation:', error)
+        })
+      }
+    }
+  })
+
+  // Enhanced session validation with retry logic and exponential backoff
+  const validateSession = async (isRetry = false): Promise<boolean> => {
+    if (isCheckingRef.current && !isRetry) return true
+
+    isCheckingRef.current = true
+
+    try {
+      console.log('🔍 Session monitor: Validating session...', {
+        isRetry,
+        retryCount: retryCountRef.current,
+        lastValidation: new Date(lastValidationTime).toISOString()
+      })
+
+      const response = await fetch('/api/auth/validate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add timeout to prevent hanging requests
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.warn('❌ Session monitor: Session validation failed:', {
+          status: response.status,
+          error: errorData.error,
+          retryCount: retryCountRef.current
+        })
+
+        // Broadcast session expiration to all tabs
+        broadcast('CACHE_INVALIDATE', { keys: ['session_expired'] })
+
+        // Sign out and clear all auth data
+        await signOut()
+        return false
+      }
+
+      const data = await response.json()
+      console.log('✅ Session monitor: Session valid for user:', data.userId)
+
+      // Reset retry count on successful validation
+      retryCountRef.current = 0
+      setLastValidationTime(Date.now())
+
+      // Ensure cart is loaded for the validated user
+      if (data.userId && user?.id === data.userId) {
+        console.log('🛒 Session monitor: Ensuring cart is loaded after validation')
+        try {
+          await forceLoadCartForUser(data.userId)
+          console.log('✅ Session monitor: Cart reloaded successfully after validation')
+        } catch (cartError) {
+          console.warn('⚠️ Session monitor: Failed to reload cart after validation:', cartError)
+          // Don't fail session validation if cart loading fails
+        }
+      }
+
+      // Broadcast successful session validation to other tabs
+      broadcast('SESSION_VALIDATED', { userId: data.userId, timestamp: Date.now() })
+
+      return true
+    } catch (error: any) {
+      console.error('❌ Session monitor: Validation request failed:', error)
+
+      // Handle different types of errors
+      if (error.name === 'AbortError') {
+        console.warn('⏰ Session validation timed out')
+      } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        console.warn('🌐 Network error during session validation')
+      }
+
+      // Implement exponential backoff for retries
+      if (retryCountRef.current < maxRetries) {
+        retryCountRef.current++
+        const backoffDelay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000) // Max 30 seconds
+
+        console.log(`🔄 Retrying session validation in ${backoffDelay}ms (attempt ${retryCountRef.current}/${maxRetries})`)
+
+        setTimeout(() => {
+          validateSession(true)
+        }, backoffDelay)
+      } else {
+        console.error('❌ Max retry attempts reached, treating as session expired')
+        broadcast('CACHE_INVALIDATE', { keys: ['session_expired'] })
+        await signOut()
+        return false
+      }
+
+      return true // Don't sign out on network errors during retry attempts
+    } finally {
+      isCheckingRef.current = false
+    }
+  }
 
   useEffect(() => {
     if (!enabled || !user) return
 
-    const checkSession = async () => {
-      // Prevent concurrent checks
-      if (isCheckingRef.current) return
-      
-      isCheckingRef.current = true
-      
-      try {
-        console.log('🔍 Session monitor: Checking session health...')
-        
-        const response = await fetch('/api/auth/validate', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
+    // Initial validation after a short delay
+    const initialTimeout = setTimeout(() => validateSession(), 10000) // 10 seconds
 
-        if (!response.ok) {
-          console.warn('❌ Session monitor: Session invalid, signing out...')
-          await signOut()
-        } else {
-          const data = await response.json()
-          console.log('✅ Session monitor: Session valid for user:', data.userId)
-        }
-      } catch (error) {
-        console.error('❌ Session monitor: Check failed:', error)
-        // Don't sign out on network errors, only on auth errors
-      } finally {
-        isCheckingRef.current = false
-      }
-    }
+    // Set up periodic validation checks
+    intervalRef.current = setInterval(() => validateSession(), checkInterval)
 
-    // Initial check after a short delay
-    const initialTimeout = setTimeout(checkSession, 10000) // 10 seconds
-
-    // Set up periodic checks
-    intervalRef.current = setInterval(checkSession, checkInterval)
-    
     return () => {
       clearTimeout(initialTimeout)
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
     }
-  }, [user, signOut, checkInterval, enabled])
+  }, [user, enabled, checkInterval])
 
-  // Handle visibility change - check when tab becomes visible
+  // Enhanced visibility change handling with cross-tab coordination
   useEffect(() => {
     if (!enabled || !user) return
 
     const handleVisibilityChange = () => {
       if (!document.hidden && !isCheckingRef.current) {
-        console.log('🔍 Session monitor: Tab visible, checking session...')
-        // Check session when tab becomes visible
-        fetch('/api/auth/validate', {
-          method: 'POST',
-          credentials: 'include',
-        }).then(response => {
-          if (!response.ok) {
-            signOut()
-          }
-        }).catch(error => {
-          console.error('Session check on visibility change failed:', error)
-        })
+        console.log('🔍 Session monitor: Tab visible, validating session...')
+
+        // Check if session was validated recently (within last 30 seconds)
+        const timeSinceLastValidation = Date.now() - lastValidationTime
+        if (timeSinceLastValidation < 30000) {
+          console.log('⏭️ Session recently validated, skipping check')
+          return
+        }
+
+        // Validate session when tab becomes visible
+        validateSession()
+      }
+    }
+
+    const handleFocus = () => {
+      // Also check when window gains focus (for multi-window scenarios)
+      if (!isCheckingRef.current) {
+        console.log('🔍 Session monitor: Window focused, validating session...')
+        validateSession()
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
     }
-  }, [user, signOut, enabled])
+  }, [user, enabled, lastValidationTime])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      isCheckingRef.current = false
+      retryCountRef.current = 0
+    }
+  }, [])
 
   // This component doesn't render anything
   return null

@@ -7,6 +7,7 @@ import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
+import { useMultiTabSync, tabSyncUtils } from '@/lib/utils/multi-tab-sync'
 
 import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
 
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isClient = useIsClient()
   const initializationRef = useRef(false)
   const [isValidating, setIsValidating] = useState(true)
+  const crossTabSignOutRef = useRef(false)
 
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
@@ -40,6 +42,80 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
   const supabase = createClient()
+
+  // Multi-tab synchronization for authentication state
+  const { broadcast } = useMultiTabSync({
+    onAuthStateChange: (payload) => {
+      console.log('🔄 AuthProvider: Auth state change from another tab:', payload)
+      if (!payload.user && !crossTabSignOutRef.current) {
+        // Another tab signed out, sign out this tab too
+        console.log('🚪 AuthProvider: Signing out due to cross-tab auth change')
+        crossTabSignOutRef.current = true
+        handleCrossTabSignOut()
+      } else if (payload.user && !userStore.user) {
+        // Another tab signed in, update this tab's state
+        console.log('👤 AuthProvider: Updating user state from cross-tab sign in')
+        setUser(payload.user)
+        setUserId(payload.user.id)
+        loadUserProfile(payload.user.id)
+        forceLoadCartForUser(payload.user.id)
+      }
+    },
+    onSessionExpired: (payload) => {
+      console.log('🔄 AuthProvider: Session expired in another tab:', payload)
+      if (!crossTabSignOutRef.current) {
+        crossTabSignOutRef.current = true
+        handleCrossTabSignOut()
+      }
+    },
+    onSessionValidated: (payload) => {
+      console.log('🔄 AuthProvider: Session validated in another tab:', payload)
+      // If this tab has the same user, ensure cart is loaded
+      if (userStore.user?.id === payload.userId) {
+        console.log('🛒 AuthProvider: Reloading cart due to cross-tab session validation')
+        forceLoadCartForUser(payload.userId).catch(error => {
+          console.warn('⚠️ AuthProvider: Failed to reload cart from cross-tab validation:', error)
+        })
+      }
+    }
+  })
+
+  // Handle cross-tab sign out
+  const handleCrossTabSignOut = useCallback(async () => {
+    console.log('🔄 AuthProvider: Handling cross-tab sign out')
+    try {
+      // Clear Zustand stores with proper cart cleanup
+      await clearCartOnLogout()
+      clearUser()
+
+      // Clear localStorage items
+      const authKeys = [
+        'supabase.auth.token',
+        'foryoupiece-user',
+        'foryoupiece-cart',
+        'session_validated_at'
+      ]
+
+      authKeys.forEach(key => {
+        try {
+          localStorage.removeItem(key)
+        } catch (e) {
+          console.error(`Failed to remove ${key}:`, e)
+        }
+      })
+
+      if (isClient) {
+        router.push('/en/auth/login?expired=true')
+      }
+    } catch (error) {
+      console.error('❌ Cross-tab sign out error:', error)
+    } finally {
+      // Reset the flag after a delay to allow for future cross-tab events
+      setTimeout(() => {
+        crossTabSignOutRef.current = false
+      }, 1000)
+    }
+  }, [clearUser, clearCartOnLogout, isClient, router])
 
   // Clear all auth-related data
   const clearAllAuthData = useCallback(async () => {
@@ -230,6 +306,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Use proper cart logout cleanup
           await clearCartOnLogout()
           clearUser()
+
+          // Broadcast sign out to other tabs (only if not from cross-tab event)
+          if (!crossTabSignOutRef.current) {
+            broadcast('AUTH_STATE_CHANGE', { user: null, event })
+          }
+
           router.push('/en/auth/login')
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           if (session?.user) {
@@ -238,11 +320,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setUserId(session.user.id)
             await loadUserProfile(session.user.id)
             await forceLoadCartForUser(session.user.id)
+
+            // Broadcast sign in to other tabs
+            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
           }
         } else if (event === 'USER_UPDATED') {
           if (session?.user) {
             setUser(session.user)
             await loadUserProfile(session.user.id)
+
+            // Broadcast user update to other tabs
+            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
           }
         }
 

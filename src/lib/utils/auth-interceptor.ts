@@ -1,6 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
+import { tabSyncUtils } from '@/lib/utils/multi-tab-sync'
 
 /**
  * Enhanced Authentication Interceptor
@@ -94,18 +95,49 @@ export async function handleAuthError(error: any, url?: string) {
     if (userError || !user) {
       console.log('❌ Session validation failed, signing out')
 
+      // Broadcast session expiration to all tabs
+      try {
+        tabSyncUtils.broadcastSessionExpired('Session validation failed in auth interceptor')
+      } catch (broadcastError) {
+        console.error('Failed to broadcast session expiration:', broadcastError)
+      }
+
       // Clear all auth data
       if (authHandler) {
         await authHandler()
       } else {
-        // Fallback cleanup
-        await supabase.auth.signOut()
-        localStorage.removeItem('supabase.auth.token')
-        localStorage.removeItem('foryoupiece-user')
-        localStorage.removeItem('foryoupiece-cart')
-        localStorage.removeItem('session_validated_at')
+        // Enhanced fallback cleanup
+        try {
+          await supabase.auth.signOut()
+        } catch (signOutError) {
+          console.error('Sign out error:', signOutError)
+        }
+
+        // Clear all auth-related localStorage items
+        const authKeys = [
+          'supabase.auth.token',
+          'foryoupiece-user',
+          'foryoupiece-cart',
+          'session_validated_at'
+        ]
+
+        authKeys.forEach(key => {
+          try {
+            localStorage.removeItem(key)
+          } catch (e) {
+            console.error(`Failed to remove ${key}:`, e)
+          }
+        })
+
+        // Clear sessionStorage
+        try {
+          sessionStorage.clear()
+        } catch (e) {
+          console.error('Failed to clear session storage:', e)
+        }
+
         if (typeof window !== 'undefined') {
-          window.location.href = '/en/auth/login'
+          window.location.href = '/en/auth/login?expired=true'
         }
       }
     }

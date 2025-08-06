@@ -35,7 +35,11 @@ export default async function LocaleLayout({
       <QueryProvider>
         <AuthProvider>
           <NextIntlClientProvider messages={messages}>
-            {/* <SessionMonitor /> */}
+            <SessionMonitor
+              checkInterval={3 * 60 * 1000} // Check every 3 minutes
+              enabled={true}
+              maxRetries={3}
+            />
             <MainLayout>
               {children}
             </MainLayout>
