@@ -75,28 +75,28 @@ export function Header() {
     <>
 
 
-      {/* Mobile-First Responsive Header */}
+      {/* Mobile-First Responsive Header - Ultra Compact */}
       <header className="sticky top-0 z-50 w-full modern-header overflow-x-hidden">
-        {/* Main Header Bar - Mobile-First Design */}
+        {/* Main Header Bar - Ultra Compact Mobile Design */}
         <div className="desktop-container">
-          <div className="flex h-16 lg:h-14 xl:h-16 items-center justify-between min-w-0 gap-2 sm:gap-3 lg:gap-4">
-            {/* Logo - Mobile Optimized */}
-            <Link href="/" className="flex items-center space-x-1 sm:space-x-2 lg:space-x-1.5 text-foreground hover:text-primary transition-colors flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded-lg p-1" aria-label="Foryoupiece Home">
+          <div className="flex h-12 sm:h-14 lg:h-14 xl:h-16 items-center justify-between min-w-0 gap-1 sm:gap-2 lg:gap-4">
+            {/* Logo - Ultra Compact Mobile */}
+            <Link href="/" className="flex items-center space-x-1 sm:space-x-2 lg:space-x-1.5 text-foreground hover:text-primary transition-colors flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded-lg p-0.5 sm:p-1" aria-label="Foryoupiece Home">
               <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-1.5">
                 <Image
                   src="/favicon.jpg"
                   alt="ForYouPiece"
-                  width={28}
-                  height={28}
-                  className="rounded-lg shadow-sm object-contain flex-shrink-0 sm:w-8 sm:h-8 lg:w-7 lg:h-7 xl:w-8 xl:h-8"
+                  width={24}
+                  height={24}
+                  className="rounded-lg shadow-sm object-contain flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 lg:w-7 lg:h-7 xl:w-8 xl:h-8"
                   priority
                 />
                 <Image
                   src="/logo.jpg"
                   alt="ForYouPiece"
-                  width={70}
-                  height={20}
-                  className="hidden sm:block object-contain flex-shrink-0 sm:w-20 sm:h-6 lg:w-16 lg:h-5 xl:w-20 xl:h-6"
+                  width={60}
+                  height={18}
+                  className="hidden sm:block object-contain flex-shrink-0 sm:w-16 sm:h-5 lg:w-16 lg:h-5 xl:w-20 xl:h-6"
                   priority
                 />
               </div>
@@ -104,25 +104,147 @@ export function Header() {
 
             {/* Enterprise Search Bar - Desktop Optimized */}
             <EnhancedSearch
-              className="hidden md:flex flex-1 max-w-3xl mx-3 lg:mx-8 xl:mx-10 min-w-0"
+              className="hidden lg:flex flex-1 max-w-3xl mx-3 lg:mx-8 xl:mx-10 min-w-0"
               placeholder="Search for products, brands, categories..."
               showCategoryFilter={true}
             />
 
-            {/* Mobile Search Button - Enhanced Touch Target */}
+            {/* Navigation Menu - Integrated into Header (Desktop) */}
+            <nav className="hidden lg:flex items-center gap-1 xl:gap-2 flex-shrink-0">
+              <Link
+                href="/en/trending"
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+              >
+                <TrendingUp className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>Trending</span>
+              </Link>
+              <Link
+                href="/en/products?deals=true"
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+              >
+                <Percent className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>Deals</span>
+              </Link>
+              <Link
+                href="/en/products?recently_added=true"
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+              >
+                <Clock className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>New</span>
+              </Link>
+              <Link
+                href="/en/products?recommended=true"
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+              >
+                <Heart className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>For You</span>
+              </Link>
+            </nav>
+
+            {/* Mobile Search Button - Ultra Compact */}
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 touch-target transition-all duration-200 rounded-lg"
+              className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-8 w-8 sm:h-10 sm:w-10"
               onClick={() => setShowMobileSearch(true)}
               aria-label="Open search"
             >
-              <Search className="h-5 w-5" />
+              <Search className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="sr-only">Search</span>
             </Button>
 
+            {/* Mobile Menu Button - Ultra Compact */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-8 w-8 sm:h-10 sm:w-10">
+                  <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Navigation Menu</SheetTitle>
+                  <SheetDescription>
+                    Access navigation links, search, and account options
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="flex flex-col h-full">
+                  {/* Mobile Search Header */}
+                  <div className="p-4 border-b border-border">
+                    <EnhancedSearch
+                      placeholder="Search products..."
+                      showCategoryFilter={false}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Mobile Navigation - Better Touch Targets */}
+                  <nav className="flex flex-col p-4 space-y-2 flex-1">
+                    <Link
+                      href="/en/trending"
+                      className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
+                    >
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      Trending Now
+                    </Link>
+                    <Link
+                      href="/en/products?deals=true"
+                      className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
+                    >
+                      <Percent className="h-5 w-5 text-primary" />
+                      Deals & Discounts
+                    </Link>
+                    <Link
+                      href="/en/products?recently_added=true"
+                      className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
+                    >
+                      <Clock className="h-5 w-5 text-primary" />
+                      Recently Added
+                    </Link>
+                    <Link
+                      href="/en/products?recommended=true"
+                      className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
+                    >
+                      <Heart className="h-5 w-5 text-primary" />
+                      For You
+                    </Link>
+                    <button
+                      onClick={handleScrollToCategories}
+                      className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 text-left rounded-lg hover:bg-secondary touch-manipulation"
+                    >
+                      <Menu className="h-5 w-5 text-primary" />
+                      Categories
+                    </button>
+                    {isAuthenticated && (
+                      <>
+                        <hr className="my-2" />
+                        <Link
+                          href="/en/profile"
+                          className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                        >
+                          Your Account
+                        </Link>
+                        <Link
+                          href="/en/orders"
+                          className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                        >
+                          Your Orders
+                        </Link>
+                        <Link
+                          href="/en/wishlist"
+                          className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
+                        >
+                          Your Wish List
+                        </Link>
+                      </>
+                    )}
+                  </nav>
+                </div>
+              </SheetContent>
+            </Sheet>
+
             {/* Language Switcher - Enhanced */}
-            <div className="hidden lg:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground hover:bg-accent/30 transition-all duration-200 flex-shrink-0 px-3 py-2 rounded-lg">
+            <div className="hidden xl:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground hover:bg-accent/30 transition-all duration-200 flex-shrink-0 px-3 py-2 rounded-lg">
               <Globe className="h-4 w-4 mr-2" />
               <span className="font-semibold">EN</span>
               <ChevronDown className="h-3 w-3 ml-2" />
@@ -131,172 +253,38 @@ export function Header() {
             {/* Account & Lists - Simple and Fast */}
             <SimpleAccountDropdown className="flex-shrink-0 min-w-0" />
 
-            {/* FIXED Cart - Better Visibility & Sizing */}
-            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-2 sm:px-3 lg:px-4 py-2 rounded-lg flex-shrink-0 touch-target-lg focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[80px] sm:min-w-[100px]" aria-label="View shopping cart">
-              <div className="relative mr-2 sm:mr-3">
-                <ShoppingCart className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 group-hover:scale-105 transition-transform duration-200" aria-hidden="true" />
-                {/* Cart badge with better visibility */}
+            {/* Ultra Compact Cart - Maximum Visibility on Small Screens */}
+            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-1 sm:px-2 lg:px-4 py-1 sm:py-2 rounded-lg flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[60px] sm:min-w-[80px]" aria-label="View shopping cart">
+              <div className="relative mr-1 sm:mr-2">
+                <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 group-hover:scale-105 transition-transform duration-200" aria-hidden="true" />
+                {/* Ultra compact cart badge */}
                 {showCartCount && cartItemCount > 0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-6 w-6 sm:h-7 sm:w-7 rounded-full p-0 text-xs sm:text-sm bg-red-500 hover:bg-red-600 text-white font-bold shadow-lg border-2 border-white"
+                    className="absolute -top-1.5 -right-1.5 h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 rounded-full p-0 text-[10px] sm:text-xs bg-red-500 hover:bg-red-600 text-white font-bold shadow-lg border border-white flex items-center justify-center"
                   >
-                    {cartItemCount}
+                    {cartItemCount > 99 ? '99+' : cartItemCount}
                   </Badge>
                 )}
               </div>
               <div className="text-right min-w-0 hidden sm:block">
-                <div className="text-sm text-muted-foreground font-medium">Cart</div>
-                <div className="font-bold text-base lg:text-lg group-hover:text-primary transition-colors duration-200">
+                <div className="text-xs sm:text-sm text-muted-foreground font-medium">Cart</div>
+                <div className="font-bold text-sm sm:text-base lg:text-lg group-hover:text-primary transition-colors duration-200">
                   {cartLoading ? '...' : (showCartCount ? cartItemCount : 0)}
                 </div>
               </div>
-              {/* Mobile cart count - larger and more visible */}
-              <div className="sm:hidden text-sm font-bold ml-1 group-hover:text-primary transition-colors duration-200">
+              {/* Ultra compact mobile cart count */}
+              <div className="sm:hidden text-xs font-bold ml-0.5 group-hover:text-primary transition-colors duration-200 min-w-[12px] text-center">
                 {cartLoading ? '...' : (showCartCount ? cartItemCount : 0)}
               </div>
             </Link>
           </div>
         </div>
 
-        {/* Enhanced Secondary Navigation - Mobile-First Responsive */}
-        <div className="bg-muted/20 border-t border-border/50 overflow-x-hidden shadow-sm">
-          <div className="desktop-container">
-            <div className="flex h-12 sm:h-14 lg:h-12 xl:h-14 items-center min-w-0">
-            <nav className="flex items-center space-x-2 sm:space-x-4 lg:space-x-6 xl:space-x-8 overflow-x-auto scrollbar-hide w-full">
-              <Link
-                href="/en/trending"
-                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
-              >
-                <TrendingUp className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
-                <span className="hidden sm:inline">Trending Now</span>
-                <span className="sm:hidden">Trending</span>
-              </Link>
-              <Link
-                href="/en/products?deals=true"
-                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
-              >
-                <Percent className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
-                <span className="hidden sm:inline">Deals and Discounts</span>
-                <span className="sm:hidden">Deals</span>
-              </Link>
-              <Link
-                href="/en/products?recently_added=true"
-                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
-              >
-                <Clock className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
-                <span className="hidden sm:inline">Recently Added</span>
-                <span className="sm:hidden">New</span>
-              </Link>
-              <Link
-                href="/en/products?recommended=true"
-                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
-              >
-                <Heart className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
-                <span className="hidden sm:inline">Recommended for You</span>
-                <span className="sm:hidden">For You</span>
-              </Link>
-              <button
-                onClick={handleScrollToCategories}
-                className="text-sm sm:text-sm lg:text-base font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 sm:py-3 px-2 sm:px-3 lg:px-4 rounded-md flex items-center gap-1 sm:gap-2 cursor-pointer whitespace-nowrap flex-shrink-0 group touch-target-lg min-h-[44px]"
-              >
-                <Menu className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 group-hover:scale-110 transition-transform duration-200" />
-                Categories
-              </button>
-            </nav>
-            </div>
-          </div>
-        </div>
+
       </header>
 
-      {/* Mobile Menu - Optimized for Touch */}
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="lg:hidden text-foreground hover:text-primary touch-manipulation">
-            <Menu className="h-5 w-5" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
-          <SheetHeader className="sr-only">
-            <SheetTitle>Navigation Menu</SheetTitle>
-            <SheetDescription>
-              Access navigation links, search, and account options
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-col h-full">
-            {/* Mobile Search Header */}
-            <div className="p-4 border-b border-border">
-              <EnhancedSearch
-                placeholder="Search products..."
-                showCategoryFilter={false}
-                className="w-full"
-              />
-            </div>
 
-            {/* Mobile Navigation - Better Touch Targets */}
-            <nav className="flex flex-col p-4 space-y-2 flex-1">
-              <Link
-                href="/en/trending"
-                className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
-              >
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Trending Now
-              </Link>
-              <Link
-                href="/en/products?deals=true"
-                className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
-              >
-                <Percent className="h-5 w-5 text-primary" />
-                Deals & Discounts
-              </Link>
-              <Link
-                href="/en/products?recently_added=true"
-                className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
-              >
-                <Clock className="h-5 w-5 text-primary" />
-                Recently Added
-              </Link>
-              <Link
-                href="/en/products?recommended=true"
-                className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
-              >
-                <Heart className="h-5 w-5 text-primary" />
-                For You
-              </Link>
-              <button
-                onClick={handleScrollToCategories}
-                className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 text-left rounded-lg hover:bg-secondary touch-manipulation"
-              >
-                <Menu className="h-5 w-5 text-primary" />
-                Categories
-              </button>
-              {isAuthenticated && (
-                <>
-                  <hr className="my-2" />
-                  <Link
-                    href="/en/profile"
-                    className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
-                  >
-                    Your Account
-                  </Link>
-                  <Link
-                    href="/en/orders"
-                    className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
-                  >
-                    Your Orders
-                  </Link>
-                  <Link
-                    href="/en/wishlist"
-                    className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
-                  >
-                    Your Wish List
-                  </Link>
-                </>
-              )}
-            </nav>
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Mobile Search Modal */}
       <Dialog open={showMobileSearch} onOpenChange={setShowMobileSearch}>

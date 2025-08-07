@@ -1110,6 +1110,169 @@ input, textarea, select {
     }
   }
 
+  /* HORIZONTAL SCROLLING PRODUCT CAROUSEL - Mobile-First */
+  .product-carousel {
+    display: flex;
+    gap: 0.75rem; /* 12px - mobile spacing */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    padding-bottom: 4px; /* Space for focus outline */
+    width: 100%;
+    min-height: 0;
+  }
+
+  /* Hide scrollbar for webkit browsers */
+  .product-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Product cards in carousel */
+  .product-carousel > * {
+    flex: 0 0 auto; /* Don't grow or shrink */
+    width: calc(50% - 0.375rem); /* Mobile: 2 cards visible with gap */
+    min-width: 160px; /* Minimum card width */
+    max-width: 280px; /* Maximum card width */
+    scroll-snap-align: start;
+  }
+
+  /* Responsive carousel card sizing */
+  @media (min-width: 375px) {
+    .product-carousel > * {
+      width: calc(50% - 0.5rem); /* Slightly wider on larger mobile */
+      min-width: 170px;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .product-carousel {
+      gap: 1rem; /* 16px - tablet spacing */
+    }
+    .product-carousel > * {
+      width: calc(33.333% - 0.667rem); /* 3 cards visible */
+      min-width: 200px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .product-carousel {
+      gap: 1.25rem; /* 20px - larger tablet spacing */
+    }
+    .product-carousel > * {
+      width: calc(25% - 0.9375rem); /* 4 cards visible */
+      min-width: 220px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .product-carousel {
+      gap: 1.5rem; /* 24px - desktop spacing */
+    }
+    .product-carousel > * {
+      width: calc(20% - 1.2rem); /* 5 cards visible */
+      min-width: 240px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .product-carousel > * {
+      width: calc(16.666% - 1.25rem); /* 6 cards visible */
+      min-width: 260px;
+    }
+  }
+
+  /* Scroll snap for smooth scrolling */
+  .product-carousel {
+    scroll-snap-type: x mandatory;
+  }
+
+  /* Focus styles for accessibility */
+  .product-carousel:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
+  /* ENHANCED SECTION SPACING - Reduce vertical gaps */
+  .mobile-section-header {
+    margin-bottom: 1rem; /* Reduced from default */
+  }
+
+  @media (min-width: 640px) {
+    .mobile-section-header {
+      margin-bottom: 1.25rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .mobile-section-header {
+      margin-bottom: 1.5rem;
+    }
+  }
+
+  /* CONTAINER IMPROVEMENTS - Better horizontal scroll experience */
+  .desktop-container {
+    overflow-x: hidden; /* Prevent horizontal page scroll */
+  }
+
+  /* SMOOTH SCROLLING ENHANCEMENTS */
+  .product-carousel {
+    /* Enhanced touch scrolling for mobile */
+    -webkit-overflow-scrolling: touch;
+    /* Momentum scrolling on iOS */
+    scroll-behavior: smooth;
+    /* Better scroll performance */
+    will-change: scroll-position;
+  }
+
+  /* MOBILE TOUCH IMPROVEMENTS */
+  @media (max-width: 1023px) {
+    .product-carousel {
+      /* Add padding for better touch scrolling */
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+      margin-left: -0.5rem;
+      margin-right: -0.5rem;
+    }
+  }
+
+  /* SCROLL INDICATORS - Subtle visual cues */
+  .product-carousel::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(to left, hsl(var(--background)) 0%, transparent 100%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .product-carousel:hover::after {
+    opacity: 1;
+  }
+
+  /* SECTION SPACING OPTIMIZATION */
+  section {
+    margin-bottom: 2rem; /* Reduced section spacing */
+  }
+
+  @media (min-width: 640px) {
+    section {
+      margin-bottom: 2.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    section {
+      margin-bottom: 3rem;
+    }
+  }
+
   /* FIXED: Compact Grid Variant - Follows Same Standards */
   .product-grid-compact {
     display: grid;
@@ -2034,6 +2197,11 @@ input, textarea, select {
       box-sizing: border-box;
     }
 
+    /* Ultra compact header for very small screens */
+    .modern-header {
+      min-height: 48px; /* 12 * 4px = 48px */
+    }
+
     /* Better text wrapping for small screens */
     .section-heading, .mobile-section-title h2 {
       word-wrap: break-word;
@@ -2053,7 +2221,40 @@ input, textarea, select {
       gap: 0.5rem;
     }
 
-    /* FIXED: Better product card text handling for ultra-small screens */
+    /* Ultra compact desktop container for small screens */
+    .desktop-container {
+      padding-left: 0.5rem; /* 8px */
+      padding-right: 0.5rem; /* 8px */
+    }
+  }
+
+  /* Ultra compact header for screens 326px and below */
+  @media (max-width: 326px) {
+    .modern-header {
+      min-height: 44px; /* Even more compact for 326px */
+    }
+
+    /* Tighter spacing for ultra-small screens */
+    .desktop-container {
+      padding-left: 0.25rem; /* 4px */
+      padding-right: 0.25rem; /* 4px */
+    }
+
+    /* Ensure cart is always visible */
+    .modern-header .flex {
+      gap: 0.25rem; /* 4px gap between elements */
+    }
+
+    /* Make sure buttons don't get too small */
+    button[aria-label="Open search"],
+    button[aria-label="Open menu"] {
+      min-width: 32px;
+      min-height: 32px;
+    }
+  }
+
+  /* FIXED: Better product card text handling for ultra-small screens */
+  @media (max-width: 326px) {
     .modern-product-card h3 {
       font-size: 0.8125rem; /* 13px - smaller text for 326px */
       line-height: 1.3;
