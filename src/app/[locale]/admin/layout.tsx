@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { useSecureAdminAuth } from '@/lib/hooks/use-secure-admin-auth'
 import { useAdminConfig } from '@/hooks/use-admin-config'
-import { adminQueries } from '@/lib/supabase/admin-queries'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,7 +25,8 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -35,10 +35,8 @@ interface AdminLayoutProps {
 }
 
 function AdminLoginForm() {
-  const { signInWithEmail } = useSSRSafeAuth()
+  const { login, loading: authLoading, error: authError } = useSecureAdminAuth()
   const { adminEmail, loading: configLoading, error: configError } = useAdminConfig()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
@@ -47,25 +45,12 @@ function AdminLoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    try {
-      await signInWithEmail(formData.email, formData.password)
-      toast.success('Admin login successful!')
-    } catch (err: unknown) {
-      const errorMessage = (err as Error).message || 'Failed to sign in'
-      setError(errorMessage)
-      toast.error(errorMessage)
-    } finally {
-      setLoading(false)
-    }
+    await login(formData.email, formData.password)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-    if (error) setError(null)
   }
 
   // Pre-fill admin email when available
@@ -108,9 +93,9 @@ function AdminLoginForm() {
           </CardHeader>
           <CardContent className="space-y-6 pt-6 px-6 sm:px-8 pb-8">
             {/* Error Alert */}
-            {error && (
+            {authError && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-sm sm:text-base text-red-700">{error}</p>
+                <p className="text-sm sm:text-base text-red-700">{authError}</p>
               </div>
             )}
 
@@ -167,9 +152,9 @@ function AdminLoginForm() {
               <Button
                 type="submit"
                 className="w-full bg-black hover:bg-gray-800 text-white h-11 sm:h-12 text-sm sm:text-base font-medium transition-colors duration-200"
-                disabled={loading}
+                disabled={authLoading}
               >
-                {loading ? 'Authenticating...' : 'Access Admin Panel'}
+                {authLoading ? 'Authenticating...' : 'Access Admin Panel'}
               </Button>
             </form>
 
@@ -198,52 +183,15 @@ function AdminLoginForm() {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { user, isAuthenticated, loading } = useSSRSafeAuth()
+  const { user, isAuthenticated, loading, logout } = useSecureAdminAuth()
   const router = useRouter()
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [checkingAdmin, setCheckingAdmin] = useState(true)
 
-  useEffect(() => {
-    checkAdminStatus()
-  }, [user, isAuthenticated])
-
-  const checkAdminStatus = async () => {
-    if (!user || !isAuthenticated) {
-      setCheckingAdmin(false)
-      return
-    }
-
-    try {
-      const adminUser = await adminQueries.getAdminUser(user.id)
-
-      // Enhanced security check is now handled server-side in admin middleware
-      // This ensures proper security without exposing admin emails client-side
-
-      setIsAdmin(!!adminUser)
-
-      // Log admin access
-      if (adminUser) {
-        console.log('Admin access granted:', {
-          userId: user.id,
-          email: user.email,
-          role: adminUser.role,
-          timestamp: new Date().toISOString()
-        })
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error)
-      setIsAdmin(false)
-    } finally {
-      setCheckingAdmin(false)
-    }
-  }
-
-  if (loading || checkingAdmin) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking permissions...</p>
+          <p className="text-gray-600">Checking admin session...</p>
         </div>
       </div>
     )
@@ -251,37 +199,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   if (!isAuthenticated) {
     return <AdminLoginForm />
-  }
-
-  if (!isAdmin) {
-    // Unauthorized access attempt - handled gracefully
-
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md border-red-200">
-          <CardContent className="p-6 text-center">
-            <Shield className="h-12 w-12 mx-auto mb-4 text-red-500" />
-            <h2 className="text-xl font-semibold mb-2 text-red-800">Access Denied</h2>
-            <p className="text-gray-600 mb-4">You don&apos;t have permission to access the admin panel.</p>
-            <div className="space-y-2">
-              <Button
-                onClick={() => router.push('/en/auth/login')}
-                className="w-full bg-red-600 hover:bg-red-700"
-              >
-                Admin Login
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push('/')}
-                className="w-full"
-              >
-                Go Home
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
   }
 
   const navigation = [
@@ -378,10 +295,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    Admin User
+                    {user?.email || 'Admin User'}
                   </p>
                   <Badge variant="secondary" className="text-xs">
-                    Administrator
+                    {user?.role || 'Administrator'}
                   </Badge>
                 </div>
               </div>
@@ -405,6 +322,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     <Link href="/">
                       View Store
                     </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={logout}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
                   </Button>
                 </div>
               </div>

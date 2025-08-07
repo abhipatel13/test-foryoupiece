@@ -55,6 +55,8 @@ Configure these in Vercel Dashboard > Project Settings > Environment Variables:
 | `TELEGRAM_BOT_TOKEN` | `8066090295:AAHmPDgCvuCA7qrQAF6lGFl1j-AGSZG0zio` | All | ❌ Server-side only |
 | `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | `Authenticationfypbot` | All | ✅ Safe for client |
 | `NEXT_PUBLIC_TELEGRAM_BOT_ID` | `8066090295` | All | ✅ Safe for client |
+| `WEBHOOK_SECRET` | `your-webhook-hmac-secret-min-32-chars` | All | ❌ **CRITICAL** Server-side only |
+| `TELEGRAM_WEBHOOK_SECRET` | `your-telegram-webhook-secret` | All | ❌ Server-side only |
 
 ## 🧪 Testing Environment Variables
 
@@ -97,6 +99,26 @@ Generate a secure random string (minimum 32 characters):
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
+### 🔐 Webhook Security Secrets:
+**CRITICAL**: Generate strong secrets for webhook authentication:
+
+```bash
+# Generate WEBHOOK_SECRET (for order webhooks)
+openssl rand -hex 32
+
+# Or with Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Generate TELEGRAM_WEBHOOK_SECRET (for Telegram webhooks)
+openssl rand -hex 32
+```
+
+**Security Requirements:**
+- Minimum 32 characters (64 hex characters)
+- Use different secrets for different webhook types
+- Never reuse secrets across environments
+- Rotate secrets regularly (every 90 days)
+
 ## ⚠️ Important Security Notes
 
 ### ✅ Safe for Client-Side (NEXT_PUBLIC_ prefix):
@@ -111,6 +133,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - `BOXHERO_API_TOKEN`
 - `TELEGRAM_BOT_TOKEN`
 - `NEXTAUTH_SECRET`
+- `WEBHOOK_SECRET` ⚠️ **CRITICAL FOR SECURITY**
+- `TELEGRAM_WEBHOOK_SECRET`
 
 ## 🚀 Quick Setup Commands
 

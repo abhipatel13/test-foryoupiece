@@ -114,25 +114,79 @@ export class TelegramNotificationService {
   }
 
   /**
-   * Validate webhook request authenticity
+   * Validate webhook request authenticity using HMAC SHA-256
    */
   validateWebhookRequest(headers: Headers, body: string): boolean {
     try {
-      const telegramSignature = headers.get('x-telegram-bot-api-secret-token');
+      // For Telegram webhooks, check for secret token first (Telegram's built-in method)
+      const telegramSecretToken = headers.get('x-telegram-bot-api-secret-token');
 
       console.log('🔐 Webhook validation - Secret configured:', !!this.WEBHOOK_SECRET);
-      console.log('🔐 Webhook validation - Signature received:', !!telegramSignature);
+      console.log('🔐 Webhook validation - Telegram secret token received:', !!telegramSecretToken);
 
-      // If webhook secret is configured, validate it
-      if (this.WEBHOOK_SECRET && this.WEBHOOK_SECRET !== 'foryoupiece-webhook-secret') {
-        if (!telegramSignature || telegramSignature !== this.WEBHOOK_SECRET) {
-          console.error('❌ Invalid webhook signature');
+      // If using Telegram's secret token method (recommended for Telegram webhooks)
+      if (telegramSecretToken && this.WEBHOOK_SECRET && this.WEBHOOK_SECRET !== 'foryoupiece-webhook-secret') {
+        // Use timing-safe comparison for Telegram secret token
+        const crypto = require('crypto');
+        const expectedToken = this.WEBHOOK_SECRET;
+
+        if (telegramSecretToken.length !== expectedToken.length) {
+          console.error('❌ Invalid Telegram webhook secret token length');
           return false;
         }
+
+        const isValid = crypto.timingSafeEqual(
+          Buffer.from(telegramSecretToken),
+          Buffer.from(expectedToken)
+        );
+
+        if (!isValid) {
+          console.error('❌ Invalid Telegram webhook secret token');
+          return false;
+        }
+
+        console.log('✅ Telegram webhook secret token validation passed');
+        return true;
       }
 
-      console.log('✅ Webhook signature validation passed');
-      return true;
+      // Fallback to HMAC verification for other webhook sources
+      const signature = headers.get('x-webhook-signature') ||
+                       headers.get('x-hub-signature-256') ||
+                       headers.get('signature');
+
+      if (signature && this.WEBHOOK_SECRET && this.WEBHOOK_SECRET !== 'foryoupiece-webhook-secret') {
+        const crypto = require('crypto');
+
+        // Remove 'sha256=' prefix if present
+        const cleanSignature = signature.startsWith('sha256=') ? signature.slice(7) : signature;
+
+        const expectedSignature = crypto
+          .createHmac('sha256', this.WEBHOOK_SECRET)
+          .update(body)
+          .digest('hex');
+
+        const isValid = crypto.timingSafeEqual(
+          Buffer.from(cleanSignature, 'hex'),
+          Buffer.from(expectedSignature, 'hex')
+        );
+
+        if (!isValid) {
+          console.error('❌ Invalid HMAC webhook signature');
+          return false;
+        }
+
+        console.log('✅ HMAC webhook signature validation passed');
+        return true;
+      }
+
+      // If no proper authentication is configured, log warning but allow (for development)
+      if (!this.WEBHOOK_SECRET || this.WEBHOOK_SECRET === 'foryoupiece-webhook-secret') {
+        console.warn('⚠️ Webhook authentication not properly configured - using default secret');
+        return true;
+      }
+
+      console.error('❌ No valid authentication method found for webhook');
+      return false;
     } catch (error) {
       console.error('❌ Error validating webhook request:', error);
       return false;

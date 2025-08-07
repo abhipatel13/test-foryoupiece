@@ -16,12 +16,28 @@ export async function POST(request: NextRequest) {
 
     // Validate webhook authenticity
     if (!telegramNotificationService.validateWebhookRequest(request.headers, bodyText)) {
-      console.error('❌ Webhook validation failed');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.error('❌ Telegram webhook validation failed', {
+        hasHeaders: !!request.headers,
+        bodyLength: bodyText.length,
+        timestamp: new Date().toISOString()
+      });
+      return NextResponse.json({
+        error: 'Unauthorized',
+        details: 'Webhook authentication failed'
+      }, { status: 401 });
     }
 
-    // Parse the incoming update
-    const update = JSON.parse(bodyText);
+    // Parse the incoming update with error handling
+    let update;
+    try {
+      update = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('❌ Invalid JSON in Telegram webhook payload:', parseError);
+      return NextResponse.json({
+        error: 'Invalid JSON payload',
+        details: 'Webhook payload must be valid JSON'
+      }, { status: 400 });
+    }
 
     // Log the update for debugging (remove sensitive data in production)
     const updateType = update.callback_query ? 'callback_query' :
@@ -41,9 +57,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate the update structure
-    if (!update) {
-      console.error('❌ Invalid update: empty body');
-      return NextResponse.json({ error: 'Invalid update' }, { status: 400 });
+    if (!update || typeof update !== 'object') {
+      console.error('❌ Invalid Telegram update structure:', typeof update);
+      return NextResponse.json({
+        error: 'Invalid update structure',
+        details: 'Update must be a valid object'
+      }, { status: 400 });
     }
 
     // Handle the update
@@ -67,15 +86,24 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET endpoint for webhook verification (optional)
- * Some services require a GET endpoint to verify the webhook
+ * GET endpoint for webhook verification
+ * Limited information to prevent information disclosure
  */
 export async function GET(request: NextRequest) {
   console.log('📱 Telegram webhook GET request received');
-  
-  // You can add webhook verification logic here if needed
-  return NextResponse.json({ 
-    status: 'Telegram webhook endpoint is active',
-    timestamp: new Date().toISOString()
+
+  // Create response with minimal information
+  const response = NextResponse.json({
+    status: 'active',
+    timestamp: new Date().toISOString(),
+    version: '1.0'
   });
+
+  // Add security headers
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  return response;
 }

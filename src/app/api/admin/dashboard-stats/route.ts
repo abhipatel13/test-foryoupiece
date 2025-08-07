@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { withAdminAuth } from '@/lib/auth/admin-middleware';
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
+import { handleGenericError } from '@/lib/security/error-sanitizer';
 
 /**
  * Get admin dashboard statistics (REAL-TIME - NO CACHING)
@@ -241,11 +242,9 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     }, { headers });
 
   } catch (error) {
-    console.error('❌ Error fetching dashboard stats:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to fetch dashboard statistics',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    return handleGenericError(error, {
+      operation: 'fetch_dashboard_stats',
+      userId: user.id
+    });
   }
 });

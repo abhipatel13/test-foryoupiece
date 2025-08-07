@@ -1,6 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
+// SECURITY FIX: Configure specific allowed origins instead of wildcard CORS
+const allowedOrigins = [
+  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+  'https://foryoupiece.com',
+  'https://www.foryoupiece.com',
+  // Add development origins
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001'
+];
+
+/**
+ * SECURITY: Validate origin and set appropriate CORS headers
+ */
+function setCorsHeaders(response: NextResponse, request: NextRequest): void {
+  const origin = request.headers.get('origin');
+
+  // Check if origin is in allowed list
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+  } else {
+    // Fallback to primary domain for legitimate requests without origin header
+    response.headers.set('Access-Control-Allow-Origin', allowedOrigins[0]);
+  }
+
+  response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  response.headers.set('Cache-Control', 'public, max-age=900'); // 15 minutes
+}
+
 // In-memory cache for random images (15 minute TTL for better performance)
 interface CacheEntry {
   data: Record<string, string | null>;
@@ -54,11 +85,8 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Add CORS headers for browser compatibility
-      cachedResponse.headers.set('Access-Control-Allow-Origin', '*');
-      cachedResponse.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      cachedResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
-      cachedResponse.headers.set('Cache-Control', 'public, max-age=900'); // 15 minutes
+      // SECURITY FIX: Use secure CORS headers instead of wildcard
+      setCorsHeaders(cachedResponse, request);
 
       return cachedResponse;
     }
@@ -163,10 +191,8 @@ export async function GET(request: NextRequest) {
         timestamp: new Date().toISOString()
       });
 
-      // Add CORS headers
-      noImagesResponse.headers.set('Access-Control-Allow-Origin', '*');
-      noImagesResponse.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      noImagesResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
+      // SECURITY FIX: Use secure CORS headers instead of wildcard
+      setCorsHeaders(noImagesResponse, request);
 
       return noImagesResponse;
     }
@@ -224,11 +250,8 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Add CORS headers for browser compatibility
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
-    response.headers.set('Cache-Control', 'public, max-age=900'); // 15 minutes
+    // SECURITY FIX: Use secure CORS headers instead of wildcard
+    setCorsHeaders(response, request);
 
     return response;
 
@@ -244,10 +267,8 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
 
-    // Add CORS headers even for error responses
-    errorResponse.headers.set('Access-Control-Allow-Origin', '*');
-    errorResponse.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    errorResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
+    // SECURITY FIX: Use secure CORS headers even for error responses
+    setCorsHeaders(errorResponse, request);
 
     return errorResponse;
   }
@@ -256,12 +277,20 @@ export async function GET(request: NextRequest) {
 /**
  * OPTIONS /api/categories/random-images
  * Handle CORS preflight requests for browser compatibility
+ * SECURITY FIX: Use secure origin validation instead of wildcard CORS
  */
 export async function OPTIONS(request: NextRequest) {
   const response = new NextResponse(null, { status: 200 });
 
-  // Add CORS headers for preflight
-  response.headers.set('Access-Control-Allow-Origin', '*');
+  // SECURITY FIX: Use secure CORS headers for preflight
+  const origin = request.headers.get('origin');
+
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+  } else {
+    response.headers.set('Access-Control-Allow-Origin', allowedOrigins[0]);
+  }
+
   response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
   response.headers.set('Access-Control-Max-Age', '86400'); // 24 hours

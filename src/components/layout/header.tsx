@@ -42,6 +42,7 @@ export function Header() {
   const { clearCartOnLogout } = useSSRSafeCartStore()
   const [mounted, setMounted] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   // Use SSR-safe cart store for reactive cart count
   const { getItemCount, isLoading: cartLoading, isHydrated: cartHydrated } = useSSRSafeCartStore()
@@ -56,6 +57,9 @@ export function Header() {
 
 
   const handleScrollToCategories = () => {
+    // Close mobile menu first
+    setShowMobileMenu(false)
+
     // Smooth scroll to categories section on the current page
     const categoriesSection = document.getElementById('categories-section')
     if (categoriesSection) {
@@ -69,6 +73,11 @@ export function Header() {
         window.location.href = '/#categories-section'
       }
     }
+  }
+
+  // Function to handle navigation link clicks and close mobile menu
+  const handleMobileNavClick = () => {
+    setShowMobileMenu(false)
   }
 
   return (
@@ -154,7 +163,7 @@ export function Header() {
             </Button>
 
             {/* Mobile Menu Button - Ultra Compact */}
-            <Sheet>
+            <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-8 w-8 sm:h-10 sm:w-10">
                   <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -182,6 +191,7 @@ export function Header() {
                   <nav className="flex flex-col p-4 space-y-2 flex-1">
                     <Link
                       href="/en/trending"
+                      onClick={handleMobileNavClick}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <TrendingUp className="h-5 w-5 text-primary" />
@@ -189,6 +199,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/en/products?deals=true"
+                      onClick={handleMobileNavClick}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <Percent className="h-5 w-5 text-primary" />
@@ -196,6 +207,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/en/products?recently_added=true"
+                      onClick={handleMobileNavClick}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <Clock className="h-5 w-5 text-primary" />
@@ -203,6 +215,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/en/products?recommended=true"
+                      onClick={handleMobileNavClick}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <Heart className="h-5 w-5 text-primary" />
@@ -220,18 +233,21 @@ export function Header() {
                         <hr className="my-2" />
                         <Link
                           href="/en/profile"
+                          onClick={handleMobileNavClick}
                           className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
                         >
                           Your Account
                         </Link>
                         <Link
                           href="/en/orders"
+                          onClick={handleMobileNavClick}
                           className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
                         >
                           Your Orders
                         </Link>
                         <Link
                           href="/en/wishlist"
+                          onClick={handleMobileNavClick}
                           className="text-sm font-medium transition-colors hover:text-gray-600 py-2"
                         >
                           Your Wish List

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSecureAdminAuth } from '@/lib/hooks/use-secure-admin-auth';
 
 export interface TrendingProduct {
   id: string;
@@ -102,34 +103,45 @@ export function useRefreshTrendingProducts() {
 
 /**
  * Hook for admin trending products management
+ * Uses secure httpOnly cookie-based authentication
  */
 export function useAdminTrendingProducts() {
+  const { getAuthHeaders, isAuthenticated } = useSecureAdminAuth();
+
   return useQuery({
     queryKey: ['admin-trending-products'],
     queryFn: async () => {
+      // Get secure auth headers (validates session)
+      const headers = await getAuthHeaders();
+
       const response = await fetch('/api/admin/trending-products', {
+        credentials: 'include', // Include httpOnly cookies
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}` // Adjust based on your auth
+          'Content-Type': 'application/json',
+          ...headers
         }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch admin trending products');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch admin trending products');
       }
 
       return response.json();
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
     cacheTime: 5 * 60 * 1000, // 5 minutes
-    enabled: false, // Only enable when explicitly called
+    enabled: isAuthenticated, // Only enable when admin is authenticated
   });
 }
 
 /**
  * Hook for managing manual trending products (admin)
+ * Uses secure httpOnly cookie-based authentication
  */
 export function useManageTrendingProducts() {
   const queryClient = useQueryClient();
+  const { getAuthHeaders } = useSecureAdminAuth();
 
   const addProduct = useMutation({
     mutationFn: async (params: {
@@ -137,17 +149,21 @@ export function useManageTrendingProducts() {
       position: number;
       user_id?: string;
     }) => {
+      // Get secure auth headers (validates session)
+      const headers = await getAuthHeaders();
+
       const response = await fetch('/api/admin/trending-products', {
         method: 'POST',
+        credentials: 'include', // Include httpOnly cookies
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          ...headers
         },
         body: JSON.stringify(params),
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Failed to add trending product');
       }
 
@@ -165,17 +181,21 @@ export function useManageTrendingProducts() {
       position?: number;
       is_active?: boolean;
     }) => {
+      // Get secure auth headers (validates session)
+      const headers = await getAuthHeaders();
+
       const response = await fetch('/api/admin/trending-products', {
         method: 'PUT',
+        credentials: 'include', // Include httpOnly cookies
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          ...headers
         },
         body: JSON.stringify(params),
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Failed to update trending product');
       }
 
@@ -189,15 +209,19 @@ export function useManageTrendingProducts() {
 
   const removeProduct = useMutation({
     mutationFn: async (trending_id: string) => {
+      // Get secure auth headers (validates session)
+      const headers = await getAuthHeaders();
+
       const response = await fetch(`/api/admin/trending-products?trending_id=${trending_id}`, {
         method: 'DELETE',
+        credentials: 'include', // Include httpOnly cookies
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          ...headers
         },
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Failed to remove trending product');
       }
 

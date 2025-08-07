@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
+import { validateFile } from '@/lib/security/file-validator'
+import {
+  handleDatabaseError,
+  handleValidationError,
+  handleGenericError
+} from '@/lib/security/error-sanitizer'
 
-export async function POST(request: NextRequest) {
+/**
+ * Upload product image (Admin only)
+ * POST /api/admin/products/upload-image
+ */
+export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
-    // For now, we'll skip user authentication and rely on the admin panel's client-side auth
-    // In a production environment, you'd want to implement proper server-side auth
-    // TODO: Implement proper server-side authentication
+    console.log('📸 Admin Image Upload: Request received from user:', user.id, 'admin role:', adminUser.role)
 
     const serviceRoleSupabase = createServiceRoleClient()
 
@@ -16,18 +24,51 @@ export async function POST(request: NextRequest) {
     const productSku = formData.get('productSku') as string
 
     if (!file || !productSku) {
-      return NextResponse.json({ error: 'File and product SKU are required' }, { status: 400 })
+      return handleValidationError(
+        new Error('File and product SKU are required'),
+        { operation: 'file_upload_validation', userId: user.id }
+      )
     }
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 })
+    // Enhanced file validation with content verification
+    console.log('🔍 Performing enhanced file validation for:', file.name, 'Size:', file.size, 'Type:', file.type)
+
+    const validationResult = await validateFile(file, {
+      maxSize: 5 * 1024 * 1024, // 5MB
+      allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'],
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'],
+      requireContentValidation: true,
+      sanitizeSvg: true,
+      checkForMaliciousPatterns: true
+    })
+
+    if (!validationResult.isValid) {
+      console.error('❌ File validation failed:', validationResult.errors)
+      return handleValidationError(
+        new Error(`File validation failed: ${validationResult.errors.join(', ')}`),
+        {
+          operation: 'file_upload_validation',
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          detectedType: validationResult.detectedType,
+          errors: validationResult.errors,
+          userId: user.id
+        }
+      )
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 })
+    // Log validation warnings if any
+    if (validationResult.warnings.length > 0) {
+      console.warn('⚠️ File validation warnings:', validationResult.warnings)
     }
+
+    console.log('✅ File validation passed:', {
+      originalType: file.type,
+      detectedType: validationResult.detectedType,
+      detectedExtension: validationResult.detectedExtension,
+      warnings: validationResult.warnings
+    })
 
     // Generate unique filename
     const timestamp = Date.now()
@@ -36,21 +77,28 @@ export async function POST(request: NextRequest) {
     const fileName = `${productSku}_${timestamp}_${randomId}.${fileExtension}`
     const filePath = `product-images/${fileName}`
 
-    // Convert file to buffer
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
+    // Use sanitized content from validation (important for SVG files)
+    const buffer = validationResult.sanitizedContent || Buffer.from(await file.arrayBuffer())
 
-    // Upload to Supabase Storage
+    // Use detected file type for more accurate content type
+    const contentType = validationResult.detectedType || file.type
+
+    // Upload to Supabase Storage with validated content type
     const { data: uploadData, error: uploadError } = await serviceRoleSupabase.storage
       .from('product-images')
       .upload(filePath, buffer, {
-        contentType: file.type,
+        contentType: contentType,
         upsert: false
       })
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError)
-      return NextResponse.json({ error: 'Failed to upload image to storage' }, { status: 500 })
+      return handleDatabaseError(uploadError, {
+        operation: 'storage_upload',
+        fileName: file.name,
+        filePath,
+        productSku,
+        userId: user.id
+      }, 'storage upload');
     }
 
     // Get public URL
@@ -68,8 +116,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (fetchError) {
-      console.error('Product fetch error:', fetchError)
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+      return handleDatabaseError(fetchError, {
+        operation: 'product_fetch',
+        productSku,
+        userId: user.id
+      }, 'product fetch');
     }
 
     // Update product images in database
@@ -82,21 +133,33 @@ export async function POST(request: NextRequest) {
       .eq('sku', productSku)
 
     if (updateError) {
-      console.error('Product update error:', updateError)
-      return NextResponse.json({ error: 'Failed to update product images' }, { status: 500 })
+      return handleDatabaseError(updateError, {
+        operation: 'product_update',
+        productSku,
+        imageUrl,
+        userId: user.id
+      }, 'product update');
     }
+
+    console.log('✅ Admin Image Upload: Successfully uploaded image for product:', productSku, 'URL:', imageUrl)
 
     return NextResponse.json({
       success: true,
       imageUrl,
-      message: 'Image uploaded successfully'
+      message: 'Image uploaded successfully',
+      validationInfo: {
+        detectedType: validationResult.detectedType,
+        detectedExtension: validationResult.detectedExtension,
+        warnings: validationResult.warnings
+      }
     })
 
   } catch (error) {
-    console.error('Image upload error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return handleGenericError(error, {
+      operation: 'image_upload',
+      productSku,
+      fileName: file?.name,
+      userId: user.id
+    });
   }
-}
+})

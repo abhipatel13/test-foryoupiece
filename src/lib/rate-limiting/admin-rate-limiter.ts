@@ -11,6 +11,9 @@ export interface RateLimitResult {
   remaining: number
   identifier: string
   type: string
+  penaltyLevel?: number
+  requiresCaptcha?: boolean
+  suspiciousActivity?: boolean
 }
 
 /**
@@ -27,6 +30,10 @@ export interface RateLimitConfig {
 interface RateLimitEntry {
   count: number
   resetTime: number
+  penaltyLevel: number
+  firstAttempt: number
+  lastAttempt: number
+  suspiciousPatterns: string[]
 }
 
 /**
@@ -151,65 +158,97 @@ class AdminRateLimitStore {
 const rateLimitStore = new AdminRateLimitStore()
 
 /**
- * Check rate limit for a given identifier and type
+ * Enhanced rate limit check with progressive penalties and suspicious activity detection
  */
 export async function checkAdminRateLimit(
   identifier: string,
-  type: keyof typeof ADMIN_RATE_LIMITS
+  type: keyof typeof ADMIN_RATE_LIMITS,
+  request?: NextRequest
 ): Promise<RateLimitResult> {
   const limit = ADMIN_RATE_LIMITS[type]
-  
+
   if (!limit) {
     throw new Error(`Unknown rate limit type: ${type}`)
   }
 
   const key = `admin_${type}:${identifier}`
   const now = Date.now()
-  
+
   const existing = rateLimitStore.get(key)
-  
+
+  // Detect suspicious patterns if request is provided
+  const suspiciousPatterns = request ? detectSuspiciousPatterns(request, existing) : []
+  const hasSuspiciousActivity = suspiciousPatterns.length > 0
+
   if (!existing || now > existing.resetTime) {
     // Reset or create new entry
     const newEntry: RateLimitEntry = {
       count: 1,
-      resetTime: now + limit.windowMs
+      resetTime: now + limit.windowMs,
+      penaltyLevel: 0,
+      firstAttempt: now,
+      lastAttempt: now,
+      suspiciousPatterns: suspiciousPatterns
     }
-    
+
     rateLimitStore.set(key, newEntry)
-    
+
     return {
       allowed: true,
       attempts: 1,
       resetTime: newEntry.resetTime,
       remaining: limit.requests - 1,
       identifier,
-      type
+      type,
+      penaltyLevel: 0,
+      requiresCaptcha: false,
+      suspiciousActivity: hasSuspiciousActivity
     }
   }
-  
-  if (existing.count >= limit.requests) {
-    // Rate limit exceeded
+
+  // Update suspicious patterns
+  existing.suspiciousPatterns = [...new Set([...existing.suspiciousPatterns, ...suspiciousPatterns])]
+  existing.lastAttempt = now
+
+  // Calculate effective limit with progressive penalties
+  const penaltyMultiplier = calculatePenaltyMultiplier(existing.penaltyLevel)
+  const effectiveLimit = Math.max(1, Math.floor(limit.requests / penaltyMultiplier))
+
+  if (existing.count >= effectiveLimit) {
+    // Rate limit exceeded - increase penalty level
+    existing.penaltyLevel = Math.min(existing.penaltyLevel + 1, 4) // Max penalty level 4
+    const penaltyDuration = calculatePenaltyDuration(existing.penaltyLevel, limit.windowMs)
+    existing.resetTime = now + penaltyDuration
+
+    rateLimitStore.set(key, existing)
+
     return {
       allowed: false,
       attempts: existing.count,
       resetTime: existing.resetTime,
       remaining: 0,
       identifier,
-      type
+      type,
+      penaltyLevel: existing.penaltyLevel,
+      requiresCaptcha: existing.penaltyLevel >= 2 || existing.suspiciousPatterns.length >= 2,
+      suspiciousActivity: hasSuspiciousActivity || existing.suspiciousPatterns.length > 0
     }
   }
-  
+
   // Increment counter
   existing.count++
   rateLimitStore.set(key, existing)
-  
+
   return {
     allowed: true,
     attempts: existing.count,
     resetTime: existing.resetTime,
-    remaining: limit.requests - existing.count,
+    remaining: effectiveLimit - existing.count,
     identifier,
-    type
+    type,
+    penaltyLevel: existing.penaltyLevel,
+    requiresCaptcha: existing.penaltyLevel >= 1 && existing.count >= effectiveLimit - 1,
+    suspiciousActivity: hasSuspiciousActivity || existing.suspiciousPatterns.length > 0
   }
 }
 
@@ -229,56 +268,159 @@ export function createRateLimitHeaders(result: RateLimitResult): Record<string, 
 }
 
 /**
- * Create rate limit exceeded response
+ * Create rate limit exceeded response with enhanced security information
  */
 export function createRateLimitResponse(result: RateLimitResult): NextResponse {
   const headers = createRateLimitHeaders(result)
   const resetTimeSeconds = Math.ceil((result.resetTime - Date.now()) / 1000)
-  
+
+  // Enhanced message based on penalty level and suspicious activity
+  let message = `Too many requests. Please try again in ${resetTimeSeconds} seconds.`
+
+  if (result.penaltyLevel && result.penaltyLevel > 0) {
+    message += ` Progressive penalty level: ${result.penaltyLevel}.`
+  }
+
+  if (result.requiresCaptcha) {
+    message += ' CAPTCHA verification may be required for future requests.'
+  }
+
+  if (result.suspiciousActivity) {
+    message += ' Suspicious activity detected.'
+  }
+
   return NextResponse.json({
     success: false,
     error: 'Rate limit exceeded',
-    message: `Too many requests. Please try again in ${resetTimeSeconds} seconds.`,
+    message,
     rateLimitInfo: {
       type: result.type,
       limit: ADMIN_RATE_LIMITS[result.type as keyof typeof ADMIN_RATE_LIMITS].requests,
       remaining: result.remaining,
       resetTime: new Date(result.resetTime).toISOString(),
-      retryAfter: resetTimeSeconds
+      retryAfter: resetTimeSeconds,
+      penaltyLevel: result.penaltyLevel || 0,
+      requiresCaptcha: result.requiresCaptcha || false,
+      suspiciousActivity: result.suspiciousActivity || false
     }
-  }, { 
+  }, {
     status: 429,
     headers
   })
 }
 
 /**
- * Get client identifier from request
- * Uses IP address and User-Agent for identification
+ * Enhanced client identifier with multiple factors to prevent spoofing
+ * Uses IP address, User-Agent, and additional fingerprinting
  */
 export function getClientIdentifier(request: NextRequest): string {
   // Get IP address from various headers (for different proxy setups)
   const forwarded = request.headers.get('x-forwarded-for')
   const realIp = request.headers.get('x-real-ip')
   const ip = forwarded?.split(',')[0] || realIp || request.ip || 'unknown'
-  
+
   // Get user agent for additional identification
   const userAgent = request.headers.get('user-agent') || 'unknown'
-  
-  // Create a simple hash of IP + User-Agent for identification
-  const identifier = `${ip}:${userAgent.substring(0, 50)}`
-  
+
+  // Additional headers for fingerprinting (harder to spoof)
+  const acceptLanguage = request.headers.get('accept-language') || 'unknown'
+  const acceptEncoding = request.headers.get('accept-encoding') || 'unknown'
+  const connection = request.headers.get('connection') || 'unknown'
+
+  // Create a more robust identifier with multiple factors
+  const identifier = `${ip}:${userAgent.substring(0, 50)}:${acceptLanguage.substring(0, 20)}:${acceptEncoding.substring(0, 20)}:${connection}`
+
   return identifier
 }
 
 /**
  * Get user-specific identifier from request (when user is authenticated)
+ * Enhanced with session token and multiple factors
  */
-export function getUserIdentifier(userId: string, request: NextRequest): string {
+export function getUserIdentifier(userId: string, request: NextRequest, sessionToken?: string): string {
   // For authenticated users, use user ID as primary identifier
-  // Still include IP for additional security
-  const ip = getClientIdentifier(request).split(':')[0]
-  return `user:${userId}:${ip}`
+  // Include multiple factors for enhanced security
+  const clientId = getClientIdentifier(request)
+  const ip = clientId.split(':')[0]
+
+  // Include session token if available for additional security
+  const sessionPart = sessionToken ? `:session:${sessionToken.substring(0, 16)}` : ''
+
+  return `user:${userId}:${ip}${sessionPart}`
+}
+
+/**
+ * Calculate progressive penalty multiplier based on penalty level
+ */
+function calculatePenaltyMultiplier(penaltyLevel: number): number {
+  // Progressive penalties: 1x, 2x, 4x, 8x, 16x (max)
+  return Math.min(Math.pow(2, penaltyLevel), 16)
+}
+
+/**
+ * Calculate penalty duration based on level
+ */
+function calculatePenaltyDuration(penaltyLevel: number, baseWindowMs: number): number {
+  const multiplier = calculatePenaltyMultiplier(penaltyLevel)
+  return baseWindowMs * multiplier
+}
+
+/**
+ * Detect suspicious activity patterns
+ */
+function detectSuspiciousPatterns(request: NextRequest, entry?: RateLimitEntry): string[] {
+  const patterns: string[] = []
+
+  // Check for rapid requests (if we have previous attempt data)
+  if (entry && entry.lastAttempt) {
+    const timeSinceLastAttempt = Date.now() - entry.lastAttempt
+    if (timeSinceLastAttempt < 1000) { // Less than 1 second
+      patterns.push('rapid_requests')
+    }
+  }
+
+  // Check for suspicious user agent patterns
+  const userAgent = request.headers.get('user-agent') || ''
+  if (userAgent.includes('bot') || userAgent.includes('crawler') || userAgent.length < 10) {
+    patterns.push('suspicious_user_agent')
+  }
+
+  // Check for missing common headers
+  const acceptLanguage = request.headers.get('accept-language')
+  const acceptEncoding = request.headers.get('accept-encoding')
+  if (!acceptLanguage || !acceptEncoding) {
+    patterns.push('missing_headers')
+  }
+
+  return patterns
+}
+
+/**
+ * Enhanced rate limiting with multi-factor authentication
+ * Combines IP, User ID, and Session token for comprehensive protection
+ */
+export async function checkEnhancedAdminRateLimit(
+  request: NextRequest,
+  type: keyof typeof ADMIN_RATE_LIMITS,
+  userId?: string,
+  sessionToken?: string
+): Promise<RateLimitResult> {
+  // Create multi-factor identifier
+  let identifier: string
+
+  if (userId && sessionToken) {
+    // Authenticated user with session - most secure
+    identifier = getUserIdentifier(userId, request, sessionToken)
+  } else if (userId) {
+    // Authenticated user without session token
+    identifier = getUserIdentifier(userId, request)
+  } else {
+    // Unauthenticated - use enhanced client fingerprinting
+    identifier = getClientIdentifier(request)
+  }
+
+  // Use enhanced rate limiting with progressive penalties
+  return await checkAdminRateLimit(identifier, type, request)
 }
 
 /**

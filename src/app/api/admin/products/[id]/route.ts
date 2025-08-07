@@ -1,6 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
+import {
+  handleDatabaseError,
+  handleValidationError,
+  handleGenericError
+} from '@/lib/security/error-sanitizer';
+
+/**
+ * SECURITY FIX: Validate UUID format to prevent injection attacks
+ */
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+/**
+ * SECURITY FIX: Validate product ownership and access control
+ * Ensures the product exists and the admin has proper access rights
+ */
+async function validateProductAccess(
+  productId: string,
+  adminUser: any,
+  supabase: any
+): Promise<{ valid: boolean; error?: string; product?: any }> {
+  // First validate UUID format
+  if (!isValidUUID(productId)) {
+    return {
+      valid: false,
+      error: 'Invalid product ID format'
+    };
+  }
+
+  try {
+    // Check if product exists and get basic info
+    const { data: product, error } = await supabase
+      .from('products')
+      .select('id, sku, name_en, is_active, created_at')
+      .eq('id', productId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return {
+          valid: false,
+          error: 'Product not found'
+        };
+      }
+      return {
+        valid: false,
+        error: 'Database error during validation'
+      };
+    }
+
+    // Additional access control checks can be added here
+    // For now, we verify the product exists and admin has proper role
+    if (adminUser.role !== 'super_admin' && adminUser.role !== 'admin') {
+      return {
+        valid: false,
+        error: 'Insufficient permissions'
+      };
+    }
+
+    return {
+      valid: true,
+      product
+    };
+
+  } catch (error) {
+    console.error('Product access validation error:', error);
+    return {
+      valid: false,
+      error: 'Access validation failed'
+    };
+  }
+}
 
 /**
  * Get a single product by ID (Admin)
@@ -38,6 +112,22 @@ export const GET = withAdminAuth(async (
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
 
+    // SECURITY FIX: Validate product access and ownership
+    const validation = await validateProductAccess(id, adminUser, supabase);
+    if (!validation.valid) {
+      console.warn(`🚫 Admin access denied for product ${id}: ${validation.error}`);
+      return NextResponse.json({
+        success: false,
+        error: validation.error,
+        security: {
+          validated: false,
+          reason: validation.error,
+          admin: adminUser.email,
+          timestamp: new Date().toISOString()
+        }
+      }, { status: validation.error === 'Product not found' ? 404 : 403 });
+    }
+
     if (!supabase) {
       console.error('❌ Failed to create service role client for product fetch');
       return NextResponse.json({
@@ -61,25 +151,25 @@ export const GET = withAdminAuth(async (
       .single();
 
     if (error) {
-      console.error('Database error:', error);
-      
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({
-          success: false,
-          error: 'Product not found',
-        }, { status: 404 });
-      }
-
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-      }, { status: 500 });
+      return handleDatabaseError(error, {
+        operation: 'fetch_product',
+        productId: id,
+        userId: user.id
+      }, 'product fetch');
     }
 
     // PHASE 1 FIX: Add cache-busting headers to prevent browser caching
+    // SECURITY FIX: Include security validation information in response
     const response = NextResponse.json({
       success: true,
       data: product,
+      security: {
+        validated: true,
+        admin: adminUser.email,
+        productId: id,
+        timestamp: new Date().toISOString(),
+        accessLevel: adminUser.role
+      }
     });
 
     // Prevent caching of admin product data
@@ -100,11 +190,11 @@ export const GET = withAdminAuth(async (
     return response;
 
   } catch (error) {
-    console.error('Failed to fetch product:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'Internal server error',
-    }, { status: 500 });
+    return handleGenericError(error, {
+      operation: 'fetch_product',
+      productId: (await params).id,
+      userId: user.id
+    });
   }
 });
 
@@ -132,6 +222,26 @@ export const PUT = withAdminAuth(async (
         success: false,
         error: 'Product ID is required',
       }, { status: 400 });
+    }
+
+    // Use Supabase service role client
+    const supabase = createServiceRoleClient();
+
+    // SECURITY FIX: Validate product access before allowing updates
+    const validation = await validateProductAccess(id, adminUser, supabase);
+    if (!validation.valid) {
+      console.warn(`🚫 Admin update access denied for product ${id}: ${validation.error}`);
+      return NextResponse.json({
+        success: false,
+        error: validation.error,
+        security: {
+          validated: false,
+          reason: validation.error,
+          admin: adminUser.email,
+          operation: 'UPDATE',
+          timestamp: new Date().toISOString()
+        }
+      }, { status: validation.error === 'Product not found' ? 404 : 403 });
     }
 
     const body = await request.json();
@@ -221,16 +331,7 @@ export const PUT = withAdminAuth(async (
       }
     }
 
-    // Use Supabase service role client (bypasses RLS)
-    const supabase = createServiceRoleClient();
-
-    if (!supabase) {
-      console.error('❌ Failed to create service role client for product update');
-      return NextResponse.json({
-        success: false,
-        error: 'Service configuration error'
-      }, { status: 500 });
-    }
+    // Note: supabase client already created above for validation
 
     // Prepare update data
     const updateData = {
@@ -438,6 +539,23 @@ export const DELETE = withAdminAuth(async (
 
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
+
+    // SECURITY FIX: Validate product access before allowing deletion
+    const validation = await validateProductAccess(id, adminUser, supabase);
+    if (!validation.valid) {
+      console.warn(`🚫 Admin delete access denied for product ${id}: ${validation.error}`);
+      return NextResponse.json({
+        success: false,
+        error: validation.error,
+        security: {
+          validated: false,
+          reason: validation.error,
+          admin: adminUser.email,
+          operation: 'DELETE',
+          timestamp: new Date().toISOString()
+        }
+      }, { status: validation.error === 'Product not found' ? 404 : 403 });
+    }
 
     // Soft delete by setting is_active to false
     const { data: deletedProduct, error } = await supabase

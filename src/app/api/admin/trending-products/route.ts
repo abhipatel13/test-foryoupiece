@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { withAdminAuth } from '@/lib/auth/admin-middleware'
+import { withSecureAdminAuth } from '@/lib/auth/secure-admin-middleware'
 
 /**
  * Admin Trending Products API Endpoint
@@ -10,7 +10,7 @@ import { withAdminAuth } from '@/lib/auth/admin-middleware'
  * DELETE /api/admin/trending-products - Remove trending product
  */
 
-export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
+export const GET = withSecureAdminAuth(async (request: NextRequest, { user, adminUser, session }) => {
   try {
     console.log('🔥 Admin Trending Products API called')
 
@@ -73,7 +73,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
   }
 })
 
-export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
+export const POST = withSecureAdminAuth(async (request: NextRequest, { user, adminUser, session }) => {
   try {
     const body = await request.json()
     const { product_id, position, user_id } = body
@@ -139,7 +139,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
   }
 })
 
-export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
+export const PUT = withSecureAdminAuth(async (request: NextRequest, { user, adminUser, session }) => {
   try {
     const body = await request.json()
     const { trending_id, position, is_active } = body
@@ -190,7 +190,7 @@ export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser 
   }
 })
 
-export const DELETE = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
+export const DELETE = withSecureAdminAuth(async (request: NextRequest, { user, adminUser, session }) => {
   try {
     const url = new URL(request.url)
     const trending_id = url.searchParams.get('trending_id')

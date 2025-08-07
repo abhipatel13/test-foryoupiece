@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { withAdminAuth } from '@/lib/auth/admin-middleware';
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
+import {
+  handleDatabaseError,
+  handleValidationError,
+  handleGenericError
+} from '@/lib/security/error-sanitizer';
 
 /**
  * Get products with filtering and pagination (Admin endpoint for testing)
@@ -36,11 +41,12 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     });
 
     if (error) {
-      console.error('❌ Database error:', error);
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-      }, { status: 500 });
+      return handleDatabaseError(error, {
+        operation: 'fetch_products',
+        limit,
+        offset,
+        userId: user.id
+      }, 'products fetch');
     }
 
     return NextResponse.json({
@@ -55,11 +61,10 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     });
 
   } catch (error) {
-    console.error('❌ Admin Products API error:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'Internal server error',
-    }, { status: 500 });
+    return handleGenericError(error, {
+      operation: 'fetch_products',
+      userId: user.id
+    });
   }
 });
 
@@ -231,18 +236,15 @@ export const POST = withAdminAuth(async (
       .single();
 
     if (createError) {
-      console.error('❌ Database creation error:', {
-        error: createError,
-        code: createError.code,
-        message: createError.message,
-        details: createError.details,
-        hint: createError.hint
-      });
-
-      return NextResponse.json({
-        success: false,
-        error: createError.message,
-      }, { status: 500 });
+      return handleDatabaseError(createError, {
+        operation: 'create_product',
+        productData: {
+          sku: body.sku,
+          name_en: body.name_en,
+          price: body.price
+        },
+        userId: user.id
+      }, 'product creation');
     }
 
     console.log('✅ Product created successfully:', {

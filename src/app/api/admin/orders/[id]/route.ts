@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { withAdminAuth } from '@/lib/auth/admin-middleware';
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
+import {
+  handleDatabaseError,
+  handleGenericError
+} from '@/lib/security/error-sanitizer';
 
 /**
  * Get specific order details for admin
@@ -69,19 +73,11 @@ export const GET = withAdminAuth(async (
       .single();
 
     if (error) {
-      console.error('❌ Error fetching order details:', error);
-      
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({
-          success: false,
-          error: 'Order not found'
-        }, { status: 404 });
-      }
-      
-      return NextResponse.json({
-        success: false,
-        error: error.message
-      }, { status: 500 });
+      return handleDatabaseError(error, {
+        operation: 'fetch_order',
+        orderId,
+        userId: user.id
+      }, 'order fetch');
     }
 
     if (!order) {
