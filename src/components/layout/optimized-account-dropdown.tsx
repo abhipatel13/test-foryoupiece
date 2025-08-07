@@ -55,13 +55,25 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
   // Optimized sign out handler
   const handleSignOut = useCallback(async () => {
     try {
+      console.log('🚪 Account dropdown: Starting sign out process')
       setDropdownOpen(false)
-      await signOut()
-      
-      // Broadcast auth change to other tabs
+
+      // Set global sign-out flag immediately
+      if (typeof window !== 'undefined') {
+        (window as any).signOutInProgress = true
+      }
+
+      // Broadcast auth change to other tabs immediately
       broadcast('AUTH_STATE_CHANGE', { user: null })
+
+      // Call sign out function (this will handle redirect)
+      await signOut()
     } catch (error) {
       console.error('❌ Sign out error:', error)
+      // Force redirect even on error
+      if (typeof window !== 'undefined') {
+        window.location.replace('/en/auth/login')
+      }
     }
   }, [signOut, broadcast])
 

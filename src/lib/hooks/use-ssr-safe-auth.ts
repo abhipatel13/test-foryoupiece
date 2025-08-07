@@ -7,6 +7,7 @@ import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from './use-ssr-safe-store'
+import { clientSideLogout } from '@/lib/security/session-manager'
 
 /**
  * SSR-safe authentication hook
@@ -98,41 +99,53 @@ export function useSSRSafeAuth() {
     }
   }, [supabase.auth, clearUser, isClient])
 
-  // Enhanced sign out with complete cleanup
+  // Enhanced sign out with complete cleanup and token blacklisting
   const signOut = useCallback(async () => {
     if (!isClient) return
 
     try {
       console.log('🚪 Starting enhanced sign out process...')
 
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error('Supabase sign out error:', error)
-        // Continue with cleanup even if sign out fails
+      // Set global sign-out flag to prevent session restoration
+      if (typeof window !== 'undefined') {
+        (window as any).signOutInProgress = true
       }
 
-      // Clear all auth-related localStorage items
-      const authKeys = [
-        'supabase.auth.token',
-        'foryoupiece-user',
-        'foryoupiece-cart',
-        'session_validated_at'
-      ]
+      // Clear user state immediately to prevent UI confusion
+      clearUser()
 
-      authKeys.forEach(key => {
-        try {
-          localStorage.removeItem(key)
-        } catch (e) {
-          console.error(`Failed to remove ${key}:`, e)
+      // Use client-side logout for immediate cleanup
+      if (user?.id) {
+        const logoutResult = await clientSideLogout(user.id)
+        if (logoutResult.success) {
+          console.log('✅ Client-side logout completed successfully')
+        } else {
+          console.error('❌ Client-side logout failed:', logoutResult.error)
+          // Continue with fallback cleanup
         }
-      })
 
-      // Clear sessionStorage
-      try {
-        sessionStorage.clear()
-      } catch (e) {
-        console.error('Failed to clear session storage:', e)
+        // Also call server-side logout API for token blacklisting
+        try {
+          const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+
+          if (response.ok) {
+            console.log('✅ Server-side logout completed successfully')
+          } else {
+            console.warn('⚠️ Server-side logout failed, but continuing with client cleanup')
+          }
+        } catch (error) {
+          console.warn('⚠️ Server-side logout API call failed:', error)
+          // Continue with client-side cleanup even if server call fails
+        }
+      } else {
+        // Fallback to basic Supabase logout
+        const { error } = await supabase.auth.signOut()
+        if (error) {
+          console.error('Supabase sign out error:', error)
+        }
       }
 
       // Clear Zustand stores with proper cart cleanup
@@ -141,9 +154,10 @@ export function useSSRSafeAuth() {
 
       console.log('✅ Sign out cleanup completed')
 
-      // Force redirect to login
+      // Force redirect to login with immediate page reload
       if (typeof window !== 'undefined') {
-        window.location.href = '/en/auth/login'
+        // Use replace to prevent back button issues and force immediate redirect
+        window.location.replace('/en/auth/login')
       }
     } catch (error) {
       console.error('Sign out error:', error)
@@ -151,10 +165,10 @@ export function useSSRSafeAuth() {
       await clearCartOnLogout()
       clearUser()
       if (typeof window !== 'undefined') {
-        window.location.href = '/en/auth/login'
+        window.location.replace('/en/auth/login')
       }
     }
-  }, [supabase.auth, clearUser, isClient])
+  }, [supabase.auth, clearUser, clearCartOnLogout, isClient, user?.id])
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!isClient) return

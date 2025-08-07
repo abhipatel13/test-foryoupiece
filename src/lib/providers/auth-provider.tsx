@@ -10,8 +10,9 @@ import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
 import { useMultiTabSync, tabSyncUtils } from '@/lib/utils/multi-tab-sync'
 
 import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
+import { useSessionMonitor } from '@/lib/hooks/use-session-monitor'
 
-// Simplified auth provider - no complex session validation
+// Enhanced auth provider with session monitoring
 
 // Create auth context
 const AuthContext = createContext<{
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initializationRef = useRef(false)
   const [isValidating, setIsValidating] = useState(true)
   const crossTabSignOutRef = useRef(false)
+  const signOutInProgressRef = useRef(false)
 
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
@@ -42,6 +44,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
   const supabase = createClient()
+
+  // Enhanced session monitoring
+  const { sessionWarning, isRefreshing } = useSessionMonitor()
 
   // Multi-tab synchronization for authentication state
   const { broadcast } = useMultiTabSync({
@@ -202,10 +207,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initializationRef.current = true
     let mounted = true
 
+    // Reset global sign-out flag on page load
+    if (typeof window !== 'undefined') {
+      (window as any).signOutInProgress = false
+    }
+
     const initializeAuth = async () => {
       try {
         setIsValidating(true)
         console.log('🔍 Enhanced session restoration starting...')
+
+        // Check if sign-out is in progress (local or global flag)
+        const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
+        if (signOutInProgressRef.current || globalSignOutFlag) {
+          console.log('🚪 Sign-out in progress, skipping session restoration')
+          if (mounted) {
+            clearUser()
+            clearCart()
+            setStoreLoading(false)
+            setHydrated(true)
+            setIsValidating(false)
+          }
+          return
+        }
 
         // Try multiple methods to restore session
         let session = null
@@ -239,6 +263,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (sessionError && !session) {
           console.error('❌ Session error:', sessionError)
+          if (mounted) {
+            clearUser()
+            clearCart()
+          }
+          return
+        }
+
+        // Double-check sign-out status before setting user (local or global flag)
+        const globalSignOutFlagCheck = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
+        if (signOutInProgressRef.current || globalSignOutFlagCheck) {
+          console.log('🚪 Sign-out detected during session restoration, aborting')
           if (mounted) {
             clearUser()
             clearCart()
