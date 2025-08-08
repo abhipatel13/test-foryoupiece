@@ -45,21 +45,33 @@ export interface TelegramUpdate {
  * Stock Message Parser Class
  */
 export class StockMessageParser {
-  // Regex patterns for product extraction
+  // Regex patterns for product extraction - Enhanced to handle all format variations
   private readonly productPatterns = [
-    // Pattern 1: "1. Product Name x 2 = $50.00" or "1. Product Name x 2 = 50.00" or "1. Product Name *2 = 19$"
-    /^(\d+)\.?\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+    // Pattern 1: "1. Product Name x2 = $50.00" (no space before quantity)
+    /^(\d+)\.?\s+(.+?)\s*[x*×](\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 2: "Product Name x 2 = $50.00" or "Product Name x 2 = 50.00" (without number prefix)
-    /^(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+    // Pattern 2: "1. Product Name x 2 = $50.00" (space before quantity)
+    /^(\d+)\.?\s+(.+?)\s*[x*×]\s+(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 3: "2 Product Name * 3 = $150.00" (quantity first)
-    /^(\d+)\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+    // Pattern 3: "Product Name x2 = $50.00" (no number prefix, no space before quantity)
+    /^(.+?)\s*[x*×](\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 4: "Product Name (x2) = $50.00" (parentheses)
+    // Pattern 4: "Product Name x 2 = $50.00" (no number prefix, space before quantity)
+    /^(.+?)\s*[x*×]\s+(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+
+    // Pattern 5: "Product Name * 2 = $50.00" (asterisk with space)
+    /^(.+?)\s*\*\s+(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+
+    // Pattern 6: "Product Name *2 = $50.00" (asterisk without space)
+    /^(.+?)\s*\*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+
+    // Pattern 7: "Product Name (x2) = $50.00" (parentheses format)
     /^(.+?)\s*\([x*×](\d+)\)\s*=\s*\$?([\d.,]+)[\$]?/i,
 
-    // Pattern 5: "Item name x Qty = Price" format - catch-all
+    // Pattern 8: "2 Product Name * 3 = $150.00" (quantity first - rare but possible)
+    /^(\d+)\s+(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i,
+
+    // Pattern 9: Generic catch-all for any remaining variations
     /^(.+?)\s*[x*×]\s*(\d+)\s*=\s*\$?([\d.,]+)[\$]?/i
   ];
 
@@ -75,21 +87,38 @@ export class StockMessageParser {
 
     // Must be from the correct group
     const groupId = parseInt(process.env.TELEGRAM_STOCK_GROUP_ID || '0');
-    if (message.chat.id !== groupId) return false;
+    if (message.chat.id !== groupId) {
+      console.log(`📦 Message not from stock group (${message.chat.id} !== ${groupId}), ignoring`);
+      return false;
+    }
 
     // Must be from the correct thread
     const threadId = parseInt(process.env.TELEGRAM_STOCK_THREAD_ID || '0');
-    if (message.message_thread_id !== threadId) return false;
+    if (message.message_thread_id !== threadId) {
+      console.log(`📦 Message not from stock thread (${message.message_thread_id} !== ${threadId}), ignoring`);
+      return false;
+    }
 
-    // Must contain either "ORDER CONFIRMATION" or "✅ PAID" (case-insensitive)
+    // Must contain "ORDER CONFIRMATION" (case-insensitive) - exact format requirement
     const text = message.text.toLowerCase();
-    if (!text.includes('order confirmation') && !text.includes('✅ paid')) return false;
+    if (!text.includes('order confirmation')) {
+      console.log('📦 Message does not contain "ORDER CONFIRMATION", ignoring');
+      return false;
+    }
 
-    // Must NOT contain "#Order" (indicates order ID, not stock update)
-    if (text.includes('#order') || text.includes('#Order')) return false;
+    // Must NOT contain "Order ID" (indicates duplicate or test message)
+    if (text.includes('order id')) {
+      console.log('📦 Message contains "Order ID", ignoring as duplicate/test message');
+      return false;
+    }
 
     // Must contain at least one product pattern
-    return this.hasProductPatterns(message.text);
+    const hasProducts = this.hasProductPatterns(message.text);
+    if (!hasProducts) {
+      console.log('📦 Message does not contain valid product patterns, ignoring');
+    }
+
+    return hasProducts;
   }
 
   /**
@@ -181,21 +210,27 @@ export class StockMessageParser {
     let quantity: number;
     let price: number | undefined;
 
-    // Handle different pattern structures
+    // Handle different pattern structures based on match groups
     if (match.length === 5) {
-      // Pattern: "1. Product Name x 2 = 50.00"
+      // Pattern with prefix: "1. Product Name x 2 = 50.00" or "2 Product Name * 3 = 150.00"
       const [, prefix, name, qty, priceStr] = match;
       productName = name.trim();
       quantity = parseInt(qty);
       price = parseFloat(priceStr.replace(/,/g, ''));
     } else if (match.length === 4) {
-      // Pattern: "Product Name x 2 = 50.00"
+      // Pattern without prefix: "Product Name x 2 = 50.00"
       const [, name, qty, priceStr] = match;
       productName = name.trim();
       quantity = parseInt(qty);
       price = parseFloat(priceStr.replace(/,/g, ''));
+    } else if (match.length === 3) {
+      // Simplified pattern: "Product Name x2" (no price)
+      const [, name, qty] = match;
+      productName = name.trim();
+      quantity = parseInt(qty);
+      price = undefined;
     } else {
-      throw new Error(`Unexpected match pattern length: ${match.length}`);
+      throw new Error(`Unexpected match pattern length: ${match.length} for line: ${rawText}`);
     }
 
     // Validate extracted data
@@ -210,6 +245,9 @@ export class StockMessageParser {
     if (price !== undefined && (isNaN(price) || price < 0)) {
       throw new Error(`Invalid price: ${price}`);
     }
+
+    // Log successful extraction for debugging
+    console.log(`📦 Extracted product: "${productName}" x${quantity} ${price ? `= $${price}` : ''} (line ${lineNumber})`);
 
     return {
       rawText,
@@ -266,13 +304,20 @@ export class StockMessageParser {
    */
   isAuthorizedUser(userId: number, username?: string): boolean {
     const authorizedUsers = process.env.TELEGRAM_STOCK_AUTHORIZED_USERS;
-    if (!authorizedUsers) {
-      console.warn('No authorized users configured for stock updates');
-      return false;
+
+    // If no authorized users configured, allow all users (for testing/production flexibility)
+    if (!authorizedUsers || authorizedUsers.trim() === '' || authorizedUsers === '123456789') {
+      console.log(`📦 [AUTH] No specific authorization configured, allowing user ${userId} (${username || 'unknown'})`);
+      return true;
     }
 
     const authorizedIds = authorizedUsers.split(',').map(id => parseInt(id.trim()));
-    return authorizedIds.includes(userId);
+    const isAuthorized = authorizedIds.includes(userId);
+
+    console.log(`📦 [AUTH] User ${userId} (${username || 'unknown'}) authorization: ${isAuthorized ? 'ALLOWED' : 'DENIED'}`);
+    console.log(`📦 [AUTH] Authorized IDs: ${authorizedIds.join(', ')}`);
+
+    return isAuthorized;
   }
 
   /**

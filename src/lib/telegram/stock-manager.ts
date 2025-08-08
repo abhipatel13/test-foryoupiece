@@ -43,10 +43,14 @@ export class StockManager {
   async processStockUpdate(update: TelegramUpdate): Promise<StockUpdateResult> {
     const startTime = Date.now();
     const message = update.message || update.edited_message;
-    
+
     if (!message) {
       throw new Error('No message found in update');
     }
+
+    console.log(`📦 [STOCK] Starting stock update processing for message ${message.message_id}`);
+    console.log(`📦 [STOCK] From: ${message.from?.first_name || 'Unknown'} (@${message.from?.username || 'unknown'})`);
+    console.log(`📦 [STOCK] Chat: ${message.chat.id}, Thread: ${message.message_thread_id}`);
 
     const result: StockUpdateResult = {
       success: false,
@@ -67,34 +71,56 @@ export class StockManager {
 
     try {
       // Step 1: Validate message
+      console.log('📦 [STOCK] Step 1: Validating message...');
       if (!stockMessageParser.isValidStockMessage(update)) {
+        console.log('❌ [STOCK] Message validation failed');
         result.errors.push('Message does not meet stock update criteria');
+        result.processingTimeMs = Date.now() - startTime;
         return result;
       }
+      console.log('✅ [STOCK] Message validation passed');
 
       // Step 2: Check user authorization
+      console.log('📦 [STOCK] Step 2: Checking user authorization...');
       const userInfo = stockMessageParser.extractUserInfo(message);
       if (!stockMessageParser.isAuthorizedUser(userInfo.id, userInfo.username)) {
+        console.log(`❌ [STOCK] User ${userInfo.displayName} is not authorized`);
         result.errors.push(`User ${userInfo.displayName} is not authorized for stock updates`);
+        result.processingTimeMs = Date.now() - startTime;
         return result;
       }
+      console.log(`✅ [STOCK] User ${userInfo.displayName} is authorized`);
 
       // Step 3: Parse message for products
+      console.log('📦 [STOCK] Step 3: Parsing message for products...');
       const parseResult = stockMessageParser.parseMessage(message.text || '');
       if (!parseResult.isValid) {
+        console.log(`❌ [STOCK] Message parsing failed: ${parseResult.errors.join(', ')}`);
         result.errors.push(...parseResult.errors);
+        result.processingTimeMs = Date.now() - startTime;
         return result;
       }
+      console.log(`✅ [STOCK] Found ${parseResult.totalProducts} products in message`);
 
       result.productsFound = parseResult.totalProducts;
 
       // Step 4: Match products to database
+      console.log('📦 [STOCK] Step 4: Matching products to database...');
       const matchResult = await productMatcher.matchProducts(parseResult.products);
       result.exactMatches = matchResult.exactMatches;
       result.fuzzyMatches = matchResult.fuzzyMatches;
       result.unmatchedProducts = matchResult.unmatched.map(p => p.extractedName);
 
+      console.log(`✅ [STOCK] Product matching completed:`);
+      console.log(`   - Exact matches: ${result.exactMatches}`);
+      console.log(`   - Fuzzy matches: ${result.fuzzyMatches}`);
+      console.log(`   - Unmatched: ${result.unmatchedProducts.length}`);
+      if (result.unmatchedProducts.length > 0) {
+        console.log(`   - Unmatched products: ${result.unmatchedProducts.join(', ')}`);
+      }
+
       // Step 5: Update stock quantities
+      console.log('📦 [STOCK] Step 5: Updating stock quantities...');
       const updateResults = await this.updateStockQuantities(matchResult.matches);
       result.productsUpdated = updateResults.successCount;
       result.productsFailed = updateResults.failureCount;
@@ -102,19 +128,34 @@ export class StockManager {
       result.warnings.push(...updateResults.warnings);
       result.errors.push(...updateResults.errors);
 
+      console.log(`✅ [STOCK] Stock updates completed:`);
+      console.log(`   - Successfully updated: ${result.productsUpdated}`);
+      console.log(`   - Failed updates: ${result.productsFailed}`);
+      if (result.warnings.length > 0) {
+        console.log(`   - Warnings: ${result.warnings.join(', ')}`);
+      }
+
       // Step 6: Calculate success before logging
       result.success = result.productsUpdated > 0 || result.unmatchedProducts.length === 0;
       result.processingTimeMs = Date.now() - startTime;
 
       // Step 7: Log the processing (now with correct success status)
+      console.log('📦 [STOCK] Step 6: Logging stock update...');
       await this.logStockUpdate(message, parseResult, matchResult, updateResults, result);
 
       // Step 8: Generate response message
+      console.log('📦 [STOCK] Step 7: Generating response message...');
       result.responseMessage = this.generateResponseMessage(result);
+
+      // Final summary
+      console.log(`🏁 [STOCK] Processing completed in ${result.processingTimeMs}ms`);
+      console.log(`📊 [STOCK] Final result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+      console.log(`📈 [STOCK] Summary: ${result.productsUpdated}/${result.productsFound} products updated`);
 
       return result;
 
     } catch (error) {
+      console.error(`❌ [STOCK] Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       result.errors.push(`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       result.processingTimeMs = Date.now() - startTime;
       return result;
