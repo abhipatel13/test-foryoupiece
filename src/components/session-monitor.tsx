@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
+import { createClient } from '@/lib/supabase/client'
 
 interface SessionMonitorProps {
   checkInterval?: number // in milliseconds
@@ -56,6 +57,14 @@ export function SessionMonitor({
     }
   })
 
+  // Mark this tab as having the dedicated SessionMonitor mounted
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__FYP_SESSION_MONITOR_ACTIVE = true
+      return () => { delete (window as any).__FYP_SESSION_MONITOR_ACTIVE }
+    }
+  }, [])
+
   // Enhanced session validation with retry logic and exponential backoff
   const validateSession = async (isRetry = false): Promise<boolean> => {
     if (isCheckingRef.current && !isRetry) return true
@@ -69,6 +78,42 @@ export function SessionMonitor({
         lastValidation: new Date(lastValidationTime).toISOString()
       })
 
+      // 1) Fast client-side validation first
+      const supabase = createClient()
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        if (sessionData?.session?.user) {
+          // Try refreshing tokens to ensure validity
+          const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession()
+          if (!refreshErr && refreshed?.session?.user) {
+            const userId = refreshed.session.user.id
+            console.log('✅ Client-side session valid/refreshed for user:', userId)
+
+            // Reset retry count on successful validation
+            retryCountRef.current = 0
+            setLastValidationTime(Date.now())
+
+            // Ensure cart is loaded for the validated user
+            if (userId && user?.id === userId) {
+              console.log('🛒 Session monitor: Ensuring cart is loaded after client validation')
+              try {
+                await forceLoadCartForUser(userId)
+                console.log('✅ Session monitor: Cart reloaded successfully after client validation')
+              } catch (cartError) {
+                console.warn('⚠️ Session monitor: Failed to reload cart after client validation:', cartError)
+              }
+            }
+
+            // Broadcast validation success and return early (no server call needed)
+            broadcast('SESSION_VALIDATED', { userId, timestamp: Date.now() })
+            return true
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Client-side session check failed, falling back to server validation:', e)
+      }
+
+      // 2) Fallback to server validation only if client-side check is inconclusive
       const response = await fetch('/api/auth/validate', {
         method: 'POST',
         credentials: 'include',
@@ -96,7 +141,7 @@ export function SessionMonitor({
       }
 
       const data = await response.json()
-      console.log('✅ Session monitor: Session valid for user:', data.userId)
+      console.log('✅ Session monitor: Session valid for user (server):', data.userId)
 
       // Reset retry count on successful validation
       retryCountRef.current = 0

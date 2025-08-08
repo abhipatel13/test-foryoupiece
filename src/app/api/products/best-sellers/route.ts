@@ -31,87 +31,112 @@ export async function GET(request: NextRequest) {
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
 
-    // Build the query for best seller products
-    let query = supabase
-      .from('products')
-      .select(`
-        id,
-        sku,
-        name_en,
-        name_ja,
-        description_en,
-        description_ja,
-        price,
-        compare_at_price,
-        images,
-        brand,
-        stock_quantity,
-        is_featured,
-        is_best_seller,
-        best_seller_position,
-        created_at,
-        updated_at,
-        category_id,
-        categories!inner(
-          id,
-          name_en,
-          name_ja,
-          slug
-        )
-      `, { count: 'exact' })
-      .eq('is_active', true)
-      .eq('is_best_seller', true)
-      .not('best_seller_position', 'is', null);
-
-    // Apply top tier filter if requested (positions 1-10)
-    if (topTierOnly) {
-      query = query.gte('best_seller_position', 1).lte('best_seller_position', 10);
+    // If service role isn't configured (e.g., dev misconfig), return empty set gracefully
+    if (!supabase || typeof (supabase as any).from !== 'function' || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('⚠️ Best Sellers API: Service role not configured. Returning empty list to avoid 500.')
+      return NextResponse.json({
+        success: true,
+        data: [],
+        pagination: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        }
+      })
     }
 
-    // Order by best seller position (lowest numbers first = highest ranking)
-    query = query.order('best_seller_position', { ascending: true });
+    // Helper to build query with flexible category columns (supports legacy schema)
+    const buildQuery = (useLegacyCategoryName = false) => {
+      const categorySelect = useLegacyCategoryName
+        ? `categories!inner(id, name, slug)`
+        : `categories!inner(id, name_en, name_ja, slug)`
 
-    // Apply pagination
-    const { data: products, error, count } = await query
-      .range(offset, offset + limit - 1);
+      return supabase
+        .from('products')
+        .select(`
+          id,
+          sku,
+          name_en,
+          name_ja,
+          description_en,
+          description_ja,
+          price,
+          compare_at_price,
+          images,
+          brand,
+          stock_quantity,
+          is_featured,
+          is_best_seller,
+          best_seller_position,
+          created_at,
+          updated_at,
+          category_id,
+          ${categorySelect}
+        `, { count: 'exact' })
+        .eq('is_active', true)
+        .eq('is_best_seller', true)
+        .not('best_seller_position', 'is', null)
+        .order('best_seller_position', { ascending: true })
+    }
+
+    // Try primary query first (expects categories.name_en/name_ja)
+    let { data: products, error, count } = await buildQuery(false)
+      .range(offset, offset + limit - 1)
+
+    // If the schema doesn't have name_en/name_ja, retry with legacy categories.name
+    if (error && (error.message?.includes('name_en') || error.message?.includes('name_ja') || error.message?.includes('does not exist'))) {
+      console.warn('⚠️ Best Sellers API: Falling back to legacy categories.name due to schema mismatch')
+      const fallback = await buildQuery(true).range(offset, offset + limit - 1)
+      products = fallback.data as any
+      error = fallback.error as any
+      count = (fallback as any).count
+    }
 
     if (error) {
-      console.error('❌ Error fetching best sellers:', error);
+      console.error('❌ Error fetching best sellers:', error)
       return NextResponse.json({
         success: false,
         error: error.message
-      }, { status: 500 });
+      }, { status: 500 })
     }
 
-    console.log(`✅ Best Sellers API: Found ${products?.length || 0} products (total: ${count})`);
+    console.log(`✅ Best Sellers API: Found ${products?.length || 0} products (total: ${count})`)
 
     // Transform the data to match the expected format
-    const transformedProducts = products?.map(product => ({
-      id: product.id,
-      sku: product.sku,
-      name_en: product.name_en,
-      name_ja: product.name_ja,
-      description_en: product.description_en,
-      description_ja: product.description_ja,
-      price: product.price,
-      compare_at_price: product.compare_at_price,
-      images: product.images || [],
-      brand: product.brand,
-      stock_quantity: product.stock_quantity,
-      is_featured: product.is_featured,
-      is_best_seller: product.is_best_seller,
-      best_seller_position: product.best_seller_position,
-      created_at: product.created_at,
-      updated_at: product.updated_at,
-      category: product.categories ? {
+    const transformedProducts = products?.map((product: any) => {
+      const hasLegacyName = product?.categories && 'name' in product.categories && !('name_en' in product.categories)
+      const category = product.categories ? {
         id: product.categories.id,
-        name_en: product.categories.name_en,
-        name_ja: product.categories.name_ja,
+        name_en: hasLegacyName ? product.categories.name : product.categories.name_en,
+        name_ja: hasLegacyName ? product.categories.name : product.categories.name_ja,
         slug: product.categories.slug
-      } : null,
-      // Add stock status for display
-      stock_status: product.stock_quantity > 0 ? 'in_stock' : 'out_of_stock'
-    })) || [];
+      } : null
+
+      return {
+        id: product.id,
+        sku: product.sku,
+        name_en: product.name_en,
+        name_ja: product.name_ja,
+        description_en: product.description_en,
+        description_ja: product.description_ja,
+        price: product.price,
+        compare_at_price: product.compare_at_price,
+        images: product.images || [],
+        brand: product.brand,
+        stock_quantity: product.stock_quantity,
+        is_featured: product.is_featured,
+        is_best_seller: product.is_best_seller,
+        best_seller_position: product.best_seller_position,
+        created_at: product.created_at,
+        updated_at: product.updated_at,
+        category,
+        // Add stock status for display
+        stock_status: product.stock_quantity > 0 ? 'in_stock' : 'out_of_stock'
+      }
+    }) || []
 
     return NextResponse.json({
       success: true,
@@ -124,7 +149,7 @@ export async function GET(request: NextRequest) {
         hasNext: offset + limit < (count || 0),
         hasPrev: page > 1
       }
-    });
+    })
 
   } catch (error) {
     console.error('❌ Unexpected error in Best Sellers API:', error);

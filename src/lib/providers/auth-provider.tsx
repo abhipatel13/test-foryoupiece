@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useRef, ReactNode, useCallback, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, ReactNode, useCallback, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
@@ -10,7 +10,9 @@ import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
 import { useMultiTabSync, tabSyncUtils } from '@/lib/utils/multi-tab-sync'
 
 import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
-import { useSessionMonitor } from '@/lib/hooks/use-session-monitor'
+// import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
+import { clientSideLogout } from '@/lib/security/session-manager'
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
 
 // Enhanced auth provider with session monitoring
 
@@ -37,28 +39,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const crossTabSignOutRef = useRef(false)
   const signOutInProgressRef = useRef(false)
 
+  // Stable refs to reduce re-renders and duplicate work
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+  const currentUserRef = useRef<ReturnType<typeof useSSRSafeUserStore>['user']>(null)
+  const profileLoadInFlightRef = useRef<string | null>(null)
+  const cartLoadInFlightRef = useRef<string | null>(null)
+
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
   const cartStore = useSSRSafeCartStore()
 
   const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
-  const supabase = createClient()
 
-  // Enhanced session monitoring
-  const { sessionWarning, isRefreshing } = useSessionMonitor()
+  // Initialize a single Supabase client on the client only
+  useEffect(() => {
+    if (isClient && !supabaseRef.current) {
+      try {
+        supabaseRef.current = createClient()
+      } catch (e) {
+        console.error('Failed to create Supabase client:', e)
+      }
+    }
+  }, [isClient])
 
-  // Multi-tab synchronization for authentication state
-  const { broadcast } = useMultiTabSync({
-    onAuthStateChange: (payload) => {
+  // Track current user in a ref to avoid coupling callbacks to store deps
+  useEffect(() => {
+    currentUserRef.current = userStore.user
+  }, [userStore.user])
+
+  // Session monitoring is performed by <SessionMonitor /> at layout level to avoid duplication
+
+  // Multi-tab synchronization for authentication state (memoized to prevent listener churn)
+  const { broadcast } = useMultiTabSync(useMemo(() => ({
+    onAuthStateChange: (payload: any) => {
       console.log('🔄 AuthProvider: Auth state change from another tab:', payload)
       if (!payload.user && !crossTabSignOutRef.current) {
-        // Another tab signed out, sign out this tab too
         console.log('🚪 AuthProvider: Signing out due to cross-tab auth change')
         crossTabSignOutRef.current = true
         handleCrossTabSignOut()
-      } else if (payload.user && !userStore.user) {
-        // Another tab signed in, update this tab's state
+      } else if (payload.user && !currentUserRef.current) {
         console.log('👤 AuthProvider: Updating user state from cross-tab sign in')
         setUser(payload.user)
         setUserId(payload.user.id)
@@ -66,29 +86,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
         forceLoadCartForUser(payload.user.id)
       }
     },
-    onSessionExpired: (payload) => {
+    onSessionExpired: (payload: any) => {
       console.log('🔄 AuthProvider: Session expired in another tab:', payload)
       if (!crossTabSignOutRef.current) {
         crossTabSignOutRef.current = true
         handleCrossTabSignOut()
       }
     },
-    onSessionValidated: (payload) => {
+    onSessionValidated: (payload: any) => {
       console.log('🔄 AuthProvider: Session validated in another tab:', payload)
-      // If this tab has the same user, ensure cart is loaded
-      if (userStore.user?.id === payload.userId) {
+      if (currentUserRef.current?.id === payload.userId) {
         console.log('🛒 AuthProvider: Reloading cart due to cross-tab session validation')
         forceLoadCartForUser(payload.userId).catch(error => {
           console.warn('⚠️ AuthProvider: Failed to reload cart from cross-tab validation:', error)
         })
       }
     }
-  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [setUser, setUserId, forceLoadCartForUser]))
 
   // Handle cross-tab sign out
   const handleCrossTabSignOut = useCallback(async () => {
     console.log('🔄 AuthProvider: Handling cross-tab sign out')
     try {
+      // Sign out from Supabase first to clear cookies/tokens
+      try {
+        await supabaseRef.current?.auth.signOut()
+      } catch (e) {
+        console.warn('⚠️ Supabase signOut failed during cross-tab sign out:', e)
+      }
+
+      // Best-effort server-side logout for token blacklisting
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } catch (e) {
+        console.warn('⚠️ Server-side logout API call failed during cross-tab sign out:', e)
+      }
+
       // Clear Zustand stores with proper cart cleanup
       await clearCartOnLogout()
       clearUser()
@@ -122,60 +159,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [clearUser, clearCartOnLogout, isClient, router])
 
-  // Clear all auth-related data
-  const clearAllAuthData = useCallback(async () => {
-    console.log('🧹 Clearing all authentication data...')
-    try {
-      // Clear Supabase session
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error('Sign out error:', error)
-    }
 
-    if (isClient) {
-      // Clear all localStorage items related to auth
-      const keysToRemove = [
-        'supabase.auth.token',
-        'foryoupiece-user',
-        'foryoupiece-cart',
-        SESSION_VALIDATION_KEY
-      ]
-
-      keysToRemove.forEach(key => {
-        try {
-          localStorage.removeItem(key)
-        } catch (e) {
-          console.error(`Failed to remove ${key}:`, e)
-        }
-      })
-
-      // Clear any session storage
-      try {
-        sessionStorage.clear()
-      } catch (e) {
-        console.error('Failed to clear session storage:', e)
-      }
-    }
-
-    // Clear Zustand stores with proper cart cleanup
-    await clearCartOnLogout()
-    clearUser()
-  }, [supabase, clearUser, clearCartOnLogout, isClient])
 
   // Session expiration handler for auth interceptor
   const handleSessionExpiration = useCallback(async () => {
-    console.log('🔄 Session expired, clearing user state...')
-    await clearCartOnLogout()
-    clearUser()
-    if (isClient) {
-      router.push('/en/auth/login?expired=true')
+    console.log('🔄 Session expired, performing complete logout...')
+    try {
+      // Prefer consistent client-side logout for cleanup and Supabase sign out
+      const currentUserId = currentUserRef.current?.id
+      if (currentUserId) {
+        const result = await clientSideLogout(currentUserId)
+        if (!result.success) {
+          console.warn('⚠️ clientSideLogout reported failure:', result.error)
+        }
+      } else {
+        // Fallback to direct Supabase sign out
+        try {
+          await supabaseRef.current?.auth.signOut()
+        } catch (e) {
+          console.warn('⚠️ Supabase signOut failed during session expiration:', e)
+        }
+      }
+
+      // Best-effort server-side logout for token blacklisting
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } catch (e) {
+        console.warn('⚠️ Server-side logout API call failed during session expiration:', e)
+      }
+
+      // Clear stores
+      await clearCartOnLogout()
+      clearUser()
+
+      if (isClient) {
+        router.push('/en/auth/login?expired=true')
+      }
+    } catch (error) {
+      console.error('❌ Session expiration handler error:', error)
+      // Ensure redirect even on error
+      if (isClient) {
+        router.push('/en/auth/login?expired=true')
+      }
     }
   }, [clearUser, clearCartOnLogout, isClient, router])
 
   // Removed performance optimization hooks to improve dropdown speed
 
-  // Load user profile function
+  // Load user profile with simple in-flight dedupe
   const loadUserProfile = async (userId: string) => {
+    if (profileLoadInFlightRef.current === userId) {
+      console.log('⏭️ Skipping duplicate profile load for:', userId)
+      return
+    }
+    profileLoadInFlightRef.current = userId
     try {
       console.log('📋 Querying user profile for userId:', userId)
       const profile = await userQueries.getProfile(userId)
@@ -191,6 +231,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error('❌ Error loading user profile:', error)
       // Don't throw - profile loading failure shouldn't break authentication
+    } finally {
+      // Allow future profile loads for same user after a brief debounce
+      setTimeout(() => {
+        if (profileLoadInFlightRef.current === userId) profileLoadInFlightRef.current = null
+      }, 1000)
     }
   }
 
@@ -237,7 +282,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // Method 1: Try getSession first
         try {
-          const { data: sessionData, error } = await supabase.auth.getSession()
+          const { data: sessionData, error } = await supabaseRef.current?.auth.getSession() ?? { data: { session: null }, error: null as any }
           session = sessionData.session
           sessionError = error
           console.log('🔍 getSession result:', { hasSession: !!session, error: error?.message })
@@ -249,11 +294,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!session && !sessionError) {
           try {
             console.log('🔍 Trying getUser for token validation...')
-            const { data: userData, error: userError } = await supabase.auth.getUser()
+            const { data: userData, error: userError } = await supabaseRef.current?.auth.getUser() ?? { data: { user: null }, error: null as any }
             if (userData.user && !userError) {
               console.log('✅ Valid user found via getUser, refreshing session...')
               // Try to refresh the session
-              const { data: refreshData } = await supabase.auth.refreshSession()
+              const { data: refreshData } = await supabaseRef.current!.auth.refreshSession()
               session = refreshData.session
             }
           } catch (error) {
@@ -327,17 +372,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('🧹 Auth provider cleanup, setting mounted = false')
       mounted = false
     }
-  }, [isClient, setUser, setUserId, setProfile, setStoreLoading, setHydrated, clearUser, forceLoadCartForUser, clearCart, supabase.auth])
+  }, [isClient, setUser, setUserId, setProfile, setStoreLoading, setHydrated, clearUser, forceLoadCartForUser, clearCart])
 
   // Set up auth state change listener - simplified
   useEffect(() => {
-    if (!isClient || !initializationRef.current) return
+    if (!isClient || !initializationRef.current || !supabaseRef.current) return
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+    const { data: { subscription } } = supabaseRef.current.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session: SupabaseSession | null) => {
         console.log('🔄 Auth state change:', event)
 
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        // Ignore initial session event to avoid duplicating initialization work
+        if (event === 'INITIAL_SESSION') {
+          return
+        }
+
+        if (event === 'SIGNED_OUT') {
           // Use proper cart logout cleanup
           await clearCartOnLogout()
           clearUser()
@@ -350,14 +400,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
           router.push('/en/auth/login')
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           if (session?.user) {
-            console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
-            setUser(session.user)
-            setUserId(session.user.id)
-            await loadUserProfile(session.user.id)
-            await forceLoadCartForUser(session.user.id)
+            const sameUser = currentUserRef.current?.id === session.user.id
+            if (sameUser && event === 'SIGNED_IN') {
+              console.log('⏭️ Skipping duplicate SIGNED_IN handling for same user')
+            } else {
+              console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
+              setUser(session.user)
+              setUserId(session.user.id)
+              await loadUserProfile(session.user.id)
+              // Only force cart reload when user actually changed
+              if (!sameUser) {
+                await forceLoadCartForUser(session.user.id)
+              }
 
-            // Broadcast sign in to other tabs
-            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+              // Broadcast sign in/update to other tabs
+              broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+            }
           }
         } else if (event === 'USER_UPDATED') {
           if (session?.user) {
@@ -376,7 +434,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [isClient, supabase.auth, setUser, setUserId, clearUser, clearCartOnLogout, router])
+  }, [isClient, setUser, setUserId, clearUser, clearCartOnLogout, router])
 
   // Register auth handler for interceptor
   useEffect(() => {
@@ -389,8 +447,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [isClient, handleSessionExpiration])
 
+  const contextValue = useMemo(() => ({ initialized: true, isValidating }), [isValidating])
+
   return (
-    <AuthContext.Provider value={{ initialized: true, isValidating }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   )

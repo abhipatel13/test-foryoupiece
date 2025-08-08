@@ -208,7 +208,9 @@ export const useCartStore = create<CartStore>()(
             userId: null,
             pointsToRedeem: 0,
             appliedCoupon: null,
-            shippingCalculation: null
+            shippingCalculation: null,
+            isLoading: false,
+            isHydrated: true
           })
           // Clear localStorage immediately on logout
           try {
@@ -441,7 +443,8 @@ export const useCartStore = create<CartStore>()(
           items: [],
           pointsToRedeem: 0,
           appliedCoupon: null,
-          shippingCalculation: null
+          shippingCalculation: null,
+          isLoading: false
         })
 
         // Clear localStorage to prevent conflicts
@@ -488,7 +491,8 @@ export const useCartStore = create<CartStore>()(
           pointsToRedeem: 0,
           appliedCoupon: null,
           shippingCalculation: null,
-          isLoading: false
+          isLoading: false,
+          isHydrated: true
         })
 
         // Clear localStorage to prevent cross-browser conflicts
@@ -572,6 +576,11 @@ export const useCartStore = create<CartStore>()(
 
         console.log('🛒 Loading cart from database for user:', userId)
         set({ isLoading: true })
+        // Defensive timeout to prevent stuck loading state
+        const loadTimeout = setTimeout(() => {
+          console.warn('⏰ Cart load timeout - forcing isLoading=false')
+          set({ isLoading: false })
+        }, 15000)
         try {
           // Clear localStorage before loading from database to ensure consistency
           try {
@@ -635,6 +644,7 @@ export const useCartStore = create<CartStore>()(
           set({ isLoading: false })
         } finally {
           // Ensure loading state is always cleared
+          try { clearTimeout(loadTimeout) } catch {}
           set({ isLoading: false })
         }
       },
@@ -659,6 +669,11 @@ export const useCartStore = create<CartStore>()(
         })
 
         set({ isLoading: true })
+        // Defensive timeout to prevent stuck loading state
+        const syncTimeout = setTimeout(() => {
+          console.warn('⏰ Cart sync timeout - forcing isLoading=false')
+          set({ isLoading: false })
+        }, 15000)
         try {
           // Clear existing cart in database
           await cartQueries.clearCart(userId)
@@ -680,6 +695,7 @@ export const useCartStore = create<CartStore>()(
           console.error('❌ Failed to sync cart with database:', error)
           throw error // Re-throw to allow caller to handle
         } finally {
+          try { clearTimeout(syncTimeout) } catch {}
           set({ isLoading: false })
         }
       },

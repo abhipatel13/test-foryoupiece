@@ -55,32 +55,43 @@ class MultiTabSync {
   }
 
   private handleMessage(event: MessageEvent<TabSyncMessage>) {
-    const { type, payload, tabId } = event.data
+    try {
+      const data = event && (event as any).data
+      if (!data || typeof data !== 'object') return
 
-    // Ignore messages from the same tab
-    if (tabId === this.tabId) return
+      const { type, payload, tabId } = data as any
+      if (!type || typeof type !== 'string') return
 
-    console.log('📨 Received tab sync message:', { type, tabId })
+      // Ignore messages from the same tab
+      if (tabId === this.tabId) return
 
-    switch (type) {
-      case 'AUTH_STATE_CHANGE':
-        this.listeners.onAuthStateChange?.(payload)
-        break
-      case 'ADMIN_STATUS_CHANGE':
-        this.listeners.onAdminStatusChange?.(payload)
-        break
-      case 'PROFILE_UPDATE':
-        this.listeners.onProfileUpdate?.(payload)
-        break
-      case 'CACHE_INVALIDATE':
-        this.listeners.onCacheInvalidate?.(payload)
-        break
-      case 'SESSION_EXPIRED':
-        this.listeners.onSessionExpired?.(payload)
-        break
-      case 'SESSION_VALIDATED':
-        this.listeners.onSessionValidated?.(payload)
-        break
+      console.log('📨 Received tab sync message:', { type, tabId })
+
+      switch (type) {
+        case 'AUTH_STATE_CHANGE':
+          this.listeners.onAuthStateChange?.(payload)
+          break
+        case 'ADMIN_STATUS_CHANGE':
+          this.listeners.onAdminStatusChange?.(payload)
+          break
+        case 'PROFILE_UPDATE':
+          this.listeners.onProfileUpdate?.(payload)
+          break
+        case 'CACHE_INVALIDATE':
+          this.listeners.onCacheInvalidate?.(payload)
+          break
+        case 'SESSION_EXPIRED':
+          this.listeners.onSessionExpired?.(payload)
+          break
+        case 'SESSION_VALIDATED':
+          this.listeners.onSessionValidated?.(payload)
+          break
+        default:
+          // Unknown message type - ignore
+          break
+      }
+    } catch (err) {
+      console.error('❌ Multi-tab sync handleMessage error:', err)
     }
   }
 

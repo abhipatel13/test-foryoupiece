@@ -134,30 +134,39 @@ export function useSessionMonitor() {
   /**
    * Monitor session activity
    */
+  // Cooldown to avoid redundant refresh work right after cross-tab validation
+  const lastCrossTabValidationRef = useRef<number>(0)
+
   const monitorSession = useCallback(async () => {
     const currentUser = userRef.current
     if (!currentUser) {
       return
     }
-    
+
+    // Skip heavy work if we just validated via cross-tab broadcast
+    const now = Date.now()
+    if (now - lastCrossTabValidationRef.current < 15000) { // 15s cooldown
+      return
+    }
+
     // Get or create session
     let session = getCurrentSession(currentUser.id)
     if (!session) {
       session = createSession(currentUser.id)
     }
-    
+
     // Update activity and check if session is still valid
     const isValid = updateSessionActivity(currentUser.id)
     if (!isValid) {
       await handleSessionExpiration('session_timeout')
       return
     }
-    
+
     // Check if we need to refresh tokens
     if (shouldRefreshSession(currentUser.id)) {
       await handleTokenRefresh(currentUser.id)
     }
-    
+
     // Check for session warnings
     const warning = checkSessionWarnings(currentUser.id)
     if (warning) {
@@ -221,18 +230,58 @@ export function useSessionMonitor() {
     }
   }, [clearUser, router])
   
+  // Listen for cross-tab session validation broadcasts to set cooldown timestamp
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handler = (event: MessageEvent) => {
+      const data = (event as any).data
+      if (data?.type === 'SESSION_VALIDATED') {
+        lastCrossTabValidationRef.current = Date.now()
+      }
+    }
+
+    // Prefer BroadcastChannel if available
+    let channel: BroadcastChannel | null = null
+    if ('BroadcastChannel' in window) {
+      channel = new BroadcastChannel('foryoupiece_tab_sync')
+      channel.addEventListener('message', handler as any)
+    } else {
+      // Fallback to storage events
+      const storageHandler = (e: StorageEvent) => {
+        if (e.key === 'foryoupiece_tab_sync' && e.newValue) {
+          try {
+            const message = JSON.parse(e.newValue)
+            if (message?.type === 'SESSION_VALIDATED') {
+              lastCrossTabValidationRef.current = Date.now()
+            }
+          } catch {}
+        }
+      }
+      window.addEventListener('storage', storageHandler)
+      return () => window.removeEventListener('storage', storageHandler)
+    }
+
+    return () => {
+      if (channel) {
+        channel.removeEventListener('message', handler as any)
+        channel.close()
+      }
+    }
+  }, [])
+
   // Set up session monitoring interval
   useEffect(() => {
     if (!user) {
       return
     }
-    
+
     // Initial session creation
     createSession(user.id)
-    
+
     // Monitor session every 30 seconds
     const interval = setInterval(monitorSession, 30 * 1000)
-    
+
     return () => {
       clearInterval(interval)
     }
