@@ -280,6 +280,130 @@ export class TierRewardsService {
   }
 
   /**
+   * Generate a unique coupon code with collision detection
+   */
+  private async generateUniqueCouponCode(tierLevel: string, userId: string): Promise<string> {
+    const serviceClient = this.getServiceClient()
+    if (!serviceClient) {
+      throw new Error('Service client not available')
+    }
+
+    let attempts = 0
+    const maxAttempts = 10
+
+    while (attempts < maxAttempts) {
+      // Generate a more unique code with timestamp and random elements
+      const timestamp = Date.now().toString(36).toUpperCase()
+      const randomPart = Math.random().toString(36).substr(2, 6).toUpperCase()
+      const userPart = userId.substr(-4).toUpperCase()
+      const couponCode = `${tierLevel.toUpperCase()}${timestamp}${randomPart}${userPart}`
+
+      // Check if code already exists
+      const { data: existingCoupon, error } = await serviceClient
+        .from('coupons')
+        .select('id')
+        .eq('code', couponCode)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        // No existing coupon found, code is unique
+        return couponCode
+      }
+
+      attempts++
+      // Add small delay to ensure different timestamps
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+
+    throw new Error('Failed to generate unique coupon code after maximum attempts')
+  }
+
+  /**
+   * Create a free shipping coupon for tier reward
+   */
+  private async createFreeShippingCoupon(userId: string, reward: TierReward): Promise<{ couponId: string; couponCode: string }> {
+    try {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
+        throw new Error('Service client not available')
+      }
+
+      // Generate unique coupon code with collision detection
+      const couponCode = await this.generateUniqueCouponCode(reward.tier_level, userId)
+
+      // Set expiration to 1 year from now
+      const expiresAt = new Date()
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+
+      const couponData = {
+        code: couponCode,
+        name: `${reward.tier_level.charAt(0).toUpperCase() + reward.tier_level.slice(1)} Tier Free Shipping`,
+        description: `Free shipping coupon awarded for reaching ${reward.tier_level} tier`,
+        discount_type: 'free_shipping',
+        discount_value: 0,
+        allowed_user_ids: JSON.stringify([userId]),
+        per_user_usage_limit: 1,
+        total_usage_limit: 1,
+        expires_at: expiresAt.toISOString(),
+        status: 'active',
+        metadata: {
+          tier_reward: true,
+          tier_level: reward.tier_level,
+          user_id: userId,
+          awarded_at: new Date().toISOString(),
+          auto_generated: true
+        }
+      }
+
+      const { data: coupon, error: couponError } = await serviceClient
+        .from('coupons')
+        .insert(couponData)
+        .select()
+        .single()
+
+      if (couponError) {
+        throw new Error(`Failed to create coupon: ${couponError.message}`)
+      }
+
+      console.log(`✅ Created free shipping coupon ${couponCode} for user ${userId}`)
+      return { couponId: coupon.id, couponCode: coupon.code }
+    } catch (error: any) {
+      console.error('❌ Failed to create free shipping coupon:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Enable permanent free shipping for Diamond tier users
+   */
+  private async enablePermanentFreeShipping(userId: string): Promise<void> {
+    try {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
+        throw new Error('Service client not available')
+      }
+
+      // Update user's permanent_free_shipping flag
+      const { error: updateError } = await serviceClient
+        .from('users')
+        .update({
+          permanent_free_shipping: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (updateError) {
+        throw new Error(`Failed to enable permanent free shipping: ${updateError.message}`)
+      }
+
+      console.log(`✅ Enabled permanent free shipping for user ${userId}`)
+    } catch (error: any) {
+      console.error('❌ Failed to enable permanent free shipping:', error)
+      throw error
+    }
+  }
+
+  /**
    * Award a specific tier reward
    */
   private async awardTierReward(userId: string, reward: TierReward): Promise<TierRewardHistory | null> {

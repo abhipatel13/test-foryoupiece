@@ -19,6 +19,8 @@ import Link from 'next/link'
 import PointsDashboard from '@/components/user/points-dashboard'
 import TierRewardsDisplay from '@/components/user/tier-rewards-display'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
+import { RewardsCouponsSection } from '@/components/user/rewards-coupons-section'
+// import { TierProgressionTester } from '@/components/test/tier-progression-tester' // Removed from production E2E runs
 import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog'
 
 
@@ -399,8 +401,10 @@ export default function ProfilePage() {
             showTierProgress={true}
           />
 
-          {/* Tier Rewards Display */}
-          <TierRewardsDisplay userId={profile?.id} userProfile={profile} />
+          {/* Rewards & Coupons Section */}
+          <RewardsCouponsSection userId={profile?.id} userProfile={profile} />
+
+          {/* Development Testing Tools removed for production-ready E2E */}
 
         </div>
 

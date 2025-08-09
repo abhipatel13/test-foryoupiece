@@ -10,6 +10,7 @@ import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { SimpleAccountDropdown } from '@/components/layout/simple-account-dropdown'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -265,6 +266,9 @@ export function Header() {
               <span className="font-semibold">EN</span>
               <ChevronDown className="h-3 w-3 ml-2" />
             </div>
+
+            {/* Notifications Bell */}
+            {isAuthenticated && <NotificationBell className="flex-shrink-0" />}
 
             {/* Account & Lists - Simple and Fast */}
             <SimpleAccountDropdown className="flex-shrink-0 min-w-0" />

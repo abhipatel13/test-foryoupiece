@@ -403,8 +403,8 @@ export function PointsBreakdownComponent({
               <span>Your Tier Benefits</span>
             </h4>
             <div className="space-y-2">
-              {tier_info.tier_benefits.map((benefit, index) => (
-                <div key={index} className="flex items-center space-x-2 text-sm">
+              {tier_info.tier_benefits.map((benefit) => (
+                <div key={`${benefit}-${tier_info.current_tier}`} className="flex items-center space-x-2 text-sm">
                   <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                   <span className="text-gray-700">{benefit}</span>
                 </div>

@@ -50,9 +50,17 @@ export function SessionMonitor({
       // If this tab has the same user, ensure cart is loaded
       if (user?.id === payload.userId) {
         console.log('🛒 SessionMonitor: Reloading cart due to cross-tab session validation')
-        forceLoadCartForUser(payload.userId).catch(error => {
-          console.warn('⚠️ SessionMonitor: Failed to reload cart from cross-tab validation:', error)
-        })
+        try {
+          const maybePromise = forceLoadCartForUser(payload.userId)
+          // Gracefully handle both Promise and non-Promise implementations
+          if (maybePromise && typeof (maybePromise as any).catch === 'function') {
+            (maybePromise as Promise<void>).catch(error => {
+              console.warn('⚠️ SessionMonitor: Failed to reload cart from cross-tab validation:', error)
+            })
+          }
+        } catch (error) {
+          console.warn('⚠️ SessionMonitor: forceLoadCartForUser threw synchronously:', error)
+        }
       }
     }
   })

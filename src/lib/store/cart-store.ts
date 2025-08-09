@@ -70,7 +70,7 @@ type CartStore = {
   getFinalTotal: () => number
   getTotalPointsEarned: () => number
   setUserId: (userId: string | null, forceReload?: boolean) => void
-  forceLoadCartForUser: (userId: string) => void
+  forceLoadCartForUser: (userId: string) => Promise<void>
   setItems: (items: CartItem[]) => void
   deduplicateItems: () => void
   syncWithDatabase: () => Promise<void>
@@ -223,9 +223,14 @@ export const useCartStore = create<CartStore>()(
       },
 
       // Force cart loading for authenticated user (used during authentication)
-      forceLoadCartForUser: (userId: string) => {
-        console.log('🛒 Force loading cart for authenticated user:', { userId })
-        get().setUserId(userId, true) // Force reload even if userId is the same
+      forceLoadCartForUser: async (userId: string) => {
+        try {
+          console.log('🛒 Force loading cart for authenticated user:', { userId })
+          await get().loadCartFromDatabase();
+        } catch (e) {
+          console.warn('⚠️ forceLoadCartForUser failed to load from DB, falling back to setUserId force reload', e)
+          get().setUserId(userId, true)
+        }
       },
 
       // Helper method to set items with deduplication
