@@ -136,6 +136,15 @@ export function SessionMonitor({
       }
 
       // 2) Fallback to server validation only if client-side check is inconclusive
+      // Defer the very first server validation slightly to avoid racing with auth initialization
+      if (!isRetry && lastValidationTime === 0) {
+        setTimeout(() => {
+          // Mark as retry so we don't defer again
+          validateSession(true)
+        }, 1500)
+        return true
+      }
+
       // Use the correct validation endpoint
       const response = await fetch('/api/auth/session/validate', {
         method: 'POST',
@@ -228,8 +237,8 @@ export function SessionMonitor({
   useEffect(() => {
     if (!enabled || !user) return
 
-    // Immediate initial validation for fast feedback
-    const initialTimeout = setTimeout(() => validateSession(), 0)
+    // Immediate initial validation with short delay to allow auth restoration to complete
+    const initialTimeout = setTimeout(() => validateSession(), 1500)
 
     // Set up periodic validation checks (use the configured interval)
     intervalRef.current = setInterval(() => validateSession(), checkInterval)

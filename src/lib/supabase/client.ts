@@ -49,7 +49,9 @@ class CrossBrowserStorage {
       localStorage.removeItem(testKey)
       this.storageAvailable = true
 
-      console.log(`🔍 Storage available for ${this.browser.name} ${this.browser.version}`)
+      if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log(`🔍 Storage available for ${this.browser.name} ${this.browser.version}`)
+      }
     } catch (error) {
       console.warn(`⚠️ localStorage unavailable in ${this.browser.name}, using memory fallback:`, error)
       this.storageAvailable = false

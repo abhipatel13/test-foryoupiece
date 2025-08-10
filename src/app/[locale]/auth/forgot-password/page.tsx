@@ -101,7 +101,6 @@ export default function ForgotPasswordPage() {
                   width={80}
                   height={24}
                   className="object-contain flex-shrink-0"
-                  priority
                 />
               </div>
             </Link>
@@ -176,7 +175,6 @@ export default function ForgotPasswordPage() {
                 width={80}
                 height={24}
                 className="object-contain flex-shrink-0"
-                priority
               />
             </div>
           </Link>

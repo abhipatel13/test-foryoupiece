@@ -190,7 +190,6 @@ export default function RegisterPage() {
                 width={80}
                 height={24}
                 className="object-contain flex-shrink-0 hidden xs:block"
-                priority
               />
             </div>
           </Link>

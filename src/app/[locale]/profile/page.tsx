@@ -24,10 +24,7 @@ import TierRewardsDisplay from '@/components/user/tier-rewards-display'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { RedesignedPointsWrapper } from '@/components/user/redesigned-points-wrapper'
 import { RewardsCouponsSection } from '@/components/user/rewards-coupons-section'
-// import { TierProgressionTester } from '@/components/test/tier-progression-tester' // Removed from production E2E runs
 import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog'
-
-
 
 interface Order {
   id: string
@@ -92,80 +89,13 @@ export default function ProfilePage() {
     setIsEditingAddress(true)
   }
 
-  const handleSaveAddress = async () => {
-    setSavingAddress(true)
-    try {
-      await updateProfile({
-        address_line_1: addressData.address_line_1 || null,
-        address_line_2: addressData.address_line_2 || null,
-        aba_bank_name: addressData.aba_bank_name || null
-      })
-      setIsEditingAddress(false)
-      toast.success('Address information updated successfully!')
-    } catch (error) {
-      // Report silently without polluting console
-      Sentry.captureException(error)
-      toast.error('Failed to update address information')
-    } finally {
-      setSavingAddress(false)
-    }
-  }
-
-  const handleCancelEdit = () => {
-    // Reset to original values
-    if (profile) {
-      setAddressData({
-        address_line_1: profile.address_line_1 || '',
-        address_line_2: profile.address_line_2 || '',
-        aba_bank_name: profile.aba_bank_name || ''
-      })
-    }
-    setIsEditingAddress(false)
-  }
-
-  const handleEditProfile = () => {
-    setIsEditingProfile(true)
-  }
-
-  const handleSaveProfile = async () => {
-    setSavingProfile(true)
-    try {
-      await updateProfile({
-        first_name: profileData.first_name || null,
-        last_name: profileData.last_name || null,
-        phone: profileData.phone || null
-        // Note: email updates might require special handling in auth systems
-      })
-      setIsEditingProfile(false)
-      toast.success('Profile updated successfully!')
-    } catch (error) {
-      Sentry.captureException(error)
-      toast.error('Failed to update profile')
-    } finally {
-      setSavingProfile(false)
-    }
-  }
-
-  const handleCancelProfileEdit = () => {
-    // Reset to original values
-    if (profile) {
-      setProfileData({
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: profile.phone || '',
-        email: profile.email || ''
-      })
-    }
-    setIsEditingProfile(false)
-  }
-
   const handleDeleteAddress = async () => {
-    if (!confirm('Are you sure you want to delete your saved address information?')) {
+    if (!confirm('Are you sure you want to delete your saved address and ABA bank information?')) {
       return
     }
 
-    setSavingAddress(true)
     try {
+      setSavingAddress(true)
       await updateProfile({
         address_line_1: null,
         address_line_2: null,
@@ -185,18 +115,83 @@ export default function ProfilePage() {
     }
   }
 
+  const handleSaveAddress = async () => {
+    if (!addressData.address_line_1 || !addressData.aba_bank_name) {
+      toast.error('Please fill in all required fields')
+      return
+    }
 
+    try {
+      setSavingAddress(true)
+      await updateProfile({
+        address_line_1: addressData.address_line_1,
+        address_line_2: addressData.address_line_2 || null,
+        aba_bank_name: addressData.aba_bank_name || null
+      })
+      setIsEditingAddress(false)
+      toast.success('Address information updated successfully!')
+    } catch (error) {
+      Sentry.captureException(error)
+      toast.error('Failed to update address information')
+    } finally {
+      setSavingAddress(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    if (profile) {
+      setAddressData({
+        address_line_1: profile.address_line_1 || '',
+        address_line_2: profile.address_line_2 || '',
+        aba_bank_name: profile.aba_bank_name || ''
+      })
+    }
+    setIsEditingAddress(false)
+  }
+
+  const handleEditProfile = () => {
+    setIsEditingProfile(true)
+  }
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true)
+      await updateProfile({
+        first_name: profileData.first_name || null,
+        last_name: profileData.last_name || null,
+        phone: profileData.phone || null
+      })
+      setIsEditingProfile(false)
+      toast.success('Profile updated successfully!')
+    } catch (error) {
+      Sentry.captureException(error)
+      toast.error('Failed to update profile')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handleCancelProfileEdit = () => {
+    if (profile) {
+      setProfileData({
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: profile.phone || '',
+        email: profile.email || ''
+      })
+    }
+    setIsEditingProfile(false)
+  }
 
   const loadOrders = useCallback(async () => {
     if (!user) return
 
     try {
       setOrdersLoading(true)
-      const userOrders = await orderQueries.getUserOrders(user.id, 5) // Load last 5 orders
+      const userOrders = await orderQueries.getUserOrders(user.id, 5)
       setOrders(userOrders)
     } catch (error) {
       Sentry.captureException(error)
-      // Set empty array on error to prevent infinite retries
       setOrders([])
     } finally {
       setOrdersLoading(false)
@@ -204,14 +199,14 @@ export default function ProfilePage() {
   }, [user])
 
   useEffect(() => {
-    if (user && isAuthenticated && !loading) {
+    if (user?.id && isAuthenticated && !loading) {
       loadOrders().catch((error) => {
         Sentry.captureException(error)
         setOrders([])
         setOrdersLoading(false)
       })
     }
-  }, [user?.id, isAuthenticated, loading, loadOrders]) // Only depend on user.id to prevent unnecessary re-renders
+  }, [user?.id, isAuthenticated, loading, loadOrders])
 
   if (loading) {
     return (
@@ -257,20 +252,27 @@ export default function ProfilePage() {
   }
 
   return (
-    <div role="main" aria-labelledby="page-title" className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+    <div role="main" aria-labelledby="page-title" className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4 sm:mb-6 lg:mb-8">
-          <h1 id="page-title" className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-gray-900 mb-1 sm:mb-2">{t('title')}</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Manage your account and view your loyalty status</p>
+        <div className="mb-6 sm:mb-8 lg:mb-10 text-center sm:text-left">
+          <h1 id="page-title" className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900 mb-2 sm:mb-3">
+            {t('title')}
+          </h1>
+          <p className="text-base sm:text-lg text-muted-foreground font-medium">
+            Manage your account and view your loyalty status
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mb-6 sm:mb-8">
-          {/* Profile Info - Mobile-First Responsive */}
-          <Card role="region" aria-labelledby="profile-info-title">
-            <CardHeader className="text-center pb-3 sm:pb-6 pt-4">
-              <Avatar className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
-                <AvatarImage src={profile?.avatar_url || ''} alt={profile?.first_name ? `${profile.first_name} ${profile.last_name}` : 'User avatar'} />
-                <AvatarFallback className="text-base sm:text-lg">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+          {/* Profile card */}
+          <Card role="region" aria-labelledby="profile-info-title" className="lg:col-span-1">
+            <CardHeader className="text-center pb-4 sm:pb-6 pt-6">
+              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-4 sm:mb-5 ring-4 ring-blue-100">
+                <AvatarImage 
+                  src={profile?.avatar_url || ''} 
+                  alt={profile?.first_name ? `${profile.first_name} ${profile.last_name}` : 'User avatar'} 
+                />
+                <AvatarFallback className="text-lg sm:text-xl font-bold bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                   {profile?.first_name?.[0] || profile?.telegram_username?.[0] || 'U'}
                 </AvatarFallback>
               </Avatar>
@@ -283,430 +285,364 @@ export default function ProfilePage() {
               <CardDescription className="text-sm">
                 {profile?.email || 'Telegram User'}
               </CardDescription>
+
+              {/* Tier Display */}
+              {profile && (
+                <div className="mt-3 flex justify-center">
+                  <Badge className={`px-4 py-2 text-sm font-bold border-2 ${getTierColor(getCorrectUserTier(profile))}`}>
+                    <span className="mr-2 text-base">{getTierIcon(getCorrectUserTier(profile))}</span>
+                    {getCorrectUserTier(profile).toUpperCase()} MEMBER
+                  </Badge>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-3 sm:space-y-4">
-              {isEditingProfile ? (
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="edit-first-name" className="text-sm">First Name</Label>
+              {/* Profile Information */}
+              {!isEditingProfile ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-700">Profile Information</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleEditProfile}
+                      className="h-8 px-2 text-xs"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2 text-gray-400" />
+                      <span>{profile?.first_name || 'Not set'} {profile?.last_name || ''}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                      <span>{profile?.email || 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                      <span>{profile?.phone || 'Not set'}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700">Edit Profile</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="first_name" className="text-xs">First Name</Label>
                       <Input
-                        id="edit-first-name"
-                        className="h-11"
+                        id="first_name"
                         value={profileData.first_name}
-                        onChange={(e) => setProfileData({
-                          ...profileData,
-                          first_name: e.target.value
-                        })}
+                        onChange={(e) => setProfileData(prev => ({ ...prev, first_name: e.target.value }))}
+                        className="mt-1"
                       />
                     </div>
-                    <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="edit-last-name" className="text-sm">Last Name</Label>
+                    <div>
+                      <Label htmlFor="last_name" className="text-xs">Last Name</Label>
                       <Input
-                        id="edit-last-name"
-                        className="h-11"
+                        id="last_name"
                         value={profileData.last_name}
-                        onChange={(e) => setProfileData({
-                          ...profileData,
-                          last_name: e.target.value
-                        })}
+                        onChange={(e) => setProfileData(prev => ({ ...prev, last_name: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone" className="text-xs">Phone</Label>
+                      <Input
+                        id="phone"
+                        value={profileData.phone}
+                        onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email" className="text-xs">Email (Read-only)</Label>
+                      <Input
+                        id="email"
+                        value={profileData.email}
+                        disabled
+                        className="mt-1 bg-gray-50"
                       />
                     </div>
                   </div>
-                  <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="edit-phone" className="text-sm">Phone Number</Label>
-                    <Input
-                      id="edit-phone"
-                      type="tel"
-                      className="h-11"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData({
-                        ...profileData,
-                        phone: e.target.value
-                      })}
-                    />
-                  </div>
-                  <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="edit-email" className="text-sm">Email (Read-only)</Label>
-                    <Input
-                      id="edit-email"
-                      type="email"
-                      className="h-11 bg-gray-50"
-                      value={profileData.email}
-                      disabled
-                    />
-                    <p className="text-xs text-gray-500">Email cannot be changed here</p>
-                  </div>
-                  <div className="flex space-x-2">
+                  <div className="flex gap-2">
                     <Button
                       onClick={handleSaveProfile}
                       disabled={savingProfile}
-                      className="flex-1 min-h-[44px]"
+                      size="sm"
+                      className="min-h-[44px] flex-1"
                     >
                       {savingProfile ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <Save className="h-3 w-3 mr-1 animate-spin" />
                           Saving...
                         </>
                       ) : (
                         <>
-                          <Save className="h-4 w-4 mr-1" />
+                          <Save className="h-3 w-3 mr-1" />
                           Save
                         </>
                       )}
                     </Button>
                     <Button
-                      onClick={handleCancelProfileEdit}
                       variant="outline"
-                      className="flex-1 min-h-[44px]"
+                      onClick={handleCancelProfileEdit}
+                      size="sm"
+                      className="min-h-[44px]"
                     >
-                      <X className="h-4 w-4 mr-1" />
+                      <X className="h-3 w-3 mr-1" />
                       Cancel
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-center space-x-2">
-                    <Mail className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm">{profile?.email || 'Not provided'}</span>
-                  </div>
-                  {profile?.phone && (
-                    <div className="flex items-center space-x-2">
-                      <Phone className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm">{profile.phone}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm">
-                      Joined {formatDate(profile?.created_at)}
-                    </span>
-                  </div>
-                  <Button
-                    className="w-full min-h-[44px]"
-                    variant="outline"
-                    onClick={handleEditProfile}
-                    disabled={isEditingProfile}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Profile
-                  </Button>
-                </>
               )}
-            </CardContent>
-          </Card>
 
-          {/* Notifications Section Anchor */}
-          <div id="notifications"></div>
+              <Separator />
 
-          <Card className="mt-4" role="region" aria-labelledby="notifications-title">
-            <CardHeader>
-              <CardTitle id="notifications-title" className="flex items-center space-x-2">
-                <Bell className="h-5 w-5" />
-                <span>Notifications</span>
-              </CardTitle>
-              <CardDescription>Your account notifications in one place</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm text-gray-600">No notifications yet.</div>
-            </CardContent>
-          </Card>
-
-          {/* Points + Rewards & Coupons side-by-side on desktop, stacked on mobile */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <div className="order-1">
-              <RedesignedPointsWrapper
-                userId={profile?.id || ''}
-              />
-            </div>
-            <div className="order-2">
-              <RewardsCouponsSection userId={profile?.id} userProfile={profile} />
-            </div>
-          </div>
-
-          {/* Development Testing Tools removed for production-ready E2E */}
-
-        </div>
-
-        {/* Account Security */}
-        <Card className="mb-8" role="region" aria-labelledby="account-security-title">
-          <CardHeader>
-            <CardTitle id="account-security-title" className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-blue-500" />
-              <span>Account Security</span>
-            </CardTitle>
-            <CardDescription>
-              Manage your account security settings and password
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="space-y-1">
-                <h4 className="font-medium text-gray-900">Password</h4>
-                <p className="text-sm text-gray-500">
-                  Change your account password to keep your account secure
-                </p>
-              </div>
-              <ChangePasswordDialog>
-                <Button variant="outline" className="min-h-[44px]">
-                  <Shield className="h-4 w-4 mr-2" />
-                  Change Password
-                </Button>
-              </ChangePasswordDialog>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Address & Payment Information */}
-        <Card className="mb-8" role="region" aria-labelledby="address-payment-title">
-          <CardHeader>
-            <CardTitle id="address-payment-title" className="flex items-center space-x-2">
-              <MapPin className="h-5 w-5 text-blue-500" />
-              <span>Address & Payment Information</span>
-            </CardTitle>
-            <CardDescription>
-              Manage your saved address and ABA bank name for faster checkout
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Address Information */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium text-gray-900">Shipping Address</h4>
-                {!isEditingAddress && (
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={handleEditAddress}
-                      disabled={savingAddress}
-                      className="min-h-[44px]"
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    {(profile?.address_line_1 || profile?.address_line_2 || profile?.aba_bank_name) && (
+              {/* Address Information */}
+              {!isEditingAddress ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-700">Delivery Address</h3>
+                    <div className="flex gap-1">
                       <Button
-                        variant="outline"
-                        onClick={handleDeleteAddress}
-                        disabled={savingAddress}
-                        className="text-red-600 hover:text-red-700 min-h-[44px]"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleEditAddress}
+                        className="h-8 px-2 text-xs"
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
                       </Button>
-                    )}
+                      {(profile?.address_line_1 || profile?.aba_bank_name) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDeleteAddress}
+                          disabled={savingAddress}
+                          className="h-8 px-2 text-xs text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Delete
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {isEditingAddress ? (
-                <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-address1">Address Line 1 *</Label>
-                    <Input
-                      id="edit-address1"
-                      value={addressData.address_line_1}
-                      onChange={(e) => setAddressData({
-                        ...addressData,
-                        address_line_1: e.target.value
-                      })}
-                      placeholder="Enter your primary address"
-                    />
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start">
+                      <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5" />
+                      <div>
+                        <div>{profile?.address_line_1 || 'No address saved'}</div>
+                        {profile?.address_line_2 && <div>{profile.address_line_2}</div>}
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <CreditCard className="h-4 w-4 mr-2 text-gray-400" />
+                      <span>{profile?.aba_bank_name || 'No ABA bank saved'}</span>
+                    </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-address2">Address Line 2 (Optional)</Label>
-                    <Input
-                      id="edit-address2"
-                      value={addressData.address_line_2}
-                      onChange={(e) => setAddressData({
-                        ...addressData,
-                        address_line_2: e.target.value
-                      })}
-                      placeholder="Apartment, suite, etc."
-                    />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700">Edit Address</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="address_line_1" className="text-xs">Address Line 1 *</Label>
+                      <Input
+                        id="address_line_1"
+                        value={addressData.address_line_1}
+                        onChange={(e) => setAddressData(prev => ({ ...prev, address_line_1: e.target.value }))}
+                        placeholder="Enter your address"
+                        className="mt-1"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="address_line_2" className="text-xs">Address Line 2</Label>
+                      <Input
+                        id="address_line_2"
+                        value={addressData.address_line_2}
+                        onChange={(e) => setAddressData(prev => ({ ...prev, address_line_2: e.target.value }))}
+                        placeholder="Apartment, suite, etc. (optional)"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="aba_bank_name" className="text-xs">ABA Bank Name *</Label>
+                      <Input
+                        id="aba_bank_name"
+                        value={addressData.aba_bank_name}
+                        onChange={(e) => setAddressData(prev => ({ ...prev, aba_bank_name: e.target.value }))}
+                        placeholder="Taravatey Than"
+                        className="mt-1"
+                        required
+                      />
+                    </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-aba-bank">ABA Bank Name *</Label>
-                    <Input
-                      id="edit-aba-bank"
-                      value={addressData.aba_bank_name}
-                      onChange={(e) => setAddressData({
-                        ...addressData,
-                        aba_bank_name: e.target.value
-                      })}
-                      placeholder="Taravatey Than"
-                    />
-                  </div>
-
-                  <div className="flex space-x-2 pt-2">
+                  <div className="flex gap-2">
                     <Button
                       onClick={handleSaveAddress}
-                      disabled={savingAddress || !addressData.address_line_1 || !addressData.aba_bank_name}
-                      className="min-h-[44px]"
+                      disabled={savingAddress}
+                      size="sm"
+                      className="min-h-[44px] flex-1"
                     >
                       {savingAddress ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <Save className="h-3 w-3 mr-1 animate-spin" />
                           Saving...
                         </>
                       ) : (
                         <>
-                          <Save className="h-4 w-4 mr-1" />
-                          Save Changes
+                          <Save className="h-3 w-3 mr-1" />
+                          Save
                         </>
                       )}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={handleCancelEdit}
-                      disabled={savingAddress}
+                      size="sm"
                       className="min-h-[44px]"
                     >
+                      <X className="h-3 w-3 mr-1" />
                       Cancel
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-3 sm:space-y-4">
-                  {profile?.address_line_1 || profile?.address_line_2 ? (
-                    <div className="p-4 border rounded-lg">
-                      <div className="space-y-1">
-                        <div className="font-medium text-gray-900">
-                          {profile.address_line_1}
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Points and Orders sections */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Points Section */}
+            <RedesignedPointsWrapper userId={user?.id} />
+
+            {/* Rewards & Coupons */}
+            <RewardsCouponsSection userId={user?.id} userProfile={profile} />
+
+            {/* Recent Orders */}
+            <Card role="region" aria-labelledby="orders-title">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle id="orders-title" className="text-lg">Recent Orders</CardTitle>
+                    <CardDescription>Your latest purchases</CardDescription>
+                  </div>
+                  <Link href="/en/orders">
+                    <Button variant="outline" size="sm" className="min-h-[44px]">
+                      <Eye className="h-4 w-4 mr-2" />
+                      View All
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {ordersLoading ? (
+                  <div className="space-y-3">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="flex items-center space-x-4">
+                        <Skeleton className="h-12 w-12 rounded" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-4 w-[250px]" />
+                          <Skeleton className="h-4 w-[200px]" />
                         </div>
-                        {profile.address_line_2 && (
-                          <div className="text-gray-600">
-                            {profile.address_line_2}
+                      </div>
+                    ))}
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-8">
+                    <ShoppingBag className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
+                    <p className="text-gray-500 mb-4">Start shopping to see your orders here</p>
+                    <Link href="/en">
+                      <Button className="min-h-[44px]">
+                        Start Shopping
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((order) => (
+                      <div key={order.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <Package className="h-4 w-4 text-gray-400" />
+                            <span className="font-medium text-sm">#{order.order_number}</span>
+                            <Badge variant={
+                              order.fulfillment_status === 'completed' ? 'default' :
+                              order.fulfillment_status === 'processing' ? 'secondary' :
+                              'outline'
+                            }>
+                              {order.fulfillment_status}
+                            </Badge>
+                          </div>
+                          <span className="text-sm font-medium">{formatPrice(order.total_amount)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDate(order.created_at)}</span>
+                          </div>
+                          <span>{order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}</span>
+                        </div>
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            {order.items.slice(0, 2).map((item, index) => (
+                              <div key={index}>
+                                {item.title} × {item.quantity}
+                              </div>
+                            ))}
+                            {order.items.length > 2 && (
+                              <div className="text-gray-400">
+                                +{order.items.length - 2} more item{order.items.length - 2 !== 1 ? 's' : ''}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 border-2 border-dashed border-gray-200 rounded-lg text-center text-gray-500">
-                      <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                      <p>No address saved</p>
-                      <p className="text-sm">Add your address for faster checkout</p>
-                    </div>
-                  )}
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                  {profile?.aba_bank_name ? (
-                    <div className="p-4 border rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <CreditCard className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm font-medium text-gray-700">ABA Bank Name:</span>
-                        <span className="text-gray-900">{profile.aba_bank_name}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 border-2 border-dashed border-gray-200 rounded-lg text-center text-gray-500">
-                      <CreditCard className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                      <p>No ABA bank name saved</p>
-                      <p className="text-sm">Add your ABA bank name for faster checkout</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Orders */}
-        <Card role="region" aria-labelledby="recent-orders-title">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle id="recent-orders-title" className="flex items-center space-x-2">
-                  <ShoppingBag className="h-5 w-5" />
-                  <span>Recent Orders</span>
+            {/* Account Security */}
+            <Card role="region" aria-label="Account Security">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center">
+                  <Shield className="h-5 w-5 mr-2" />
+                  Account Security
                 </CardTitle>
-                <CardDescription>Your latest order history</CardDescription>
-              </div>
-              <Link href="/en/orders">
-                <Button variant="outline" className="min-h-[44px]">
-                  <Eye className="h-4 w-4 mr-2" />
-                  View All
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {ordersLoading ? (
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-                    <Skeleton className="h-12 w-12 rounded" />
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
-                    </div>
-                    <Skeleton className="h-6 w-20" />
+                <CardDescription>Manage your security settings and preferences</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <ChangePasswordDialog>
+                      <Button className="min-h-[44px] flex-1 sm:flex-none">
+                        <Shield className="h-4 w-4 mr-2" />
+                        Change Password
+                      </Button>
+                    </ChangePasswordDialog>
+                    <Link href="/en/auth/sessions">
+                      <Button variant="outline" className="min-h-[44px] w-full sm:w-auto">
+                        <Bell className="h-4 w-4 mr-2" />
+                        Active Sessions
+                      </Button>
+                    </Link>
                   </div>
-                ))}
-              </div>
-            ) : orders.length > 0 ? (
-              <div className="space-y-4">
-                {orders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-blue-100 rounded flex items-center justify-center">
-                        <Package className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Order #{order.order_number}</p>
-                        <p className="text-sm text-gray-500">
-                          {order.items.length} item{order.items.length !== 1 ? 's' : ''} • {formatDate(order.created_at)}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge
-                            variant={order.payment_status === 'paid' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {order.payment_status === 'pending' ? 'Payment Pending' :
-                             order.payment_status === 'paid' ? 'Paid' : order.payment_status}
-                          </Badge>
-                          <Badge
-                            variant={order.fulfillment_status === 'delivered' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {order.fulfillment_status === 'on_hold' ? 'On Hold' :
-                             order.fulfillment_status === 'processing' ? 'Processing' :
-                             order.fulfillment_status === 'shipped' ? 'Shipped' :
-                             order.fulfillment_status === 'delivered' ? 'Delivered' : order.fulfillment_status}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{formatPrice(order.total_amount)}</p>
-                      <Link href={`/en/orders/${order.id}`}>
-                        <Button variant="ghost" className="mt-1 min-h-[44px]">
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                      </Link>
-                    </div>
+                  <div className="text-sm text-gray-600">
+                    <p>Keep your account secure by using a strong password and monitoring active sessions.</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <ShoppingBag className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>No orders yet</p>
-                <p className="text-sm">Start shopping to see your orders here!</p>
-                <Link href="/products">
-                  <Button className="mt-4 min-h-[44px]">
-                    Start Shopping
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

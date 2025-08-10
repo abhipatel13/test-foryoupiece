@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { requestUtils } from '@/lib/utils/request-deduplication';
 
 interface RedesignedPointsWrapperProps {
-  userId: string;
+  userId?: string;
 }
 
 export function RedesignedPointsWrapper({ userId }: RedesignedPointsWrapperProps) {

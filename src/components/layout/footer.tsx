@@ -29,7 +29,6 @@ export function Footer() {
                   fill
                   sizes="80px"
                   className="object-contain flex-shrink-0"
-                  priority
                 />
               </div>
             </div>

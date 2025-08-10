@@ -106,7 +106,6 @@ export function Header() {
                   width={60}
                   height={18}
                   className="hidden sm:block object-contain flex-shrink-0 sm:w-16 sm:h-5 lg:w-16 lg:h-5 xl:w-20 xl:h-6"
-                  priority
                 />
               </div>
             </Link>
