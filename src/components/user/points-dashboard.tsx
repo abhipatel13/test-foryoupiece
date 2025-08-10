@@ -78,27 +78,7 @@ export default function PointsDashboard({ userId, userProfile }: PointsDashboard
     loadPointsData()
   }, [userId])
 
-  const calculatePointsBreakdown = (transactions: PointTransaction[], profile: any): PointsBreakdown => {
-    // Use the actual points_balance from database as single source of truth
-    const totalAvailable = profile?.points_balance || 0
-
-    // Calculate tier rewards from transactions
-    let bonusFromRewards = 0
-    transactions.forEach(transaction => {
-      if (transaction.points > 0 && (transaction.transaction_type === 'bonus' || transaction.reference_type === 'tier_reward')) {
-        bonusFromRewards += transaction.points
-      }
-    })
-
-    // Calculate remaining earned points: total available - tier rewards
-    const earnedFromPurchases = Math.max(0, totalAvailable - bonusFromRewards)
-
-    return {
-      earnedFromPurchases: Math.max(0, earnedFromPurchases),
-      bonusFromRewards: Math.max(0, bonusFromRewards),
-      totalAvailable: Math.max(0, totalAvailable)
-    }
-  }
+  // Remove the incorrect frontend calculation - we'll use the backend service instead
 
   const loadPointsData = async () => {
     try {
@@ -115,10 +95,17 @@ export default function PointsDashboard({ userId, userProfile }: PointsDashboard
       if (transactionError) throw new Error(transactionError)
       setTransactions(transactions)
 
-      // Load all transactions for breakdown calculation
-      const { transactions: allTransactions, error: allTransactionError } = await pointsService.getUserPointHistory(userId, 1000)
-      if (allTransactionError) throw new Error(allTransactionError)
-      setPointsBreakdown(calculatePointsBreakdown(allTransactions, userProfile))
+      // Load points breakdown using the correct backend service
+      const { breakdown, error: breakdownError } = await pointsService.getPointsBreakdown(userId)
+      if (breakdownError) throw new Error(breakdownError)
+
+      // Convert backend breakdown to frontend format
+      const frontendBreakdown = {
+        earnedFromPurchases: breakdown.breakdown_by_source.orders,
+        bonusFromRewards: breakdown.breakdown_by_source.tier_rewards,
+        totalAvailable: breakdown.total_available
+      }
+      setPointsBreakdown(frontendBreakdown)
 
     } catch (err: any) {
       console.error('Error loading points data:', err)

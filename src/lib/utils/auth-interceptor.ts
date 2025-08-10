@@ -121,6 +121,21 @@ export async function handleAuthError(error: any, url?: string) {
           'session_validated_at'
         ]
 
+        try {
+          // Also include any Supabase v2 auth keys (sb-<ref>-auth-token...)
+          const dynamicKeys: string[] = []
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (!key) continue
+            if (key.startsWith('sb-') && key.includes('auth')) {
+              dynamicKeys.push(key)
+            }
+          }
+          authKeys.push(...dynamicKeys)
+        } catch (e) {
+          console.warn('Failed to enumerate localStorage keys for cleanup:', e)
+        }
+
         authKeys.forEach(key => {
           try {
             localStorage.removeItem(key)
@@ -181,15 +196,12 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
 
     return response
   } catch (error) {
-    // Handle network errors that might indicate auth issues
-    console.error(`🚨 Auth Interceptor: Network error for ${url}:`, error)
-
-    // Only handle auth errors for specific network issues
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+    // Handle network errors that might indicate auth issues (silent to keep console clean)
+    if (error instanceof TypeError && (error as any).message?.includes('Failed to fetch')) {
       // This could be a CORS issue due to expired session
       await handleAuthError(error, url)
     }
-
+    // Re-throw so callers can gracefully handle and show UI fallbacks without logging to console
     throw error
   }
 }

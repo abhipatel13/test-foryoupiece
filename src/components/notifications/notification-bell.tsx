@@ -48,9 +48,16 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
         setIsOpen(false)
       }
     }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
 
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [])
 
   const fetchNotifications = async () => {
@@ -152,15 +159,19 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
     <div className={`relative ${className}`} ref={dropdownRef}>
       <Button
         variant="ghost"
-        size="sm"
-        className="relative p-2"
+        size="icon"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls="notifications-panel"
+        className="relative rounded-lg min-w-[44px] min-h-[44px]"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-5 w-5" aria-hidden="true" />
         {unreadCount > 0 && (
-          <Badge 
-            variant="destructive" 
-            className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
+          <Badge
+            variant="destructive"
+            className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 leading-none p-0 flex items-center justify-center text-[10px] rounded-full"
+            aria-label={`${unreadCount} unread notifications`}
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </Badge>
@@ -168,7 +179,8 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
       </Button>
 
       {isOpen && (
-        <Card className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-hidden shadow-lg z-50">
+        <Card id="notifications-panel" role="dialog" aria-label="Notifications"
+          className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-14 sm:top-full mt-2 sm:mt-2 w-auto sm:w-80 max-w-[92vw] sm:max-w-none max-h-[60vh] overflow-hidden shadow-lg z-50">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium">Notifications</CardTitle>
@@ -176,10 +188,9 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                 {unreadCount > 0 && (
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={markAllAsRead}
                     disabled={loading}
-                    className="text-xs h-6 px-2"
+                    className="text-xs px-2"
                   >
                     <CheckCheck className="h-3 w-3 mr-1" />
                     Mark all read
@@ -187,11 +198,11 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                 )}
                 <Button
                   variant="ghost"
-                  size="sm"
                   onClick={() => setIsOpen(false)}
-                  className="h-6 w-6 p-0"
+                  className="min-w-[44px]"
+                  aria-label="Close notifications"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -204,11 +215,11 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                 <p className="text-sm">No notifications yet</p>
               </div>
             ) : (
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-[50vh] sm:max-h-64 overflow-y-auto">
                 {notifications.slice(0, 10).map((notification, index) => (
                   <div key={notification.id}>
                     <div
-                      className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 border-l-4 ${
+                      className={`p-3 min-h-[44px] cursor-pointer transition-colors hover:bg-gray-50 border-l-4 ${
                         getNotificationTypeColor(notification.type)
                       } ${!notification.read ? 'bg-blue-50' : ''}`}
                       onClick={() => !notification.read && markAsRead(notification.id)}

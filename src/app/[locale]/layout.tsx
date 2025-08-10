@@ -8,7 +8,12 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SessionMonitor } from '@/components/session-monitor';
 
+export const dynamicParams = true
+
 export function generateStaticParams() {
+  // Return an empty list to disable static pre-generation during dev and avoid RSC param await errors
+  // We still support all locales at runtime via dynamicParams
+  if (process.env.NODE_ENV !== 'production') return []
   return routing.locales.map((locale) => ({ locale }));
 }
 
@@ -36,9 +41,9 @@ export default async function LocaleLayout({
         <AuthProvider>
           <NextIntlClientProvider messages={messages}>
             <SessionMonitor
-              checkInterval={3 * 60 * 1000} // Check every 3 minutes
+              checkInterval={10 * 60 * 1000} // Check every 10 minutes for better performance
               enabled={true}
-              maxRetries={3}
+              maxRetries={2} // Reduced retries to prevent cascading failures
             />
             <MainLayout>
               {children}

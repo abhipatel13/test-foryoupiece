@@ -171,6 +171,32 @@ export function getTierInfo() {
 }
 
 /**
+ * Get tier hierarchy level for comparison
+ * @param tier - Tier name
+ * @returns Numeric level for comparison (higher = better tier)
+ */
+export function getTierLevel(tier: string): number {
+  const tierLevels: Record<string, number> = {
+    bronze: 1,
+    silver: 2,
+    gold: 3,
+    platinum: 4,
+    diamond: 5
+  }
+  return tierLevels[tier] || 1
+}
+
+/**
+ * Compare two tiers to determine if there's an upgrade
+ * @param oldTier - Previous tier
+ * @param newTier - New tier
+ * @returns True if newTier is higher than oldTier
+ */
+export function isTierUpgrade(oldTier: string, newTier: string): boolean {
+  return getTierLevel(newTier) > getTierLevel(oldTier)
+}
+
+/**
  * Get tier-specific styling for UI components
  * @param tier - User tier
  * @returns Styling object with colors and CSS classes

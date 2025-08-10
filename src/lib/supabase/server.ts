@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { Database } from './database.types'
+
+// Check if we're in an App Router context where next/headers is available
+function isAppRouterContext(): boolean {
+  try {
+    // Try to access next/headers - this will throw in Pages Router context
+    require('next/headers')
+    return true
+  } catch {
+    return false
+  }
+}
 
 export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -32,28 +42,37 @@ export async function createClient() {
     } as any
   }
 
-  const cookieStore = await cookies()
+  // For App Router context, use next/headers
+  if (isAppRouterContext()) {
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
 
-  return createServerClient<Database>(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
+    return createServerClient<Database>(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // The `setAll` method was called from a Server Component.
+              // This can be ignored if you have middleware refreshing
+              // user sessions.
+            }
+          },
         },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
-  )
+      }
+    )
+  }
+
+  // For Pages Router context or when next/headers is not available,
+  // fall back to client-side Supabase client
+  const { createClient: createBrowserClient } = await import('./client')
+  return createBrowserClient()
 }

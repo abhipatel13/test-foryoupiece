@@ -24,10 +24,12 @@ export function SessionMonitor({
 }: SessionMonitorProps) {
   const { user, signOut } = useSSRSafeAuth()
   const { forceLoadCartForUser } = useSSRSafeCartStore()
-  const intervalRef = useRef<NodeJS.Timeout>()
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isCheckingRef = useRef(false)
   const retryCountRef = useRef(0)
   const [lastValidationTime, setLastValidationTime] = useState<number>(0)
+  // Throttle repeated cart reloads from cross-tab SESSION_VALIDATED
+  const lastCrossTabCartReloadRef = useRef(0)
 
   // Multi-tab synchronization for session management
   const { broadcast } = useMultiTabSync({
@@ -49,6 +51,12 @@ export function SessionMonitor({
       console.log('🔄 SessionMonitor: Session validated in another tab:', payload)
       // If this tab has the same user, ensure cart is loaded
       if (user?.id === payload.userId) {
+        const now = Date.now()
+        if (now - lastCrossTabCartReloadRef.current < 5000) {
+          console.log('⏭️ SessionMonitor: Skipping duplicate cart reload (throttled)')
+          return
+        }
+        lastCrossTabCartReloadRef.current = now
         console.log('🛒 SessionMonitor: Reloading cart due to cross-tab session validation')
         try {
           const maybePromise = forceLoadCartForUser(payload.userId)
@@ -101,14 +109,20 @@ export function SessionMonitor({
             retryCountRef.current = 0
             setLastValidationTime(Date.now())
 
-            // Ensure cart is loaded for the validated user
+            // Only reload cart if it's been more than 5 minutes since last cart load
             if (userId && user?.id === userId) {
-              console.log('🛒 Session monitor: Ensuring cart is loaded after client validation')
-              try {
-                await forceLoadCartForUser(userId)
-                console.log('✅ Session monitor: Cart reloaded successfully after client validation')
-              } catch (cartError) {
-                console.warn('⚠️ Session monitor: Failed to reload cart after client validation:', cartError)
+              const timeSinceLastCartLoad = Date.now() - lastCrossTabCartReloadRef.current
+              if (timeSinceLastCartLoad > 300000) { // 5 minutes
+                console.log('🛒 Session monitor: Cart needs refresh after client validation')
+                try {
+                  await forceLoadCartForUser(userId)
+                  lastCrossTabCartReloadRef.current = Date.now()
+                  console.log('✅ Session monitor: Cart reloaded successfully after client validation')
+                } catch (cartError) {
+                  console.warn('⚠️ Session monitor: Failed to reload cart after client validation:', cartError)
+                }
+              } else {
+                console.log('⏭️ Session monitor: Cart recently loaded, skipping reload')
               }
             }
 
@@ -122,7 +136,8 @@ export function SessionMonitor({
       }
 
       // 2) Fallback to server validation only if client-side check is inconclusive
-      const response = await fetch('/api/auth/validate', {
+      // Use the correct validation endpoint
+      const response = await fetch('/api/auth/session/validate', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -155,15 +170,21 @@ export function SessionMonitor({
       retryCountRef.current = 0
       setLastValidationTime(Date.now())
 
-      // Ensure cart is loaded for the validated user
+      // Only reload cart if it's been more than 5 minutes since last cart load
       if (data.userId && user?.id === data.userId) {
-        console.log('🛒 Session monitor: Ensuring cart is loaded after validation')
-        try {
-          await forceLoadCartForUser(data.userId)
-          console.log('✅ Session monitor: Cart reloaded successfully after validation')
-        } catch (cartError) {
-          console.warn('⚠️ Session monitor: Failed to reload cart after validation:', cartError)
-          // Don't fail session validation if cart loading fails
+        const timeSinceLastCartLoad = Date.now() - lastCrossTabCartReloadRef.current
+        if (timeSinceLastCartLoad > 300000) { // 5 minutes
+          console.log('🛒 Session monitor: Cart needs refresh after server validation')
+          try {
+            await forceLoadCartForUser(data.userId)
+            lastCrossTabCartReloadRef.current = Date.now()
+            console.log('✅ Session monitor: Cart reloaded successfully after validation')
+          } catch (cartError) {
+            console.warn('⚠️ Session monitor: Failed to reload cart after validation:', cartError)
+            // Don't fail session validation if cart loading fails
+          }
+        } else {
+          console.log('⏭️ Session monitor: Cart recently loaded, skipping server validation reload')
         }
       }
 
@@ -207,10 +228,10 @@ export function SessionMonitor({
   useEffect(() => {
     if (!enabled || !user) return
 
-    // Initial validation after a short delay
-    const initialTimeout = setTimeout(() => validateSession(), 10000) // 10 seconds
+    // Immediate initial validation for fast feedback
+    const initialTimeout = setTimeout(() => validateSession(), 0)
 
-    // Set up periodic validation checks
+    // Set up periodic validation checks (use the configured interval)
     intervalRef.current = setInterval(() => validateSession(), checkInterval)
 
     return () => {
@@ -221,30 +242,34 @@ export function SessionMonitor({
     }
   }, [user, enabled, checkInterval])
 
-  // Enhanced visibility change handling with cross-tab coordination
+  // Enhanced visibility change handling with cross-tab coordination and aggressive throttling
   useEffect(() => {
     if (!enabled || !user) return
 
     const handleVisibilityChange = () => {
       if (!document.hidden && !isCheckingRef.current) {
-        console.log('🔍 Session monitor: Tab visible, validating session...')
-
-        // Check if session was validated recently (within last 30 seconds)
+        // Check if session was validated recently (increased to 5 minutes for performance)
         const timeSinceLastValidation = Date.now() - lastValidationTime
-        if (timeSinceLastValidation < 30000) {
-          console.log('⏭️ Session recently validated, skipping check')
+        if (timeSinceLastValidation < 300000) { // 5 minutes instead of 30 seconds
+          console.log('⏭️ Session recently validated, skipping visibility check')
           return
         }
 
-        // Validate session when tab becomes visible
+        console.log('🔍 Session monitor: Tab visible after long absence, validating session...')
         validateSession()
       }
     }
 
     const handleFocus = () => {
-      // Also check when window gains focus (for multi-window scenarios)
+      // Only check on focus if it's been more than 5 minutes since last validation
       if (!isCheckingRef.current) {
-        console.log('🔍 Session monitor: Window focused, validating session...')
+        const timeSinceLastValidation = Date.now() - lastValidationTime
+        if (timeSinceLastValidation < 300000) { // 5 minutes throttle
+          console.log('⏭️ Session recently validated, skipping focus check')
+          return
+        }
+
+        console.log('🔍 Session monitor: Window focused after long absence, validating session...')
         validateSession()
       }
     }

@@ -39,6 +39,7 @@ export interface UserPointsSummary {
 
 export interface PointsBreakdown {
   total_available: number
+  // Historical totals (do not necessarily sum to total_available)
   earned_points: number
   tier_reward_points: number
   breakdown_by_source: {
@@ -47,6 +48,11 @@ export interface PointsBreakdown {
     tier_rewards: number
     admin_adjustments: number
     other: number
+  }
+  // Current available allocation by type (these should sum to total_available)
+  available_by_type?: {
+    earned: number
+    tier_rewards: number
   }
   tier_info: {
     current_tier: string
@@ -569,7 +575,10 @@ export class PointsService {
 
       // Use stored values but log discrepancies
       if (dataIntegrityIssues.length > 0) {
-        console.warn('⚠️ Data integrity issues detected for user:', userData.email, dataIntegrityIssues)
+        if (process.env.NODE_ENV === 'development') {
+          // Reduce console noise: log once as debug-like info
+          console.info('⚠️ Data integrity issues (dev):', { user: userData.email, issues: dataIntegrityIssues })
+        }
       }
 
       // Calculate points used (total earned - current balance)
@@ -908,14 +917,20 @@ export class PointsService {
 
       const breakdown: PointsBreakdown = {
         total_available: actualAvailablePoints,
-        earned_points: remainingEarnedPoints, // Currently available earned points (after redemptions)
-        tier_reward_points: remainingTierRewards, // Currently available tier reward points (after redemptions)
+        // Historical totals for transparency
+        earned_points: earnedFromOrders,
+        tier_reward_points: tierRewards,
         breakdown_by_source: {
           orders: earnedFromOrders,
           welcome_bonus: welcomeBonus,
           tier_rewards: tierRewards,
           admin_adjustments: adminAdjustments,
           other: other
+        },
+        // Allocation of the current available balance by type; sums to total_available
+        available_by_type: {
+          earned: remainingEarnedPoints,
+          tier_rewards: remainingTierRewards
         },
         tier_info: {
           current_tier: currentTier,

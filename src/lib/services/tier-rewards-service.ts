@@ -1,5 +1,5 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { getTierFromPoints } from '@/lib/utils'
+import { getTierFromPoints, isTierUpgrade } from '@/lib/utils'
 
 export interface TierReward {
   id: string
@@ -135,8 +135,10 @@ export class TierRewardsService {
 
   /**
    * Check for tier upgrades and award rewards
+   * @param userId - User ID to check
+   * @param newTotalPoints - Optional new total points to use for tier calculation (for testing)
    */
-  async checkAndAwardTierUpgrade(userId: string): Promise<TierUpgradeResult> {
+  async checkAndAwardTierUpgrade(userId: string, newTotalPoints?: number): Promise<TierUpgradeResult> {
     try {
       const serviceClient = this.getServiceClient()
       if (!serviceClient) {
@@ -155,10 +157,11 @@ export class TierRewardsService {
       }
 
       const oldTier = userData.tier_level || 'bronze'
-      const newTier = getTierFromPoints(userData.total_points_earned || 0)
+      const pointsToUse = newTotalPoints !== undefined ? newTotalPoints : (userData.total_points_earned || 0)
+      const newTier = getTierFromPoints(pointsToUse)
 
-      // If no tier upgrade, return early
-      if (newTier <= oldTier) {
+      // If no tier upgrade, return early (using proper tier hierarchy comparison)
+      if (!isTierUpgrade(oldTier, newTier)) {
         return {
           success: true,
           oldTier,

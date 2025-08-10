@@ -6,12 +6,18 @@ import { createServerClient } from '@supabase/ssr'
 const intlMiddleware = createMiddleware(routing)
 
 export default async function middleware(request: NextRequest) {
+  // Diagnostic entry log (no sensitive data)
+  try {
+    console.log('🧪 middleware: handling path', request.nextUrl.pathname)
+  } catch {}
   // Handle Supabase auth for all requests first
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
+  // Preserve all Supabase-issued cookies (with options) to apply to final responses (incl. redirects)
+  const pendingCookies: { name: string; value: string; options?: any }[] = []
 
   // Only handle Supabase auth if environment variables are available
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -27,15 +33,45 @@ export default async function middleware(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            // Debug: log cookie metadata being set by Supabase (no values)
+            try {
+              console.log(
+                '🧪 middleware: Supabase setAll cookies',
+                cookiesToSet.map(({ name, options }) => ({
+                  name,
+                  options: {
+                    domain: options?.domain,
+                    path: options?.path,
+                    httpOnly: options?.httpOnly,
+                    sameSite: options?.sameSite,
+                    secure: options?.secure,
+                    maxAge: options?.maxAge,
+                    hasExpires: !!options?.expires
+                  }
+                }))
+              )
+            } catch {}
+            // Keep original options to apply on the final response (intl or redirects)
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try {
+                pendingCookies.push({ name, value, options })
+              } catch {}
+              // Reflect cookie into request for downstream checks
               request.cookies.set(name, value)
-            )
+            })
+            // Create a working response with cookies applied (for early returns)
             supabaseResponse = NextResponse.next({
               request,
             })
             cookiesToSet.forEach(({ name, value, options }) =>
               supabaseResponse.cookies.set(name, value, options)
             )
+            try {
+              console.log(
+                '🧪 middleware: applied Supabase cookies to response with options',
+                cookiesToSet.map(c => c.name)
+              )
+            } catch {}
           },
         },
       }
@@ -45,7 +81,7 @@ export default async function middleware(request: NextRequest) {
     const { data: { user }, error } = await supabase.auth.getUser()
 
     // Protected routes that require authentication
-    const protectedPaths = ['/en/account', '/en/checkout', '/en/orders']
+    const protectedPaths = ['/en/account', '/en/profile', '/en/checkout', '/en/orders']
     const isProtectedPath = protectedPaths.some(path =>
       request.nextUrl.pathname.startsWith(path)
     )
@@ -55,7 +91,14 @@ export default async function middleware(request: NextRequest) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/en/auth/login'
       redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
-      return NextResponse.redirect(redirectUrl)
+      try {
+        console.log('🧪 middleware: redirecting unauthenticated to login', { path: request.nextUrl.pathname })
+      } catch {}
+      const res = NextResponse.redirect(redirectUrl)
+      try {
+        pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+      } catch {}
+      return res
     }
 
     // Auth pages that should redirect if already authenticated
@@ -68,7 +111,14 @@ export default async function middleware(request: NextRequest) {
     if (isAuthPath && user && !error) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/en'
-      return NextResponse.redirect(redirectUrl)
+      try {
+        console.log('🧪 middleware: redirecting authenticated user away from auth page', { path: request.nextUrl.pathname })
+      } catch {}
+      const res = NextResponse.redirect(redirectUrl)
+      try {
+        pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+      } catch {}
+      return res
     }
   }
 
@@ -80,7 +130,11 @@ export default async function middleware(request: NextRequest) {
   // Redirect common shop routes to the correct product catalog
   if (request.nextUrl.pathname === '/shop' || request.nextUrl.pathname === '/shop/') {
     const redirectUrl = new URL('/en/products', request.url)
-    return NextResponse.redirect(redirectUrl)
+    const res = NextResponse.redirect(redirectUrl)
+    try {
+      pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+    } catch {}
+    return res
   }
 
   // Exclude API routes from internationalization
@@ -101,10 +155,16 @@ export default async function middleware(request: NextRequest) {
   // Apply internationalization middleware for all other paths
   const intlResponse = intlMiddleware(request)
 
-  // Merge Supabase cookies with intl response
-  if (supabaseResponse.cookies.getAll().length > 0) {
-    supabaseResponse.cookies.getAll().forEach(cookie => {
-      intlResponse.cookies.set(cookie.name, cookie.value)
+  // Merge Supabase cookies with intl response (preserve options)
+  if (pendingCookies.length > 0) {
+    try {
+      console.log(
+        '🧪 middleware: merging cookies into intl response WITH options',
+        pendingCookies.map(c => c.name)
+      )
+    } catch {}
+    pendingCookies.forEach(({ name, value, options }) => {
+      intlResponse.cookies.set(name, value, options)
     })
   }
 

@@ -85,7 +85,7 @@ export function RewardsCouponsSection({ userId, userProfile }: RewardsCouponsPro
       setCoupons(couponsData.coupons || [])
 
     } catch (error: any) {
-      console.error('Error fetching rewards and coupons:', error)
+      // Capture in Sentry via global instrumentation; avoid noisy console
       setError(error.message || 'Failed to load rewards and coupons')
     } finally {
       setLoading(false)
@@ -286,29 +286,32 @@ export function RewardsCouponsSection({ userId, userProfile }: RewardsCouponsPro
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="flex items-center space-x-2">
           <Gift className="h-5 w-5 text-purple-500" />
           <span>Rewards & Coupons</span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-sm text-muted-foreground">
           Your tier rewards, active coupons, and loyalty benefits
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="rewards">Tier Rewards</TabsTrigger>
-            <TabsTrigger value="coupons">Coupons</TabsTrigger>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
+        <Tabs defaultValue="coupons" className="w-full">
+          <TabsList
+            className="w-full flex flex-wrap items-stretch gap-2 p-1 h-auto overflow-visible justify-start"
+            aria-label="Rewards and coupons tabs"
+          >
+            <TabsTrigger value="overview" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Overview</TabsTrigger>
+            <TabsTrigger value="rewards" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Tier Rewards</TabsTrigger>
+            <TabsTrigger value="coupons" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Coupons</TabsTrigger>
+            <TabsTrigger value="progress" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Progress</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-4">
+          <TabsContent value="overview" className="space-y-4 focus:outline-none">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Current Tier Status */}
               {tierInfo && (
-                <div className="p-4 border rounded-lg">
+                <div className="p-4 sm:p-5 border rounded-lg">
                   <div className="flex items-center space-x-3 mb-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getTierStyling(tierInfo.current).bgColor}`}>
                       {getTierIcon(tierInfo.current)}

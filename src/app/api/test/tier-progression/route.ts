@@ -83,6 +83,10 @@ export async function POST(request: NextRequest) {
         const oldTier = currentUser.tier_level || 'bronze'
         const newTier = getTierFromPoints(newTotalPointsEarned)
 
+        // Check for tier upgrade BEFORE updating the database
+        const tierRewardsService = new TierRewardsService()
+        const tierUpgradeResult = await tierRewardsService.checkAndAwardTierUpgrade(userId, newTotalPointsEarned)
+
         // Update user's points
         const { error: updateError } = await serviceClient
           .from('users')
@@ -111,10 +115,6 @@ export async function POST(request: NextRequest) {
         if (transactionError) {
           console.error('Failed to create transaction record:', transactionError)
         }
-
-        // Check for tier upgrade and award rewards
-        const tierRewardsService = new TierRewardsService()
-        const tierUpgradeResult = await tierRewardsService.checkAndAwardTierUpgrade(userId)
 
         result = {
           action: 'add_points',

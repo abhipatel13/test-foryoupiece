@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+// Server-side imports are done dynamically to avoid client-side build errors
 
 /**
  * Enhanced Session Management Security System
@@ -47,7 +47,7 @@ const tokenBlacklist = new Set<string>()
  * Generate a unique session ID
  */
 function generateSessionId(): string {
-  return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  return `sess_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 }
 
 /**
@@ -247,6 +247,7 @@ export async function blacklistToken(token: string, userId: string, reason: stri
     tokenBlacklist.add(token)
 
     // In production, store in database
+    const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
     const serviceClient = createServiceRoleClient()
     await serviceClient
       .from('blacklisted_tokens')
@@ -285,6 +286,7 @@ export async function isTokenBlacklisted(token: string): Promise<boolean> {
     }
 
     // Check database
+    const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
     const serviceClient = createServiceRoleClient()
     const tokenHash = await hashToken(token)
 
@@ -354,6 +356,21 @@ export async function clientSideLogout(userId: string): Promise<{
       'session_validated_at'
     ]
 
+    try {
+      // Include Supabase v2 auth keys too (sb-<ref>-auth-token...)
+      const dynamicKeys: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (!key) continue
+        if (key.startsWith('sb-') && key.includes('auth')) {
+          dynamicKeys.push(key)
+        }
+      }
+      authKeys.push(...dynamicKeys)
+    } catch (e) {
+      console.warn('Failed to enumerate localStorage keys for cleanup:', e)
+    }
+
     authKeys.forEach(key => {
       try {
         localStorage.removeItem(key)
@@ -392,7 +409,8 @@ export async function enhancedLogout(userId: string): Promise<{
       return await clientSideLogout(userId)
     }
 
-    const supabase = createClient()
+    const { createClient: createServerClient } = await import('@/lib/supabase/server')
+    const supabase = await createServerClient()
 
     // Get current session to blacklist tokens
     const { data: { session } } = await supabase.auth.getSession()

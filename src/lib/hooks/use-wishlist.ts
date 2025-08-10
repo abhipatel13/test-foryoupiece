@@ -32,13 +32,19 @@ interface WishlistItem {
   }
 }
 
+// Module-level cache and in-flight deduplication to prevent N duplicate requests per page
+let __wishlistCache: WishlistItem[] = []
+let __wishlistInitialized = false
+let __wishlistInFlight: Promise<WishlistItem[]> | null = null
+let __wishlistUserId: string | null = null
+
 export function useWishlist() {
   const { user, isAuthenticated } = useSSRSafeAuth()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
-  // Load wishlist items
+  // Load wishlist items with module-level in-flight dedupe and cache by user
   const loadWishlist = useCallback(async () => {
     if (!isAuthenticated || !user) {
       setItems([])
@@ -46,43 +52,52 @@ export function useWishlist() {
       return
     }
 
+    // Return cached result if for same user and already initialized
+    if (__wishlistInitialized && __wishlistUserId === user.id && __wishlistCache.length) {
+      setItems(__wishlistCache)
+      setInitialized(true)
+      return
+    }
+
     try {
       setLoading(true)
-      const response = await authFetch('/api/wishlist')
 
-      if (!response.ok) {
-        // Handle HTTP errors gracefully
-        if (response.status === 401) {
-          // User not authenticated, clear wishlist
-          setItems([])
-          setInitialized(true)
-          return
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      // If a request is already in flight for this user, await it
+      if (__wishlistInFlight && __wishlistUserId === user.id) {
+        const data = await __wishlistInFlight
+        setItems(data)
+        setInitialized(true)
+        return
       }
 
-      const result = await response.json()
-
-      if (result.success) {
-        setItems(result.data || [])
-      } else {
-        // Log error for debugging but don't throw
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Failed to load wishlist:', result.error)
+      __wishlistUserId = user.id
+      __wishlistInFlight = (async () => {
+        const response = await authFetch('/api/wishlist')
+        if (!response.ok) {
+          if (response.status === 401) return []
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
-        setItems([])
-      }
+        const result = await response.json()
+        const data: WishlistItem[] = result.success ? (result.data || []) : []
+        return data
+      })()
+
+      const data = await __wishlistInFlight
+      __wishlistCache = data
+      __wishlistInitialized = true
+      setItems(data)
     } catch (error) {
-      // Log error for debugging but don't throw
       if (process.env.NODE_ENV === 'development') {
         console.warn('Error loading wishlist:', error)
       }
+      __wishlistCache = []
       setItems([])
     } finally {
+      __wishlistInFlight = null
       setLoading(false)
       setInitialized(true)
     }
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, user?.id])
 
   // Check if item is in wishlist
   const isInWishlist = useCallback((productId: string, variantId?: string) => {
@@ -129,7 +144,12 @@ export function useWishlist() {
           if (exists) {
             return prev
           }
-          return [result.data, ...prev]
+          const next = [result.data, ...prev]
+          // Update module cache to keep other consumers in sync
+          if (user?.id === __wishlistUserId) {
+            __wishlistCache = next
+          }
+          return next
         })
         toast.success(result.message || 'Item added to wishlist')
         return true
@@ -167,12 +187,16 @@ export function useWishlist() {
 
       if (result.success) {
         // Remove the item from local state
-        setItems(prev => 
-          prev.filter(item => 
-            !(item.product.id === productId && 
+        setItems(prev => {
+          const next = prev.filter(item =>
+            !(item.product.id === productId &&
               (variantId ? item.variant?.id === variantId : !item.variant))
           )
-        )
+          if (user?.id === __wishlistUserId) {
+            __wishlistCache = next
+          }
+          return next
+        })
         toast.success('Item removed from wishlist')
         return true
       } else {

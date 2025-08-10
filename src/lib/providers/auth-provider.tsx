@@ -7,7 +7,7 @@ import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
-import { useMultiTabSync, tabSyncUtils } from '@/lib/utils/multi-tab-sync'
+import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 
 import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
 // import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
@@ -43,7 +43,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
   const currentUserRef = useRef<ReturnType<typeof useSSRSafeUserStore>['user']>(null)
   const profileLoadInFlightRef = useRef<string | null>(null)
-  const cartLoadInFlightRef = useRef<string | null>(null)
+
+  // Throttle repeated cross-tab cart reloads
+  const lastCrossTabCartReloadRef = useRef(0)
 
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
@@ -52,13 +54,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
 
-  // Initialize a single Supabase client on the client only
+  // Initialize a single Supabase client on the client only with browser-specific handling
   useEffect(() => {
     if (isClient && !supabaseRef.current) {
       try {
         supabaseRef.current = createClient()
+        console.log('✅ Supabase client initialized successfully')
       } catch (e) {
-        console.error('Failed to create Supabase client:', e)
+        console.error('❌ Failed to create Supabase client:', e)
+
+        // Browser-specific error handling
+        if (e instanceof Error) {
+          if (e.message.includes('localStorage') || e.message.includes('storage')) {
+            console.warn('🔒 Storage access blocked - this may be due to private browsing mode or strict privacy settings')
+          }
+
+          if (e.message.includes('network') || e.message.includes('fetch')) {
+            console.warn('🌐 Network error - check internet connection and firewall settings')
+          }
+        }
       }
     }
   }, [isClient])
@@ -70,42 +84,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Session monitoring is performed by <SessionMonitor /> at layout level to avoid duplication
 
-  // Multi-tab synchronization for authentication state (memoized to prevent listener churn)
-  const { broadcast } = useMultiTabSync(useMemo(() => ({
-    onAuthStateChange: (payload: any) => {
-      console.log('🔄 AuthProvider: Auth state change from another tab:', payload)
-      if (!payload.user && !crossTabSignOutRef.current) {
-        console.log('🚪 AuthProvider: Signing out due to cross-tab auth change')
-        crossTabSignOutRef.current = true
-        handleCrossTabSignOut()
-      } else if (payload.user && !currentUserRef.current) {
-        console.log('👤 AuthProvider: Updating user state from cross-tab sign in')
-        setUser(payload.user)
-        setUserId(payload.user.id)
-        loadUserProfile(payload.user.id)
-        forceLoadCartForUser(payload.user.id)
-      }
-    },
-    onSessionExpired: (payload: any) => {
-      console.log('🔄 AuthProvider: Session expired in another tab:', payload)
-      if (!crossTabSignOutRef.current) {
-        crossTabSignOutRef.current = true
-        handleCrossTabSignOut()
-      }
-    },
-    onSessionValidated: (payload: any) => {
-      console.log('🔄 AuthProvider: Session validated in another tab:', payload)
-      if (currentUserRef.current?.id === payload.userId) {
-        console.log('🛒 AuthProvider: Reloading cart due to cross-tab session validation')
-        forceLoadCartForUser(payload.userId).catch(error => {
-          console.warn('⚠️ AuthProvider: Failed to reload cart from cross-tab validation:', error)
-        })
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [setUser, setUserId, forceLoadCartForUser]))
-
-  // Handle cross-tab sign out
+  // Handle cross-tab sign out (defined first to avoid circular dependency)
   const handleCrossTabSignOut = useCallback(async () => {
     console.log('🔄 AuthProvider: Handling cross-tab sign out')
     try {
@@ -209,12 +188,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Removed performance optimization hooks to improve dropdown speed
 
-  // Load user profile with simple in-flight dedupe
+  // Load user profile with enhanced caching and deduplication
+  const profileLoadTimestampRef = useRef<number>(0)
   const loadUserProfile = async (userId: string) => {
     if (profileLoadInFlightRef.current === userId) {
       console.log('⏭️ Skipping duplicate profile load for:', userId)
       return
     }
+
+    // Check if profile was loaded recently (within 5 minutes)
+    const timeSinceLastLoad = Date.now() - profileLoadTimestampRef.current
+    if (timeSinceLastLoad < 300000) { // 5 minutes
+      console.log('📋 Profile recently loaded, skipping reload for user:', userId)
+      return
+    }
+
     profileLoadInFlightRef.current = userId
     try {
       console.log('📋 Querying user profile for userId:', userId)
@@ -224,6 +212,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (profile) {
         console.log('✅ Setting profile in store:', profile.id)
         setProfile(profile)
+        profileLoadTimestampRef.current = Date.now() // Track when profile was loaded
       } else {
         console.log('⚠️ No profile found for user:', userId)
         // Profile might not exist yet - this is okay for new users
@@ -238,6 +227,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }, 1000)
     }
   }
+
+  // Memoized callback functions to prevent re-rendering loops
+  const handleAuthStateChange = useCallback((payload: any) => {
+    console.log('🔄 AuthProvider: Auth state change from another tab:', payload)
+    if (!payload.user && !crossTabSignOutRef.current) {
+      console.log('🚪 AuthProvider: Signing out due to cross-tab auth change')
+      crossTabSignOutRef.current = true
+      handleCrossTabSignOut()
+    } else if (payload.user && !currentUserRef.current) {
+      console.log('👤 AuthProvider: Updating user state from cross-tab sign in')
+      setUser(payload.user)
+      setUserId(payload.user.id)
+      loadUserProfile(payload.user.id)
+      forceLoadCartForUser(payload.user.id)
+    }
+  }, [setUser, setUserId, handleCrossTabSignOut, forceLoadCartForUser])
+
+  const handleSessionExpiredCallback = useCallback((payload: any) => {
+    console.log('🔄 AuthProvider: Session expired in another tab:', payload)
+    if (!crossTabSignOutRef.current) {
+      crossTabSignOutRef.current = true
+      handleCrossTabSignOut()
+    }
+  }, [handleCrossTabSignOut])
+
+  const handleSessionValidated = useCallback((payload: any) => {
+    console.log('🔄 AuthProvider: Session validated in another tab:', payload)
+    if (currentUserRef.current?.id === payload.userId) {
+      const now = Date.now()
+      // Avoid redundant reloads within 5 seconds window
+      if (now - lastCrossTabCartReloadRef.current < 5000) {
+        console.log('⏭️ AuthProvider: Skipping duplicate cart reload (throttled)')
+        return
+      }
+      lastCrossTabCartReloadRef.current = now
+      console.log('🛒 AuthProvider: Reloading cart due to cross-tab session validation')
+      forceLoadCartForUser(payload.userId).catch(error => {
+        console.warn('⚠️ AuthProvider: Failed to reload cart from cross-tab validation:', error)
+      })
+    }
+  }, [forceLoadCartForUser])
+
+  // Multi-tab synchronization for authentication state (stable configuration)
+  const multiTabConfig = useMemo(() => ({
+    onAuthStateChange: handleAuthStateChange,
+    onSessionExpired: handleSessionExpiredCallback,
+    onSessionValidated: handleSessionValidated
+  }), [handleAuthStateChange, handleSessionExpiredCallback, handleSessionValidated])
+
+  const { broadcast } = useMultiTabSync(multiTabConfig)
 
   // Initialize auth state once - simplified approach
   useEffect(() => {
@@ -266,6 +305,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
         if (signOutInProgressRef.current || globalSignOutFlag) {
           console.log('🚪 Sign-out in progress, skipping session restoration')
+          // Sync local flag with global flag
+          if (globalSignOutFlag) {
+            signOutInProgressRef.current = true
+          }
           if (mounted) {
             clearUser()
             clearCart()
@@ -280,7 +323,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         let session = null
         let sessionError = null
 
-        // Method 1: Try getSession first
+        // Method 1: Try getSession first with browser-specific error handling
         try {
           const { data: sessionData, error } = await supabaseRef.current?.auth.getSession() ?? { data: { session: null }, error: null as any }
           session = sessionData.session
@@ -288,6 +331,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
           console.log('🔍 getSession result:', { hasSession: !!session, error: error?.message })
         } catch (error) {
           console.warn('🔍 getSession failed:', error)
+
+          // Browser-specific error handling
+          if (error instanceof Error) {
+            if (error.message.includes('localStorage') || error.message.includes('storage')) {
+              console.warn('🦊 Storage access issue detected - may be Firefox private browsing or strict privacy settings')
+            }
+
+            if (error.message.includes('network') || error.message.includes('fetch')) {
+              console.warn('🌐 Network connectivity issue during session restoration')
+            }
+          }
         }
 
         // Method 2: If no session, try getUser to validate stored tokens
@@ -388,6 +442,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
 
         if (event === 'SIGNED_OUT') {
+          // Set local logout flag to prevent race conditions
+          signOutInProgressRef.current = true
+
           // Use proper cart logout cleanup
           await clearCartOnLogout()
           clearUser()
@@ -397,8 +454,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             broadcast('AUTH_STATE_CHANGE', { user: null, event })
           }
 
+          // Reset logout flag after cleanup
+          setTimeout(() => {
+            signOutInProgressRef.current = false
+          }, 1000)
+
           router.push('/en/auth/login')
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // Check if logout is in progress - ignore SIGNED_IN during logout
+          const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
+          if (signOutInProgressRef.current || globalSignOutFlag) {
+            console.log('🚪 Ignoring SIGNED_IN event during logout process')
+            return
+          }
+
           if (session?.user) {
             const sameUser = currentUserRef.current?.id === session.user.id
             if (sameUser && event === 'SIGNED_IN') {

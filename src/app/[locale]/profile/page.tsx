@@ -1,6 +1,9 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState, useCallback } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { useTranslations } from 'next-intl'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { userQueries, orderQueries } from '@/lib/supabase/queries'
@@ -10,15 +13,16 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Star, Trophy, Gift, Calendar, Mail, Phone, User, Edit, MapPin, CreditCard, Save, Trash2, Package, Clock, Eye, ShoppingBag, X, Award, Shield } from 'lucide-react'
+import { Star, Trophy, Gift, Calendar, Mail, Phone, User, Edit, MapPin, CreditCard, Save, Trash2, Package, Clock, Eye, ShoppingBag, X, Award, Shield, Bell } from 'lucide-react'
 import { formatDate, formatPrice, getCorrectUserTier, getTierStyling } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import PointsDashboard from '@/components/user/points-dashboard'
+
 import TierRewardsDisplay from '@/components/user/tier-rewards-display'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
+import { RedesignedPointsWrapper } from '@/components/user/redesigned-points-wrapper'
 import { RewardsCouponsSection } from '@/components/user/rewards-coupons-section'
 // import { TierProgressionTester } from '@/components/test/tier-progression-tester' // Removed from production E2E runs
 import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog'
@@ -99,7 +103,8 @@ export default function ProfilePage() {
       setIsEditingAddress(false)
       toast.success('Address information updated successfully!')
     } catch (error) {
-      console.error('Error updating address:', error)
+      // Report silently without polluting console
+      Sentry.captureException(error)
       toast.error('Failed to update address information')
     } finally {
       setSavingAddress(false)
@@ -134,7 +139,7 @@ export default function ProfilePage() {
       setIsEditingProfile(false)
       toast.success('Profile updated successfully!')
     } catch (error) {
-      console.error('Error updating profile:', error)
+      Sentry.captureException(error)
       toast.error('Failed to update profile')
     } finally {
       setSavingProfile(false)
@@ -173,7 +178,7 @@ export default function ProfilePage() {
       })
       toast.success('Address information deleted successfully!')
     } catch (error) {
-      console.error('Error deleting address:', error)
+      Sentry.captureException(error)
       toast.error('Failed to delete address information')
     } finally {
       setSavingAddress(false)
@@ -189,9 +194,8 @@ export default function ProfilePage() {
       setOrdersLoading(true)
       const userOrders = await orderQueries.getUserOrders(user.id, 5) // Load last 5 orders
       setOrders(userOrders)
-      console.log('✅ Profile orders loaded successfully:', userOrders.length, 'orders')
     } catch (error) {
-      console.error('❌ Error loading profile orders:', error)
+      Sentry.captureException(error)
       // Set empty array on error to prevent infinite retries
       setOrders([])
     } finally {
@@ -202,7 +206,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user && isAuthenticated && !loading) {
       loadOrders().catch((error) => {
-        console.error('❌ Unhandled error in loadOrders:', error)
+        Sentry.captureException(error)
         setOrders([])
         setOrdersLoading(false)
       })
@@ -228,8 +232,10 @@ export default function ProfilePage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Please log in to view your profile</h1>
-          <Button>Login</Button>
+          <h1 className="text-2xl font-semibold tracking-tight mb-4">Please log in to view your profile</h1>
+          <Link href="/en/auth/login">
+            <Button className="min-h-[44px]">Login</Button>
+          </Link>
         </div>
       </div>
     )
@@ -251,24 +257,24 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-      <div className="max-w-4xl mx-auto">
+    <div role="main" aria-labelledby="page-title" className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <div className="max-w-6xl mx-auto">
         <div className="mb-4 sm:mb-6 lg:mb-8">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">{t('title')}</h1>
-          <p className="text-sm sm:text-base text-gray-600">Manage your account and view your loyalty status</p>
+          <h1 id="page-title" className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-gray-900 mb-1 sm:mb-2">{t('title')}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage your account and view your loyalty status</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mb-6 sm:mb-8">
           {/* Profile Info - Mobile-First Responsive */}
-          <Card>
-            <CardHeader className="text-center pb-3 sm:pb-6">
+          <Card role="region" aria-labelledby="profile-info-title">
+            <CardHeader className="text-center pb-3 sm:pb-6 pt-4">
               <Avatar className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
-                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarImage src={profile?.avatar_url || ''} alt={profile?.first_name ? `${profile.first_name} ${profile.last_name}` : 'User avatar'} />
                 <AvatarFallback className="text-base sm:text-lg">
                   {profile?.first_name?.[0] || profile?.telegram_username?.[0] || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <CardTitle className="text-lg sm:text-xl">
+              <CardTitle id="profile-info-title" className="text-lg sm:text-xl">
                 {profile?.first_name && profile?.last_name
                   ? `${profile.first_name} ${profile.last_name}`
                   : profile?.telegram_username || 'User'
@@ -286,7 +292,7 @@ export default function ProfilePage() {
                       <Label htmlFor="edit-first-name" className="text-sm">First Name</Label>
                       <Input
                         id="edit-first-name"
-                        className="h-10 sm:h-11"
+                        className="h-11"
                         value={profileData.first_name}
                         onChange={(e) => setProfileData({
                           ...profileData,
@@ -298,7 +304,7 @@ export default function ProfilePage() {
                       <Label htmlFor="edit-last-name" className="text-sm">Last Name</Label>
                       <Input
                         id="edit-last-name"
-                        className="h-10 sm:h-11"
+                        className="h-11"
                         value={profileData.last_name}
                         onChange={(e) => setProfileData({
                           ...profileData,
@@ -312,7 +318,7 @@ export default function ProfilePage() {
                     <Input
                       id="edit-phone"
                       type="tel"
-                      className="h-10 sm:h-11"
+                      className="h-11"
                       value={profileData.phone}
                       onChange={(e) => setProfileData({
                         ...profileData,
@@ -325,10 +331,9 @@ export default function ProfilePage() {
                     <Input
                       id="edit-email"
                       type="email"
-                      className="h-10 sm:h-11"
+                      className="h-11 bg-gray-50"
                       value={profileData.email}
                       disabled
-                      className="bg-gray-50"
                     />
                     <p className="text-xs text-gray-500">Email cannot be changed here</p>
                   </div>
@@ -336,8 +341,7 @@ export default function ProfilePage() {
                     <Button
                       onClick={handleSaveProfile}
                       disabled={savingProfile}
-                      size="sm"
-                      className="flex-1"
+                      className="flex-1 min-h-[44px]"
                     >
                       {savingProfile ? (
                         <>
@@ -354,8 +358,7 @@ export default function ProfilePage() {
                     <Button
                       onClick={handleCancelProfileEdit}
                       variant="outline"
-                      size="sm"
-                      className="flex-1"
+                      className="flex-1 min-h-[44px]"
                     >
                       <X className="h-4 w-4 mr-1" />
                       Cancel
@@ -381,7 +384,7 @@ export default function ProfilePage() {
                     </span>
                   </div>
                   <Button
-                    className="w-full"
+                    className="w-full min-h-[44px]"
                     variant="outline"
                     onClick={handleEditProfile}
                     disabled={isEditingProfile}
@@ -394,24 +397,42 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Enhanced Loyalty Points Display */}
-          <PointsBreakdownComponent
-            userId={profile?.id || ''}
-            variant="full"
-            showTierProgress={true}
-          />
+          {/* Notifications Section Anchor */}
+          <div id="notifications"></div>
 
-          {/* Rewards & Coupons Section */}
-          <RewardsCouponsSection userId={profile?.id} userProfile={profile} />
+          <Card className="mt-4" role="region" aria-labelledby="notifications-title">
+            <CardHeader>
+              <CardTitle id="notifications-title" className="flex items-center space-x-2">
+                <Bell className="h-5 w-5" />
+                <span>Notifications</span>
+              </CardTitle>
+              <CardDescription>Your account notifications in one place</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-gray-600">No notifications yet.</div>
+            </CardContent>
+          </Card>
+
+          {/* Points + Rewards & Coupons side-by-side on desktop, stacked on mobile */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="order-1">
+              <RedesignedPointsWrapper
+                userId={profile?.id || ''}
+              />
+            </div>
+            <div className="order-2">
+              <RewardsCouponsSection userId={profile?.id} userProfile={profile} />
+            </div>
+          </div>
 
           {/* Development Testing Tools removed for production-ready E2E */}
 
         </div>
 
         {/* Account Security */}
-        <Card className="mb-8">
+        <Card className="mb-8" role="region" aria-labelledby="account-security-title">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle id="account-security-title" className="flex items-center space-x-2">
               <Shield className="h-5 w-5 text-blue-500" />
               <span>Account Security</span>
             </CardTitle>
@@ -428,7 +449,7 @@ export default function ProfilePage() {
                 </p>
               </div>
               <ChangePasswordDialog>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" className="min-h-[44px]">
                   <Shield className="h-4 w-4 mr-2" />
                   Change Password
                 </Button>
@@ -438,9 +459,9 @@ export default function ProfilePage() {
         </Card>
 
         {/* Address & Payment Information */}
-        <Card className="mb-8">
+        <Card className="mb-8" role="region" aria-labelledby="address-payment-title">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle id="address-payment-title" className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-blue-500" />
               <span>Address & Payment Information</span>
             </CardTitle>
@@ -457,9 +478,9 @@ export default function ProfilePage() {
                   <div className="flex space-x-2">
                     <Button
                       variant="outline"
-                      size="sm"
                       onClick={handleEditAddress}
                       disabled={savingAddress}
+                      className="min-h-[44px]"
                     >
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
@@ -467,10 +488,9 @@ export default function ProfilePage() {
                     {(profile?.address_line_1 || profile?.address_line_2 || profile?.aba_bank_name) && (
                       <Button
                         variant="outline"
-                        size="sm"
                         onClick={handleDeleteAddress}
                         disabled={savingAddress}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 min-h-[44px]"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Delete
@@ -525,7 +545,7 @@ export default function ProfilePage() {
                     <Button
                       onClick={handleSaveAddress}
                       disabled={savingAddress || !addressData.address_line_1 || !addressData.aba_bank_name}
-                      size="sm"
+                      className="min-h-[44px]"
                     >
                       {savingAddress ? (
                         <>
@@ -543,14 +563,14 @@ export default function ProfilePage() {
                       variant="outline"
                       onClick={handleCancelEdit}
                       disabled={savingAddress}
-                      size="sm"
+                      className="min-h-[44px]"
                     >
                       Cancel
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 sm:space-y-4">
                   {profile?.address_line_1 || profile?.address_line_2 ? (
                     <div className="p-4 border rounded-lg">
                       <div className="space-y-1">
@@ -594,18 +614,18 @@ export default function ProfilePage() {
         </Card>
 
         {/* Recent Orders */}
-        <Card>
+        <Card role="region" aria-labelledby="recent-orders-title">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="flex items-center space-x-2">
+                <CardTitle id="recent-orders-title" className="flex items-center space-x-2">
                   <ShoppingBag className="h-5 w-5" />
                   <span>Recent Orders</span>
                 </CardTitle>
                 <CardDescription>Your latest order history</CardDescription>
               </div>
               <Link href="/en/orders">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" className="min-h-[44px]">
                   <Eye className="h-4 w-4 mr-2" />
                   View All
                 </Button>
@@ -662,7 +682,7 @@ export default function ProfilePage() {
                     <div className="text-right">
                       <p className="font-semibold">{formatPrice(order.total_amount)}</p>
                       <Link href={`/en/orders/${order.id}`}>
-                        <Button variant="ghost" size="sm" className="mt-1">
+                        <Button variant="ghost" className="mt-1 min-h-[44px]">
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
@@ -677,7 +697,7 @@ export default function ProfilePage() {
                 <p>No orders yet</p>
                 <p className="text-sm">Start shopping to see your orders here!</p>
                 <Link href="/products">
-                  <Button className="mt-4">
+                  <Button className="mt-4 min-h-[44px]">
                     Start Shopping
                   </Button>
                 </Link>
@@ -686,8 +706,7 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Comprehensive Points Dashboard */}
-        {user && <PointsDashboard userId={user.id} userProfile={profile} />}
+
       </div>
     </div>
   )

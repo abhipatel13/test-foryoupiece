@@ -187,18 +187,18 @@ export function PointsBreakdownComponent({
           Worth {formatPrice(pointsBreakdown.total_available / 1000)}
         </div>
 
-        {/* Points Breakdown */}
+        {/* Available Balance Allocation (sums to available) */}
         <div className="space-y-1 pt-1 border-t border-gray-100">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Earned Points:</span>
+            <span className="text-gray-500">Available from Purchases:</span>
             <span className="font-medium text-green-600">
-              {Math.max(0, pointsBreakdown.earned_points).toLocaleString()}
+              {Math.max(0, pointsBreakdown.available_by_type?.earned ?? 0).toLocaleString()}
             </span>
           </div>
           <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Tier Rewards:</span>
+            <span className="text-gray-500">Available from Tier Rewards:</span>
             <span className="font-medium text-blue-600">
-              {Math.max(0, pointsBreakdown.tier_reward_points).toLocaleString()}
+              {Math.max(0, pointsBreakdown.available_by_type?.tier_rewards ?? 0).toLocaleString()}
             </span>
           </div>
         </div>
@@ -262,7 +262,7 @@ export function PointsBreakdownComponent({
                             Earned Points
                             <HelpCircle className="h-3 w-3 ml-1" />
                           </span>
-                          <span className="font-medium">{Math.max(0, pointsBreakdown.earned_points).toLocaleString()}</span>
+                          <span className="font-medium">{Math.max(0, pointsBreakdown.available_by_type?.earned ?? 0).toLocaleString()}</span>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -277,7 +277,7 @@ export function PointsBreakdownComponent({
                             Tier Rewards
                             <HelpCircle className="h-3 w-3 ml-1" />
                           </span>
-                          <span className="font-medium text-orange-600">{Math.max(0, pointsBreakdown.tier_reward_points).toLocaleString()}</span>
+                          <span className="font-medium text-orange-600">{Math.max(0, pointsBreakdown.available_by_type?.tier_rewards ?? 0).toLocaleString()}</span>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -352,9 +352,9 @@ export function PointsBreakdownComponent({
                       <span className="text-sm font-medium text-gray-700">Earned Points</span>
                     </div>
                     <div className="text-lg font-bold text-green-600">
-                      {Math.max(0, pointsBreakdown.earned_points).toLocaleString()}
+                      {Math.max(0, pointsBreakdown.available_by_type?.earned ?? 0).toLocaleString()}
                     </div>
-                    <div className="text-xs text-gray-500">From purchases & activities</div>
+                    <div className="text-xs text-gray-500">Currently available from purchases</div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -370,9 +370,9 @@ export function PointsBreakdownComponent({
                       <span className="text-sm font-medium text-gray-700">Tier Rewards</span>
                     </div>
                     <div className="text-lg font-bold text-orange-600">
-                      {Math.max(0, pointsBreakdown.tier_reward_points).toLocaleString()}
+                      {Math.max(0, pointsBreakdown.available_by_type?.tier_rewards ?? 0).toLocaleString()}
                     </div>
-                    <div className="text-xs text-gray-500">From tier achievements</div>
+                    <div className="text-xs text-gray-500">Currently available from tier rewards</div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>

@@ -10,7 +10,6 @@ import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { SimpleAccountDropdown } from '@/components/layout/simple-account-dropdown'
-import { NotificationBell } from '@/components/notifications/notification-bell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -155,7 +154,7 @@ export function Header() {
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-8 w-8 sm:h-10 sm:w-10"
+              className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-11 w-11 sm:h-12 sm:w-12"
               onClick={() => setShowMobileSearch(true)}
               aria-label="Open search"
             >
@@ -166,8 +165,8 @@ export function Header() {
             {/* Mobile Menu Button - Ultra Compact */}
             <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-8 w-8 sm:h-10 sm:w-10">
-                  <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
+                <Button variant="ghost" size="icon" className="lg:hidden text-foreground hover:text-primary hover:bg-accent/50 flex-shrink-0 transition-all duration-200 rounded-lg h-11 w-11 sm:h-12 sm:w-12">
+                  <Menu className="h-5 w-5 sm:h-6 sm:w-6" />
                   <span className="sr-only">Open menu</span>
                 </Button>
               </SheetTrigger>
@@ -267,8 +266,7 @@ export function Header() {
               <ChevronDown className="h-3 w-3 ml-2" />
             </div>
 
-            {/* Notifications Bell */}
-            {isAuthenticated && <NotificationBell className="flex-shrink-0" />}
+            {/* Notifications moved into Account dropdown per spec - bell hidden */}
 
             {/* Account & Lists - Simple and Fast */}
             <SimpleAccountDropdown className="flex-shrink-0 min-w-0" />

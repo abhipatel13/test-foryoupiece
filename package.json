@@ -11,7 +11,10 @@
     "dev:fresh": "npm run clear-cache && npm run dev",
     "scrape-products": "node scripts/scrape-product-descriptions.js",
     "update-descriptions": "node scripts/update-product-descriptions.js",
-    "preview-updates": "node scripts/update-product-descriptions.js --preview"
+    "preview-updates": "node scripts/update-product-descriptions.js --preview",
+    "analyze": "cross-env ANALYZE=true npm run build",
+    "analyze:server": "cross-env BUNDLE_ANALYZE=server npm run build",
+    "analyze:browser": "cross-env BUNDLE_ANALYZE=browser npm run build"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.15",
@@ -62,9 +65,11 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^15.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.4.1",
     "puppeteer": "^23.11.1",

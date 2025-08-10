@@ -22,14 +22,16 @@ export function Footer() {
                 className="rounded-lg shadow-sm object-contain flex-shrink-0"
                 priority
               />
-              <Image
-                src="/logo.jpg"
-                alt="Foryoupiece"
-                width={80}
-                height={24}
-                className="object-contain flex-shrink-0"
-                priority
-              />
+              <div className="relative" style={{ width: 80, height: 24 }}>
+                <Image
+                  src="/logo.jpg"
+                  alt="Foryoupiece"
+                  fill
+                  sizes="80px"
+                  className="object-contain flex-shrink-0"
+                  priority
+                />
+              </div>
             </div>
             <p className="text-muted-foreground leading-relaxed max-w-sm">
               Premium Japanese products delivered directly from Japan to Cambodia. Experience the highest quality and most comprehensive selection of authentic, curated products from Japan and worldwide.

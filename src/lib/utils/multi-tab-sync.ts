@@ -23,11 +23,48 @@ interface TabSyncOptions {
   onSessionValidated?: (payload: any) => void
 }
 
+// Browser compatibility detection for multi-tab sync
+function detectTabSyncCapabilities() {
+  if (typeof window === 'undefined') {
+    return { broadcastChannel: false, localStorage: false, storageEvents: false }
+  }
+
+  const capabilities = {
+    broadcastChannel: 'BroadcastChannel' in window,
+    localStorage: false,
+    storageEvents: false
+  }
+
+  // Test localStorage availability
+  try {
+    const testKey = '__tab_sync_test__'
+    localStorage.setItem(testKey, 'test')
+    localStorage.removeItem(testKey)
+    capabilities.localStorage = true
+  } catch {
+    capabilities.localStorage = false
+  }
+
+  // Test storage events (some browsers support localStorage but not storage events)
+  try {
+    if (capabilities.localStorage && 'addEventListener' in window) {
+      capabilities.storageEvents = true
+    }
+  } catch {
+    capabilities.storageEvents = false
+  }
+
+  return capabilities
+}
+
 class MultiTabSync {
   private tabId: string
   private channel: BroadcastChannel | null = null
   private listeners: TabSyncOptions = {}
   private isInitialized = false
+  private capabilities = detectTabSyncCapabilities()
+  private fallbackStorage = new Map<string, string>()
+  private storageEventHandler: ((event: StorageEvent) => void) | null = null
 
   constructor() {
     this.tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -37,14 +74,36 @@ class MultiTabSync {
   private initialize() {
     if (typeof window === 'undefined' || this.isInitialized) return
 
+    console.log('🔄 Multi-tab sync capabilities:', this.capabilities)
+
     try {
-      // Use BroadcastChannel for modern browsers
-      if ('BroadcastChannel' in window) {
-        this.channel = new BroadcastChannel('foryoupiece_tab_sync')
-        this.channel.addEventListener('message', this.handleMessage.bind(this))
-      } else {
-        // Fallback to localStorage events for older browsers
-        window.addEventListener('storage', this.handleStorageEvent.bind(this))
+      // Primary: Use BroadcastChannel for modern browsers
+      if (this.capabilities.broadcastChannel) {
+        try {
+          this.channel = new BroadcastChannel('foryoupiece_tab_sync')
+          this.channel.addEventListener('message', this.handleMessage.bind(this))
+          console.log('✅ BroadcastChannel initialized for multi-tab sync')
+        } catch (error) {
+          console.warn('⚠️ BroadcastChannel failed, falling back to storage events:', error)
+          this.capabilities.broadcastChannel = false
+        }
+      }
+
+      // Fallback: Use localStorage events for browsers without BroadcastChannel
+      if (!this.capabilities.broadcastChannel && this.capabilities.storageEvents) {
+        try {
+          this.storageEventHandler = this.handleStorageEvent.bind(this)
+          window.addEventListener('storage', this.storageEventHandler)
+          console.log('✅ Storage events initialized for multi-tab sync fallback')
+        } catch (error) {
+          console.warn('⚠️ Storage events failed:', error)
+          this.capabilities.storageEvents = false
+        }
+      }
+
+      // Last resort: Memory-only (no cross-tab sync)
+      if (!this.capabilities.broadcastChannel && !this.capabilities.storageEvents) {
+        console.warn('⚠️ No cross-tab sync available, using memory-only mode')
       }
 
       this.isInitialized = true
@@ -121,18 +180,39 @@ class MultiTabSync {
     }
 
     try {
-      if (this.channel) {
-        this.channel.postMessage(message)
-      } else {
-        // Fallback to localStorage
-        localStorage.setItem('foryoupiece_tab_sync', JSON.stringify(message))
-        // Clear after a short delay to trigger storage event
-        setTimeout(() => {
-          localStorage.removeItem('foryoupiece_tab_sync')
-        }, 100)
+      // Primary: Use BroadcastChannel if available
+      if (this.capabilities.broadcastChannel && this.channel) {
+        try {
+          this.channel.postMessage(message)
+          console.log('📤 Broadcasted via BroadcastChannel:', { type, tabId: this.tabId })
+          return
+        } catch (error) {
+          console.warn('⚠️ BroadcastChannel failed, falling back to storage:', error)
+        }
       }
 
-      console.log('📤 Broadcasted tab sync message:', { type, tabId: this.tabId })
+      // Fallback: Use localStorage events
+      if (this.capabilities.storageEvents && this.capabilities.localStorage) {
+        try {
+          localStorage.setItem('foryoupiece_tab_sync', JSON.stringify(message))
+          // Clear after a short delay to trigger storage event
+          setTimeout(() => {
+            try {
+              localStorage.removeItem('foryoupiece_tab_sync')
+            } catch (error) {
+              console.warn('Failed to clear tab sync storage:', error)
+            }
+          }, 100)
+          console.log('📤 Broadcasted via localStorage:', { type, tabId: this.tabId })
+          return
+        } catch (error) {
+          console.warn('⚠️ localStorage broadcast failed:', error)
+        }
+      }
+
+      // Last resort: Store in memory (no cross-tab sync)
+      this.fallbackStorage.set('last_message', JSON.stringify(message))
+      console.log('📤 Stored in memory only (no cross-tab sync):', { type, tabId: this.tabId })
     } catch (error) {
       console.error('❌ Failed to broadcast tab sync message:', error)
     }
@@ -140,12 +220,20 @@ class MultiTabSync {
 
   public destroy() {
     try {
+      // Clean up BroadcastChannel
       if (this.channel) {
         this.channel.close()
         this.channel = null
-      } else {
-        window.removeEventListener('storage', this.handleStorageEvent.bind(this))
       }
+
+      // Clean up storage event listener
+      if (this.storageEventHandler) {
+        window.removeEventListener('storage', this.storageEventHandler)
+        this.storageEventHandler = null
+      }
+
+      // Clear fallback storage
+      this.fallbackStorage.clear()
 
       this.isInitialized = false
       console.log('🔄 Multi-tab sync destroyed:', this.tabId)
