@@ -247,15 +247,15 @@ export function RewardsCouponsSection({ userId, userProfile }: RewardsCouponsPro
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="mt-2">
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center space-x-2">
             <Gift className="h-5 w-5 text-purple-500" />
             <span>Rewards & Coupons</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
+        <CardContent className="pt-0">
+          <div className="flex items-center justify-center py-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
           </div>
         </CardContent>
@@ -265,28 +265,28 @@ export function RewardsCouponsSection({ userId, userProfile }: RewardsCouponsPro
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="mt-2">
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center space-x-2">
             <Gift className="h-5 w-5 text-purple-500" />
             <span>Rewards & Coupons</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-red-500 mb-4">{error}</p>
-            <Button onClick={fetchRewardsAndCoupons} variant="outline">
-              Try Again
-            </Button>
-          </div>
+        <CardContent className="pt-0">
+        <div className="text-center py-6">
+          <p className="text-red-500 mb-4">{error}</p>
+          <Button onClick={fetchRewardsAndCoupons} variant="outline" className="min-h-[44px]">
+            Try Again
+          </Button>
+        </div>
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="mt-2">
+      <CardHeader className="pb-2">
         <CardTitle className="flex items-center space-x-2">
           <Gift className="h-5 w-5 text-purple-500" />
           <span>Rewards & Coupons</span>
@@ -295,16 +295,16 @@ export function RewardsCouponsSection({ userId, userProfile }: RewardsCouponsPro
           Your tier rewards, active coupons, and loyalty benefits
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         <Tabs defaultValue="coupons" className="w-full">
           <TabsList
-            className="w-full flex flex-wrap items-stretch gap-2 p-1 h-auto overflow-visible justify-start"
+            className="w-full flex flex-nowrap items-stretch gap-2 p-1 h-auto overflow-x-auto overflow-y-hidden justify-start scrollbar-hide -mx-1 px-1 sm:overflow-visible sm:flex-wrap sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60"
             aria-label="Rewards and coupons tabs"
           >
-            <TabsTrigger value="overview" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Overview</TabsTrigger>
-            <TabsTrigger value="rewards" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Tier Rewards</TabsTrigger>
-            <TabsTrigger value="coupons" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Coupons</TabsTrigger>
-            <TabsTrigger value="progress" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-normal w-1/2 min-w-0 grow-0 sm:w-auto sm:whitespace-nowrap">Progress</TabsTrigger>
+            <TabsTrigger value="overview" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-nowrap shrink-0">Overview</TabsTrigger>
+            <TabsTrigger value="rewards" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-nowrap shrink-0">Tier Rewards</TabsTrigger>
+            <TabsTrigger value="coupons" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-nowrap shrink-0">Coupons</TabsTrigger>
+            <TabsTrigger value="progress" className="min-h-[44px] h-auto px-3 sm:px-4 text-xs sm:text-sm leading-5 text-center whitespace-nowrap shrink-0">Progress</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4 focus:outline-none">

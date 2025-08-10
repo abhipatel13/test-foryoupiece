@@ -254,6 +254,6 @@ export function useSSRSafeAuth() {
     changePassword,
     updateProfile,
     handleSessionExpiration,
-    isAdmin: profile?.tier_level === 'platinum' // Simplified admin check
+    isAdmin: (profile as any)?.tier === 'platinum' // Simplified admin check aligned with UserProfile
   }
 }

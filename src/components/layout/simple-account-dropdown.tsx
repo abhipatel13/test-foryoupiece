@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronDown, User, Package, Heart, Settings, LogOut, Coins, Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { getCorrectUserTier } from '@/lib/utils'
 
 interface SimpleAccountDropdownProps {
   className?: string
@@ -36,12 +37,14 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     onOpenChange: setIsOpen,
     middleware: [
       offset(8),
-      flip({ fallbackPlacements: ['bottom-end', 'top-start', 'top-end'], padding: 16 }),
+      // Keep menu below trigger; avoid flipping to top to prevent upward dropdowns
+      // Remove flip or restrict to bottom-aligned behavior only
+      // flip({ fallbackPlacements: ['bottom-end', 'bottom-start'], padding: 16 }),
       shift({ padding: 16 })
     ],
     whileElementsMounted: autoUpdate,
     placement: 'bottom-end',
-    strategy: 'fixed' // Fixed positioning for proper overlay behavior
+    strategy: 'fixed' // Use fixed to avoid clipping and ensure stable below-header positioning
   })
 
   const click = useClick(context)
@@ -54,15 +57,15 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
       const firstName = profile.first_name || ''
       const lastName = profile.last_name || ''
       const name = firstName && lastName ? `${firstName} ${lastName}` : user.email?.split('@')[0] || 'User'
-      
+
       setUserDisplayData({
         name,
         email: user.email || '',
-        initials: firstName && lastName 
+        initials: firstName && lastName
           ? `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
           : (user.email?.charAt(0) || 'U').toUpperCase(),
         points: profile.points_balance || 0,
-        tier: profile.tier_level || 'bronze'
+        tier: getCorrectUserTier(profile)
       })
     } else {
       setUserDisplayData(null)
@@ -136,7 +139,10 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
       <Button
         ref={refs.setReference}
         variant="ghost"
-        className="flex items-center space-x-2 px-2 py-1 min-h-[44px] hover:bg-accent/50 transition-colors"
+        className="flex items-center space-x-2 px-2 py-1 min-h-[44px] hover:bg-accent/50 transition-colors touch-target"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? 'account-dropdown-menu' : undefined}
         {...getReferenceProps()}
       >
         <Avatar className="h-8 w-8">
@@ -162,6 +168,9 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         <div
           ref={refs.setFloating}
           style={floatingStyles}
+          id="account-dropdown-menu"
+          role="menu"
+          aria-label="Account menu"
           className="z-[100] min-w-[280px] bg-background border border-border rounded-lg shadow-lg p-0 animate-in fade-in-0 zoom-in-95"
           {...getFloatingProps()}
         >
@@ -206,35 +215,35 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
 
           {/* Menu Items */}
           <div className="p-2">
-            <Link href="/en/profile" onClick={() => setIsOpen(false)}>
+            <Link href="/en/profile" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <User className="h-4 w-4" />
                 <span>Your Account</span>
               </div>
             </Link>
             
-            <Link href="/en/orders" onClick={() => setIsOpen(false)}>
+            <Link href="/en/orders" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Package className="h-4 w-4" />
                 <span>Your Orders</span>
               </div>
             </Link>
             
-            <Link href="/en/wishlist" onClick={() => setIsOpen(false)}>
+            <Link href="/en/wishlist" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Heart className="h-4 w-4" />
                 <span>Your Wish List</span>
               </div>
             </Link>
             
-            <Link href="/en/settings" onClick={() => setIsOpen(false)}>
+            <Link href="/en/settings" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
               </div>
             </Link>
             
-            <Link href="/en/profile#notifications" onClick={() => setIsOpen(false)}>
+            <Link href="/en/profile#notifications" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Bell className="h-4 w-4" />
                 <span>Notifications</span>
@@ -245,6 +254,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
 
             <button
               onClick={handleSignOut}
+              role="menuitem"
               className="w-full flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors text-left"
             >
               <LogOut className="h-4 w-4" />

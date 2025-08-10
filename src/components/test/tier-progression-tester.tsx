@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import { authFetch } from '@/lib/utils/auth-interceptor'
 import { toast } from 'sonner'
-import { getTierStyling } from '@/lib/utils'
+import { getTierStyling, getCorrectUserTier } from '@/lib/utils'
 
 interface TierProgressionTesterProps {
   currentUser?: any
@@ -210,9 +210,9 @@ export function TierProgressionTester({ currentUser, onProgressUpdate }: TierPro
               <div>
                 <span className="text-gray-600">Current Tier:</span>
                 <div className="flex items-center space-x-2 mt-1">
-                  {getTierIcon(currentUser.tier_level || 'bronze')}
-                  <Badge className={getTierStyling(currentUser.tier_level || 'bronze').badgeClass}>
-                    {(currentUser.tier_level || 'bronze').toUpperCase()}
+                  {getTierIcon(getCorrectUserTier(currentUser))}
+                  <Badge className={getTierStyling(getCorrectUserTier(currentUser)).badgeClass}>
+                    {getCorrectUserTier(currentUser).toUpperCase()}
                   </Badge>
                 </div>
               </div>
