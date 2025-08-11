@@ -34,10 +34,29 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ Found ${trendingProducts?.length || 0} trending products`)
 
+    // Work on a local copy so we don't reassign a const
+    let productsList = (trendingProducts || []) as any[]
+
+    // Augment RPC results with points_rate to ensure UI reflects latest loyalty settings
+    if (productsList.length > 0) {
+      const ids = productsList.map(p => p.product_id || p.id).filter(Boolean)
+      if (ids.length > 0) {
+        const { data: rateRows } = await supabase
+          .from('products')
+          .select('id, points_rate')
+          .in('id', ids)
+        const rateMap = new Map((rateRows || []).map(r => [r.id, r.points_rate]))
+        productsList = productsList.map(p => ({
+          ...p,
+          points_rate: rateMap.get(p.product_id || p.id) ?? null,
+        })) as any
+      }
+    }
+
     // If no trending products found, use fallback logic
-    if (!trendingProducts || trendingProducts.length === 0) {
+    if (!productsList || productsList.length === 0) {
       console.log('🔄 No trending products found, using fallback logic...')
-      
+
       // Fallback: Get recent best-selling products
       const { data: fallbackProducts, error: fallbackError } = await supabase
         .from('products')
@@ -50,6 +69,7 @@ export async function GET(request: NextRequest) {
           description_ja,
           price,
           compare_at_price,
+          points_rate,
           stock_quantity,
           stock_status,
           is_featured,
@@ -57,7 +77,6 @@ export async function GET(request: NextRequest) {
           images,
           created_at,
           tags,
-          points_rate,
           category:categories(
             id,
             name_en,
@@ -72,14 +91,14 @@ export async function GET(request: NextRequest) {
 
       if (fallbackError) {
         console.error('Error fetching fallback products:', fallbackError)
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'Failed to fetch products',
-          details: fallbackError.message 
+          details: fallbackError.message
         }, { status: 500 })
       }
 
       const sortedFallback = sortProductsByStockPriority(fallbackProducts || [])
-      
+
       console.log(`✅ Using ${sortedFallback.length} fallback products`)
 
       return NextResponse.json({
@@ -96,7 +115,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Sort trending products by stock priority
-    const sortedProducts = sortProductsByStockPriority(trendingProducts)
+    const sortedProducts = sortProductsByStockPriority(productsList)
 
     let stats = undefined
     if (includeStats) {

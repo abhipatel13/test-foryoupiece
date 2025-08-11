@@ -28,6 +28,7 @@ interface Product {
   stock_quantity: number
   stock_status: string
   is_featured: boolean
+  points_rate?: number // Points rate percentage (e.g., 1.00 = 1%)
   category: {
     id: string
     name_en: string
@@ -71,7 +72,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
       sku: product.sku,
       variant: undefined, // No variant selection in product cards
       stockQuantity: product.stock_quantity,
-      points_rate: 1.00
+      points_rate: product.points_rate || 1.00
     }, product.stock_quantity)
 
     if (success) {
@@ -248,7 +249,7 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             {/* Points Display - Smaller, Muted Text */}
             <div className="flex items-center gap-1 text-xs text-gray-500">
               <span className="text-orange-600 font-medium">
-                1%
+                {(product.points_rate ?? 1)}%
               </span>
               <span>back in points</span>
             </div>

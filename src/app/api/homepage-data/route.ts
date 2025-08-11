@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         .select(`
           id, sku, name_en, name_ja, description_en, price, compare_at_price,
           stock_quantity, stock_status, is_featured, brand, images, created_at, tags,
+          points_rate,
           category:categories(id, name_en, name_ja, slug)
         `)
         .eq('is_active', true)
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
           id, sku, name_en, name_ja, description_en, price, compare_at_price,
           stock_quantity, stock_status, is_featured, brand, images, created_at, tags,
           boxhero_last_sync_at,
+          points_rate,
           category:categories(id, name_en, name_ja, slug)
         `)
         .eq('is_active', true)
@@ -78,7 +80,10 @@ export async function GET(request: NextRequest) {
     dealsProducts = dealsProducts
       .filter(product => {
         const hasDiscount = product.compare_at_price && product.compare_at_price > product.price
-        return hasDiscount && product.stock_quantity > 0 // Only include in-stock deals
+        const hasValidPrice = typeof product.price === 'number' && product.price > 0
+        const hasImage = Array.isArray(product.images) && product.images.length > 0
+        const inStock = product.stock_quantity > 0
+        return hasDiscount && hasValidPrice && hasImage && inStock
       })
       .map(product => ({
         ...product,

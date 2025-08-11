@@ -83,6 +83,7 @@ export default function TrendingPage() {
                   name_ja: product.name_ja,
                   price: product.price,
                   compare_at_price: product.compare_at_price,
+                  points_rate: (product as any).points_rate ?? 1,
                   images: product.images,
                   stock_quantity: product.stock_quantity,
                   is_featured: product.is_featured,

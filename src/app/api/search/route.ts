@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
         description_en,
         price,
         compare_at_price,
+        points_rate,
         stock_quantity,
         is_featured,
         brand,

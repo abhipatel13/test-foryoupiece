@@ -46,6 +46,7 @@ interface Product {
   short_description_ja: string | null
   price: number
   compare_at_price: number | null
+  points_rate: number | null
   images: string[]
   brand: string | null
   stock_quantity: number

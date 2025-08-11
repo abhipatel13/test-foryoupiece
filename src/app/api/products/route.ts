@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     // Build query with category filtering
     let query = supabase
       .from('products')
-      .select('*', { count: 'exact' })
+      .select('*, points_rate', { count: 'exact' })
       .eq('is_active', true);
 
     // STRICT CATEGORY FILTERING - NO KEYWORD FALLBACKS
@@ -114,7 +114,10 @@ export async function GET(request: NextRequest) {
       const dealsProducts = products.filter(product => {
         // Check for price discount (compare_at_price > price)
         const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
-        return hasDiscount;
+        const hasValidPrice = typeof product.price === 'number' && product.price > 0;
+        const hasImage = Array.isArray(product.images) && product.images.length > 0;
+        const inStock = product.stock_quantity > 0;
+        return hasDiscount && hasValidPrice && hasImage && inStock;
       });
 
       // Sort deals by discount percentage (descending)

@@ -27,6 +27,7 @@ import {
   ArrowLeft,
   Crown,
   Tag,
+  Tags,
   Award,
   Gift,
   Zap,
@@ -451,6 +452,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       name: 'Products',
       href: `/${locale}/fyponly-admin/products`,
       icon: Package,
+      current: false
+    },
+    {
+      name: 'Product Categories',
+      href: `/${locale}/fyponly-admin/product-categories`,
+      icon: Tags,
       current: false
     },
     {
