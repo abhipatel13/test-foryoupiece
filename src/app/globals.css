@@ -827,23 +827,32 @@ input, textarea, select {
     font-size: 1.25rem; /* 20px - optimized for mobile readability */
     font-weight: 700;
     color: oklch(0.15 0 0);
-    margin-bottom: 0.75rem; /* 12px - better mobile spacing */
+    margin-bottom: 0; /* Remove margin to prevent spacing conflicts */
     line-height: 1.3;
     letter-spacing: -0.025em;
+  }
+
+  /* Specific handling for section headings within mobile section titles */
+  .mobile-section-title .section-heading {
+    flex: 1 1 auto;
+    min-width: 0; /* Allow wrapping within available space */
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal; /* Enable text wrapping instead of truncation */
   }
 
   /* Mobile viewport specific adjustments */
   @media (max-width: 320px) {
     .section-heading {
       font-size: 1.125rem; /* 18px - smaller for 320px screens */
-      margin-bottom: 0.5rem; /* 8px - tighter spacing */
+      margin-bottom: 0; /* Remove margin to prevent spacing conflicts */
     }
   }
 
   @media (min-width: 375px) and (max-width: 414px) {
     .section-heading {
       font-size: 1.375rem; /* 22px - optimal for 375px-414px */
-      margin-bottom: 0.75rem; /* 12px */
+      margin-bottom: 0; /* Remove margin to prevent spacing conflicts */
     }
   }
 
@@ -867,7 +876,7 @@ input, textarea, select {
   @media (min-width: 1024px) {
     .section-heading {
       font-size: 1.5rem; /* 24px - standardized heading */
-      margin-bottom: 0.5rem; /* 8px spacing unit */
+      margin-bottom: 0; /* Remove margin to prevent spacing conflicts */
       line-height: 1.3;
     }
 
@@ -1967,18 +1976,23 @@ input, textarea, select {
   /* ENHANCED: Mobile Section Header Utilities */
   .mobile-section-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start; /* Top-align to support multi-line headings */
     justify-content: space-between;
-    margin-bottom: 1rem; /* 16px */
-    padding: 0 0.25rem; /* 4px horizontal padding */
+    margin-bottom: 1.25rem; /* 20px - improved spacing */
+    padding: 0 0.5rem; /* 8px horizontal padding */
+    gap: 1rem; /* 16px gap between title and link */
+    flex-wrap: wrap; /* Allow header to wrap when space is tight */
   }
 
   .mobile-section-title {
     display: flex;
     align-items: center;
-    gap: 0.5rem; /* 8px */
-    flex: 1;
-    min-width: 0; /* Allow text truncation */
+    gap: 0.5rem; /* 8px - compact spacing */
+    flex: 1 1 auto;
+    min-width: 0; /* Allow content to use available width */
+    flex-wrap: wrap; /* Permit heading to wrap to next line */
+    row-gap: 0.25rem; /* Tighter vertical spacing between wrapped rows */
+    overflow: visible; /* Show full text */
   }
 
   .mobile-section-icon {
@@ -1994,6 +2008,12 @@ input, textarea, select {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.025em;
+    /* Allow full badge text to be visible and let container handle wrapping */
+    max-width: none;
+    overflow: visible; /* Override Badge base overflow-hidden */
+    text-overflow: clip;
+    white-space: nowrap; /* Keep the badge text on a single line */
+    flex-shrink: 0;
   }
 
   .mobile-view-all-link {
@@ -2003,32 +2023,18 @@ input, textarea, select {
     display: flex;
     align-items: center;
     gap: 0.25rem; /* 4px */
-    transition: color 0.2s ease;
+    padding: 0.375rem 0.75rem; /* 6px 12px */
+    border-radius: 0.375rem; /* 6px */
+    transition: all 0.2s ease;
     text-decoration: none;
     flex-shrink: 0;
+    min-height: 44px; /* Touch target */
+    justify-content: center;
+    background-color: transparent;
   }
 
   .mobile-view-all-link:hover {
     color: oklch(0.35 0.1 250); /* Darker primary on hover */
-  }
-
-  .mobile-view-all-link {
-    font-size: 0.75rem; /* 12px */
-    font-weight: 500;
-    color: oklch(0.4 0.15 250);
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem; /* 4px */
-    padding: 0.25rem 0.5rem; /* 4px 8px */
-    border-radius: 0.25rem; /* 4px */
-    transition: all 0.2s ease;
-    min-height: 44px; /* Touch target */
-    justify-content: center;
-  }
-
-  .mobile-view-all-link:hover {
-    color: oklch(0.3 0.15 250);
     background-color: oklch(0.95 0.01 250);
   }
 
