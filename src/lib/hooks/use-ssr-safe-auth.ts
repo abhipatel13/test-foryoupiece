@@ -17,7 +17,7 @@ export function useSSRSafeAuth() {
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
   const isClient = useIsClient()
-  
+
   // Use SSR-safe store wrappers
   const userStore = useSSRSafeUserStore()
   const cartStore = useSSRSafeCartStore()
@@ -109,6 +109,8 @@ export function useSSRSafeAuth() {
       // Set global sign-out flag to prevent session restoration
       if (typeof window !== 'undefined') {
         (window as any).signOutInProgress = true
+        // Also stamp a timestamp for debugging and recovery heuristics
+        ;(window as any).__lastSignOutAt = Date.now()
       }
 
       // Clear user state immediately to prevent UI confusion
@@ -168,11 +170,21 @@ export function useSSRSafeAuth() {
         window.location.replace('/en/auth/login')
       }
     }
+
+  // Ensure global sign-out flag is reset when hook mounts (safety)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).signOutInProgress = false
+    }
+  }, [])
+
   }, [supabase.auth, clearUser, clearCartOnLogout, isClient, user?.id])
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!isClient) return
 
+    // Ensure any previous cart loads are not racing
+    // Sign-in will trigger setUserId which loads cart from DB for the new user
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,

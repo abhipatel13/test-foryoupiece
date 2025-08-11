@@ -7,6 +7,8 @@ import { pointsToDollars, calculateOrderPoints } from '@/lib/utils'
 import { AppliedCoupon } from '@/types/coupon'
 import { shippingService, type ShippingCalculationResult } from '@/lib/services/shipping-service'
 
+import { tabSyncUtils } from '@/lib/utils/multi-tab-sync'
+
 // Helper function to track cart behavior
 const trackCartBehavior = async (
   behaviorType: 'cart_add' | 'cart_remove',
@@ -219,6 +221,12 @@ export const useCartStore = create<CartStore>()(
           } catch (error) {
             console.warn('Failed to clear cart localStorage on logout:', error)
           }
+          // Inform other tabs/UI about cart state reset
+          try {
+            tabSyncUtils.broadcastCartCleared()
+          } catch (e) {
+            console.warn('Failed to broadcast CART_CLEARED:', e)
+          }
         }
       },
 
@@ -337,7 +345,7 @@ export const useCartStore = create<CartStore>()(
 
         return true
       },
-      
+
       removeItem: async (id, variant) => {
         const { items, userId } = get()
 
@@ -506,6 +514,13 @@ export const useCartStore = create<CartStore>()(
           console.log('🧹 Cleared cart localStorage on logout')
         } catch (error) {
           console.warn('Failed to clear cart localStorage on logout:', error)
+        }
+
+        // Notify other tabs/UI explicitly
+        try {
+          tabSyncUtils.broadcastCartCleared()
+        } catch (e) {
+          console.warn('Failed to broadcast CART_CLEARED:', e)
         }
       },
 

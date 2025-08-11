@@ -8,7 +8,7 @@ import React from 'react'
  */
 
 interface TabSyncMessage {
-  type: 'AUTH_STATE_CHANGE' | 'ADMIN_STATUS_CHANGE' | 'PROFILE_UPDATE' | 'CACHE_INVALIDATE' | 'SESSION_EXPIRED' | 'SESSION_VALIDATED'
+  type: 'AUTH_STATE_CHANGE' | 'ADMIN_STATUS_CHANGE' | 'PROFILE_UPDATE' | 'CACHE_INVALIDATE' | 'SESSION_EXPIRED' | 'SESSION_VALIDATED' | 'CART_CLEARED'
   payload: any
   timestamp: number
   tabId: string
@@ -21,6 +21,7 @@ interface TabSyncOptions {
   onCacheInvalidate?: (payload: any) => void
   onSessionExpired?: (payload: any) => void
   onSessionValidated?: (payload: any) => void
+  onCartCleared?: () => void
 }
 
 // Browser compatibility detection for multi-tab sync
@@ -144,6 +145,9 @@ class MultiTabSync {
           break
         case 'SESSION_VALIDATED':
           this.listeners.onSessionValidated?.(payload)
+          break
+        case 'CART_CLEARED':
+          this.listeners.onCartCleared?.()
           break
         default:
           // Unknown message type - ignore
@@ -305,5 +309,9 @@ export const tabSyncUtils = {
 
   broadcastSessionValidated: (userId: string) => {
     getTabSync().broadcast('SESSION_VALIDATED', { userId, timestamp: Date.now() })
+  },
+
+  broadcastCartCleared: () => {
+    getTabSync().broadcast('CART_CLEARED', {})
   }
 }

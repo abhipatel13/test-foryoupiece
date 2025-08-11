@@ -8,6 +8,7 @@ import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { getCorrectUserTier, getTierStyling, getTierFromPoints } from '@/lib/utils'
+import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { SimpleAccountDropdown } from '@/components/layout/simple-account-dropdown'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,15 @@ export function Header() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Force a tiny tick re-render when cart or auth changes cross-tab
+  const [, forceRender] = useState(0)
+  useMultiTabSync({
+    onAuthStateChange: () => forceRender((t) => t + 1),
+    onSessionExpired: () => forceRender((t) => t + 1),
+    onSessionValidated: () => forceRender((t) => t + 1),
+    onCartCleared: () => forceRender((t) => t + 1)
+  })
 
 
 

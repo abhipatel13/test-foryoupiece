@@ -240,7 +240,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(payload.user)
       setUserId(payload.user.id)
       loadUserProfile(payload.user.id)
-      forceLoadCartForUser(payload.user.id)
+      // Avoid immediate duplicate cart load; setUserId triggers loadCartFromDatabase
     }
   }, [setUser, setUserId, handleCrossTabSignOut, forceLoadCartForUser])
 
@@ -294,6 +294,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Reset global sign-out flag on page load
     if (typeof window !== 'undefined') {
       (window as any).signOutInProgress = false
+      console.log('🔁 Global sign-out flag reset on mount')
     }
 
     const initializeAuth = async () => {
@@ -391,10 +392,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           console.log('🛒 Loading cart for user:', session.user.id)
           try {
-            await forceLoadCartForUser(session.user.id)
-            console.log('✅ Cart loading completed')
+            // setUserId already triggers loadCartFromDatabase; avoid duplicate loads
+            // await forceLoadCartForUser(session.user.id)
+            console.log('⏭️ Skipping explicit forceLoadCartForUser to avoid duplicates')
           } catch (cartError) {
-            console.error('❌ Cart loading failed:', cartError)
+            console.error('❌ Cart loading failed (unexpected):', cartError)
             // Don't fail auth if cart loading fails
           }
 
@@ -479,7 +481,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
               await loadUserProfile(session.user.id)
               // Only force cart reload when user actually changed
               if (!sameUser) {
-                await forceLoadCartForUser(session.user.id)
+                // setUserId already triggers cart load; avoid duplicate
+                // await forceLoadCartForUser(session.user.id)
               }
 
               // Broadcast sign in/update to other tabs

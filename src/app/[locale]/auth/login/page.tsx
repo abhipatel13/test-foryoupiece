@@ -81,9 +81,16 @@ function LoginPageContent() {
     }
   }
 
+
+
   const handleGoogleLogin = async () => {
     setLoading(true)
     setError('')
+
+    // Mark OAuth flow as in-flight to avoid interceptor interference
+    if (typeof window !== 'undefined') {
+      ;(window as any).__oauthSignInInFlight = true
+    }
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -105,13 +112,13 @@ function LoginPageContent() {
       setError('Failed to initiate Google login')
       toast.error('Failed to initiate Google login')
     } finally {
+      // Clear OAuth in-flight flag regardless of outcome
+      if (typeof window !== 'undefined') {
+        ;(window as any).__oauthSignInInFlight = false
+      }
       setLoading(false)
     }
   }
-
-
-
-
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8">

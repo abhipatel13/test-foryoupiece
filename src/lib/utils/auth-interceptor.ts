@@ -34,6 +34,21 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+
+function isAuthFlowInProgress(): boolean {
+  try {
+    if (typeof window === 'undefined') return false
+    const w = window as any
+    const inFlight = !!w.__oauthSignInInFlight
+    const pathname = window.location?.pathname || ''
+    const onAuthPage = pathname.includes('/auth/login') || pathname.includes('/auth/callback')
+    const loggingOut = !!w.signOutInProgress
+    return inFlight || onAuthPage || loggingOut
+  } catch {
+    return false
+  }
+}
+
 let authHandler: (() => Promise<void>) | null = null
 
 /**
@@ -94,6 +109,12 @@ export async function handleAuthError(error: any, url?: string) {
   }
 
   console.log('🚨 Handling auth error', { url, error: error.message })
+
+  // If auth flow (OAuth/callback or logout) is in progress, do not interfere
+  if (isAuthFlowInProgress()) {
+    console.log('⏭️ Auth flow in progress; deferring interceptor handling')
+    return
+  }
 
   isHandlingAuthError = true
   authErrorCount++
