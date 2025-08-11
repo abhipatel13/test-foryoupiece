@@ -98,38 +98,49 @@ export function SessionMonitor({
       const supabase = createClient()
       try {
         const { data: sessionData } = await supabase.auth.getSession()
-        if (sessionData?.session?.user) {
-          // Try refreshing tokens to ensure validity
-          const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession()
-          if (!refreshErr && refreshed?.session?.user) {
-            const userId = refreshed.session.user.id
-            console.log('✅ Client-side session valid/refreshed for user:', userId)
+        const sess = sessionData?.session
+        if (sess?.user) {
+          const userId = sess.user.id
+          const exp = (sess.expires_at ?? 0) * 1000
+          const now = Date.now()
+          const timeLeft = exp > 0 ? exp - now : Number.POSITIVE_INFINITY
 
-            // Reset retry count on successful validation
-            retryCountRef.current = 0
-            setLastValidationTime(Date.now())
-
-            // Only reload cart if it's been more than 5 minutes since last cart load
-            if (userId && user?.id === userId) {
-              const timeSinceLastCartLoad = Date.now() - lastCrossTabCartReloadRef.current
-              if (timeSinceLastCartLoad > 300000) { // 5 minutes
-                console.log('🛒 Session monitor: Cart needs refresh after client validation')
-                try {
-                  await forceLoadCartForUser(userId)
-                  lastCrossTabCartReloadRef.current = Date.now()
-                  console.log('✅ Session monitor: Cart reloaded successfully after client validation')
-                } catch (cartError) {
-                  console.warn('⚠️ Session monitor: Failed to reload cart after client validation:', cartError)
-                }
-              } else {
-                console.log('⏭️ Session monitor: Cart recently loaded, skipping reload')
-              }
+          // Only refresh tokens when they are close to expiry (<= 5 minutes)
+          if (timeLeft <= 5 * 60 * 1000) {
+            const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession()
+            if (refreshErr || !refreshed?.session?.user) {
+              console.warn('⚠️ Token refresh near expiry failed, will try server validation')
+            } else {
+              console.log('✅ Client-side token refresh performed for user:', userId)
             }
-
-            // Broadcast validation success and return early (no server call needed)
-            broadcast('SESSION_VALIDATED', { userId, timestamp: Date.now() })
-            return true
+          } else {
+            console.log('✅ Client-side session valid without refresh; time left (min):', Math.round(timeLeft / 60000))
           }
+
+          // Reset retry count on successful client validation
+          retryCountRef.current = 0
+          setLastValidationTime(Date.now())
+
+          // Only reload cart if it's been more than 5 minutes since last cart load
+          if (userId && user?.id === userId) {
+            const timeSinceLastCartLoad = Date.now() - lastCrossTabCartReloadRef.current
+            if (timeSinceLastCartLoad > 300000) { // 5 minutes
+              console.log('🛒 Session monitor: Cart needs refresh after client validation')
+              try {
+                await forceLoadCartForUser(userId)
+                lastCrossTabCartReloadRef.current = Date.now()
+                console.log('✅ Session monitor: Cart reloaded successfully after client validation')
+              } catch (cartError) {
+                console.warn('⚠️ Session monitor: Failed to reload cart after client validation:', cartError)
+              }
+            } else {
+              console.log('⏭️ Session monitor: Cart recently loaded, skipping reload')
+            }
+          }
+
+          // Broadcast validation success and return early (no server call needed)
+          broadcast('SESSION_VALIDATED', { userId, timestamp: Date.now() })
+          return true
         }
       } catch (e) {
         console.warn('⚠️ Client-side session check failed, falling back to server validation:', e)

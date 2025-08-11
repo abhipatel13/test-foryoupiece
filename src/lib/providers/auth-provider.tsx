@@ -462,7 +462,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }, 1000)
 
           router.push('/en/auth/login')
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        } else if (event === 'SIGNED_IN') {
           // Check if logout is in progress - ignore SIGNED_IN during logout
           const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
           if (signOutInProgressRef.current || globalSignOutFlag) {
@@ -472,7 +472,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           if (session?.user) {
             const sameUser = currentUserRef.current?.id === session.user.id
-            if (sameUser && event === 'SIGNED_IN') {
+            if (sameUser) {
               console.log('⏭️ Skipping duplicate SIGNED_IN handling for same user')
             } else {
               console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
@@ -480,14 +480,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
               setUserId(session.user.id)
               await loadUserProfile(session.user.id)
               // Only force cart reload when user actually changed
-              if (!sameUser) {
-                // setUserId already triggers cart load; avoid duplicate
-                // await forceLoadCartForUser(session.user.id)
-              }
-
-              // Broadcast sign in/update to other tabs
-              broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+              // setUserId already triggers cart load; avoid duplicate
             }
+
+            // Broadcast sign in to other tabs
+            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+          }
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed should not churn user state if identity is unchanged
+          if (session?.user) {
+            const sameUser = currentUserRef.current?.id === session.user.id
+            if (sameUser) {
+              console.log('⏭️ Skipping store update/broadcast on TOKEN_REFRESHED for same user')
+              // No user/profile/cart updates or cross-tab broadcast needed
+              // Supabase autoRefresh keeps tokens valid; UI state remains stable
+              return
+            }
+            // In rare cases the user object changes (e.g., anon->auth), update accordingly
+            console.log('👤 TOKEN_REFRESHED with different user, updating state:', { id: session.user.id, email: session.user.email })
+            setUser(session.user)
+            setUserId(session.user.id)
+            await loadUserProfile(session.user.id)
+            // Do not broadcast TOKEN_REFRESHED as AUTH_STATE_CHANGE to avoid cross-tab loops
           }
         } else if (event === 'USER_UPDATED') {
           if (session?.user) {
