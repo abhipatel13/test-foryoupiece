@@ -10,10 +10,17 @@ if (typeof globalThis !== 'undefined' && typeof (globalThis as any).self === 'un
 import createNextIntlPlugin from 'next-intl/plugin';
 import type { NextConfig } from "next";
 
-// Bundle analyzer for performance optimization
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-})
+// Bundle analyzer for performance optimization (safe optional usage)
+let withBundleAnalyzer: (cfg: any) => any = (cfg: any) => cfg
+if (process.env.ANALYZE === 'true') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const createAnalyzer = require('@next/bundle-analyzer')
+    withBundleAnalyzer = createAnalyzer({ enabled: true })
+  } catch (err) {
+    console.warn("@next/bundle-analyzer not installed; skipping analysis:", (err as any)?.message ?? err)
+  }
+}
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
