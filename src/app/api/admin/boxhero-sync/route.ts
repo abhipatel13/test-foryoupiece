@@ -4,6 +4,7 @@ import { BoxHeroSyncService } from '@/application/services/BoxHeroSyncService';
 import { SupabaseProductRepository } from '@/infrastructure/repositories/SupabaseProductRepository';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 // API token for BoxHero - loaded from environment variables
 const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
@@ -11,7 +12,7 @@ const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
 /**
  * Test BoxHero connection
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     if (!BOXHERO_API_TOKEN) {
       console.error('❌ BOXHERO_API_TOKEN environment variable is not set');
@@ -52,12 +53,12 @@ export async function GET(request: NextRequest) {
       error: 'Connection test failed',
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Perform BoxHero sync
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     // Authentication is handled by the frontend admin guard
     // The API endpoint is protected by the admin route structure
@@ -270,12 +271,12 @@ export async function POST(request: NextRequest) {
       error: 'Internal server error',
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Record sale in BoxHero (for when products are purchased)
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withAdminAuth(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { productId, quantity, locationId, reference } = body;
@@ -317,12 +318,12 @@ export async function PUT(request: NextRequest) {
       error: 'Failed to record sale',
     }, { status: 500 });
   }
-}
+});
 
 /**
  * Get sync statistics and history
  */
-export async function PATCH(request: NextRequest) {
+export const PATCH = withAdminAuth(async (request: NextRequest) => {
   try {
     // In a real implementation, this would fetch from a sync_logs table
     // For now, return mock data
@@ -350,4 +351,4 @@ export async function PATCH(request: NextRequest) {
       error: 'Failed to get sync statistics',
     }, { status: 500 });
   }
-}
+});

@@ -150,7 +150,7 @@ system_logs           # General system event logging
 ## 📦 Inventory Management & BoxHero Integration
 
 ### BoxHero API Configuration
-- **API Token**: `a827b827-36f7-4e0e-b66b-db6990469aaa`
+- **API Token**: `[CONFIGURED VIA ENVIRONMENT VARIABLE]`
 - **Base URL**: `https://rest.boxhero-app.com`
 - **Primary Endpoints**:
   - `/v1/items` - Product inventory management

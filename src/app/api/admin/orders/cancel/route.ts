@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
 /**
  * Cancel Order API - Cancel order and refund points
  * POST /api/admin/orders/cancel
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('📦 Order cancellation API called');
 
@@ -186,4 +187,4 @@ export async function POST(request: NextRequest) {
       error: 'Internal server error'
     }, { status: 500 });
   }
-}
+});

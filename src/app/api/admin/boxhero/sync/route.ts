@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BoxHeroSyncService } from '@/lib/boxhero-sync';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
 
@@ -8,7 +9,7 @@ const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
  * POST /api/admin/boxhero/sync
  * Manually trigger comprehensive BoxHero sync (categories + products + stock quantities)
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('🔄 Manual BoxHero comprehensive sync triggered via API');
     const startTime = Date.now(); // Track sync start time for metrics
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * Sync product stock quantities from BoxHero to Supabase
@@ -317,7 +318,7 @@ async function fetchBoxHeroItems() {
  * GET /api/admin/boxhero/sync
  * Get sync status and history
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('📊 Fetching BoxHero sync status...');
     
@@ -342,4 +343,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

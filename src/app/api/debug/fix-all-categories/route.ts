@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { BoxHeroService } from '@/infrastructure/services/BoxHeroService';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Comprehensive fix for ALL category discrepancies
  * Recategorizes products based on BoxHero metadata to match inventory exactly
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('🔧 Starting comprehensive category fix...');
-    
+
+    const boxHeroToken = process.env.BOXHERO_API_TOKEN;
+    if (!boxHeroToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
+    }
+
     const supabase = createServiceRoleClient();
-    const boxHeroService = new BoxHeroService('a827b827-36f7-4e0e-b66b-db6990469aaa');
+    const boxHeroService = new BoxHeroService(boxHeroToken);
     
     // Get all BoxHero items
     const boxHeroResult = await boxHeroService.getAllItems();
@@ -229,4 +238,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

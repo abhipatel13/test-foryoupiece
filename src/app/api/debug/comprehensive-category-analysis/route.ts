@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { BoxHeroService } from '@/infrastructure/services/BoxHeroService';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Comprehensive analysis of ALL category discrepancies between BoxHero and our database
  * Analyzes Hair, Bath & Body, Skincare, Health & Personal Care, Food & Beverage, Makeup, and Home
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('🔍 Starting comprehensive category analysis...');
 
+    const boxHeroToken = process.env.BOXHERO_API_TOKEN;
+    if (!boxHeroToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
+    }
+
     const supabase = createServiceRoleClient();
-    const boxHeroService = new BoxHeroService('a827b827-36f7-4e0e-b66b-db6990469aaa');
+    const boxHeroService = new BoxHeroService(boxHeroToken);
 
     // 1. Get all BoxHero items with their labels/categories
     console.log('📦 Fetching all BoxHero items...');
@@ -218,4 +227,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

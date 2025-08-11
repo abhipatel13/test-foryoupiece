@@ -1,24 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/client'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createClient } from '@/lib/supabase/server'
 
 // GET - Retrieve user's search history
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
-    const limit = parseInt(searchParams.get('limit') || '5')
+    const supabase = await createClient()
 
-    if (!userId) {
+    if (!supabase) {
       return NextResponse.json({
         success: false,
-        error: 'User ID is required'
-      }, { status: 400 })
+        error: 'Service unavailable'
+      }, { status: 500 })
     }
 
-    console.log('📜 Getting search history for user:', userId)
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    const supabase = createServiceRoleClient()
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized'
+      }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const limit = parseInt(searchParams.get('limit') || '5')
+
+    console.log('📜 Getting search history for user:', user.id)
 
     // Get user's recent search history with enhanced metadata
     const { data: history, error } = await supabase
@@ -32,7 +40,7 @@ export async function GET(request: NextRequest) {
         clicked_product_id,
         created_at
       `)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(limit)
 
@@ -50,7 +58,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: history || [],
       meta: {
-        userId,
+        userId: user.id,
         count: history?.length || 0,
         limit
       }
@@ -68,33 +76,49 @@ export async function GET(request: NextRequest) {
 // POST - Add new search to history
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient()
+
+    if (!supabase) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service unavailable'
+      }, { status: 500 })
+    }
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized'
+      }, { status: 401 })
+    }
+
     const body = await request.json()
-    const { 
-      userId, 
-      searchQuery, 
-      searchCategory, 
-      resultsCount, 
+    const {
+      searchQuery,
+      searchCategory,
+      resultsCount,
       clickedProductId,
       searchSource = 'header',
       metadata = {}
     } = body
 
-    if (!userId || !searchQuery) {
+    if (!searchQuery) {
       return NextResponse.json({
         success: false,
-        error: 'User ID and search query are required'
+        error: 'Search query is required'
       }, { status: 400 })
     }
 
-    console.log('📝 Adding search to history:', { userId, searchQuery, resultsCount })
-
-    const supabase = createServiceRoleClient()
+    console.log('📝 Adding search to history:', { userId: user.id, searchQuery, resultsCount })
 
     // Insert search history record
     const { data, error } = await supabase
       .from('user_search_history')
       .insert({
-        user_id: userId,
+        user_id: user.id,
         search_query: searchQuery.trim(),
         search_category: searchCategory,
         results_count: resultsCount || 0,
@@ -135,28 +159,37 @@ export async function POST(request: NextRequest) {
 // DELETE - Remove search history item
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = await createClient()
+
+    if (!supabase) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service unavailable'
+      }, { status: 500 })
+    }
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized'
+      }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
     const historyId = searchParams.get('history_id')
     const clearAll = searchParams.get('clear_all') === 'true'
 
-    if (!userId) {
-      return NextResponse.json({
-        success: false,
-        error: 'User ID is required'
-      }, { status: 400 })
-    }
-
-    console.log('🗑️ Deleting search history:', { userId, historyId, clearAll })
-
-    const supabase = createServiceRoleClient()
+    console.log('🗑️ Deleting search history:', { userId: user.id, historyId, clearAll })
 
     if (clearAll) {
       // Clear all search history for the user
       const { error } = await supabase
         .from('user_search_history')
         .delete()
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
 
       if (error) {
         console.error('❌ Error clearing search history:', error)
@@ -179,7 +212,7 @@ export async function DELETE(request: NextRequest) {
         .from('user_search_history')
         .delete()
         .eq('id', historyId)
-        .eq('user_id', userId) // Ensure user can only delete their own history
+        .eq('user_id', user.id) // Ensure user can only delete their own history
 
       if (error) {
         console.error('❌ Error deleting search history item:', error)

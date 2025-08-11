@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { BoxHeroService } from '@/infrastructure/services/BoxHeroService';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Automated product categorization system that runs during BoxHero sync
  * Ensures all products are categorized based on their BoxHero category attribute
  * This will be called automatically during sync operations to maintain accuracy
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('🤖 Starting automated product categorization...');
-    
+
+    const boxHeroToken = process.env.BOXHERO_API_TOKEN;
+    if (!boxHeroToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'BoxHero API token not configured'
+      }, { status: 500 });
+    }
+
     const supabase = createServiceRoleClient();
-    const boxHeroService = new BoxHeroService('a827b827-36f7-4e0e-b66b-db6990469aaa');
+    const boxHeroService = new BoxHeroService(boxHeroToken);
     
     // Get request parameters
     const { targetSKUs, dryRun = false } = await request.json();
@@ -171,7 +180,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * GET endpoint to check categorization status

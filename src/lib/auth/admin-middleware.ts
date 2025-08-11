@@ -169,6 +169,73 @@ export async function verifyAdminAuth(request: NextRequest): Promise<{
           }, { status: 403 })
         }
       }
+
+      // Additional security for super admin: IP validation in production
+      if (process.env.NODE_ENV === 'production') {
+        const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+        const allowedIPs = process.env.ADMIN_ALLOWED_IPS?.split(',').map(ip => ip.trim()) || []
+
+        if (allowedIPs.length > 0 && !allowedIPs.includes(clientIP)) {
+          console.error('❌ Super admin IP not allowed:', {
+            userId: user.id,
+            email: user.email,
+            clientIP,
+            allowedIPs: allowedIPs.length,
+            endpoint: request.nextUrl.pathname,
+            timestamp: new Date().toISOString()
+          })
+          return {
+            success: false,
+            error: 'Access denied from this location',
+            response: NextResponse.json({
+              success: false,
+              error: 'Access denied'
+            }, { status: 403 })
+          }
+        }
+      }
+    }
+
+    // Session validation - check if session is still valid
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError || !sessionData.session) {
+      console.error('❌ Invalid session detected:', {
+        userId: user.id,
+        email: user.email,
+        sessionError: sessionError?.message,
+        endpoint: request.nextUrl.pathname,
+        timestamp: new Date().toISOString()
+      })
+      return {
+        success: false,
+        error: 'Session expired',
+        response: NextResponse.json({
+          success: false,
+          error: 'Session expired'
+        }, { status: 401 })
+      }
+    }
+
+    // Check session age for admin operations (max 8 hours)
+    const sessionAge = Date.now() - new Date(sessionData.session.created_at).getTime()
+    const maxSessionAge = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+
+    if (sessionAge > maxSessionAge) {
+      console.error('❌ Admin session too old:', {
+        userId: user.id,
+        email: user.email,
+        sessionAge: Math.round(sessionAge / (60 * 60 * 1000)) + ' hours',
+        endpoint: request.nextUrl.pathname,
+        timestamp: new Date().toISOString()
+      })
+      return {
+        success: false,
+        error: 'Session expired - please re-authenticate',
+        response: NextResponse.json({
+          success: false,
+          error: 'Session expired - please re-authenticate'
+        }, { status: 401 })
+      }
     }
 
     // Log admin API access with security context

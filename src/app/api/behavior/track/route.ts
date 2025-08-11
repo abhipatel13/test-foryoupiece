@@ -1,12 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createClient } from '@/lib/supabase/server'
 import { UserBehaviorService } from '@/lib/services/user-behavior-service'
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient()
+
+    if (!supabase) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service unavailable'
+      }, { status: 500 })
+    }
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized'
+      }, { status: 401 })
+    }
+
     const body = await request.json()
     const {
-      userId,
       behaviorType,
       productId,
       categoryId,
@@ -16,10 +34,10 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validate required fields
-    if (!userId || !behaviorType) {
+    if (!behaviorType) {
       return NextResponse.json({
         success: false,
-        error: 'Missing required fields: userId, behaviorType'
+        error: 'Missing required field: behaviorType'
       }, { status: 400 })
     }
 
@@ -38,12 +56,12 @@ export async function POST(request: NextRequest) {
 
     const behaviorService = new UserBehaviorService()
 
-    // Track the behavior
-    await behaviorService.trackUserBehavior(userId, behaviorType, {
+    // Track the behavior using authenticated user ID
+    await behaviorService.trackUserBehavior(user.id, behaviorType, {
       productId,
       categoryId,
       searchQuery,
-      sessionId: sessionId || `session_${userId}_${Date.now()}`,
+      sessionId: sessionId || `session_${user.id}_${Date.now()}`,
       metadata: {
         ...metadata,
         timestamp: new Date().toISOString(),
@@ -54,8 +72,6 @@ export async function POST(request: NextRequest) {
 
     // If it's a product view, also increment the product view count
     if (behaviorType === 'product_view' && productId) {
-      const supabase = createServiceRoleClient()
-
       try {
         await supabase.rpc('increment_product_view_count', {
           product_uuid: productId

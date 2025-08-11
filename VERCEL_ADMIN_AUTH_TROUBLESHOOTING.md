@@ -173,7 +173,7 @@ NEXTAUTH_SECRET=your_production_secret_32_chars_minimum
 ADMIN_EMAIL=akito12350@gmail.com
 
 # BoxHero Integration
-BOXHERO_API_TOKEN=a827b827-36f7-4e0e-b66b-db6990469aaa
+BOXHERO_API_TOKEN=your_boxhero_api_token_here
 
 # Telegram (Optional)
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token

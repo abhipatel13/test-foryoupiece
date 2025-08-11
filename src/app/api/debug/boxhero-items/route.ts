@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Debug endpoint to check raw BoxHero API response
  * GET /api/debug/boxhero-items
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     const apiToken = process.env.BOXHERO_API_TOKEN;
     
@@ -58,4 +59,4 @@ export async function GET(request: NextRequest) {
       details: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 500 });
   }
-}
+});

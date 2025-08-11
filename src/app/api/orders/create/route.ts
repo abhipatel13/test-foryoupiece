@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/client';
-import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { createClient } from '@/lib/supabase/server';
 import { PointsService } from '@/lib/services/points-service';
 import { Tables } from '@/lib/supabase/types';
 
@@ -95,6 +94,25 @@ export async function POST(request: NextRequest) {
   try {
     console.log('📦 Order creation API called');
 
+    const supabase = await createClient()
+
+    if (!supabase) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service unavailable'
+      }, { status: 500 })
+    }
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized'
+      }, { status: 401 })
+    }
+
     const body = await request.json();
     const { orderData, orderItems } = body;
 
@@ -105,6 +123,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Bind order to authenticated user
+    orderData.user_id = user.id;
+
     console.log('📦 Creating order with data:', {
       userId: orderData.user_id,
       pointsUsed: orderData.points_used,
@@ -112,43 +133,30 @@ export async function POST(request: NextRequest) {
       itemCount: orderItems.length
     });
 
-    // Use service role client for order operations to bypass RLS
-    const supabase = createServiceRoleClient();
 
-    if (!supabase) {
-      console.error('❌ Service role client not available');
-      return NextResponse.json({
-        success: false,
-        error: 'Service unavailable'
-      }, { status: 500 });
-    }
 
     // Process points redemption if applicable (server-side only)
     if (orderData.points_used && orderData.points_used > 0) {
       console.log(`💰 Processing points redemption: ${orderData.points_used} points`);
 
       try {
-        // Use enhanced points service for better validation and security
-        const pointsService = new PointsService(true); // Enable service role for server-side operations
-        const redemptionResult = await pointsService.redeemPoints(
-          orderData.user_id,
-          orderData.points_used,
-          `Points redeemed for order`,
-          undefined // Don't pass reference_id initially, will be updated after order creation
-        );
+        // Use RPC function directly with authenticated server client
+        const { data: redemptionSuccess, error: redemptionError } = await supabase.rpc('redeem_user_points', {
+          p_user_id: orderData.user_id,
+          p_points: orderData.points_used,
+          p_description: 'Points redeemed for order',
+          p_reference_id: null // Will be updated after order creation
+        });
 
-        if (!redemptionResult.success) {
-          console.error('❌ Points redemption failed:', redemptionResult.error);
+        if (redemptionError || !redemptionSuccess) {
+          console.error('❌ Points redemption failed:', redemptionError);
           return NextResponse.json({
             success: false,
-            error: redemptionResult.error || 'Failed to redeem points'
+            error: redemptionError?.message || 'Failed to redeem points'
           }, { status: 400 });
         }
 
         console.log('✅ Points redemption successful');
-        // Store transaction ID for later reference update and potential rollback
-        pointsTransactionId = redemptionResult.transaction?.id || null;
-        orderData.points_transaction_id = pointsTransactionId;
       } catch (error: any) {
         console.error('❌ Points redemption error:', error);
         return NextResponse.json({

@@ -27,8 +27,8 @@ TELEGRAM_BOT_TOKEN=your_new_telegram_bot_token_here
 
 ### **2. BoxHero API Token**
 ```bash
-# Current (COMPROMISED)
-BOXHERO_API_TOKEN=a827b827-36f7-4e0e-b66b-db6990469aaa
+# Current (COMPROMISED - REMOVED FROM CODEBASE)
+BOXHERO_API_TOKEN=[REMOVED_FOR_SECURITY]
 
 # Steps to regenerate:
 # 1. Login to BoxHero dashboard
