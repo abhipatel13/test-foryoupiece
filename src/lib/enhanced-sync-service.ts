@@ -307,12 +307,132 @@ export class EnhancedSyncService {
   }
 
   /**
-   * Sync products with detailed tracking (placeholder for now)
+   * Sync products with detailed tracking
    */
   private async syncProductsWithTracking(syncReport: SyncReport): Promise<void> {
-    // This would implement product sync with detailed tracking
-    // For now, we'll focus on categories and add product sync later
-    console.log('📦 Enhanced sync: Product sync not implemented yet')
+    try {
+      console.log('📦 Enhanced sync: Processing products with BoxHero attributes...')
+
+      // Get all products from BoxHero with their attributes (including tags)
+      const boxHeroItems = await boxHeroApi.getAllItems()
+      syncReport.metrics.performance.apiCalls++
+
+      if (!boxHeroItems || boxHeroItems.length === 0) {
+        syncReport.metrics.errors.push({
+          type: 'warning',
+          message: 'No products received from BoxHero API',
+          timestamp: new Date().toISOString()
+        })
+        return
+      }
+
+      console.log(`📦 Enhanced sync: Processing ${boxHeroItems.length} products from BoxHero...`)
+
+      // Get existing products from database
+      const { data: existingProducts, error: fetchError } = await this.supabase
+        .from('products')
+        .select('id, sku, boxhero_item_id, boxhero_last_sync_at, boxhero_sync_status, tags')
+        .eq('is_active', true)
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch existing products: ${fetchError.message}`)
+      }
+
+      let productsUpdated = 0
+      let productsCreated = 0
+
+      // Process each BoxHero item
+      for (const boxHeroItem of boxHeroItems) {
+        try {
+          // Find existing product by SKU or BoxHero ID
+          const existingProduct = existingProducts?.find(product =>
+            product.sku === boxHeroItem.sku ||
+            product.boxhero_item_id === boxHeroItem.id.toString()
+          )
+
+          // Extract BoxHero attributes and create tags
+          const boxHeroTags = boxHeroItem.attrs?.map(attr => attr.name) || []
+          const existingTags = existingProduct?.tags || []
+
+          // Merge existing tags with BoxHero tags, removing duplicates
+          const allTags = [...new Set([...existingTags, ...boxHeroTags])]
+
+          // Check if product has "Trending" tag from BoxHero
+          const isTrending = boxHeroTags.some(tag =>
+            tag.toLowerCase().includes('trending') ||
+            tag.toLowerCase().includes('trend')
+          )
+
+          if (existingProduct) {
+            // Update existing product with BoxHero data
+            const { error: updateError } = await this.supabase
+              .from('products')
+              .update({
+                boxhero_item_id: boxHeroItem.id.toString(),
+                boxhero_last_sync_at: new Date().toISOString(),
+                boxhero_sync_status: 'synced',
+                tags: allTags, // Update tags with BoxHero attributes
+                is_trending: isTrending, // Set trending flag based on BoxHero tags
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingProduct.id)
+
+            if (updateError) {
+              console.error(`❌ Failed to update product ${boxHeroItem.sku}:`, updateError)
+              syncReport.metrics.errors.push({
+                type: 'error',
+                message: `Failed to update product ${boxHeroItem.sku}: ${updateError.message}`,
+                timestamp: new Date().toISOString()
+              })
+            } else {
+              productsUpdated++
+              if (isTrending) {
+                console.log(`🔥 Updated trending product: ${boxHeroItem.name} (${boxHeroItem.sku})`)
+              }
+              if (productsUpdated % 50 === 0) {
+                console.log(`📦 Enhanced sync: Updated ${productsUpdated} products...`)
+              }
+            }
+          }
+          // Note: We're not creating new products in enhanced sync to avoid duplicates
+          // New product creation should be handled through the main BoxHero sync
+        } catch (error) {
+          console.error(`❌ Error processing product ${boxHeroItem.sku}:`, error)
+          syncReport.metrics.errors.push({
+            type: 'error',
+            message: `Error processing product ${boxHeroItem.sku}: ${error}`,
+            timestamp: new Date().toISOString()
+          })
+        }
+      }
+
+      // Count trending products
+      let trendingProductsFound = 0
+      for (const boxHeroItem of boxHeroItems) {
+        const boxHeroTags = boxHeroItem.attrs?.map(attr => attr.name) || []
+        const isTrending = boxHeroTags.some(tag =>
+          tag.toLowerCase().includes('trending') ||
+          tag.toLowerCase().includes('trend')
+        )
+        if (isTrending) trendingProductsFound++
+      }
+
+      // Update sync report metrics
+      syncReport.metrics.changes.productsUpdated = productsUpdated
+      syncReport.metrics.changes.productsAdded = productsCreated
+
+      console.log(`✅ Enhanced sync: Updated ${productsUpdated} products with BoxHero attributes`)
+      console.log(`🔥 Found ${trendingProductsFound} products tagged as "Trending" in BoxHero`)
+
+    } catch (error) {
+      console.error('❌ Enhanced sync: Product sync failed:', error)
+      syncReport.metrics.errors.push({
+        type: 'error',
+        message: `Product sync failed: ${error}`,
+        timestamp: new Date().toISOString()
+      })
+      throw error
+    }
   }
 
   /**

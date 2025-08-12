@@ -71,7 +71,7 @@
   --desktop-body-lg: 1.125rem;
   --desktop-body-md: 1rem;
   --desktop-body-sm: 0.875rem;
-  
+
   /* Touch target minimum sizes */
   --min-touch-target: 44px;
   --min-touch-target-sm: 36px;
@@ -610,19 +610,84 @@ input, textarea, select {
     box-shadow: 0 2px 6px oklch(0.9 0.005 250 / 0.1);
   }
 
-  /* Desktop-optimized search input */
+  /* Desktop-optimized search input and containment */
   @media (min-width: 1024px) {
     .modern-search-bar {
       min-height: 44px;
     }
+    /* Unify vertical alignment across children */
+    .modern-search-bar {
+      align-items: center; /* ensure children are vertically centered */
+    }
 
+    /* Enforce consistent heights for all direct children */
+    .modern-search-bar > [data-slot="button"],
+    .modern-search-bar > [data-slot="dropdown-menu-trigger"],
+    .modern-search-bar > input[data-slot="input"] {
+      height: 44px !important;
+      min-height: 44px !important;
+      box-sizing: border-box;
+    }
+
+    /* Normalize horizontal padding for buttons to match input (18px) */
+    .modern-search-bar > [data-slot="button"],
+    .modern-search-bar > [data-slot="dropdown-menu-trigger"] {
+      padding-left: 1.125rem !important; /* 18px */
+      padding-right: 1.125rem !important;
+    }
+
+    /* Clean visual separation before the submit button */
+    .modern-search-bar > [data-slot="button"]:last-of-type {
+      border-left: 1px solid oklch(0.90 0.005 250) !important;
+    }
+
+
+    /* Improve desktop readability, balance padding, and strengthen placeholder */
     .modern-search-bar input {
       font-size: 0.95rem;
-      padding: 0 1rem;
+      line-height: 1.5;
+      padding-left: 1.125rem; /* 18px */
+      padding-right: 1.125rem; /* 18px */
+      color: oklch(0.22 0 0); /* strong readable text */
+      font-weight: 500;
+    }
+
+    .modern-search-bar input::placeholder {
+      color: oklch(0.45 0.02 250); /* higher contrast placeholder */
+      opacity: 0.9; /* ensure visibility */
+    }
+
+    .modern-search-bar input:focus::placeholder {
+      opacity: 0.65; /* subtle fade on focus */
     }
 
     .modern-search-bar button {
       padding: 0 1.25rem;
+    }
+
+    /* Desktop-only visual containment: flatten inner layers */
+    .modern-search-bar > [data-slot="button"],
+    .modern-search-bar > [data-slot="dropdown-menu-trigger"],
+    .modern-search-bar > input[data-slot="input"] {
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      outline: none !important;
+      background-clip: padding-box;
+    }
+
+    /* Single internal divider between category and input */
+    .modern-search-bar > [data-slot="dropdown-menu-trigger"]:first-of-type,
+    .modern-search-bar > [data-slot="button"]:first-of-type {
+      border-right: 1px solid oklch(0.90 0.005 250) !important;
+    }
+
+    /* Prevent focus outlines from bleeding beyond the container */
+    .modern-search-bar > [data-slot="button"]:focus-visible,
+    .modern-search-bar > [data-slot="dropdown-menu-trigger"]:focus-visible,
+    .modern-search-bar > input[data-slot="input"]:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
     }
   }
 
@@ -1653,7 +1718,7 @@ input, textarea, select {
     h2 { font-size: var(--mobile-heading-lg); }
     h3 { font-size: var(--mobile-heading-md); }
     h4 { font-size: var(--mobile-heading-sm); }
-    p { 
+    p {
       font-size: var(--mobile-body-md);
       line-height: 1.6;
     }
@@ -1673,7 +1738,7 @@ input, textarea, select {
       padding-left: env(safe-area-inset-left, 1rem);
       padding-right: env(safe-area-inset-right, 1rem);
     }
-    
+
     .mobile-pb-safe {
       padding-bottom: env(safe-area-inset-bottom, 1rem);
     }
@@ -2295,7 +2360,7 @@ input, textarea, select {
     .modern-button-primary {
       border: 2px solid currentColor;
     }
-    
+
     .modern-product-card {
       border: 1px solid currentColor;
     }

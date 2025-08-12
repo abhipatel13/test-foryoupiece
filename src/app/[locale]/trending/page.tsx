@@ -1,20 +1,39 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ProductCard } from '@/components/product/product-card'
 import { useTrendingProducts } from '@/presentation/hooks/useTrendingProducts'
 import { TrendingUp, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { Pagination } from '@/components/ui/pagination'
 
 export default function TrendingPage() {
   const t = useTranslations('navigation')
 
+  // Client-side pagination (~30 per page)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 30
+
+  // Fetch a large enough batch once; paginate locally without changing backend behavior
   const {
     data: trendingData,
     isLoading: trendingLoading,
     error: trendingError
-  } = useTrendingProducts(50, false) // Get more products but no stats for users
+  } = useTrendingProducts(1000, true) // fetch up to 1000; include stats for header
+
+  const totalItems = trendingData?.products?.length || 0
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems)
+  const pageItems = trendingData?.products?.slice(startIndex, endIndex) || []
+
+  // Ensure currentPage stays in range when data loads
+  if (currentPage > totalPages) {
+    setCurrentPage(1)
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,15 +41,15 @@ export default function TrendingPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Home
             </Link>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-6 w-6 text-primary" />
@@ -38,9 +57,14 @@ export default function TrendingPage() {
             </div>
             <Badge className="bg-red-500 text-white animate-pulse">HOT</Badge>
           </div>
-          
+
           <p className="text-muted-foreground mt-2">
             Discover what's popular right now - our most sought-after products
+            {trendingData?.total_available && (
+              <span className="ml-2 text-primary font-medium">
+                ({trendingData.total_available} products available)
+              </span>
+            )}
           </p>
         </div>
 
@@ -70,33 +94,45 @@ export default function TrendingPage() {
           </div>
         )}
 
-        {/* Unified Products Grid - Mobile-First Responsive */}
-        {!trendingLoading && !trendingError && trendingData?.products && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
-            {trendingData.products.map((product) => (
-              <ProductCard
-                key={product.product_id}
-                product={{
-                  id: product.product_id,
-                  sku: product.sku,
-                  name_en: product.name_en,
-                  name_ja: product.name_ja,
-                  price: product.price,
-                  compare_at_price: product.compare_at_price,
-                  points_rate: (product as any).points_rate ?? 1,
-                  images: product.images,
-                  stock_quantity: product.stock_quantity,
-                  is_featured: product.is_featured,
-                  category_name: product.category_name
-                }}
-                locale="en"
-              />
-            ))}
-          </div>
+        {/* Products Grid - paginated client-side */}
+        {!trendingLoading && !trendingError && totalItems > 0 && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+              {pageItems.map((product) => (
+                <ProductCard
+                  key={product.product_id}
+                  product={{
+                    id: product.product_id,
+                    sku: product.sku,
+                    name_en: product.name_en,
+                    name_ja: product.name_ja,
+                    price: product.price,
+                    compare_at_price: product.compare_at_price,
+                    points_rate: (product as any).points_rate ?? 1,
+                    images: product.images,
+                    stock_quantity: product.stock_quantity,
+                    is_featured: product.is_featured,
+                    category_name: product.category_name
+                  }}
+                  locale="en"
+                />
+              ))}
+            </div>
+
+            {/* Pagination controls */}
+            <Pagination
+              className="mt-8"
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+            />
+          </>
         )}
 
         {/* Empty State */}
-        {!trendingLoading && !trendingError && (!trendingData?.products || trendingData.products.length === 0) && (
+        {!trendingLoading && !trendingError && totalItems === 0 && (
           <div className="text-center py-12">
             <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">No trending products yet</h3>

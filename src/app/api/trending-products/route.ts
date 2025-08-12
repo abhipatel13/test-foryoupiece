@@ -13,113 +13,138 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const searchParams = url.searchParams
     const limit = parseInt(searchParams.get('limit') || '10')
+    const offset = parseInt(searchParams.get('offset') || '0')
     const includeStats = searchParams.get('include_stats') === 'true'
+    const includeManual = searchParams.get('include_manual') !== 'false' // Default true
+    const includeFlags = searchParams.get('include_flags') !== 'false' // Default true
 
-    console.log('🔥 Trending Products API called:', { limit, includeStats })
+    console.log('🔥 Trending Products API called:', { limit, offset, includeStats, includeManual, includeFlags })
 
     const supabase = createServiceRoleClient()
 
-    // Get trending products using the database function
-    const { data: trendingProducts, error } = await supabase
-      .rpc('get_trending_products')
-      .limit(limit)
-
-    if (error) {
-      console.error('Error fetching trending products:', error)
-      return NextResponse.json({ 
-        error: 'Failed to fetch trending products',
-        details: error.message 
-      }, { status: 500 })
-    }
-
-    console.log(`✅ Found ${trendingProducts?.length || 0} trending products`)
-
-    // Work on a local copy so we don't reassign a const
-    let productsList = (trendingProducts || []) as any[]
-
-    // Augment RPC results with points_rate to ensure UI reflects latest loyalty settings
-    if (productsList.length > 0) {
-      const ids = productsList.map(p => p.product_id || p.id).filter(Boolean)
-      if (ids.length > 0) {
-        const { data: rateRows } = await supabase
-          .from('products')
-          .select('id, points_rate')
-          .in('id', ids)
-        const rateMap = new Map((rateRows || []).map(r => [r.id, r.points_rate]))
-        productsList = productsList.map(p => ({
-          ...p,
-          points_rate: rateMap.get(p.product_id || p.id) ?? null,
-        })) as any
-      }
-    }
-
-    // If no trending products found, use fallback logic
-    if (!productsList || productsList.length === 0) {
-      console.log('🔄 No trending products found, using fallback logic...')
-
-      // Fallback: Get recent best-selling products
-      const { data: fallbackProducts, error: fallbackError } = await supabase
+    // Build genuine trending set ONLY (flags/manual + algorithm). No supplemental filler.
+    // 1) Flagged trending: products.is_trending = true (covers BoxHero tag and manual toggle)
+    let flaggedProducts: any[] = []
+    if (includeFlags) {
+      const { data: flaggedRows, error: flaggedError } = await supabase
         .from('products')
         .select(`
           id,
           sku,
           name_en,
           name_ja,
-          description_en,
-          description_ja,
           price,
           compare_at_price,
-          points_rate,
-          stock_quantity,
-          stock_status,
-          is_featured,
-          brand,
           images,
-          created_at,
-          tags,
-          category:categories(
-            id,
-            name_en,
-            name_ja,
-            slug
-          )
+          stock_quantity,
+          is_featured,
+          points_rate,
+          categories!inner(name_en)
         `)
         .eq('is_active', true)
-        .eq('is_featured', true)
-        .order('created_at', { ascending: false })
-        .limit(limit)
+        .eq('is_trending', true)
 
-      if (fallbackError) {
-        console.error('Error fetching fallback products:', fallbackError)
+      if (flaggedError) {
+        console.error('Error fetching flagged trending products:', flaggedError)
         return NextResponse.json({
-          error: 'Failed to fetch products',
-          details: fallbackError.message
+          error: 'Failed to fetch flagged trending products',
+          details: flaggedError.message
         }, { status: 500 })
       }
 
-      const sortedFallback = sortProductsByStockPriority(fallbackProducts || [])
+      flaggedProducts = (flaggedRows || []).map((p: any) => ({
+        id: `flag-${p.id}`,
+        product_id: p.id,
+        sku: p.sku,
+        name_en: p.name_en,
+        name_ja: p.name_ja,
+        price: p.price,
+        compare_at_price: p.compare_at_price,
+        images: p.images,
+        stock_quantity: p.stock_quantity,
+        is_featured: p.is_featured,
+        category_name: p.categories?.name_en || 'Uncategorized',
+        selection_type: 'flag',
+        algorithm_category: 'trending_flag',
+        product_position: null,
+        trending_score: null,
+        sales_count: null,
+        points_rate: p.points_rate ?? null,
+      }))
+    }
 
-      console.log(`✅ Using ${sortedFallback.length} fallback products`)
+    // 2) Algorithm trending via RPC (if available)
+    let algorithmProducts: any[] = []
+    const algoResult = await supabase.rpc('get_trending_products')
+    if (!algoResult.error && Array.isArray(algoResult.data)) {
+      algorithmProducts = algoResult.data as any[]
+    } else if (algoResult.error && algoResult.error.code !== 'PGRST202') {
+      console.warn('Trending algorithm RPC error (continuing with flags only):', algoResult.error)
+    }
 
+    // Merge and de-duplicate by product_id/sku, prefer flagged over algorithm when conflicts
+    const mergedMap = new Map<string, any>()
+    const put = (item: any) => {
+      const key = String(item.product_id || item.id || item.sku)
+      if (!mergedMap.has(key)) mergedMap.set(key, item)
+      else {
+        const existing = mergedMap.get(key)
+        // Prefer flagged entry metadata
+        if (item.selection_type === 'flag' && existing.selection_type !== 'flag') {
+          mergedMap.set(key, item)
+        }
+      }
+    }
+
+    algorithmProducts.forEach(put)
+    flaggedProducts.forEach(put)
+
+    let productsList = Array.from(mergedMap.values())
+
+    // Total BEFORE pagination/limit
+    const totalCount = productsList.length
+
+    // Sort by stock priority for consistent UX
+    productsList = sortProductsByStockPriority(productsList)
+
+    // Apply limit/offset if provided (API contract), but UI uses client-side pagination with a high limit
+    const sliced = productsList.slice(offset, offset + Math.min(limit, productsList.length - offset))
+
+    // Augment with latest points_rate (ensure consistency)
+    if (sliced.length > 0) {
+      const ids = sliced.map(p => p.product_id || p.id).filter(Boolean)
+      if (ids.length > 0) {
+        const { data: rateRows } = await supabase
+          .from('products')
+          .select('id, points_rate')
+          .in('id', ids)
+        const rateMap = new Map((rateRows || []).map(r => [r.id, r.points_rate]))
+        for (let i = 0; i < sliced.length; i++) {
+          sliced[i] = { ...sliced[i], points_rate: rateMap.get(sliced[i].product_id || sliced[i].id) ?? sliced[i].points_rate ?? null }
+        }
+      }
+    }
+
+    // If after merging we still have zero, return empty without fallback filler
+    if (!productsList || productsList.length === 0) {
+      console.log('⚠️ No genuine trending products found (flags + algorithm). Returning empty set without supplemental filler.')
+      const stats = includeStats ? { algorithm_enabled: false, last_refresh: null, total_products: 0 } : undefined
       return NextResponse.json({
         success: true,
-        products: sortedFallback,
-        total: sortedFallback.length,
-        fallback_used: true,
-        stats: includeStats ? {
-          algorithm_enabled: false,
-          last_refresh: null,
-          total_products: sortedFallback.length
-        } : undefined
+        products: [],
+        total: 0,
+        total_available: 0,
+        offset,
+        limit,
+        has_more: false,
+        fallback_used: false,
+        stats
       })
     }
 
-    // Sort trending products by stock priority
-    const sortedProducts = sortProductsByStockPriority(productsList)
-
+    // Stats
     let stats = undefined
     if (includeStats) {
-      // Get trending system stats
       const { data: systemStats } = await supabase
         .from('trending_system_settings')
         .select('setting_key, setting_value')
@@ -133,14 +158,18 @@ export async function GET(request: NextRequest) {
       stats = {
         algorithm_enabled: statsMap.algorithm_enabled || false,
         last_refresh: statsMap.last_refresh || null,
-        total_products: sortedProducts.length
+        total_products: totalCount
       }
     }
 
     return NextResponse.json({
       success: true,
-      products: sortedProducts,
-      total: sortedProducts.length,
+      products: sliced,
+      total: sliced.length,
+      total_available: totalCount,
+      offset,
+      limit,
+      has_more: totalCount > (offset + sliced.length),
       fallback_used: false,
       stats
     })

@@ -23,35 +23,34 @@ export interface TrendingProduct {
 export interface TrendingProductsResponse {
   success: boolean;
   products: TrendingProduct[];
-  count: number;
+  total: number;
+  total_available: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  fallback_used: boolean;
   stats?: {
-    settings: Array<{
-      setting_key: string;
-      setting_value: any;
-      description: string;
-    }>;
-    lastRefresh: {
-      refresh_type: string;
-      products_changed: number;
-      created_at: string;
-    } | null;
+    algorithm_enabled: boolean;
+    last_refresh: string | null;
+    total_products: number;
   };
 }
 
 /**
- * Hook for fetching trending products
+ * Hook for fetching trending products with pagination support
  */
-export function useTrendingProducts(limit = 10, includeStats = false) {
+export function useTrendingProducts(limit = 10, includeStats = false, offset = 0) {
   return useQuery({
-    queryKey: ['trending-products', limit, includeStats],
+    queryKey: ['trending-products', limit, includeStats, offset],
     queryFn: async (): Promise<TrendingProductsResponse> => {
       const params = new URLSearchParams({
         limit: limit.toString(),
-        include_stats: includeStats.toString()
+        include_stats: includeStats.toString(),
+        offset: offset.toString()
       });
 
       const response = await fetch(`/api/trending-products?${params}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch trending products: ${response.statusText}`);
       }

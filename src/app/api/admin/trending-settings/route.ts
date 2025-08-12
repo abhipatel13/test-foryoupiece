@@ -74,7 +74,11 @@ export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser 
       'recently_added_count',
       'random_stock_count',
       'min_sales_for_trending',
-      'days_for_recent_products'
+      'days_for_recent_products',
+      'max_total_products',
+      'include_manual_products',
+      'include_product_flags',
+      'pagination_enabled'
     ]
 
     const updates: Array<{
@@ -103,8 +107,13 @@ export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser 
           errors.push(`${key} must be a positive number`)
           continue
         }
-        if (key.includes('count') && numValue > 10) {
-          errors.push(`${key} cannot exceed 10`)
+        // Remove hard cap of 10, but add reasonable limits for performance
+        if (key.includes('count') && numValue > 200) {
+          errors.push(`${key} cannot exceed 200 for performance reasons`)
+          continue
+        }
+        if (key === 'max_total_products' && numValue > 500) {
+          errors.push(`max_total_products cannot exceed 500 for performance reasons`)
           continue
         }
       }

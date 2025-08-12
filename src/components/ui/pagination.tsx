@@ -12,6 +12,10 @@ interface PaginationProps {
   onPageChange: (page: number) => void
   showInfo?: boolean
   className?: string
+  // New: auto-scroll behavior
+  autoScroll?: boolean
+  // Optional CSS selector for the container to scroll to (top of content area)
+  scrollTargetSelector?: string
 }
 
 export function Pagination({
@@ -21,10 +25,37 @@ export function Pagination({
   itemsPerPage,
   onPageChange,
   showInfo = true,
-  className
+  className,
+  autoScroll = true,
+  scrollTargetSelector
 }: PaginationProps) {
   const startItem = (currentPage - 1) * itemsPerPage + 1
   const endItem = Math.min(currentPage * itemsPerPage, totalItems)
+
+  // Smoothly scroll to the top or to a specific container
+  const scrollToTop = () => {
+    try {
+      if (!autoScroll) return
+      if (typeof window === 'undefined') return
+
+      if (scrollTargetSelector) {
+        const el = document.querySelector(scrollTargetSelector) as HTMLElement | null
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          return
+        }
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (e) {
+      // No-op to avoid breaking pagination on any scroll errors
+    }
+  }
+
+  const handleChange = (page: number) => {
+    // Scroll first so content renders near top
+    scrollToTop()
+    onPageChange(page)
+  }
 
   // Generate page numbers to display
   const getPageNumbers = () => {
@@ -86,13 +117,13 @@ export function Pagination({
           Showing {startItem} to {endItem} of {totalItems} items
         </div>
       )}
-      
+
       <div className="flex items-center space-x-2">
         {/* Previous button */}
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={() => handleChange(currentPage - 1)}
           disabled={currentPage === 1}
           className="flex items-center"
         >
@@ -112,7 +143,7 @@ export function Pagination({
                 <Button
                   variant={currentPage === page ? "default" : "outline"}
                   size="sm"
-                  onClick={() => onPageChange(page as number)}
+                  onClick={() => handleChange(page as number)}
                   className="w-8 h-8 p-0"
                 >
                   {page}
@@ -126,7 +157,7 @@ export function Pagination({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={() => handleChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           className="flex items-center"
         >
@@ -142,7 +173,7 @@ export function Pagination({
 export function calculatePagination(totalItems: number, itemsPerPage: number, currentPage: number) {
   const totalPages = Math.ceil(totalItems / itemsPerPage)
   const offset = (currentPage - 1) * itemsPerPage
-  
+
   return {
     totalPages,
     offset,

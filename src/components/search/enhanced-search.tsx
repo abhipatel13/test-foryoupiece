@@ -347,7 +347,7 @@ export function EnhancedSearch({
             }
           }}
           onFocus={handleInputFocus}
-          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground/70 w-full min-w-0 text-sm lg:text-base px-4 lg:px-5 font-medium"
+          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground/70 lg:placeholder:text-foreground/80 lg:placeholder:opacity-90 w-full min-w-0 text-sm lg:text-base px-4 lg:px-5 font-medium"
         />
 
         {/* Search Button */}
