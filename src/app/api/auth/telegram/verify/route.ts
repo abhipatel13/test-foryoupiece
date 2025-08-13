@@ -283,6 +283,7 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         email_confirm: true,
         user_metadata: {
           telegram_id: parseInt(authData.id),
+          username: authData.username || null,
           telegram_username: authData.username || null,
           first_name: authData.first_name || null,
           last_name: authData.last_name || null,
