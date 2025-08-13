@@ -278,6 +278,15 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         return NextResponse.redirect(new URL('/en/auth/login?error=invalid_telegram_id', request.url))
       }
 
+      console.log('🔄 Attempting to create Telegram user with data:', {
+        syntheticEmail,
+        telegramId: authData.id,
+        username: authData.username,
+        firstName: authData.first_name,
+        lastName: authData.last_name,
+        timestamp: new Date().toISOString()
+      });
+
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: syntheticEmail,
         email_confirm: true,
@@ -295,6 +304,47 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
 
       if (createError) {
         const msg = String(createError?.message || createError || '')
+        console.error('🚨 DETAILED CreateUser error analysis:', {
+          // Basic error info
+          message: msg,
+          code: createError?.code,
+          status: createError?.status,
+          name: createError?.name,
+
+          // Full error object for debugging
+          fullError: createError,
+          errorType: typeof createError,
+          errorKeys: Object.keys(createError || {}),
+
+          // Context information
+          syntheticEmail,
+          telegramId: authData.id,
+          telegramIdParsed: parseInt(authData.id),
+
+          // User metadata being sent
+          userMetadata: {
+            telegram_id: parseInt(authData.id),
+            username: authData.username || null,
+            telegram_username: authData.username || null,
+            first_name: authData.first_name || null,
+            last_name: authData.last_name || null,
+            photo_url: authData.photo_url || null,
+            auth_provider: 'telegram',
+            created_via: 'telegram_login_widget',
+          },
+
+          // Environment context
+          environment: process.env.NODE_ENV,
+          timestamp: new Date().toISOString(),
+
+          // Check for common error patterns
+          isEmailConflict: msg.toLowerCase().includes('email'),
+          isConstraintViolation: msg.toLowerCase().includes('constraint') || msg.toLowerCase().includes('unique'),
+          isPermissionError: msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('access'),
+          isRateLimitError: msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('limit'),
+          isValidationError: msg.toLowerCase().includes('validation') || msg.toLowerCase().includes('invalid'),
+        });
+
         console.error('🚨 CreateUser error details:', {
           message: msg,
           code: createError?.code,
@@ -308,7 +358,27 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         if (isDuplicateUserErrorMessage(msg)) {
           console.warn('⚠️ Auth user already exists; continuing with login flow:', msg)
         } else {
-          // Do not fail here; proceed to attempt magic link generation regardless.
+          // Log detailed error for non-duplicate errors but continue with magic link attempt
+          console.error('🚨 NON-DUPLICATE CreateUser error - this needs investigation:', {
+            errorMessage: msg,
+            errorCode: createError?.code,
+            errorStatus: createError?.status,
+            errorName: createError?.name,
+            syntheticEmail,
+            telegramId: authData.id,
+
+            // Check for specific error patterns
+            isEmailError: msg.toLowerCase().includes('email'),
+            isConstraintError: msg.toLowerCase().includes('constraint') || msg.toLowerCase().includes('unique'),
+            isPermissionError: msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('access'),
+            isValidationError: msg.toLowerCase().includes('validation') || msg.toLowerCase().includes('invalid'),
+            isRateLimitError: msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('limit'),
+            isNetworkError: msg.toLowerCase().includes('network') || msg.toLowerCase().includes('timeout'),
+
+            fullErrorObject: createError,
+            timestamp: new Date().toISOString()
+          });
+
           console.warn('⚠️ Non-duplicate createUser error; attempting magic link anyway:', msg)
         }
       } else if (newUser?.user?.id) {
@@ -365,41 +435,121 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       }
 
       if (linkError2 || !linkData2?.properties?.email_otp) {
-        console.error('❌ Failed to generate magic link after user creation (after retries):', {
+        console.error('❌ DETAILED magic link generation failure analysis:', {
+          // Basic error info
           error: linkError2?.message,
           code: linkError2?.code,
           status: linkError2?.status,
+          name: linkError2?.name,
+
+          // Magic link data analysis
           hasEmailOtp: !!linkData2?.properties?.email_otp,
+          hasLinkData: !!linkData2,
+          hasProperties: !!linkData2?.properties,
+          linkDataKeys: linkData2 ? Object.keys(linkData2) : [],
+          propertiesKeys: linkData2?.properties ? Object.keys(linkData2.properties) : [],
+
+          // Context
           syntheticEmail,
-          telegramId: authData.id
+          telegramId: authData.id,
+          retryAttempts: 3,
+
+          // Full error object for debugging
+          fullLinkError: linkError2,
+          fullLinkData: linkData2,
+
+          // Error pattern analysis
+          isDatabaseError: linkError2?.message?.includes('Database') || linkError2?.message?.includes('database'),
+          isUserNotFoundError: linkError2?.message?.includes('User not found') || linkError2?.message?.includes('user not found'),
+          isPermissionError: linkError2?.message?.includes('permission') || linkError2?.message?.includes('access'),
+          isRateLimitError: linkError2?.message?.includes('rate') || linkError2?.message?.includes('limit'),
+
+          timestamp: new Date().toISOString()
         })
 
         // Try one more time with a different approach - check if user exists first
         try {
-          const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers({
+          console.log('🔍 Checking if user exists before final magic link attempt:', syntheticEmail);
+
+          const { data: existingUser, error: listError } = await supabaseAdmin.auth.admin.listUsers({
             filter: `email.eq.${syntheticEmail}`
           })
 
+          console.log('🔍 User existence check result:', {
+            hasData: !!existingUser,
+            userCount: existingUser?.users?.length || 0,
+            listError: listError?.message,
+            syntheticEmail
+          });
+
           if (existingUser?.users?.length > 0) {
-            console.log('✅ User exists, attempting final magic link generation')
+            console.log('✅ User exists, attempting final magic link generation for:', {
+              userId: existingUser.users[0].id,
+              email: existingUser.users[0].email,
+              createdAt: existingUser.users[0].created_at
+            });
+
             const { data: finalLinkData, error: finalLinkError } = await supabaseAdmin.auth.admin.generateLink({
               type: 'magiclink',
               email: syntheticEmail,
             })
+
+            console.log('🔍 Final magic link generation result:', {
+              hasLinkData: !!finalLinkData,
+              hasProperties: !!finalLinkData?.properties,
+              hasEmailOtp: !!finalLinkData?.properties?.email_otp,
+              linkError: finalLinkError?.message,
+              linkErrorCode: finalLinkError?.code,
+              linkErrorStatus: finalLinkError?.status,
+              fullLinkError: finalLinkError
+            });
 
             if (!finalLinkError && finalLinkData?.properties?.email_otp) {
               emailOtp = finalLinkData.properties.email_otp
               hashedToken = (finalLinkData as any)?.properties?.token_hash || null
               console.log('✅ Final magic link generation successful')
             } else {
-              throw new Error(`Final magic link failed: ${finalLinkError?.message}`)
+              const detailedError = `Final magic link failed: ${finalLinkError?.message || 'Unknown error'} (Code: ${finalLinkError?.code || 'N/A'})`;
+              console.error('🚨 Final magic link generation failed:', detailedError);
+              throw new Error(detailedError)
             }
           } else {
-            throw new Error('User not found after creation')
+            const userNotFoundError = `User not found after creation - listUsers returned ${existingUser?.users?.length || 0} users for email: ${syntheticEmail}`;
+            console.error('🚨 User not found after creation:', userNotFoundError);
+            throw new Error(userNotFoundError)
           }
         } catch (finalError) {
           console.error('❌ All magic link attempts failed:', finalError)
-          return NextResponse.redirect(new URL('/en/auth/login?error=auth_system_error', request.url))
+
+          // Provide specific error details instead of generic error
+          const errorMessage = String(finalError?.message || finalError || 'Unknown error')
+          const errorCode = finalError?.code || 'unknown'
+
+          console.error('🚨 FINAL ERROR ANALYSIS:', {
+            errorMessage,
+            errorCode,
+            errorType: typeof finalError,
+            errorName: finalError?.name,
+            fullError: finalError,
+            syntheticEmail,
+            telegramId: authData.id,
+            timestamp: new Date().toISOString(),
+
+            // Categorize error type for better debugging
+            isUserCreationError: errorMessage.includes('Database error saving new user'),
+            isMagicLinkError: errorMessage.includes('magic link'),
+            isNetworkError: errorMessage.includes('network') || errorMessage.includes('timeout'),
+            isPermissionError: errorMessage.includes('permission') || errorMessage.includes('access'),
+            isConstraintError: errorMessage.includes('constraint') || errorMessage.includes('unique'),
+          });
+
+          // Return specific error with details for debugging
+          const errorParam = encodeURIComponent(errorMessage.substring(0, 100)); // Limit length for URL
+          const codeParam = encodeURIComponent(errorCode);
+
+          return NextResponse.redirect(
+            new URL(`/en/auth/login?error=telegram_auth_failed&message=${errorParam}&code=${codeParam}`, request.url)
+          )
         }
       }
 

@@ -198,15 +198,35 @@ function LoginPageContent() {
 
     // Handle OAuth callback errors
     const error = searchParams.get('error')
+    const errorMessage = searchParams.get('message')
+    const errorCode = searchParams.get('code')
+
     if (error) {
       const errorMessages: Record<string, string> = {
         'user_creation_failed': 'Failed to create user account. Please try again.',
-        'session_creation_failed': 'Failed to create session. Please try again.'
+        'session_creation_failed': 'Failed to create session. Please try again.',
+        'telegram_auth_failed': errorMessage ? `Telegram authentication failed: ${decodeURIComponent(errorMessage)}` : 'Telegram authentication failed. Please try again.',
+        'auth_system_error': 'Authentication system error. Please try again.',
+        'invalid_data': 'Invalid authentication data. Please try again.',
+        'invalid_signature': 'Invalid Telegram signature. Please try again.',
+        'expired_auth': 'Authentication data expired. Please try again.',
+        'config_error': 'Authentication configuration error. Please contact support.',
+        'rate_limit': 'Too many authentication attempts. Please wait and try again.',
       }
 
-      const errorMessage = errorMessages[error] || 'Authentication failed. Please try again.'
-      setError(errorMessage)
-      toast.error(errorMessage)
+      const displayMessage = errorMessages[error] || 'Authentication failed. Please try again.'
+
+      // Log detailed error information for debugging
+      console.error('🚨 Login page error details:', {
+        error,
+        errorMessage: errorMessage ? decodeURIComponent(errorMessage) : null,
+        errorCode: errorCode ? decodeURIComponent(errorCode) : null,
+        displayMessage,
+        timestamp: new Date().toISOString()
+      });
+
+      setError(displayMessage)
+      toast.error(displayMessage)
     }
   }, [supabase, router, redirectTo, searchParams])
 
