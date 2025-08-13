@@ -282,26 +282,56 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       console.log('✅ Generated magic link successfully')
     }
 
-    // 3) Verify OTP to create session (this sets cookies)
-    // Use the correct verifyOtp approach for magic links
-    console.log('🔄 Attempting session creation with magic link OTP...')
-    let { data: sessionData, error: sessionError } = await supabaseSSR.auth.verifyOtp({
-      type: 'magiclink',
-      email: syntheticEmail,
-      token: emailOtp as string,
-    })
+    // 3) Create session using direct token extraction from action_link
+    // This approach bypasses the problematic verifyOtp with synthetic emails
+    console.log('🔄 Creating session using direct token extraction from action_link...')
+    let sessionData: any = null
+    let sessionError: any = null
 
+    // Extract tokens directly from the action_link
+    if (linkData?.properties?.action_link) {
+      try {
+        const actionUrl = new URL(linkData.properties.action_link)
+        const accessToken = actionUrl.searchParams.get('access_token')
+        const refreshToken = actionUrl.searchParams.get('refresh_token')
+
+        if (accessToken && refreshToken) {
+          console.log('✅ Found tokens in action_link, setting session directly...')
+          const { data: setSessionData, error: setSessionError } = await supabaseSSR.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (!setSessionError && setSessionData?.session) {
+            sessionData = setSessionData
+            sessionError = null
+            console.log('✅ Successfully set session from action_link tokens')
+          } else {
+            console.error('❌ Failed to set session from action_link tokens:', setSessionError)
+            sessionError = setSessionError
+          }
+        } else {
+          console.error('❌ No tokens found in action_link URL:', actionUrl.toString())
+          sessionError = new Error('No tokens found in action_link')
+        }
+      } catch (e) {
+        console.error('❌ Failed to extract tokens from action_link:', e)
+        sessionError = e
+      }
+    } else {
+      console.error('❌ No action_link found in generated link data')
+      sessionError = new Error('No action_link found')
+    }
+
+    // Fallback: Generate a fresh magic link if the first attempt failed
     if (sessionError || !sessionData?.session) {
-      console.error('❌ Failed to create session with magiclink OTP:', {
+      console.log('🔄 Primary session creation failed, attempting fresh magic link generation...')
+      console.error('❌ Primary session creation failed:', {
         error: sessionError,
         hasSession: !!sessionData?.session,
         errorMessage: sessionError?.message,
-        errorCode: sessionError?.code,
-        emailOtp: emailOtp ? 'present' : 'missing'
+        hasActionLink: !!linkData?.properties?.action_link
       })
-
-      // Fallback: Try creating a new magic link and using it immediately
-      console.log('🔄 Attempting fallback with fresh magic link generation...')
       try {
         const { data: freshLinkData, error: freshLinkError } = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
