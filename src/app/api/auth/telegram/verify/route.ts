@@ -5,10 +5,10 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 /**
  * Telegram Login Widget Verification Endpoint
- * 
+ *
  * This endpoint handles the redirect from Telegram Login Widget in redirect mode.
  * It verifies the signature, creates/links users, and establishes Supabase sessions.
- * 
+ *
  * Security Features:
  * - HMAC-SHA256 signature verification
  * - Auth date freshness validation (10 minutes)
@@ -35,16 +35,16 @@ const RATE_LIMIT_MAX_ATTEMPTS = 5
 function checkRateLimit(ip: string): boolean {
   const now = Date.now()
   const record = rateLimitStore.get(ip)
-  
+
   if (!record || now > record.resetTime) {
     rateLimitStore.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW })
     return true
   }
-  
+
   if (record.count >= RATE_LIMIT_MAX_ATTEMPTS) {
     return false
   }
-  
+
   record.count++
   return true
 }
@@ -68,7 +68,7 @@ function isAuthDateValid(authDate: string): boolean {
   const authTimestamp = parseInt(authDate) * 1000
   const now = Date.now()
   const tenMinutes = 10 * 60 * 1000
-  
+
   return (now - authTimestamp) <= tenMinutes
 }
 
@@ -93,6 +93,20 @@ export async function GET(request: NextRequest) {
       console.error('❌ TELEGRAM_AUTH_BOT_TOKEN not configured')
       return NextResponse.redirect(new URL('/en/auth/login?error=config_error', request.url))
     }
+
+function isDuplicateUserErrorMessage(msg: string): boolean {
+  if (!msg) return false
+  const lower = msg.toLowerCase()
+  return (
+    lower.includes('already registered') ||
+    lower.includes('user already') ||
+    lower.includes('already exists') ||
+    lower.includes('email already') ||
+    lower.includes('duplicate key') ||
+    lower.includes('duplicate') ||
+    lower.includes('exists')
+  )
+}
 
     // Parse query parameters (do not coerce/omit values)
     const url = new URL(request.url)
@@ -178,9 +192,9 @@ export async function GET(request: NextRequest) {
 
       if (createError) {
         const msg = String(createError?.message || '')
-        // Treat duplicate/registered user as non-fatal
-        if (/already\s*registered|user\s*already/i.test(msg)) {
-          console.warn('⚠️ Auth user already exists; continuing with login flow')
+        // Treat duplicate/registered user as non-fatal (cover various Supabase/PG wordings)
+        if (isDuplicateUserErrorMessage(msg)) {
+          console.warn('⚠️ Auth user already exists; continuing with login flow:', msg)
         } else {
           console.error('❌ Failed to create auth user:', createError)
           return NextResponse.redirect(new URL('/en/auth/login?error=user_creation_failed', request.url))
