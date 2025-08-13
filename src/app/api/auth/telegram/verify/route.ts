@@ -374,6 +374,33 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
             errorMessage: sessionError?.message,
             errorCode: sessionError?.code,
           })
+        } else if (!freshLinkError && (freshLinkData as any)?.properties?.action_link) {
+          try {
+            const actionLink = (freshLinkData as any).properties.action_link as string
+            const url = new URL(actionLink)
+            const tokenHashParam = url.searchParams.get('token_hash')
+            const typeParam = url.searchParams.get('type')
+            console.log('🧵 Parsed action_link params:', { hasTokenHash: !!tokenHashParam, typeParam })
+            if (tokenHashParam && (!typeParam || typeParam === 'email')) {
+              console.time('verifyOtp-retry-action-link-token-hash')
+              const { data: actionRetryData, error: actionRetryError } = await supabaseSSR.auth.verifyOtp({
+                type: 'email',
+                token_hash: tokenHashParam,
+              })
+              console.timeEnd('verifyOtp-retry-action-link-token-hash')
+              sessionData = actionRetryData
+              sessionError = actionRetryError
+              console.log('ℹ️ Retry via action_link token_hash result:', {
+                hasSession: !!sessionData?.session,
+                errorMessage: sessionError?.message,
+                errorCode: sessionError?.code,
+              })
+            } else {
+              console.error('❌ action_link missing token_hash or has incompatible type:', { typeParam })
+            }
+          } catch (parseErr) {
+            console.error('❌ Failed to parse action_link for token_hash:', parseErr)
+          }
         } else {
           console.error('❌ Failed to generate fresh magic link or missing email_otp/hash:', freshLinkError)
         }
