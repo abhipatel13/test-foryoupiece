@@ -81,6 +81,11 @@ export class TelegramCallbackHandler {
     try {
       console.log(`📱 Handling Telegram text message: "${message.text}" from user ${message.from.id}`);
 
+      // Check for login start command
+      if (message.text?.startsWith('/start login-')) {
+        return await this.handleLoginStart(message);
+      }
+
       // Check if message is from the notification group and thread
       const notificationGroupId = process.env.TELEGRAM_NOTIFICATION_GROUP_ID;
       const notificationThreadId = process.env.TELEGRAM_NOTIFICATION_THREAD_ID;
@@ -144,6 +149,77 @@ export class TelegramCallbackHandler {
 
     } catch (error) {
       console.error('❌ Error handling text message:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Handle Telegram login start command
+   */
+  async handleLoginStart(message: TelegramMessage): Promise<boolean> {
+    try {
+      const text = message.text || '';
+      const nonce = text.replace('/start login-', '');
+
+      if (!nonce || nonce.length !== 32) {
+        console.error('❌ Invalid login nonce format:', nonce);
+        await this.sendMessage(message.chat.id, '❌ Invalid login request. Please try again from the website.');
+        return false;
+      }
+
+      console.log('🔐 Processing login request for nonce:', nonce.substring(0, 8) + '...');
+
+      // Import nonce store dynamically to avoid circular dependency
+      let nonceStore: Map<string, any>;
+      try {
+        const startModule = await import('../../app/api/auth/telegram/start/route');
+        nonceStore = startModule.nonceStore;
+      } catch (error) {
+        console.error('❌ Failed to import nonce store:', error);
+        await this.sendMessage(message.chat.id, '❌ Authentication system error. Please try again later.');
+        return false;
+      }
+
+      // Check if nonce exists and is valid
+      const nonceData = nonceStore.get(nonce);
+      if (!nonceData) {
+        console.error('❌ Invalid or expired nonce:', nonce);
+        await this.sendMessage(message.chat.id, '❌ Login request expired or invalid. Please try again from the website.');
+        return false;
+      }
+
+      // Check if nonce has expired (10 minutes)
+      const now = Date.now();
+      const expiredTime = 10 * 60 * 1000;
+
+      if (now - nonceData.created > expiredTime) {
+        nonceStore.delete(nonce);
+        console.error('❌ Nonce expired:', nonce);
+        await this.sendMessage(message.chat.id, '❌ Login request expired. Please try again from the website.');
+        return false;
+      }
+
+      // Mark nonce as verified with user data
+      nonceData.verified = true;
+      nonceData.telegramData = {
+        id: message.from.id,
+        username: message.from.username,
+        first_name: message.from.first_name,
+        last_name: message.from.last_name
+      };
+
+      console.log('✅ Login nonce verified for user:', message.from.id);
+
+      // Send success message
+      const userName = message.from.first_name || message.from.username || 'User';
+      await this.sendMessage(message.chat.id,
+        `✅ Login successful, ${userName}! You can now return to the website.`);
+
+      return true;
+
+    } catch (error) {
+      console.error('❌ Error handling login start:', error);
+      await this.sendMessage(message.chat.id, '❌ Authentication error. Please try again later.');
       return false;
     }
   }
@@ -345,7 +421,7 @@ export class TelegramCallbackHandler {
       const confirmationGroupId = process.env.TELEGRAM_CONFIRMATION_GROUP_ID || '';
       const confirmationThreadId = process.env.TELEGRAM_CONFIRMATION_THREAD_ID || '';
 
-      const response = await this.sendMessage({
+      const response = await this.sendMessageWithParams({
         chat_id: confirmationGroupId,
         message_thread_id: confirmationThreadId,
         text: message,
@@ -651,9 +727,20 @@ ${emoji} <b>ORDER ${actionText}</b>
   }
 
   /**
-   * Send message to Telegram
+   * Send simple message to a chat
    */
-  private async sendMessage(params: any): Promise<any> {
+  private async sendMessage(chatId: number, text: string): Promise<any> {
+    return this.sendMessageWithParams({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML'
+    });
+  }
+
+  /**
+   * Send message to Telegram with full parameters
+   */
+  private async sendMessageWithParams(params: any): Promise<any> {
     try {
       const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
 

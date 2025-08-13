@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import Script from 'next/script'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,163 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+
+// Telegram Login Widget Component
+function TelegramLoginWidget() {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [showFallback, setShowFallback] = useState(false)
+  const [nonce, setNonce] = useState<string | null>(null)
+  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
+  const [isPolling, setIsPolling] = useState(false)
+
+  useEffect(() => {
+    // Load Telegram widget script
+    const script = document.createElement('script')
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.async = true
+    script.setAttribute('data-telegram-login', 'Authenticationfypbot')
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-auth-url', `${window.location.origin}/api/auth/telegram/verify`)
+    script.setAttribute('data-request-access', 'write')
+
+    const container = document.getElementById('telegram-login-widget')
+    if (container) {
+      container.appendChild(script)
+      setIsLoaded(true)
+    }
+
+    // Show fallback after 5 seconds if widget doesn't work
+    const fallbackTimer = setTimeout(() => {
+      setShowFallback(true)
+    }, 5000)
+
+    return () => {
+      clearTimeout(fallbackTimer)
+      // Cleanup
+      if (container && script.parentNode) {
+        container.removeChild(script)
+      }
+    }
+  }, [])
+
+  const handleFallbackLogin = async () => {
+    try {
+      const response = await fetch('/api/auth/telegram/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setNonce(data.nonce)
+        setDeepLinkUrl(data.deepLinkUrl)
+        startPolling(data.nonce)
+      } else {
+        toast.error('Failed to generate login link')
+      }
+    } catch (error) {
+      toast.error('Failed to generate login link')
+    }
+  }
+
+  const startPolling = async (nonceToCheck: string) => {
+    setIsPolling(true)
+    const maxAttempts = 60 // 10 minutes
+    let attempts = 0
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/auth/telegram/poll?nonce=${nonceToCheck}`)
+        const data = await response.json()
+
+        if (data.success && data.status === 'verified' && data.session) {
+          // Set session cookies and redirect
+          const supabase = createClient()
+          await supabase.auth.setSession(data.session)
+          toast.success('Successfully logged in with Telegram!')
+          window.location.href = '/en/profile?auth=telegram_success'
+          return
+        }
+
+        if (data.success && data.status === 'pending') {
+          attempts++
+          if (attempts < maxAttempts) {
+            setTimeout(poll, 10000) // Poll every 10 seconds
+          } else {
+            setIsPolling(false)
+            toast.error('Login timeout. Please try again.')
+          }
+        } else {
+          setIsPolling(false)
+          toast.error('Login failed. Please try again.')
+        }
+      } catch (error) {
+        setIsPolling(false)
+        toast.error('Login failed. Please try again.')
+      }
+    }
+
+    poll()
+  }
+
+  return (
+    <div className="w-full space-y-3">
+      {!isLoaded && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full h-12 sm:h-11 text-base sm:text-sm font-medium border-border hover:bg-accent hover:text-accent-foreground transition-colors"
+          disabled
+        >
+          <svg className="w-5 h-5 mr-3 sm:w-4 sm:h-4 sm:mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.374 0 0 5.373 0 12s5.374 12 12 12 12-5.373 12-12S18.626 0 12 0zm5.568 8.16c-.169 1.858-.896 6.728-.896 6.728-.302 1.507-1.123 1.507-1.745 1.507-.896 0-1.745-.302-2.301-.604-.302-.151-.604-.453-.906-.604-.151-.075-.302-.151-.302-.302 0-.151.151-.302.453-.604.604-.604 1.507-1.507 2.26-2.26.302-.302.453-.604.302-.755-.151-.151-.453 0-.755.302-.906.906-1.96 1.96-2.866 2.866-.302.302-.604.453-.906.453-.302 0-.604-.151-.906-.453-.604-.604-1.208-1.208-1.745-1.745-.302-.302-.453-.604-.302-.755.151-.151.453 0 .755.302l1.507 1.507c.151.151.302.151.453 0s.151-.302 0-.453l-1.507-1.507c-.302-.302-.453-.604-.302-.755.151-.151.453 0 .755.302.604.604 1.208 1.208 1.745 1.745.302.302.604.453.906.453.302 0 .604-.151.906-.453.906-.906 1.96-1.96 2.866-2.866.302-.302.604-.453.755-.302.151.151 0 .453-.302.755-.755.755-1.658 1.658-2.26 2.26-.302.302-.453.453-.453.604 0 .151.151.226.302.302.302.151.604.453.906.604.556.302 1.405.604 2.301.604.622 0 1.443 0 1.745-1.507 0 0 .727-4.87.896-6.728.075-.604-.151-1.208-.604-1.208-.302 0-.604.151-.755.453-.604 1.208-1.507 3.019-2.26 4.528-.151.302-.302.453-.453.453s-.302-.151-.453-.453c-.755-1.509-1.658-3.32-2.26-4.528-.151-.302-.453-.453-.755-.453-.453 0-.679.604-.604 1.208z"/>
+          </svg>
+          Loading Telegram Login...
+        </Button>
+      )}
+
+      <div id="telegram-login-widget" className="w-full flex justify-center" />
+
+      {showFallback && !nonce && (
+        <div className="text-center space-y-2">
+          <p className="text-xs text-muted-foreground">Having trouble with the button above?</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleFallbackLogin}
+            className="text-xs"
+          >
+            Continue in Telegram App
+          </Button>
+        </div>
+      )}
+
+      {deepLinkUrl && (
+        <div className="text-center space-y-3 p-4 border rounded-lg bg-muted/50">
+          <p className="text-sm font-medium">Complete login in Telegram</p>
+          <p className="text-xs text-muted-foreground">
+            Click the button below to open Telegram and complete your login
+          </p>
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => window.open(deepLinkUrl, '_blank')}
+            disabled={isPolling}
+          >
+            {isPolling ? 'Waiting for confirmation...' : 'Open Telegram'}
+          </Button>
+          {isPolling && (
+            <p className="text-xs text-muted-foreground">
+              After confirming in Telegram, you'll be automatically logged in here.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function LoginPageContent() {
   const [email, setEmail] = useState('')
@@ -277,6 +435,11 @@ function LoginPageContent() {
                 </svg>
                 Continue with Google
               </Button>
+
+              {/* Telegram Login Widget - Production Only */}
+              {process.env.NODE_ENV === 'production' && (
+                <TelegramLoginWidget />
+              )}
             </div>
 
           </CardContent>
