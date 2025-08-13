@@ -202,10 +202,8 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       })
       if (!error && linkData?.properties?.email_otp) {
         emailOtp = linkData.properties.email_otp
-        // Capture hashed token as a fallback path for magiclink verification
-        if ((linkData as any)?.properties?.hashed_token) {
-          hashedToken = (linkData as any).properties.hashed_token
-        }
+        // Attempt to capture a usable token hash if provided by backend/templates (optional)
+        hashedToken = (linkData as any)?.properties?.token_hash || (linkData as any)?.properties?.email_otp_hash || (linkData as any)?.properties?.hashed_token || null
         console.log('🔑 Existing auth user detected via magic link generation')
       } else {
         initialLinkError = error
@@ -276,70 +274,86 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
       emailOtp = linkData2.properties.email_otp
-      if ((linkData2 as any)?.properties?.hashed_token) {
-        hashedToken = (linkData2 as any).properties.hashed_token
-      }
+      // Optional capture of token hash variants (depends on Supabase/template)
+      hashedToken = (linkData2 as any)?.properties?.token_hash || (linkData2 as any)?.properties?.email_otp_hash || (linkData2 as any)?.properties?.hashed_token || null
       console.log('✅ Generated magic link successfully')
     }
 
-    // 3) Create session via magiclink token_hash (Supabase-recommended)
-    console.log('🔄 Creating session via magiclink token_hash...')
+    // 3) Create session via email OTP (following working poll route pattern)
+    console.log('🔄 Creating session via email OTP...')
     let sessionData: any = null
     let sessionError: any = null
 
-    if (hashedToken) {
+    if (emailOtp) {
       const { data, error } = await supabaseSSR.auth.verifyOtp({
-        type: 'magiclink',
-        token_hash: hashedToken as string,
+        type: 'email',
+        email: syntheticEmail,
+        token: emailOtp,
       })
       sessionData = data
       sessionError = error
-      console.log('ℹ️ verifyOtp(magiclink, token_hash) result:', {
+      console.log('ℹ️ verifyOtp(email, email_otp) result:', {
         hasSession: !!sessionData?.session,
         errorMessage: sessionError?.message,
         errorCode: sessionError?.code,
       })
     } else {
-      console.error('❌ Missing hashedToken from generateLink properties')
-      sessionError = new Error('Missing hashedToken')
+      console.error('❌ Missing emailOtp from generateLink properties')
+      sessionError = new Error('Missing emailOtp')
     }
 
-    // Fallback: Generate a fresh magic link and retry verifyOtp with token_hash once
+    // Fallback: Generate a fresh magic link and retry verifyOtp with email OTP once
     if (sessionError || !sessionData?.session) {
-      console.log('🔄 Primary token_hash verification failed, generating fresh magic link and retrying...')
+      console.log('🔄 Primary email OTP verification failed, generating fresh magic link and retrying...')
       try {
         const { data: freshLinkData, error: freshLinkError } = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
           email: syntheticEmail,
         })
-        const freshHash = (freshLinkData as any)?.properties?.hashed_token
-        if (!freshLinkError && freshHash) {
+        const freshEmailOtp = freshLinkData?.properties?.email_otp
+        const freshHash = (freshLinkData as any)?.properties?.token_hash || (freshLinkData as any)?.properties?.email_otp_hash || (freshLinkData as any)?.properties?.hashed_token
+        if (!freshLinkError && freshEmailOtp) {
           const { data: retryData, error: retryError } = await supabaseSSR.auth.verifyOtp({
-            type: 'magiclink',
-            token_hash: freshHash as string,
+            type: 'email',
+            email: syntheticEmail,
+            token: freshEmailOtp,
           })
           sessionData = retryData
           sessionError = retryError
-          console.log('ℹ️ Retry verifyOtp result:', {
+          console.log('ℹ️ Retry verifyOtp(email, otp) result:', {
+            hasSession: !!sessionData?.session,
+            errorMessage: sessionError?.message,
+            errorCode: sessionError?.code,
+          })
+        } else if (!freshLinkError && freshHash) {
+          const { data: retryHashData, error: retryHashError } = await supabaseSSR.auth.verifyOtp({
+            type: 'email',
+            token_hash: freshHash as string,
+          })
+          sessionData = retryHashData
+          sessionError = retryHashError
+          console.log('ℹ️ Retry verifyOtp(email, token_hash) result:', {
             hasSession: !!sessionData?.session,
             errorMessage: sessionError?.message,
             errorCode: sessionError?.code,
           })
         } else {
-          console.error('❌ Failed to generate fresh magic link or missing hashed_token:', freshLinkError)
+          console.error('❌ Failed to generate fresh magic link or missing email_otp/hash:', freshLinkError)
         }
       } catch (e) {
         console.error('❌ Fresh magic link retry threw:', e)
       }
 
       if (sessionError || !sessionData?.session) {
-        console.error('❌ All magiclink session creation attempts failed:', {
+        console.error('❌ All session creation attempts failed:', {
           finalError: sessionError,
           hasSession: !!sessionData?.session,
           syntheticEmail,
           authDataId: authData.id
         })
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
+      }
+    }
       }
     }
 
