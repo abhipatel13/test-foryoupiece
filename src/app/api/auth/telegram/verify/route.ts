@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHash, createHmac } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createServerClient } from '@supabase/ssr'
+import { Database } from '@/lib/supabase/database.types'
 
 /**
  * Telegram Login Widget Verification Endpoint
@@ -72,6 +74,9 @@ function isAuthDateValid(authDate: string): boolean {
   return (now - authTimestamp) <= tenMinutes
 }
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   console.log('🚀 Telegram auth verification started at:', new Date().toISOString())
@@ -119,10 +124,23 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     lower.includes('registered')
   )
 }
-
     // Parse query parameters (do not coerce/omit values)
     const url = new URL(request.url)
     const params = url.searchParams
+
+    // Debug: incoming params keys and basic metadata (no secrets)
+    try {
+      const paramKeys = Array.from(params.keys())
+      console.log('🧭 Incoming Telegram verify params:', paramKeys)
+      console.log('🧭 Basic identifiers:', {
+        id: params.get('id') ? String(params.get('id')).slice(-6) : 'none',
+        has_username: !!params.get('username'),
+        has_photo_url: !!params.get('photo_url'),
+        has_hash: !!params.get('hash'),
+        auth_date: params.get('auth_date')
+      })
+      console.log('🌐 Request IP header:', request.headers.get('x-forwarded-for') || request.ip || 'unknown')
+    } catch {}
 
     // Validate required fields
     const id = params.get('id') || ''
@@ -202,8 +220,18 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       })
       if (!error && linkData?.properties?.email_otp) {
         emailOtp = linkData.properties.email_otp
-        // Attempt to capture a usable token hash if provided by backend/templates (optional)
         hashedToken = (linkData as any)?.properties?.token_hash || (linkData as any)?.properties?.email_otp_hash || (linkData as any)?.properties?.hashed_token || null
+        try {
+          const propKeys = Object.keys(linkData.properties || {})
+          console.log('🔑 Magic link generated (existing user). Properties:', {
+            keys: propKeys,
+            has_email_otp: !!linkData.properties.email_otp,
+            email_otp_length: String(linkData.properties.email_otp || '').length,
+            has_token_hash: !!((linkData as any)?.properties?.token_hash),
+            has_email_otp_hash: !!((linkData as any)?.properties?.email_otp_hash),
+            has_hashed_token: !!((linkData as any)?.properties?.hashed_token),
+          })
+        } catch {}
         console.log('🔑 Existing auth user detected via magic link generation')
       } else {
         initialLinkError = error
@@ -258,23 +286,24 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         email: syntheticEmail,
       })
 
-      if (linkError2) {
-        console.error('🚨 GenerateLink error details:', {
-          message: linkError2?.message,
-          code: linkError2?.code,
-          status: linkError2?.status,
-          details: linkError2?.details,
-          hint: linkError2?.hint,
-          fullError: linkError2
+      try {
+        const propKeys2 = Object.keys(linkData2?.properties || {})
+        console.log('🧪 Magic link properties after createUser:', {
+          keys: propKeys2,
+          has_email_otp: !!linkData2?.properties?.email_otp,
+          email_otp_length: String(linkData2?.properties?.email_otp || '').length,
+          has_token_hash: !!((linkData2 as any)?.properties?.token_hash),
+          has_email_otp_hash: !!((linkData2 as any)?.properties?.email_otp_hash),
+          has_hashed_token: !!((linkData2 as any)?.properties?.hashed_token),
+          error: linkError2?.message,
         })
-      }
+      } catch {}
 
       if (linkError2 || !linkData2?.properties?.email_otp) {
         console.error('❌ Failed to generate magic link after user creation:', linkError2)
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
       emailOtp = linkData2.properties.email_otp
-      // Optional capture of token hash variants (depends on Supabase/template)
       hashedToken = (linkData2 as any)?.properties?.token_hash || (linkData2 as any)?.properties?.email_otp_hash || (linkData2 as any)?.properties?.hashed_token || null
       console.log('✅ Generated magic link successfully')
     }
@@ -285,11 +314,13 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     let sessionError: any = null
 
     if (emailOtp) {
+      console.time('verifyOtp-primary-email')
       const { data, error } = await supabaseSSR.auth.verifyOtp({
         type: 'email',
         email: syntheticEmail,
         token: emailOtp,
       })
+      console.timeEnd('verifyOtp-primary-email')
       sessionData = data
       sessionError = error
       console.log('ℹ️ verifyOtp(email, email_otp) result:', {
@@ -306,18 +337,22 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     if (sessionError || !sessionData?.session) {
       console.log('🔄 Primary email OTP verification failed, generating fresh magic link and retrying...')
       try {
+        console.time('generateLink-fallback')
         const { data: freshLinkData, error: freshLinkError } = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
           email: syntheticEmail,
         })
+        console.timeEnd('generateLink-fallback')
         const freshEmailOtp = freshLinkData?.properties?.email_otp
         const freshHash = (freshLinkData as any)?.properties?.token_hash || (freshLinkData as any)?.properties?.email_otp_hash || (freshLinkData as any)?.properties?.hashed_token
         if (!freshLinkError && freshEmailOtp) {
+          console.time('verifyOtp-retry-email')
           const { data: retryData, error: retryError } = await supabaseSSR.auth.verifyOtp({
             type: 'email',
             email: syntheticEmail,
             token: freshEmailOtp,
           })
+          console.timeEnd('verifyOtp-retry-email')
           sessionData = retryData
           sessionError = retryError
           console.log('ℹ️ Retry verifyOtp(email, otp) result:', {
@@ -326,10 +361,12 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
             errorCode: sessionError?.code,
           })
         } else if (!freshLinkError && freshHash) {
+          console.time('verifyOtp-retry-token-hash')
           const { data: retryHashData, error: retryHashError } = await supabaseSSR.auth.verifyOtp({
             type: 'email',
             token_hash: freshHash as string,
           })
+          console.timeEnd('verifyOtp-retry-token-hash')
           sessionData = retryHashData
           sessionError = retryHashError
           console.log('ℹ️ Retry verifyOtp(email, token_hash) result:', {
