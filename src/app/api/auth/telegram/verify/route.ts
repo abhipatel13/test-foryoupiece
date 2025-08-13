@@ -227,8 +227,8 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         if (isDuplicateUserErrorMessage(msg)) {
           console.warn('⚠️ Auth user already exists; continuing with login flow:', msg)
         } else {
-          console.error('❌ Failed to create auth user with non-duplicate error:', createError)
-          return NextResponse.redirect(new URL('/en/auth/login?error=user_creation_failed', request.url))
+          // Do not fail here; proceed to attempt magic link generation regardless.
+          console.warn('⚠️ Non-duplicate createUser error; attempting magic link anyway:', msg)
         }
       } else if (newUser?.user?.id) {
         console.log('✅ Created new auth user:', newUser.user.id.substring(0, 8) + '...')
