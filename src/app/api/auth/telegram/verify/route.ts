@@ -280,29 +280,63 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       }
 
       // Always try generating magic link again (even after createUser errors, in case user exists)
-      console.log('🔄 Attempting to generate magic link for:', syntheticEmail)
-      const { data: linkData2, error: linkError2 } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: syntheticEmail,
-      })
+      // Add transient-consistency handling and retries to avoid "Database error saving new user"
+      const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
-      try {
-        const propKeys2 = Object.keys(linkData2?.properties || {})
-        console.log('🧪 Magic link properties after createUser:', {
-          keys: propKeys2,
-          has_email_otp: !!linkData2?.properties?.email_otp,
-          email_otp_length: String(linkData2?.properties?.email_otp || '').length,
-          has_token_hash: !!((linkData2 as any)?.properties?.token_hash),
-          has_email_otp_hash: !!((linkData2 as any)?.properties?.email_otp_hash),
-          has_hashed_token: !!((linkData2 as any)?.properties?.hashed_token),
-          error: linkError2?.message,
+      // If we got a new user id, confirm visibility via admin.getUserById before attempting generateLink
+      if ((newUser as any)?.user?.id) {
+        try {
+          const { data: fetchedUser, error: fetchErr } = await supabaseAdmin.auth.admin.getUserById((newUser as any).user.id)
+          console.log('🧾 Post-create fetch user check:', { hasUser: !!fetchedUser?.user, fetchError: fetchErr?.message })
+        } catch (e) {
+          console.warn('⚠️ Post-create fetch user check threw:', e)
+        }
+      }
+
+      // Retry strategy for generateLink to mitigate supabase auth race conditions
+      const retryDelays = [0, 300, 800] // ms
+      let linkData2: any = null
+      let linkError2: any = null
+      for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+        const delay = retryDelays[attempt]
+        if (delay > 0) await sleep(delay)
+        console.log(`🔄 Attempting to generate magic link for: ${syntheticEmail} (attempt ${attempt + 1}/${retryDelays.length}, delay ${delay}ms)`)
+        const res = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: syntheticEmail,
         })
-      } catch {}
+        linkData2 = res.data
+        linkError2 = res.error
+
+        try {
+          const propKeys2 = Object.keys(linkData2?.properties || {})
+          console.log('🧪 Magic link properties after createUser (attempt):', {
+            keys: propKeys2,
+            has_email_otp: !!linkData2?.properties?.email_otp,
+            email_otp_length: String(linkData2?.properties?.email_otp || '').length,
+            has_token_hash: !!((linkData2 as any)?.properties?.token_hash),
+            has_email_otp_hash: !!((linkData2 as any)?.properties?.email_otp_hash),
+            has_hashed_token: !!((linkData2 as any)?.properties?.hashed_token),
+            error: linkError2?.message,
+            errorCode: linkError2?.code,
+            status: linkError2?.status,
+          })
+        } catch {}
+
+        if (!linkError2 && linkData2?.properties?.email_otp) {
+          break
+        }
+      }
 
       if (linkError2 || !linkData2?.properties?.email_otp) {
-        console.error('❌ Failed to generate magic link after user creation:', linkError2)
-        return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
+        console.error('❌ Failed to generate magic link after user creation (after retries):', linkError2)
+        // Prefer graceful fallback to deep-link flow rather than hard fail
+        const fallbackUrl = new URL('/en/auth/login', request.url)
+        fallbackUrl.searchParams.set('error', 'telegram_widget_generate_link_failed')
+        fallbackUrl.searchParams.set('fallback', 'deeplink')
+        return NextResponse.redirect(fallbackUrl)
       }
+
       emailOtp = linkData2.properties.email_otp
       hashedToken = (linkData2 as any)?.properties?.token_hash || (linkData2 as any)?.properties?.email_otp_hash || (linkData2 as any)?.properties?.hashed_token || null
       console.log('✅ Generated magic link successfully')
