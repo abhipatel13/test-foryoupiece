@@ -179,6 +179,7 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
 
     // 1) Try to generate a magic link first — if it works, the auth user already exists
     let emailOtp: string | null = null
+    let hashedToken: string | null = null
     let initialLinkError: any = null
     {
       const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
@@ -187,6 +188,10 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       })
       if (!error && linkData?.properties?.email_otp) {
         emailOtp = linkData.properties.email_otp
+        // Capture hashed token as a fallback path for magiclink verification
+        if ((linkData as any)?.properties?.hashed_token) {
+          hashedToken = (linkData as any).properties.hashed_token
+        }
         console.log('🔑 Existing auth user detected via magic link generation')
       } else {
         initialLinkError = error
@@ -257,19 +262,39 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
       emailOtp = linkData2.properties.email_otp
+      if ((linkData2 as any)?.properties?.hashed_token) {
+        hashedToken = (linkData2 as any).properties.hashed_token
+      }
       console.log('✅ Generated magic link successfully')
     }
 
     // 3) Verify OTP to create session (this sets cookies)
-    const { data: sessionData, error: sessionError } = await supabaseSSR.auth.verifyOtp({
+    let { data: sessionData, error: sessionError } = await supabaseSSR.auth.verifyOtp({
       type: 'email',
       email: syntheticEmail,
       token: emailOtp as string,
     })
 
     if (sessionError || !sessionData?.session) {
-      console.error('❌ Failed to create session:', sessionError)
-      return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
+      console.error('❌ Failed to create session with email OTP, attempting magiclink token_hash fallback:', sessionError)
+      if (hashedToken) {
+        try {
+          const fallback = await (supabaseSSR as any).auth.verifyOtp({
+            type: 'magiclink',
+            token_hash: hashedToken,
+            email: syntheticEmail,
+          })
+          sessionData = fallback.data
+          sessionError = fallback.error
+        } catch (e) {
+          console.error('❌ Magiclink token_hash fallback threw:', e)
+        }
+      }
+
+      if (sessionError || !sessionData?.session) {
+        console.error('❌ Failed to create session after magiclink fallback:', sessionError)
+        return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
+      }
     }
 
     const sessionUserId = sessionData.session.user.id
