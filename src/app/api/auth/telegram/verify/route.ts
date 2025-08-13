@@ -143,21 +143,25 @@ export async function GET(request: NextRequest) {
     // Create synthetic email for Telegram users
     const syntheticEmail = `tg_${authData.id}@telegram.foryoupiece.local`
 
-    // Check if user already exists
-    const { data: existingUser } = await supabaseSSR
-      .from('users')
-      .select('id')
-      .eq('telegram_id', parseInt(authData.id))
-      .single()
+    // 1) Try to generate a magic link first — if it works, the auth user already exists
+    let emailOtp: string | null = null
+    let initialLinkError: any = null
+    {
+      const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: syntheticEmail,
+      })
+      if (!error && linkData?.properties?.email_otp) {
+        emailOtp = linkData.properties.email_otp
+        console.log('🔑 Existing auth user detected via magic link generation')
+      } else {
+        initialLinkError = error
+        console.log('ℹ️ Magic link not available yet; will attempt to create auth user', error?.message || error)
+      }
+    }
 
-    let userId: string
-
-    if (existingUser) {
-      // User exists, use existing ID
-      userId = existingUser.id
-      console.log('👤 Existing Telegram user found:', userId.substring(0, 8) + '...')
-    } else {
-      // Create new user via Supabase Admin API
+    // 2) If magic link was not generated, create user (handle duplicates gracefully), then generate link again
+    if (!emailOtp) {
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: syntheticEmail,
         email_confirm: true,
@@ -168,63 +172,81 @@ export async function GET(request: NextRequest) {
           last_name: authData.last_name,
           photo_url: authData.photo_url,
           auth_provider: 'telegram',
-          created_via: 'telegram_login_widget'
-        }
+          created_via: 'telegram_login_widget',
+        },
       })
 
-      if (createError || !newUser.user) {
-        console.error('❌ Failed to create user:', createError)
-        return NextResponse.redirect(new URL('/en/auth/login?error=user_creation_failed', request.url))
+      if (createError) {
+        const msg = String(createError?.message || '')
+        // Treat duplicate/registered user as non-fatal
+        if (/already\s*registered|user\s*already/i.test(msg)) {
+          console.warn('⚠️ Auth user already exists; continuing with login flow')
+        } else {
+          console.error('❌ Failed to create auth user:', createError)
+          return NextResponse.redirect(new URL('/en/auth/login?error=user_creation_failed', request.url))
+        }
+      } else if (newUser?.user?.id) {
+        console.log('✅ Created new auth user:', newUser.user.id.substring(0, 8) + '...')
       }
 
-      userId = newUser.user.id
-      console.log('✅ New Telegram user created:', userId.substring(0, 8) + '...')
-
-      // Create user profile in users table
-      const { error: profileError } = await supabaseSSR
-        .from('users')
-        .insert({
-          id: userId,
-          telegram_id: parseInt(authData.id),
-          telegram_username: authData.username,
-          email: syntheticEmail,
-          first_name: authData.first_name,
-          last_name: authData.last_name,
-          avatar_url: authData.photo_url,
-          points_balance: 1000, // New user signup bonus
-          preferred_language: 'en'
-        })
-
-      if (profileError) {
-        console.error('❌ Failed to create user profile:', profileError)
-        // Continue anyway, as the auth user was created
+      // Try generating magic link again
+      const { data: linkData2, error: linkError2 } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: syntheticEmail,
+      })
+      if (linkError2 || !linkData2?.properties?.email_otp) {
+        console.error('❌ Failed to generate magic link after user creation:', linkError2)
+        return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
+      emailOtp = linkData2.properties.email_otp
     }
 
-    // Generate magic link for server-side session creation
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: syntheticEmail
-    })
-
-    if (linkError || !linkData.properties?.email_otp) {
-      console.error('❌ Failed to generate magic link:', linkError)
-      return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
-    }
-
-    // Verify OTP to create session (this sets cookies)
+    // 3) Verify OTP to create session (this sets cookies)
     const { data: sessionData, error: sessionError } = await supabaseSSR.auth.verifyOtp({
       type: 'email',
       email: syntheticEmail,
-      token: linkData.properties.email_otp
+      token: emailOtp as string,
     })
 
-    if (sessionError || !sessionData.session) {
+    if (sessionError || !sessionData?.session) {
       console.error('❌ Failed to create session:', sessionError)
       return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
     }
 
-    console.log('✅ Telegram login successful for user:', userId.substring(0, 8) + '...')
+    const sessionUserId = sessionData.session.user.id
+
+    // 4) Upsert profile using service role (bypass RLS). Set 1000 points only if new.
+    let isNewProfile = false
+    const { data: existingProfile } = await supabaseAdmin
+      .from('users')
+      .select('id, points_balance')
+      .eq('id', sessionUserId)
+      .maybeSingle?.() || { data: null }
+
+    isNewProfile = !existingProfile
+
+    const profilePayload: any = {
+      id: sessionUserId,
+      telegram_id: parseInt(authData.id),
+      telegram_username: authData.username,
+      email: syntheticEmail,
+      first_name: authData.first_name,
+      last_name: authData.last_name,
+      avatar_url: authData.photo_url,
+      preferred_language: 'en',
+    }
+    if (isNewProfile) profilePayload.points_balance = 1000
+
+    const { error: upsertError } = await (supabaseAdmin as any)
+      .from('users')
+      .upsert(profilePayload, { onConflict: 'id' })
+
+    if (upsertError) {
+      console.error('❌ Failed to upsert user profile (non-fatal):', upsertError)
+      // Continue anyway — session is established
+    }
+
+    console.log('✅ Telegram login successful for user:', sessionUserId.substring(0, 8) + '...')
 
     // Redirect to success page; SSR client already set auth cookies via verifyOtp
     const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
