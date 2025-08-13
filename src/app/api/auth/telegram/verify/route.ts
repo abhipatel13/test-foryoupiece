@@ -209,24 +209,27 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     // Create synthetic email for Telegram users
     const syntheticEmail = `tg_${authData.id}@telegram.foryoupiece.local`
 
-    // Early check: if user profile does NOT exist yet, avoid fragile widget flow and send to deeplink
-    try {
-      const { data: existingByTelegram } = await supabaseAdmin
-        .from('users')
-        .select('id')
-        .eq('telegram_id', parseInt(authData.id))
-        .maybeSingle?.() || { data: null }
+    // TEMPORARILY DISABLED: New user redirect to broken deep-link flow
+    // The widget flow is sophisticated enough to handle new users
+    // try {
+    //   const { data: existingByTelegram } = await supabaseAdmin
+    //     .from('users')
+    //     .select('id')
+    //     .eq('telegram_id', parseInt(authData.id))
+    //     .maybeSingle?.() || { data: null }
 
-      if (!existingByTelegram) {
-        console.log('🧭 New Telegram user detected via verify route; redirecting to deeplink fallback')
-        const fallbackUrl = new URL('/en/auth/login', request.url)
-        fallbackUrl.searchParams.set('error', 'telegram_widget_new_user_flow')
-        fallbackUrl.searchParams.set('fallback', 'deeplink')
-        return NextResponse.redirect(fallbackUrl)
-      }
-    } catch (e) {
-      console.warn('⚠️ Failed to check existing telegram user; proceeding with cautious flow:', e)
-    }
+    //   if (!existingByTelegram) {
+    //     console.log('🧭 New Telegram user detected via verify route; redirecting to deeplink fallback')
+    //     const fallbackUrl = new URL('/en/auth/login', request.url)
+    //     fallbackUrl.searchParams.set('error', 'telegram_widget_new_user_flow')
+    //     fallbackUrl.searchParams.set('fallback', 'deeplink')
+    //     return NextResponse.redirect(fallbackUrl)
+    //   }
+    // } catch (e) {
+    //   console.warn('⚠️ Failed to check existing telegram user; proceeding with cautious flow:', e)
+    // }
+
+    console.log('✅ Proceeding with widget flow for all users (new user redirect disabled)')
 
     // 1) Try to generate a magic link first — if it works, the auth user already exists
     let emailOtp: string | null = null
