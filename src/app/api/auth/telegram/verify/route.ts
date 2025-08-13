@@ -278,7 +278,7 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         return NextResponse.redirect(new URL('/en/auth/login?error=invalid_telegram_id', request.url))
       }
 
-      console.log('🔄 Attempting to create Telegram user with data:', {
+      console.log('🔄 Attempting to create Telegram user with client-side auth approach:', {
         syntheticEmail,
         telegramId: authData.id,
         username: authData.username,
@@ -287,19 +287,33 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         timestamp: new Date().toISOString()
       });
 
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      // SOLUTION: Use client-side auth instead of admin API to avoid trigger conflicts
+      // Create a temporary client-side Supabase instance for user creation
+      const { createClient } = await import('@supabase/supabase-js');
+      const clientSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      // Generate secure random password for signUp() method
+      const securePassword = crypto.randomUUID() + crypto.randomUUID(); // Extra secure
+
+      // Use client-side signUp which should work better with triggers
+      const { data: newUser, error: createError } = await clientSupabase.auth.signUp({
         email: syntheticEmail,
-        email_confirm: true,
-        user_metadata: {
-          telegram_id: parseInt(authData.id),
-          username: authData.username || null,
-          telegram_username: authData.username || null,
-          first_name: authData.first_name || null,
-          last_name: authData.last_name || null,
-          photo_url: authData.photo_url || null,
-          auth_provider: 'telegram',
-          created_via: 'telegram_login_widget',
-        },
+        password: securePassword,
+        options: {
+          data: {
+            telegram_id: parseInt(authData.id),
+            username: authData.username || null,
+            telegram_username: authData.username || null,
+            first_name: authData.first_name || null,
+            last_name: authData.last_name || null,
+            photo_url: authData.photo_url || null,
+            auth_provider: 'telegram',
+            created_via: 'telegram_login_widget',
+          }
+        }
       })
 
       if (createError) {
@@ -383,6 +397,23 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         }
       } else if (newUser?.user?.id) {
         console.log('✅ Created new auth user:', newUser.user.id.substring(0, 8) + '...')
+
+        // Auto-confirm email for Telegram OAuth users since they use synthetic emails
+        // This is necessary because signUp() creates unconfirmed users by default
+        try {
+          const { data: confirmData, error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(
+            newUser.user.id,
+            { email_confirm: true }
+          );
+
+          if (confirmError) {
+            console.warn('⚠️ Failed to auto-confirm Telegram user email:', confirmError.message);
+          } else {
+            console.log('✅ Auto-confirmed email for Telegram user:', newUser.user.id.substring(0, 8) + '...');
+          }
+        } catch (confirmErr) {
+          console.warn('⚠️ Exception during email confirmation:', confirmErr);
+        }
       }
 
       // Always try generating magic link again (even after createUser errors, in case user exists)
