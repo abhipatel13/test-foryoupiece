@@ -308,12 +308,30 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       console.log('✅ Generated magic link successfully')
     }
 
-    // 3) Create session via email OTP (following working poll route pattern)
-    console.log('🔄 Creating session via email OTP...')
+    // 3) Create session preferring token_hash (magiclink) path first for reliability
+    console.log('🔄 Creating session (prefer magiclink token_hash)...')
     let sessionData: any = null
     let sessionError: any = null
 
-    if (emailOtp) {
+    // Prefer token_hash if available from initial generateLink
+    if (hashedToken) {
+      console.time('verifyOtp-primary-magiclink-token-hash')
+      const { data, error } = await supabaseSSR.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: hashedToken as string,
+      })
+      console.timeEnd('verifyOtp-primary-magiclink-token-hash')
+      sessionData = data
+      sessionError = error
+      console.log('ℹ️ verifyOtp(magiclink, token_hash) result:', {
+        hasSession: !!sessionData?.session,
+        errorMessage: sessionError?.message,
+        errorCode: sessionError?.code,
+      })
+    }
+
+    // If no session yet, try email OTP path (works in poll route)
+    if ((!sessionData || !sessionData.session) && emailOtp) {
       console.time('verifyOtp-primary-email')
       const { data, error } = await supabaseSSR.auth.verifyOtp({
         type: 'email',
@@ -321,21 +339,26 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         token: emailOtp,
       })
       console.timeEnd('verifyOtp-primary-email')
-      sessionData = data
-      sessionError = error
+      // Only override if still no session
+      if (!sessionData?.session) {
+        sessionData = data
+        sessionError = error
+      }
       console.log('ℹ️ verifyOtp(email, email_otp) result:', {
         hasSession: !!sessionData?.session,
         errorMessage: sessionError?.message,
         errorCode: sessionError?.code,
       })
-    } else {
-      console.error('❌ Missing emailOtp from generateLink properties')
-      sessionError = new Error('Missing emailOtp')
     }
 
-    // Fallback: Generate a fresh magic link and retry verifyOtp with email OTP once
+    if (!emailOtp && !hashedToken) {
+      console.error('❌ Missing both emailOtp and token_hash from generateLink properties')
+      sessionError = new Error('Missing emailOtp/token_hash')
+    }
+
+    // Fallback: Generate a fresh magic link and retry (token_hash first, then email)
     if (sessionError || !sessionData?.session) {
-      console.log('🔄 Primary email OTP verification failed, generating fresh magic link and retrying...')
+      console.log('🔄 Primary verification failed, generating fresh magic link and retrying...')
       try {
         console.time('generateLink-fallback')
         const { data: freshLinkData, error: freshLinkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -345,7 +368,24 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         console.timeEnd('generateLink-fallback')
         const freshEmailOtp = freshLinkData?.properties?.email_otp
         const freshHash = (freshLinkData as any)?.properties?.token_hash || (freshLinkData as any)?.properties?.email_otp_hash || (freshLinkData as any)?.properties?.hashed_token
-        if (!freshLinkError && freshEmailOtp) {
+
+        if (!freshLinkError && freshHash) {
+          console.time('verifyOtp-retry-magiclink-token-hash')
+          const { data: retryHashData, error: retryHashError } = await supabaseSSR.auth.verifyOtp({
+            type: 'magiclink',
+            token_hash: freshHash as string,
+          })
+          console.timeEnd('verifyOtp-retry-magiclink-token-hash')
+          sessionData = retryHashData
+          sessionError = retryHashError
+          console.log('ℹ️ Retry verifyOtp(magiclink, token_hash) result:', {
+            hasSession: !!sessionData?.session,
+            errorMessage: sessionError?.message,
+            errorCode: sessionError?.code,
+          })
+        }
+
+        if ((!sessionData || !sessionData.session) && !freshLinkError && freshEmailOtp) {
           console.time('verifyOtp-retry-email')
           const { data: retryData, error: retryError } = await supabaseSSR.auth.verifyOtp({
             type: 'email',
@@ -360,31 +400,19 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
             errorMessage: sessionError?.message,
             errorCode: sessionError?.code,
           })
-        } else if (!freshLinkError && freshHash) {
-          console.time('verifyOtp-retry-token-hash')
-          const { data: retryHashData, error: retryHashError } = await supabaseSSR.auth.verifyOtp({
-            type: 'email',
-            token_hash: freshHash as string,
-          })
-          console.timeEnd('verifyOtp-retry-token-hash')
-          sessionData = retryHashData
-          sessionError = retryHashError
-          console.log('ℹ️ Retry verifyOtp(email, token_hash) result:', {
-            hasSession: !!sessionData?.session,
-            errorMessage: sessionError?.message,
-            errorCode: sessionError?.code,
-          })
-        } else if (!freshLinkError && (freshLinkData as any)?.properties?.action_link) {
+        }
+
+        if ((!sessionData || !sessionData.session) && !freshLinkError && (freshLinkData as any)?.properties?.action_link) {
           try {
             const actionLink = (freshLinkData as any).properties.action_link as string
             const url = new URL(actionLink)
             const tokenHashParam = url.searchParams.get('token_hash')
             const typeParam = url.searchParams.get('type')
             console.log('🧵 Parsed action_link params:', { hasTokenHash: !!tokenHashParam, typeParam })
-            if (tokenHashParam && (!typeParam || typeParam === 'email')) {
+            if (tokenHashParam) {
               console.time('verifyOtp-retry-action-link-token-hash')
               const { data: actionRetryData, error: actionRetryError } = await supabaseSSR.auth.verifyOtp({
-                type: 'email',
+                type: 'magiclink',
                 token_hash: tokenHashParam,
               })
               console.timeEnd('verifyOtp-retry-action-link-token-hash')
@@ -396,13 +424,15 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
                 errorCode: sessionError?.code,
               })
             } else {
-              console.error('❌ action_link missing token_hash or has incompatible type:', { typeParam })
+              console.error('❌ action_link missing token_hash')
             }
           } catch (parseErr) {
             console.error('❌ Failed to parse action_link for token_hash:', parseErr)
           }
-        } else {
-          console.error('❌ Failed to generate fresh magic link or missing email_otp/hash:', freshLinkError)
+        }
+
+        if (freshLinkError) {
+          console.error('❌ Failed to generate fresh magic link:', freshLinkError)
         }
       } catch (e) {
         console.error('❌ Fresh magic link retry threw:', e)
