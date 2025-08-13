@@ -354,8 +354,6 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
     }
-      }
-    }
 
     const sessionUserId = sessionData.session.user.id
 
