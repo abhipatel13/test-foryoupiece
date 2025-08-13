@@ -3,9 +3,11 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 import { useTranslations } from 'next-intl'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+import { createClient } from '@/lib/supabase/client'
 import { userQueries, orderQueries } from '@/lib/supabase/queries'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,6 +47,7 @@ interface Order {
 export default function ProfilePage() {
   const t = useTranslations('profile')
   const { user, profile, isAuthenticated, loading, updateProfile } = useSSRSafeAuth()
+  const searchParams = useSearchParams()
 
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)
@@ -207,6 +210,61 @@ export default function ProfilePage() {
       })
     }
   }, [user?.id, isAuthenticated, loading, loadOrders])
+
+  // Handle Telegram authentication success with session bridge
+  useEffect(() => {
+    const authParam = searchParams.get('auth')
+    const sessionBridge = searchParams.get('session_bridge')
+
+    if (authParam === 'telegram_success' && sessionBridge) {
+      console.log('🔗 Processing Telegram session bridge...')
+
+      try {
+        // Decode the session bridge token
+        const sessionData = JSON.parse(Buffer.from(sessionBridge, 'base64').toString())
+
+        // Validate the session data
+        if (sessionData.access_token && sessionData.refresh_token && sessionData.user_id) {
+          const supabase = createClient()
+
+          // Set the session in the client
+          supabase.auth.setSession({
+            access_token: sessionData.access_token,
+            refresh_token: sessionData.refresh_token,
+            expires_at: sessionData.expires_at
+          }).then(({ data, error }) => {
+            if (error) {
+              console.error('❌ Failed to set session from bridge:', error)
+            } else {
+              console.log('✅ Session bridge successful, user authenticated')
+              toast.success('Successfully logged in with Telegram!')
+
+              // Clean up URL parameters
+              const url = new URL(window.location.href)
+              url.searchParams.delete('auth')
+              url.searchParams.delete('session_bridge')
+              window.history.replaceState({}, '', url.toString())
+            }
+          }).catch((error) => {
+            console.error('❌ Session bridge error:', error)
+          })
+        } else {
+          console.error('❌ Invalid session bridge data')
+        }
+      } catch (error) {
+        console.error('❌ Failed to decode session bridge:', error)
+      }
+    } else if (authParam === 'telegram_success') {
+      // Handle success without session bridge (fallback)
+      console.log('✅ Telegram authentication success (no bridge)')
+      toast.success('Successfully logged in with Telegram!')
+
+      // Clean up URL parameters
+      const url = new URL(window.location.href)
+      url.searchParams.delete('auth')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [searchParams])
 
   if (loading) {
     return (

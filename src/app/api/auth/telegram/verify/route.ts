@@ -73,6 +73,9 @@ function isAuthDateValid(authDate: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now()
+  console.log('🚀 Telegram auth verification started at:', new Date().toISOString())
+
   try {
     // Production-only check
     if (process.env.NODE_ENV !== 'production') {
@@ -169,10 +172,21 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     if (!serviceRoleKey || !supabaseUrl) {
       console.error('❌ Missing Supabase configuration:', {
         hasServiceKey: !!serviceRoleKey,
-        hasUrl: !!supabaseUrl
+        hasUrl: !!supabaseUrl,
+        nodeEnv: process.env.NODE_ENV,
+        timestamp: new Date().toISOString()
       })
       return NextResponse.redirect(new URL('/en/auth/login?error=config_error', request.url))
     }
+
+    // Log environment status for debugging
+    console.log('🔧 Environment check:', {
+      hasServiceKey: !!serviceRoleKey,
+      hasUrl: !!supabaseUrl,
+      serviceKeyLength: serviceRoleKey?.length,
+      urlDomain: supabaseUrl ? new URL(supabaseUrl).hostname : 'invalid',
+      nodeEnv: process.env.NODE_ENV
+    })
 
     // Create synthetic email for Telegram users
     const syntheticEmail = `tg_${authData.id}@telegram.foryoupiece.local`
@@ -269,30 +283,68 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     }
 
     // 3) Verify OTP to create session (this sets cookies)
+    // Use the correct verifyOtp approach for magic links
+    console.log('🔄 Attempting session creation with magic link OTP...')
     let { data: sessionData, error: sessionError } = await supabaseSSR.auth.verifyOtp({
-      type: 'email',
+      type: 'magiclink',
       email: syntheticEmail,
       token: emailOtp as string,
     })
 
     if (sessionError || !sessionData?.session) {
-      console.error('❌ Failed to create session with email OTP, attempting magiclink token_hash fallback:', sessionError)
-      if (hashedToken) {
-        try {
-          const fallback = await (supabaseSSR as any).auth.verifyOtp({
-            type: 'magiclink',
-            token_hash: hashedToken,
-            email: syntheticEmail,
-          })
-          sessionData = fallback.data
-          sessionError = fallback.error
-        } catch (e) {
-          console.error('❌ Magiclink token_hash fallback threw:', e)
+      console.error('❌ Failed to create session with magiclink OTP:', {
+        error: sessionError,
+        hasSession: !!sessionData?.session,
+        errorMessage: sessionError?.message,
+        errorCode: sessionError?.code,
+        emailOtp: emailOtp ? 'present' : 'missing'
+      })
+
+      // Fallback: Try creating a new magic link and using it immediately
+      console.log('🔄 Attempting fallback with fresh magic link generation...')
+      try {
+        const { data: freshLinkData, error: freshLinkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: syntheticEmail,
+        })
+
+        if (!freshLinkError && freshLinkData?.properties?.action_link) {
+          // Extract tokens from the action_link URL
+          const actionUrl = new URL(freshLinkData.properties.action_link)
+          const accessToken = actionUrl.searchParams.get('access_token')
+          const refreshToken = actionUrl.searchParams.get('refresh_token')
+
+          if (accessToken && refreshToken) {
+            console.log('✅ Found tokens in fresh action_link, setting session...')
+            const { data: setSessionData, error: setSessionError } = await supabaseSSR.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            })
+
+            if (!setSessionError && setSessionData?.session) {
+              sessionData = setSessionData
+              sessionError = null
+              console.log('✅ Successfully set session from fresh action_link tokens')
+            } else {
+              console.error('❌ Failed to set session from fresh action_link tokens:', setSessionError)
+            }
+          } else {
+            console.error('❌ No tokens found in fresh action_link URL')
+          }
+        } else {
+          console.error('❌ Failed to generate fresh magic link:', freshLinkError)
         }
+      } catch (e) {
+        console.error('❌ Fresh magic link fallback threw:', e)
       }
 
       if (sessionError || !sessionData?.session) {
-        console.error('❌ Failed to create session after magiclink fallback:', sessionError)
+        console.error('❌ All session creation methods failed:', {
+          finalError: sessionError,
+          hasSession: !!sessionData?.session,
+          syntheticEmail,
+          authDataId: authData.id
+        })
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
     }
@@ -330,14 +382,32 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       // Continue anyway — session is established
     }
 
-    console.log('✅ Telegram login successful for user:', sessionUserId.substring(0, 8) + '...')
+    const processingTime = Date.now() - startTime
+    console.log('✅ Telegram login successful for user:', sessionUserId.substring(0, 8) + '...', `(${processingTime}ms)`)
 
-    // Redirect to success page; SSR client already set auth cookies via verifyOtp
+    // Create a session bridge token for client-side session establishment
+    // This helps ensure the AuthProvider recognizes the session immediately
+    const sessionBridgeToken = Buffer.from(JSON.stringify({
+      access_token: sessionData.session.access_token,
+      refresh_token: sessionData.session.refresh_token,
+      expires_at: sessionData.session.expires_at,
+      user_id: sessionUserId,
+      timestamp: Date.now()
+    })).toString('base64')
+
+    // Redirect to success page with session bridge token
     const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
+    redirectUrl.searchParams.set('session_bridge', sessionBridgeToken)
     return NextResponse.redirect(redirectUrl)
 
   } catch (error) {
-    console.error('❌ Telegram auth error:', error)
+    const processingTime = Date.now() - startTime
+    console.error('❌ Telegram auth error:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTime: `${processingTime}ms`,
+      timestamp: new Date().toISOString()
+    })
     return NextResponse.redirect(new URL('/en/auth/login?error=server_error', request.url))
   }
 }
