@@ -104,7 +104,16 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     lower.includes('email already') ||
     lower.includes('duplicate key') ||
     lower.includes('duplicate') ||
-    lower.includes('exists')
+    lower.includes('exists') ||
+    lower.includes('unique constraint') ||
+    lower.includes('violates unique') ||
+    lower.includes('constraint') ||
+    lower.includes('auth.users_email_key') ||
+    lower.includes('users_email_key') ||
+    lower.includes('email_key') ||
+    lower.includes('taken') ||
+    lower.includes('in use') ||
+    lower.includes('registered')
   )
 }
 
@@ -154,6 +163,17 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       return NextResponse.redirect(new URL('/en/auth/login?error=server_error', request.url))
     }
 
+    // Validate service role client has proper configuration
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!serviceRoleKey || !supabaseUrl) {
+      console.error('❌ Missing Supabase configuration:', {
+        hasServiceKey: !!serviceRoleKey,
+        hasUrl: !!supabaseUrl
+      })
+      return NextResponse.redirect(new URL('/en/auth/login?error=config_error', request.url))
+    }
+
     // Create synthetic email for Telegram users
     const syntheticEmail = `tg_${authData.id}@telegram.foryoupiece.local`
 
@@ -176,43 +196,68 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
 
     // 2) If magic link was not generated, create user (handle duplicates gracefully), then generate link again
     if (!emailOtp) {
+      console.log('🔄 Attempting to create auth user for:', syntheticEmail)
+
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: syntheticEmail,
         email_confirm: true,
         user_metadata: {
           telegram_id: parseInt(authData.id),
-          telegram_username: authData.username,
-          first_name: authData.first_name,
-          last_name: authData.last_name,
-          photo_url: authData.photo_url,
+          telegram_username: authData.username || null,
+          first_name: authData.first_name || null,
+          last_name: authData.last_name || null,
+          photo_url: authData.photo_url || null,
           auth_provider: 'telegram',
           created_via: 'telegram_login_widget',
         },
       })
 
       if (createError) {
-        const msg = String(createError?.message || '')
+        const msg = String(createError?.message || createError || '')
+        console.error('🚨 CreateUser error details:', {
+          message: msg,
+          code: createError?.code,
+          status: createError?.status,
+          details: createError?.details,
+          hint: createError?.hint,
+          fullError: createError
+        })
+
         // Treat duplicate/registered user as non-fatal (cover various Supabase/PG wordings)
         if (isDuplicateUserErrorMessage(msg)) {
           console.warn('⚠️ Auth user already exists; continuing with login flow:', msg)
         } else {
-          console.error('❌ Failed to create auth user:', createError)
+          console.error('❌ Failed to create auth user with non-duplicate error:', createError)
           return NextResponse.redirect(new URL('/en/auth/login?error=user_creation_failed', request.url))
         }
       } else if (newUser?.user?.id) {
         console.log('✅ Created new auth user:', newUser.user.id.substring(0, 8) + '...')
       }
 
-      // Try generating magic link again
+      // Always try generating magic link again (even after createUser errors, in case user exists)
+      console.log('🔄 Attempting to generate magic link for:', syntheticEmail)
       const { data: linkData2, error: linkError2 } = await supabaseAdmin.auth.admin.generateLink({
         type: 'magiclink',
         email: syntheticEmail,
       })
+
+      if (linkError2) {
+        console.error('🚨 GenerateLink error details:', {
+          message: linkError2?.message,
+          code: linkError2?.code,
+          status: linkError2?.status,
+          details: linkError2?.details,
+          hint: linkError2?.hint,
+          fullError: linkError2
+        })
+      }
+
       if (linkError2 || !linkData2?.properties?.email_otp) {
         console.error('❌ Failed to generate magic link after user creation:', linkError2)
         return NextResponse.redirect(new URL('/en/auth/login?error=session_creation_failed', request.url))
       }
       emailOtp = linkData2.properties.email_otp
+      console.log('✅ Generated magic link successfully')
     }
 
     // 3) Verify OTP to create session (this sets cookies)
