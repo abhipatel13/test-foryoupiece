@@ -282,94 +282,58 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       console.log('✅ Generated magic link successfully')
     }
 
-    // 3) Create session using direct token extraction from action_link
-    // This approach bypasses the problematic verifyOtp with synthetic emails
-    console.log('🔄 Creating session using direct token extraction from action_link...')
+    // 3) Create session via magiclink token_hash (Supabase-recommended)
+    console.log('🔄 Creating session via magiclink token_hash...')
     let sessionData: any = null
     let sessionError: any = null
 
-    // Extract tokens directly from the action_link
-    if (linkData?.properties?.action_link) {
-      try {
-        const actionUrl = new URL(linkData.properties.action_link)
-        const accessToken = actionUrl.searchParams.get('access_token')
-        const refreshToken = actionUrl.searchParams.get('refresh_token')
-
-        if (accessToken && refreshToken) {
-          console.log('✅ Found tokens in action_link, setting session directly...')
-          const { data: setSessionData, error: setSessionError } = await supabaseSSR.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          })
-
-          if (!setSessionError && setSessionData?.session) {
-            sessionData = setSessionData
-            sessionError = null
-            console.log('✅ Successfully set session from action_link tokens')
-          } else {
-            console.error('❌ Failed to set session from action_link tokens:', setSessionError)
-            sessionError = setSessionError
-          }
-        } else {
-          console.error('❌ No tokens found in action_link URL:', actionUrl.toString())
-          sessionError = new Error('No tokens found in action_link')
-        }
-      } catch (e) {
-        console.error('❌ Failed to extract tokens from action_link:', e)
-        sessionError = e
-      }
-    } else {
-      console.error('❌ No action_link found in generated link data')
-      sessionError = new Error('No action_link found')
-    }
-
-    // Fallback: Generate a fresh magic link if the first attempt failed
-    if (sessionError || !sessionData?.session) {
-      console.log('🔄 Primary session creation failed, attempting fresh magic link generation...')
-      console.error('❌ Primary session creation failed:', {
-        error: sessionError,
+    if (hashedToken) {
+      const { data, error } = await supabaseSSR.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: hashedToken as string,
+      })
+      sessionData = data
+      sessionError = error
+      console.log('ℹ️ verifyOtp(magiclink, token_hash) result:', {
         hasSession: !!sessionData?.session,
         errorMessage: sessionError?.message,
-        hasActionLink: !!linkData?.properties?.action_link
+        errorCode: sessionError?.code,
       })
+    } else {
+      console.error('❌ Missing hashedToken from generateLink properties')
+      sessionError = new Error('Missing hashedToken')
+    }
+
+    // Fallback: Generate a fresh magic link and retry verifyOtp with token_hash once
+    if (sessionError || !sessionData?.session) {
+      console.log('🔄 Primary token_hash verification failed, generating fresh magic link and retrying...')
       try {
         const { data: freshLinkData, error: freshLinkError } = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
           email: syntheticEmail,
         })
-
-        if (!freshLinkError && freshLinkData?.properties?.action_link) {
-          // Extract tokens from the action_link URL
-          const actionUrl = new URL(freshLinkData.properties.action_link)
-          const accessToken = actionUrl.searchParams.get('access_token')
-          const refreshToken = actionUrl.searchParams.get('refresh_token')
-
-          if (accessToken && refreshToken) {
-            console.log('✅ Found tokens in fresh action_link, setting session...')
-            const { data: setSessionData, error: setSessionError } = await supabaseSSR.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken
-            })
-
-            if (!setSessionError && setSessionData?.session) {
-              sessionData = setSessionData
-              sessionError = null
-              console.log('✅ Successfully set session from fresh action_link tokens')
-            } else {
-              console.error('❌ Failed to set session from fresh action_link tokens:', setSessionError)
-            }
-          } else {
-            console.error('❌ No tokens found in fresh action_link URL')
-          }
+        const freshHash = (freshLinkData as any)?.properties?.hashed_token
+        if (!freshLinkError && freshHash) {
+          const { data: retryData, error: retryError } = await supabaseSSR.auth.verifyOtp({
+            type: 'magiclink',
+            token_hash: freshHash as string,
+          })
+          sessionData = retryData
+          sessionError = retryError
+          console.log('ℹ️ Retry verifyOtp result:', {
+            hasSession: !!sessionData?.session,
+            errorMessage: sessionError?.message,
+            errorCode: sessionError?.code,
+          })
         } else {
-          console.error('❌ Failed to generate fresh magic link:', freshLinkError)
+          console.error('❌ Failed to generate fresh magic link or missing hashed_token:', freshLinkError)
         }
       } catch (e) {
-        console.error('❌ Fresh magic link fallback threw:', e)
+        console.error('❌ Fresh magic link retry threw:', e)
       }
 
       if (sessionError || !sessionData?.session) {
-        console.error('❌ All session creation methods failed:', {
+        console.error('❌ All magiclink session creation attempts failed:', {
           finalError: sessionError,
           hasSession: !!sessionData?.session,
           syntheticEmail,
