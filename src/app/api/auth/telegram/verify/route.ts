@@ -49,23 +49,19 @@ function checkRateLimit(ip: string): boolean {
   return true
 }
 
-function verifyTelegramAuth(authData: TelegramAuthData, botToken: string): boolean {
-  const { hash, ...dataToCheck } = authData
-  
-  // Create data-check-string by sorting fields alphabetically
-  const dataCheckString = Object.keys(dataToCheck)
-    .sort()
-    .map(key => `${key}=${dataToCheck[key as keyof typeof dataToCheck]}`)
-    .join('\n')
-  
-  // Create secret key by hashing bot token
+function verifyTelegramAuthFromParams(params: URLSearchParams, botToken: string): boolean {
+  // Build data-check-string from EXACT params received (excluding 'hash')
+  const entries: string[] = []
+  params.forEach((value, key) => {
+    if (key !== 'hash' && value !== undefined && value !== null && value !== '') {
+      entries.push(`${key}=${value}`)
+    }
+  })
+  const dataCheckString = entries.sort().join('\n')
+
   const secretKey = createHash('sha256').update(botToken).digest()
-  
-  // Create HMAC signature
   const hmac = createHmac('sha256', secretKey).update(dataCheckString).digest('hex')
-  
-  // Timing-safe comparison
-  return hmac === hash
+  return hmac === (params.get('hash') || '')
 }
 
 function isAuthDateValid(authDate: string): boolean {
@@ -98,34 +94,40 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/en/auth/login?error=config_error', request.url))
     }
 
-    // Parse query parameters
+    // Parse query parameters (do not coerce/omit values)
     const url = new URL(request.url)
-    const authData: TelegramAuthData = {
-      id: url.searchParams.get('id') || '',
-      first_name: url.searchParams.get('first_name') || undefined,
-      last_name: url.searchParams.get('last_name') || undefined,
-      username: url.searchParams.get('username') || undefined,
-      photo_url: url.searchParams.get('photo_url') || undefined,
-      auth_date: url.searchParams.get('auth_date') || '',
-      hash: url.searchParams.get('hash') || ''
-    }
+    const params = url.searchParams
 
     // Validate required fields
-    if (!authData.id || !authData.auth_date || !authData.hash) {
+    const id = params.get('id') || ''
+    const auth_date = params.get('auth_date') || ''
+    const hash = params.get('hash') || ''
+    if (!id || !auth_date || !hash) {
       console.log('🚫 Missing required Telegram auth data')
       return NextResponse.redirect(new URL('/en/auth/login?error=invalid_data', request.url))
     }
 
-    // Verify signature
-    if (!verifyTelegramAuth(authData, botToken)) {
+    // Verify signature using exact params
+    if (!verifyTelegramAuthFromParams(params, botToken)) {
       console.log('🚫 Invalid Telegram signature')
       return NextResponse.redirect(new URL('/en/auth/login?error=invalid_signature', request.url))
     }
 
     // Verify auth date freshness
-    if (!isAuthDateValid(authData.auth_date)) {
+    if (!isAuthDateValid(auth_date)) {
       console.log('🚫 Telegram auth data too old')
       return NextResponse.redirect(new URL('/en/auth/login?error=expired_auth', request.url))
+    }
+
+    // Build typed authData from params after signature verified
+    const authData: TelegramAuthData = {
+      id,
+      first_name: params.get('first_name') || undefined,
+      last_name: params.get('last_name') || undefined,
+      username: params.get('username') || undefined,
+      photo_url: params.get('photo_url') || undefined,
+      auth_date,
+      hash,
     }
 
     console.log('✅ Telegram auth verified for user:', authData.id)
@@ -224,27 +226,9 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Telegram login successful for user:', userId.substring(0, 8) + '...')
 
-    // Redirect to success page
+    // Redirect to success page; SSR client already set auth cookies via verifyOtp
     const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
-    const response = NextResponse.redirect(redirectUrl)
-
-    // Ensure session cookies are set properly
-    const sessionCookie = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`
-    if (sessionData.session.access_token) {
-      response.cookies.set(sessionCookie, JSON.stringify({
-        access_token: sessionData.session.access_token,
-        refresh_token: sessionData.session.refresh_token,
-        expires_at: sessionData.session.expires_at,
-        user: sessionData.session.user
-      }), {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7 // 7 days
-      })
-    }
-
-    return response
+    return NextResponse.redirect(redirectUrl)
 
   } catch (error) {
     console.error('❌ Telegram auth error:', error)
