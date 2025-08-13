@@ -95,12 +95,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/en/auth/login?error=rate_limit', request.url))
     }
 
-    // Get bot token
-    const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN
+    // Get bot token with fallback
+    const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
       console.error('❌ TELEGRAM_AUTH_BOT_TOKEN not configured')
+      console.error('🔍 Available Telegram env vars:', {
+        hasAuthToken: !!process.env.TELEGRAM_AUTH_BOT_TOKEN,
+        hasBotToken: !!process.env.TELEGRAM_BOT_TOKEN,
+        hasStockToken: !!process.env.TELEGRAM_STOCK_BOT_TOKEN
+      })
       return NextResponse.redirect(new URL('/en/auth/login?error=config_error', request.url))
     }
+
+    console.log('✅ Using bot token:', botToken.substring(0, 10) + '...')
 
 function isDuplicateUserErrorMessage(msg: string): boolean {
   if (!msg) return false
@@ -265,6 +272,12 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     if (!emailOtp) {
       console.log('🔄 Attempting to create auth user for:', syntheticEmail)
 
+      // Add validation for required fields
+      if (!authData.id || isNaN(parseInt(authData.id))) {
+        console.error('❌ Invalid Telegram ID:', authData.id)
+        return NextResponse.redirect(new URL('/en/auth/login?error=invalid_telegram_id', request.url))
+      }
+
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: syntheticEmail,
         email_confirm: true,
@@ -351,12 +364,42 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       }
 
       if (linkError2 || !linkData2?.properties?.email_otp) {
-        console.error('❌ Failed to generate magic link after user creation (after retries):', linkError2)
-        // Prefer graceful fallback to deep-link flow rather than hard fail
-        const fallbackUrl = new URL('/en/auth/login', request.url)
-        fallbackUrl.searchParams.set('error', 'telegram_widget_generate_link_failed')
-        fallbackUrl.searchParams.set('fallback', 'deeplink')
-        return NextResponse.redirect(fallbackUrl)
+        console.error('❌ Failed to generate magic link after user creation (after retries):', {
+          error: linkError2?.message,
+          code: linkError2?.code,
+          status: linkError2?.status,
+          hasEmailOtp: !!linkData2?.properties?.email_otp,
+          syntheticEmail,
+          telegramId: authData.id
+        })
+
+        // Try one more time with a different approach - check if user exists first
+        try {
+          const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers({
+            filter: `email.eq.${syntheticEmail}`
+          })
+
+          if (existingUser?.users?.length > 0) {
+            console.log('✅ User exists, attempting final magic link generation')
+            const { data: finalLinkData, error: finalLinkError } = await supabaseAdmin.auth.admin.generateLink({
+              type: 'magiclink',
+              email: syntheticEmail,
+            })
+
+            if (!finalLinkError && finalLinkData?.properties?.email_otp) {
+              emailOtp = finalLinkData.properties.email_otp
+              hashedToken = (finalLinkData as any)?.properties?.token_hash || null
+              console.log('✅ Final magic link generation successful')
+            } else {
+              throw new Error(`Final magic link failed: ${finalLinkError?.message}`)
+            }
+          } else {
+            throw new Error('User not found after creation')
+          }
+        } catch (finalError) {
+          console.error('❌ All magic link attempts failed:', finalError)
+          return NextResponse.redirect(new URL('/en/auth/login?error=auth_system_error', request.url))
+        }
       }
 
       emailOtp = linkData2.properties.email_otp
