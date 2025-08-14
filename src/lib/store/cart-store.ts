@@ -596,11 +596,11 @@ export const useCartStore = create<CartStore>()(
 
         console.log('🛒 Loading cart from database for user:', userId)
         set({ isLoading: true })
-        // Defensive timeout to prevent stuck loading state
+        // Reduced timeout to prevent stuck loading state (5 seconds instead of 15)
         const loadTimeout = setTimeout(() => {
           console.warn('⏰ Cart load timeout - forcing isLoading=false')
           set({ isLoading: false })
-        }, 15000)
+        }, 5000)
         try {
           // Clear localStorage before loading from database to ensure consistency
           try {

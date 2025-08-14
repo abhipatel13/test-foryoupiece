@@ -51,6 +51,10 @@ export function Header() {
   const cartItemCount = cartHydrated ? getItemCount() : 0
   const showCartCount = isHydrated && mounted && cartHydrated && !cartLoading
 
+  // Improved loading state detection
+  const isAuthLoading = loading || !isHydrated || !mounted
+  const isCartLoading = cartLoading || !cartHydrated
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -297,12 +301,20 @@ export function Header() {
               <div className="text-right min-w-0 hidden sm:block">
                 <div className="text-xs sm:text-sm text-muted-foreground font-medium">Cart</div>
                 <div className="font-bold text-sm sm:text-base lg:text-lg group-hover:text-primary transition-colors duration-200">
-                  {cartLoading ? '...' : (showCartCount ? cartItemCount : 0)}
+                  {isCartLoading ? (
+                    <span className="animate-pulse text-muted-foreground">•••</span>
+                  ) : (
+                    showCartCount ? cartItemCount : 0
+                  )}
                 </div>
               </div>
               {/* Ultra compact mobile cart count */}
               <div className="sm:hidden text-xs font-bold ml-0.5 group-hover:text-primary transition-colors duration-200 min-w-[12px] text-center">
-                {cartLoading ? '...' : (showCartCount ? cartItemCount : 0)}
+                {isCartLoading ? (
+                  <span className="animate-pulse text-muted-foreground">•••</span>
+                ) : (
+                  showCartCount ? cartItemCount : 0
+                )}
               </div>
             </Link>
           </div>

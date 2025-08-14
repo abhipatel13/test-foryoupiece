@@ -24,7 +24,9 @@ export function useSSRSafeAuth() {
 
   const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCartOnLogout } = cartStore
-  const supabase = createClient()
+
+  // Use memoized Supabase client to prevent redundant creation
+  const supabase = useMemo(() => createClient(), [])
 
   const isInitialLoad = useRef(true)
   const profileLoadPromise = useRef<Promise<void> | null>(null)

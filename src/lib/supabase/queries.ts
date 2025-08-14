@@ -6,6 +6,16 @@ import { cache, cacheKeys } from '@/lib/utils/cache'
 type Tables = Database['public']['Tables']
 type Enums = Database['public']['Enums']
 
+// Cached client instance for queries to prevent redundant client creation
+let queriesClient: ReturnType<typeof createClient> | null = null
+
+function getQueriesClient() {
+  if (!queriesClient) {
+    queriesClient = createClient()
+  }
+  return queriesClient
+}
+
 // User queries
 const userQueries = {
   async getProfile(userId: string) {
@@ -13,22 +23,29 @@ const userQueries = {
     const cacheKey = cacheKeys.userProfile(userId)
     const cachedProfile = cache.get(cacheKey)
     if (cachedProfile) {
-      // Only log cache hits in development and reduce frequency
-      if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+      // Gate cache hit logging behind debug flag
+      if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true' && Math.random() < 0.1) {
         console.log('Profile loaded from cache for userId:', userId)
       }
       return cachedProfile
     }
 
-    const supabase = createClient()
-    // Reduce logging frequency in development
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.3) {
-      console.log('Querying user profile for userId:', userId)
+    const supabase = getQueriesClient()
+    // Gate query logging behind debug flag
+    if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true' && Math.random() < 0.3) {
+      console.log('📋 Querying user profile for userId:', userId)
     }
 
+    // Optimized query with only essential fields for faster loading
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select(`
+        id, email, phone, first_name, last_name, avatar_url,
+        points_balance, tier_level, total_spent, total_orders,
+        preferred_language, created_at, updated_at,
+        address_line_1, address_line_2, aba_bank_name,
+        permanent_free_shipping
+      `)
       .eq('id', userId)
       .single()
 
@@ -36,7 +53,7 @@ const userQueries = {
       // Only log errors, not routine "not found" cases
       if (error.code === 'PGRST116' || error.message?.includes('No rows found')) {
         // Cache null result to prevent repeated queries for non-existent profiles
-        cache.set(cacheKey, null, 60000) // 1 minute cache for null results
+        cache.set(cacheKey, null, 30000) // Reduced to 30 seconds for null results
         return null
       }
 
@@ -52,24 +69,24 @@ const userQueries = {
       throw error
     }
 
-    // Reduce logging frequency for successful queries
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.2) {
+    // Gate success logging behind debug flag
+    if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true' && Math.random() < 0.2) {
       console.log('Profile query result:', data)
     }
 
     if (!data) {
-      cache.set(cacheKey, null, 60000) // Cache null result
+      cache.set(cacheKey, null, 30000) // Cache null result
       return null
     }
 
-    // Cache the result for 5 minutes
-    cache.set(cacheKey, data, 5 * 60 * 1000)
+    // Cache successful result with optimized TTL for better performance
+    cache.set(cacheKey, data, 300000) // 5 minutes cache for faster updates
 
     return data
   },
 
   async updateProfile(userId: string, updates: Tables['users']['Update']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('users')
       .update(updates)
@@ -82,7 +99,7 @@ const userQueries = {
   },
 
   async createProfile(profile: Tables['users']['Insert']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('users')
       .insert(profile)
@@ -94,7 +111,7 @@ const userQueries = {
   },
 
   async getPointTransactions(userId: string, limit = 50) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('point_transactions')
       .select('*')
@@ -116,7 +133,7 @@ const productQueries = {
     limit?: number
     offset?: number
   }) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     let query = supabase
       .from('products')
       .select(`
@@ -149,7 +166,7 @@ const productQueries = {
   },
 
   async getProduct(id: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('products')
       .select(`
@@ -166,7 +183,7 @@ const productQueries = {
   },
 
   async getProductBySku(sku: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('products')
       .select(`
@@ -183,7 +200,7 @@ const productQueries = {
   },
 
   async getRecentlyAddedProducts(limit: number = 10) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
 
     // Get products that were recently synced from BoxHero or recently created
     // Priority: 1) Recently synced from BoxHero, 2) Recently created products
@@ -208,7 +225,7 @@ const productQueries = {
   },
 
   async searchProducts(query: string, limit = 20) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('products')
       .select(`
@@ -227,7 +244,7 @@ const productQueries = {
 // Category queries
 const categoryQueries = {
   async getCategories() {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('categories')
       .select('*')
@@ -239,7 +256,7 @@ const categoryQueries = {
   },
 
   async getCategory(id: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('categories')
       .select('*')
@@ -252,7 +269,7 @@ const categoryQueries = {
   },
 
   async getCategoryBySlug(slug: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('categories')
       .select('*')
@@ -268,7 +285,7 @@ const categoryQueries = {
 // Cart queries
 const cartQueries = {
   async getCartItems(userId: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('cart_items')
       .select(`
@@ -283,7 +300,7 @@ const cartQueries = {
   },
 
   async addToCart(item: Tables['cart_items']['Insert']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('cart_items')
       .upsert(item, {
@@ -297,7 +314,7 @@ const cartQueries = {
   },
 
   async updateCartItem(id: string, updates: Tables['cart_items']['Update']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('cart_items')
       .update(updates)
@@ -310,7 +327,7 @@ const cartQueries = {
   },
 
   async removeFromCart(id: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { error } = await supabase
       .from('cart_items')
       .delete()
@@ -320,7 +337,7 @@ const cartQueries = {
   },
 
   async clearCart(userId: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { error } = await supabase
       .from('cart_items')
       .delete()
@@ -333,7 +350,7 @@ const cartQueries = {
 // Order queries
 const orderQueries = {
   async getOrder(id: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('orders')
       .select(`
@@ -348,7 +365,7 @@ const orderQueries = {
   },
 
   async getUserOrders(userId: string, limit: number = 10) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('orders')
       .select(`
@@ -375,7 +392,7 @@ const orderQueries = {
   },
 
   async createOrder(order: Tables['orders']['Insert'], items: Tables['order_items']['Insert'][]) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
 
     console.log('📦 Creating order with stock reduction...')
     console.log('⚠️ Note: Points redemption should be handled by server-side API')
@@ -457,7 +474,7 @@ const adminQueries = {
     }
 
     console.log('🔍 getAdminUser: No cache found, querying database...')
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('admin_users')
       .select('*')
@@ -483,7 +500,7 @@ const adminQueries = {
     // REAL-TIME DASHBOARD - NO CACHING for fresh data
     console.log('📊 Fetching REAL-TIME dashboard stats (no cache)...');
 
-    const supabase = createClient()
+    const supabase = getQueriesClient()
 
     // Get total orders
     const { count: totalOrders } = await supabase
@@ -604,7 +621,7 @@ const adminQueries = {
     payment_status?: string,
     fulfillment_status?: string
   }) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('orders')
       .update(updates)
@@ -623,7 +640,7 @@ const adminQueries = {
     limit?: number
     offset?: number
   }) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     let query = supabase
       .from('products')
       .select(`
@@ -655,7 +672,7 @@ const adminQueries = {
   },
 
   async updateProduct(productId: string, updates: Tables['products']['Update']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('products')
       .update(updates)
@@ -668,7 +685,7 @@ const adminQueries = {
   },
 
   async createProduct(product: Tables['products']['Insert']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('products')
       .insert(product)
@@ -680,7 +697,7 @@ const adminQueries = {
   },
 
   async deleteProduct(productId: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { error } = await supabase
       .from('products')
       .delete()
@@ -693,7 +710,7 @@ const adminQueries = {
 // Notification queries
 const notificationQueries = {
   async getUserNotifications(userId: string, limit = 20) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -706,7 +723,7 @@ const notificationQueries = {
   },
 
   async getUnreadCount(userId: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
@@ -718,7 +735,7 @@ const notificationQueries = {
   },
 
   async markAsRead(notificationId: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('notifications')
       .update({ read: true })
@@ -731,7 +748,7 @@ const notificationQueries = {
   },
 
   async markAllAsRead(userId: string) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('notifications')
       .update({ read: true })
@@ -744,7 +761,7 @@ const notificationQueries = {
   },
 
   async createNotification(notification: Tables['notifications']['Insert']) {
-    const supabase = createClient()
+    const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('notifications')
       .insert(notification)

@@ -1,6 +1,11 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { Database } from './database.types'
 
+// Global client cache to prevent redundant client creation
+let globalSupabaseClient: ReturnType<typeof createBrowserClient<Database>> | null = null
+let clientInitialized = false
+let optimizationLogged = false
+
 // Browser compatibility detection
 function detectBrowser() {
   if (typeof window === 'undefined') return { name: 'server', version: '0' }
@@ -245,6 +250,11 @@ class CrossBrowserStorage {
 }
 
 export function createClient() {
+  // Return cached client if already initialized
+  if (globalSupabaseClient && clientInitialized) {
+    return globalSupabaseClient
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -284,44 +294,56 @@ export function createClient() {
     refreshTokenGracePeriod: 5 * 60 * 1000, // 5 minutes grace period
   }
 
-  // Firefox-specific optimizations
-  if (browser.name === 'firefox') {
-    console.log('🦊 Applying Firefox-specific Supabase optimizations')
+  // Apply browser-specific optimizations (log only once per session)
+  if (!optimizationLogged) {
+    // Firefox-specific optimizations
+    if (browser.name === 'firefox') {
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('🦊 Applying Firefox-specific Supabase optimizations')
+      }
 
-    // Firefox sometimes has issues with rapid token refresh
-    authConfig.autoRefreshToken = true
+      // Firefox sometimes has issues with rapid token refresh
+      authConfig.autoRefreshToken = true
 
-    // Ensure session detection works in Firefox
-    authConfig.detectSessionInUrl = true
+      // Ensure session detection works in Firefox
+      authConfig.detectSessionInUrl = true
 
-    // Firefox handles PKCE flow well
-    authConfig.flowType = 'pkce'
+      // Firefox handles PKCE flow well
+      authConfig.flowType = 'pkce'
 
-    // Firefox-specific session timeout (slightly shorter due to memory management)
-    authConfig.sessionTimeout = 6 * 60 * 60 * 1000 // 6 hours for Firefox
+      // Firefox-specific session timeout (slightly shorter due to memory management)
+      authConfig.sessionTimeout = 6 * 60 * 60 * 1000 // 6 hours for Firefox
+    }
+
+    // Safari-specific optimizations
+    if (browser.name === 'safari') {
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('🧭 Applying Safari-specific Supabase optimizations')
+      }
+
+      // Safari has stricter cookie policies
+      authConfig.persistSession = true
+
+      // Safari-specific session management
+      authConfig.sessionTimeout = 4 * 60 * 60 * 1000 // 4 hours for Safari due to strict policies
+    }
+
+    // Chrome-specific optimizations
+    if (browser.name === 'chrome') {
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('🌐 Applying Chrome-specific Supabase optimizations')
+      }
+
+      // Chrome handles longer sessions well
+      authConfig.sessionTimeout = 8 * 60 * 60 * 1000 // 8 hours for Chrome
+      authConfig.refreshTokenGracePeriod = 10 * 60 * 1000 // 10 minutes grace period
+    }
+
+    optimizationLogged = true
   }
 
-  // Safari-specific optimizations
-  if (browser.name === 'safari') {
-    console.log('🧭 Applying Safari-specific Supabase optimizations')
-
-    // Safari has stricter cookie policies
-    authConfig.persistSession = true
-
-    // Safari-specific session management
-    authConfig.sessionTimeout = 4 * 60 * 60 * 1000 // 4 hours for Safari due to strict policies
-  }
-
-  // Chrome-specific optimizations
-  if (browser.name === 'chrome') {
-    console.log('🌐 Applying Chrome-specific Supabase optimizations')
-
-    // Chrome handles longer sessions well
-    authConfig.sessionTimeout = 8 * 60 * 60 * 1000 // 8 hours for Chrome
-    authConfig.refreshTokenGracePeriod = 10 * 60 * 1000 // 10 minutes grace period
-  }
-
-  return createBrowserClient<Database>(
+  // Create and cache the client
+  globalSupabaseClient = createBrowserClient<Database>(
     supabaseUrl,
     supabaseAnonKey,
     {
@@ -340,4 +362,14 @@ export function createClient() {
       },
     }
   )
+
+  clientInitialized = true
+  return globalSupabaseClient
+}
+
+// Export function to reset client cache (useful for testing or logout)
+export function resetClientCache() {
+  globalSupabaseClient = null
+  clientInitialized = false
+  optimizationLogged = false
 }

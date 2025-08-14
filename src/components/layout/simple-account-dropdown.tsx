@@ -83,16 +83,16 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     }
   }, [signOut, router])
 
-  // Loading state
+  // Improved loading state with better UX
   if (loading) {
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
-        <Skeleton className="h-8 w-8 rounded-full" />
+        <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
         <div className="hidden sm:block">
-          <Skeleton className="h-4 w-24 mb-1" />
-          <Skeleton className="h-3 w-20" />
+          <div className="h-4 w-24 bg-muted animate-pulse rounded mb-1" />
+          <div className="h-3 w-20 bg-muted animate-pulse rounded" />
         </div>
-        <Skeleton className="h-4 w-4" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground animate-pulse" />
       </div>
     )
   }

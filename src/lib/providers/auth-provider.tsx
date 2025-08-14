@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, ReactNode, useCallback, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, resetClientCache } from '@/lib/supabase/client'
 import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
@@ -109,6 +109,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await clearCartOnLogout()
       clearUser()
 
+      // Reset Supabase client cache to prevent stale client issues
+      resetClientCache()
+
       // Clear localStorage items
       const authKeys = [
         'supabase.auth.token',
@@ -174,6 +177,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await clearCartOnLogout()
       clearUser()
 
+      // Reset Supabase client cache to prevent stale client issues
+      resetClientCache()
+
       if (isClient) {
         router.push('/en/auth/login?expired=true')
       }
@@ -188,43 +194,62 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Removed performance optimization hooks to improve dropdown speed
 
-  // Load user profile with enhanced caching and deduplication
+  // Optimized user profile loading with faster caching and reduced delays
   const profileLoadTimestampRef = useRef<number>(0)
   const loadUserProfile = async (userId: string) => {
     if (profileLoadInFlightRef.current === userId) {
-      console.log('⏭️ Skipping duplicate profile load for:', userId)
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('⏭️ Skipping duplicate profile load for:', userId)
+      }
       return
     }
 
-    // Check if profile was loaded recently (within 5 minutes)
+    // Reduce cache time to 2 minutes for faster updates
     const timeSinceLastLoad = Date.now() - profileLoadTimestampRef.current
-    if (timeSinceLastLoad < 300000) { // 5 minutes
-      console.log('📋 Profile recently loaded, skipping reload for user:', userId)
+    if (timeSinceLastLoad < 120000) { // 2 minutes instead of 5
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('📋 Profile recently loaded, skipping reload for user:', userId)
+      }
       return
     }
 
     profileLoadInFlightRef.current = userId
     try {
-      console.log('📋 Querying user profile for userId:', userId)
-      const profile = await userQueries.getProfile(userId)
-      console.log('📋 Profile query result:', profile)
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('📋 Querying user profile for userId:', userId)
+      }
+
+      // Use optimized profile loading with timeout
+      const profilePromise = userQueries.getProfile(userId)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile load timeout')), 5000)
+      )
+
+      const profile = await Promise.race([profilePromise, timeoutPromise])
+
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('📋 Profile query result:', profile)
+      }
 
       if (profile) {
-        console.log('✅ Setting profile in store:', profile.id)
+        if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+          console.log('✅ Setting profile in store:', profile.id)
+        }
         setProfile(profile)
-        profileLoadTimestampRef.current = Date.now() // Track when profile was loaded
+        profileLoadTimestampRef.current = Date.now()
       } else {
-        console.log('⚠️ No profile found for user:', userId)
-        // Profile might not exist yet - this is okay for new users
+        if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+          console.log('⚠️ No profile found for user:', userId)
+        }
       }
     } catch (error) {
       console.error('❌ Error loading user profile:', error)
       // Don't throw - profile loading failure shouldn't break authentication
     } finally {
-      // Allow future profile loads for same user after a brief debounce
+      // Reduce debounce time for faster subsequent loads
       setTimeout(() => {
         if (profileLoadInFlightRef.current === userId) profileLoadInFlightRef.current = null
-      }, 1000)
+      }, 500) // Reduced from 1000ms to 500ms
     }
   }
 
@@ -387,17 +412,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(session.user)
           setUserId(session.user.id)
 
-          console.log('📋 Loading user profile for:', session.user.id)
-          await loadUserProfile(session.user.id)
-
-          console.log('🛒 Loading cart for user:', session.user.id)
+          // Load profile and cart in parallel for better performance
+          console.log('📋 Loading user data in parallel for:', session.user.id)
           try {
-            // setUserId already triggers loadCartFromDatabase; avoid duplicate loads
-            // await forceLoadCartForUser(session.user.id)
-            console.log('⏭️ Skipping explicit forceLoadCartForUser to avoid duplicates')
-          } catch (cartError) {
-            console.error('❌ Cart loading failed (unexpected):', cartError)
-            // Don't fail auth if cart loading fails
+            await Promise.all([
+              loadUserProfile(session.user.id),
+              // Cart loading is already triggered by setUserId, so we don't need to explicitly load it
+              Promise.resolve()
+            ])
+          } catch (error) {
+            console.error('❌ Parallel data loading failed:', error)
+            // Don't fail auth if data loading fails
           }
 
           console.log('✅ User authentication setup complete')
@@ -450,6 +475,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Use proper cart logout cleanup
           await clearCartOnLogout()
           clearUser()
+
+          // Reset Supabase client cache to prevent stale client issues
+          resetClientCache()
 
           // Broadcast sign out to other tabs (only if not from cross-tab event)
           if (!crossTabSignOutRef.current) {

@@ -186,12 +186,19 @@ export default function ProfilePage() {
     setIsEditingProfile(false)
   }
 
-  const loadOrders = useCallback(async () => {
-    if (!user) return
+  // Optimized parallel data loading
+  const loadProfileData = useCallback(async () => {
+    if (!user?.id || !isAuthenticated || loading) return
 
     try {
       setOrdersLoading(true)
-      const userOrders = await orderQueries.getUserOrders(user.id, 5)
+
+      // Load orders and any other profile data in parallel for better performance
+      const [userOrders] = await Promise.all([
+        orderQueries.getUserOrders(user.id, 5),
+        // Add other parallel data loading here if needed
+      ])
+
       setOrders(userOrders)
     } catch (error) {
       Sentry.captureException(error)
@@ -199,17 +206,15 @@ export default function ProfilePage() {
     } finally {
       setOrdersLoading(false)
     }
-  }, [user])
+  }, [user?.id, isAuthenticated, loading])
 
   useEffect(() => {
-    if (user?.id && isAuthenticated && !loading) {
-      loadOrders().catch((error) => {
-        Sentry.captureException(error)
-        setOrders([])
-        setOrdersLoading(false)
-      })
-    }
-  }, [user?.id, isAuthenticated, loading, loadOrders])
+    loadProfileData().catch((error) => {
+      Sentry.captureException(error)
+      setOrders([])
+      setOrdersLoading(false)
+    })
+  }, [loadProfileData])
 
   // Handle Telegram authentication success with session bridge
   useEffect(() => {
