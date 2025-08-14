@@ -1,8 +1,18 @@
+
+
+# 🚨 TOOLS SELECTION PRINCIPLES 🚨
+MUST MANTORY: IF POSSIBLE TRY TO USE SERENA MCP FOR THE FILES READING AND PATTERNS. 
+## MEMORY TOOL SELECTION DECISION
+**ALWAYS PREFER `Serena MCP` memory tools:** `list_memories`, `read_memory`, `write_memory`, `delete_memory`.
+
+## CODEBASE SEARCH TOOL SELECTION DECISION
+- ALWAYS PREFER `Serena MCP` for searching specific symbols (functions, types, variables, etc.): `find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, `search_for_pattern`. It give much precise results than `Context Engine`.
+
 # ForYouPiece E-commerce Application Requirements
 - Foryoupiece is an English-only e-commerce application with a premium Japanese products business model delivering from Japan to Cambodia with future worldwide expansion.
 - User prefers Amazon-inspired layout with modern, minimalistic, product-focused design using black/white color scheme, clean typography, and larger product images.
 - Requires mobile-first responsive design with minimum 2 products per row on mobile, proper touch targets (44px minimum), and testing across multiple viewports (320px, 375px, 414px, 768px, 1024+).
-- ForYouPiece requires minimum 2-column layout on mobile devices (300px-,320px, 375px, 414px viewports) with responsive design patterns, duplicate prevention logic for user actions, and comprehensive cross-viewport testing for all features.
+- ForYouPiece requires minimum 2-column layout on mobile devices (320px, 375px, 414px viewports) with responsive design patterns, duplicate prevention logic for user actions, and comprehensive cross-viewport testing for all features.
 - Navigation structure: 'Trending Now', 'Deals and Discounts', 'Recently Added', 'Recommended for You', 'Categories' with smooth scroll-to-section behavior.
 - Show stock warnings only for critically low inventory (1 left, limited stock for 2), use 'Fast delivery' instead of 'In Stock' for Cambodian commerce compliance.
 - 'Recently Added' section should display genuinely new products based on creation date/sync timestamp from BoxHero API.
@@ -19,12 +29,16 @@
 - For cross-browser authentication issues with Supabase, implement server-side session validation using getUser() instead of getSession(), add custom storage validation, implement periodic session checks, clear all localStorage/sessionStorage on sign-out, and use version-controlled Zustand stores with migration to handle stale data across browsers.
 - ForYouPiece requires comprehensive security audit procedures including Git history cleanup for credential exposure, test file security scanning for hardcoded credentials, secure .env.local.example templates, and end-to-end testing validation for all authentication flows and API integrations.
 - ForYouPiece admin system requires httpOnly cookies for token storage instead of localStorage, automatic session timeout, token rotation, and preservation of all existing admin functionality during security fixes.
+- Gate Supabase client console logs behind NEXT_PUBLIC_DEBUG_SUPABASE and only show them in development; keep changes minimal without altering business logic.
+- ForYouPiece requires comprehensive cross-authentication method testing (Telegram↔Google OAuth↔Facebook OAuth) with focus on session cleanup, state conflicts, cart persistence across auth switches, and production environment testing at https://foryoupiece.com/ before local testing.
 
 # BoxHero API Integration
 - Manual sync system with BoxHero API  for inventory management, accessed via /en/fyponly-admin URL.
 - Sync-based architecture where API calls only happen during manual sync operations, with Supabase as single source of truth for frontend data.
 - Enhanced BoxHero sync with comprehensive reporting, real-time data refresh in admin dashboard, activity logs, and proper cache invalidation.
 - BoxHero API supports proper pagination with cursor/has_more parameters requiring proper while loop iteration until has_more = false.
+- BoxHero sync includes trending tags that should automatically populate the trending section - trending products should include items tagged as trending in BoxHero, not just algorithmic selections.
+- ForYouPiece trending system has algorithmic caps (default 10 items, hard ceiling 30 total), uses get_trending_products() RPC that ignores manual is_trending flags, references missing manual_trending_products table, and BoxHero sync doesn't set trending flags - designed as curated shortlist rather than full catalog.
 
 # Cart and Checkout
 - $1.50 fixed shipping fee with free shipping for 4+ items, no tax calculations.
@@ -66,6 +80,8 @@
 - For authentication and account page testing, always conduct systematic end-to-end testing including authentication flow verification, account page content validation, cross-viewport testing (375px, 768px, 1920px), error handling for protected pages, and restart development server before testing to ensure clean state.
 - For authentication system testing, perform comprehensive end-to-end testing including click testing of all auth buttons, complete login flow verification with proper redirection, console monitoring for errors, user profile integration verification, and cross-page authentication state consistency testing.
 - For authentication system testing, always test with browser dev tools open to monitor console errors and network requests, verify session expiration handling (clean sign-out vs valid session retention), check for authentication loops or redundant requests, and test both expired and valid session scenarios comprehensively.
+- For authentication system testing, prioritize profile loading validation with full data visibility confirmation, cross-browser testing (Chrome, Firefox, Safari), performance impact assessment of console logging on UI rendering, and comprehensive console error analysis with specific focus on failed API requests and session validation failures.
+- ForYouPiece tier rewards system requires comprehensive end-to-end testing including multi-tier progression validation (Silver→Gold→Platinum→Diamond), UI verification at each tier, data integrity validation, error handling testing, and production-like testing without debug tools.
 
 # UI/UX Framework
 - Enterprise-level UI/UX framework with mobile-first responsive grid, reusable component library, WCAG accessibility standards.

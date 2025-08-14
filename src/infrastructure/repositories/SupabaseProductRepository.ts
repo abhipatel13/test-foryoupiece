@@ -143,7 +143,16 @@ export class SupabaseProductRepository implements IProductRepository {
         }
         
         if (filters.searchQuery) {
-          query = query.or(`name_en.ilike.%${filters.searchQuery}%,name_ja.ilike.%${filters.searchQuery}%,description_en.ilike.%${filters.searchQuery}%,sku.ilike.%${filters.searchQuery}%`);
+          // SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+          const sanitizedQuery = filters.searchQuery
+            .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+            .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+            .trim()
+            .substring(0, 100); // Limit length
+
+          if (sanitizedQuery) {
+            query = query.or(`name_en.ilike.%${sanitizedQuery}%,name_ja.ilike.%${sanitizedQuery}%,description_en.ilike.%${sanitizedQuery}%,sku.ilike.%${sanitizedQuery}%`);
+          }
         }
       }
 
@@ -192,13 +201,24 @@ export class SupabaseProductRepository implements IProductRepository {
 
   async search(query: string, limit = 20): Promise<Result<Product[]>> {
     try {
+      // SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+      const sanitizedQuery = query
+        .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .trim()
+        .substring(0, 100); // Limit length
+
+      if (!sanitizedQuery) {
+        return { success: true, data: [] };
+      }
+
       const { data, error } = await this.supabase
         .from('products')
         .select(`
           *,
           category:categories(*)
         `)
-        .or(`name_en.ilike.%${query}%,name_ja.ilike.%${query}%,description_en.ilike.%${query}%,description_ja.ilike.%${query}%`)
+        .or(`name_en.ilike.%${sanitizedQuery}%,name_ja.ilike.%${sanitizedQuery}%,description_en.ilike.%${sanitizedQuery}%,description_ja.ilike.%${sanitizedQuery}%`)
         .eq('is_active', true)
         .limit(limit);
 

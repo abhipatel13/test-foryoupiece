@@ -83,6 +83,9 @@ export function EnhancedSearch({
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [dropdownKey, setDropdownKey] = useState(0) // For forcing re-renders
+  // Keyboard navigation state
+  const [activeIndex, setActiveIndex] = useState<number>(-1)
+  const listboxId = 'search-dropdown-listbox'
 
   const searchRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -235,10 +238,13 @@ export function EnhancedSearch({
   // Handle click outside to close dropdown and window resize/scroll for repositioning
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-        setShowHistory(false)
-      }
+      // Add a small delay to prevent immediate closing when clicking on the input
+      setTimeout(() => {
+        if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+          setIsOpen(false)
+          setShowHistory(false)
+        }
+      }, 10)
     }
 
     const handleResize = () => {
@@ -288,6 +294,26 @@ export function EnhancedSearch({
   const hasSuggestions = suggestions.length > 0
   const hasHistory = searchHistory.length > 0 && showHistory
 
+  // Show dropdown if:
+  // 1. Input is focused (isOpen) AND has content to show, OR
+  // 2. User is actively searching (query >= 2 chars) AND has suggestions/results
+  const shouldShowDropdown = (isOpen && (hasResults || hasSuggestions || hasHistory)) ||
+                             (query.length >= 2 && (hasResults || hasSuggestions))
+
+  // DEBUG: Log dropdown visibility conditions
+  console.log('🔍 Search dropdown debug:', {
+    isOpen,
+    hasResults,
+    hasSuggestions,
+    hasHistory,
+    searchResults: searchResults.length,
+    suggestions: suggestions.length,
+    searchHistory: searchHistory.length,
+    showHistory,
+    query: query.length,
+    shouldShowDropdown
+  })
+
   return (
     <div ref={searchRef} className={cn("relative w-full", className)}>
       <form
@@ -332,9 +358,15 @@ export function EnhancedSearch({
           type="text"
           placeholder={placeholder}
           value={query}
+          role="combobox"
+          aria-expanded={shouldShowDropdown}
+          aria-controls={shouldShowDropdown ? listboxId : undefined}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           onChange={(e) => {
             const value = e.target.value
             setQuery(value)
+            setActiveIndex(-1)
 
             // Reset any previous state when user starts typing
 
@@ -344,6 +376,39 @@ export function EnhancedSearch({
             } else {
               setShowHistory(true)
               setIsOpen(searchHistory.length > 0)
+            }
+          }}
+          onKeyDown={(e) => {
+            if (!shouldShowDropdown) return
+            const totalItems = (hasHistory ? searchHistory.length : 0) + (hasSuggestions ? suggestions.length : 0) + (hasResults ? searchResults.length : 0)
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setActiveIndex(prev => (prev + 1) % Math.max(totalItems, 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setActiveIndex(prev => (prev - 1 + Math.max(totalItems, 1)) % Math.max(totalItems, 1))
+            } else if (e.key === 'Enter') {
+              if (activeIndex >= 0) {
+                // Determine which list the activeIndex falls into
+                const historyCount = hasHistory ? searchHistory.length : 0
+                const suggestionCount = hasSuggestions ? suggestions.length : 0
+                if (activeIndex < historyCount) {
+                  handleHistoryClick(searchHistory[activeIndex].search_query)
+                  return
+                }
+                if (activeIndex < historyCount + suggestionCount) {
+                  const suggestion = suggestions[activeIndex - historyCount]
+                  handleSuggestionClick(suggestion.suggestion_text)
+                  return
+                }
+                const product = searchResults[activeIndex - historyCount - suggestionCount]
+                router.push(`/en/products/${product.sku}`)
+                return
+              }
+              // No active item: submit current query
+              handleSearch(query)
+            } else if (e.key === 'Escape') {
+              setIsOpen(false)
             }
           }}
           onFocus={handleInputFocus}
@@ -365,10 +430,13 @@ export function EnhancedSearch({
       </form>
 
       {/* Search Dropdown - Enhanced for Production with Fixed Positioning */}
-      {isOpen && (hasResults || hasSuggestions || hasHistory) && (
+      {shouldShowDropdown && (
         <div
           key={dropdownKey}
           data-search-dropdown
+          role="listbox"
+          id={listboxId}
+          aria-label="Search suggestions and results"
           className="fixed bg-background border border-border rounded-lg shadow-xl z-[9999] min-h-[300px] max-h-[80vh] overflow-y-auto backdrop-blur-sm"
           style={{
             minHeight: '300px',
@@ -420,7 +488,14 @@ export function EnhancedSearch({
                 {suggestions.map((suggestion, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-3 p-3 hover:bg-accent/50 rounded-md cursor-pointer transition-all duration-200 hover:shadow-sm group"
+                    role="option"
+                    aria-selected={activeIndex === ((hasHistory ? searchHistory.length : 0) + index)}
+                    tabIndex={-1}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-all duration-200 group",
+                      activeIndex === ((hasHistory ? searchHistory.length : 0) + index) ? 'bg-accent/50 shadow-sm' : 'hover:bg-accent/50 hover:shadow-sm'
+                    )}
+                    onMouseEnter={() => setActiveIndex((hasHistory ? searchHistory.length : 0) + index)}
                     onClick={() => handleSuggestionClick(suggestion.suggestion_text)}
                   >
                     <div className="flex-shrink-0">
@@ -446,15 +521,25 @@ export function EnhancedSearch({
                 <span className="text-sm font-semibold text-foreground">Products</span>
               </div>
               <div className="space-y-2">
-                {searchResults.map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex items-center gap-4 p-3 hover:bg-accent/50 rounded-md cursor-pointer transition-all duration-200 hover:shadow-sm group"
-                    onClick={() => {
-                      // Track product click from search
-                      if (user?.id && query) {
-                        fetch('/api/search/track-click', {
-                          method: 'POST',
+                {searchResults.map((product, pIndex) => {
+                  const baseIndex = (hasHistory ? searchHistory.length : 0) + (hasSuggestions ? suggestions.length : 0)
+                  const index = baseIndex + pIndex
+                  return (
+                    <div
+                      key={product.id}
+                      role="option"
+                      aria-selected={activeIndex === index}
+                      tabIndex={-1}
+                      className={cn(
+                        "flex items-center gap-4 p-3 rounded-md cursor-pointer transition-all duration-200 group",
+                        activeIndex === index ? 'bg-accent/50 shadow-sm' : 'hover:bg-accent/50 hover:shadow-sm'
+                      )}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => {
+                        // Track product click from search
+                        if (user?.id && query) {
+                          fetch('/api/search/track-click', {
+                            method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             userId: user.id,
@@ -492,7 +577,22 @@ export function EnhancedSearch({
                       </p>
                     </div>
                   </div>
-                ))}
+                )})}
+              </div>
+            </div>
+          )}
+
+          {/* No Results Message */}
+          {query.length >= 2 && !hasResults && !hasSuggestions && !hasHistory && (
+            <div className="p-6 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <Search className="h-8 w-8 text-muted-foreground/50" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">No results found</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Try searching for different keywords or check your spelling
+                  </p>
+                </div>
               </div>
             </div>
           )}

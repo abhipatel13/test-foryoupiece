@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/client'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createAnonymousClient } from '@/lib/supabase/server'
 import { sortProductsByStockPriority } from '@/lib/utils'
+
+/**
+ * SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+ * Remove dangerous characters that could be used for injection attacks
+ */
+function sanitizeSearchInput(input: string): string {
+  if (!input || typeof input !== 'string') return ''
+
+  // Remove dangerous characters: , ( ) ; and control characters
+  // Also remove quotes and backslashes that could be used for escaping
+  return input
+    .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+    .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+    .trim()
+    .substring(0, 100) // Limit length to prevent abuse
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const query = searchParams.get('q')?.trim()
+    const rawQuery = searchParams.get('q')?.trim()
+    const query = sanitizeSearchInput(rawQuery || '') // SECURITY FIX: Sanitize search input
     const category = searchParams.get('category')
     const limit = parseInt(searchParams.get('limit') || '20')
     const userId = searchParams.get('user_id')
@@ -14,7 +30,8 @@ export async function GET(request: NextRequest) {
     const includeSuggestions = searchParams.get('include_suggestions') === 'true'
 
     console.log('🔍 Enhanced Search API called:', {
-      query,
+      rawQuery,
+      sanitizedQuery: query,
       category,
       limit,
       userId,
@@ -22,8 +39,8 @@ export async function GET(request: NextRequest) {
       includeSuggestions
     })
 
-    // Use service role client for comprehensive access
-    const supabase = createServiceRoleClient()
+    // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
+    const supabase = createAnonymousClient()
     const response: any = {
       success: true,
       data: {
@@ -86,26 +103,29 @@ export async function GET(request: NextRequest) {
       `)
       .eq('is_active', true)
 
-    // Enhanced search across multiple fields with weighted relevance
-    const searchTerms = query.split(' ').filter(term => term.length > 1)
-    const searchConditions = []
+    // SECURITY FIX: Build a single OR clause to avoid overriding filters
+    if (query && query.length >= 2) {
+      const orConditions: string[] = [
+        `name_en.ilike.%${query}%`,
+        `brand.ilike.%${query}%`,
+        `description_en.ilike.%${query}%`,
+        `sku.ilike.%${query}%`
+      ]
 
-    // Primary search fields (higher relevance)
-    searchConditions.push(`name_en.ilike.%${query}%`)
-    searchConditions.push(`brand.ilike.%${query}%`)
-    
-    // Secondary search fields
-    searchConditions.push(`description_en.ilike.%${query}%`)
-    searchConditions.push(`sku.ilike.%${query}%`)
-    
-    // Tag-based search - using contains operator for JSONB arrays
-    if (searchTerms.length > 0) {
-      searchTerms.forEach(term => {
-        searchConditions.push(`tags.cs.{"${term}"}`)
-      })
+      // For tag search, use individual terms safely and include them in the same OR
+      const searchTerms = query.split(' ').filter(term => term.length > 1).slice(0, 5) // Limit terms
+      for (const term of searchTerms) {
+        const sanitizedTerm = sanitizeSearchInput(term)
+        if (sanitizedTerm) {
+          // JSONB contains for tags array
+          orConditions.push(`tags.cs.{"${sanitizedTerm}"}`)
+        }
+      }
+
+      if (orConditions.length > 0) {
+        productQuery = productQuery.or(orConditions.join(','))
+      }
     }
-
-    productQuery = productQuery.or(searchConditions.join(','))
 
     // Apply category filter if provided
     if (category && category !== 'all') {

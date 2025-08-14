@@ -60,8 +60,6 @@ export function createServiceRoleClient() {
     }
   )
 
-  console.log('🔧 Service role client created with URL:', supabaseUrl);
-  console.log('🔑 Service role key length:', supabaseServiceKey?.length);
-
+  // SECURITY FIX: Remove debug logs that could expose service role configuration
   return client;
 }

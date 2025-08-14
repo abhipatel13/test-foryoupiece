@@ -225,6 +225,17 @@ const productQueries = {
   },
 
   async searchProducts(query: string, limit = 20) {
+    // SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+    const sanitizedQuery = query
+      .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .trim()
+      .substring(0, 100); // Limit length
+
+    if (!sanitizedQuery) {
+      return [];
+    }
+
     const supabase = getQueriesClient()
     const { data, error } = await supabase
       .from('products')
@@ -232,10 +243,10 @@ const productQueries = {
         *,
         category:categories(*)
       `)
-      .or(`name_en.ilike.%${query}%,name_ja.ilike.%${query}%,description_en.ilike.%${query}%,description_ja.ilike.%${query}%`)
+      .or(`name_en.ilike.%${sanitizedQuery}%,name_ja.ilike.%${sanitizedQuery}%,description_en.ilike.%${sanitizedQuery}%,description_ja.ilike.%${sanitizedQuery}%`)
       .eq('is_active', true)
       .limit(limit)
-    
+
     if (error) throw error
     return data
   }
@@ -603,7 +614,16 @@ const adminQueries = {
     }
 
     if (filters?.search) {
-      query = query.or(`order_number.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%`)
+      // SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+      const sanitizedSearch = filters.search
+        .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .trim()
+        .substring(0, 100); // Limit length
+
+      if (sanitizedSearch) {
+        query = query.or(`order_number.ilike.%${sanitizedSearch}%,customer_email.ilike.%${sanitizedSearch}%`)
+      }
     }
 
     query = query.order('created_at', { ascending: false })
@@ -649,7 +669,16 @@ const adminQueries = {
       `)
 
     if (filters?.search) {
-      query = query.or(`name_en.ilike.%${filters.search}%,name_ja.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`)
+      // SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+      const sanitizedSearch = filters.search
+        .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .trim()
+        .substring(0, 100); // Limit length
+
+      if (sanitizedSearch) {
+        query = query.or(`name_en.ilike.%${sanitizedSearch}%,name_ja.ilike.%${sanitizedSearch}%,sku.ilike.%${sanitizedSearch}%`)
+      }
     }
 
     if (filters?.category && filters.category !== 'all') {

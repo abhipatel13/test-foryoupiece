@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Database } from './database.types'
 
 // Check if we're in an App Router context where next/headers is available
@@ -75,4 +76,26 @@ export async function createClient() {
   // fall back to client-side Supabase client
   const { createClient: createBrowserClient } = await import('./client')
   return createBrowserClient()
+}
+
+/**
+ * SECURITY FIX: Create anonymous client for public APIs
+ * This client respects RLS policies but doesn't require authentication
+ * Use this for public product APIs that should be accessible to anonymous users
+ */
+export function createAnonymousClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase environment variables for anonymous client')
+    throw new Error('Supabase configuration not available')
+  }
+
+  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 }

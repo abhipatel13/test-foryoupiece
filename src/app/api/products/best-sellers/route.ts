@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createAnonymousClient } from '@/lib/supabase/server'
 
 /**
  * Best Sellers API Endpoint
@@ -28,25 +28,8 @@ export async function GET(request: NextRequest) {
 
     console.log('🏆 Best Sellers Query params:', { limit, page, offset, topTierOnly });
 
-    // Use Supabase service role client (bypasses RLS)
-    const supabase = createServiceRoleClient();
-
-    // If service role isn't configured (e.g., dev misconfig), return empty set gracefully
-    if (!supabase || typeof (supabase as any).from !== 'function' || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.warn('⚠️ Best Sellers API: Service role not configured. Returning empty list to avoid 500.')
-      return NextResponse.json({
-        success: true,
-        data: [],
-        pagination: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false
-        }
-      })
-    }
+    // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
+    const supabase = createAnonymousClient();
 
     // Helper to build query with flexible category columns (supports legacy schema)
     const buildQuery = (useLegacyCategoryName = false) => {

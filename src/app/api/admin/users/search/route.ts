@@ -35,8 +35,25 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 Searching users with query:', query);
 
+    // SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
+    const sanitizedQuery = query
+      .replace(/[,();'"\\]/g, '') // Remove dangerous punctuation
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .trim()
+      .toLowerCase()
+      .substring(0, 100); // Limit length
+
+    if (!sanitizedQuery) {
+      return NextResponse.json({
+        success: true,
+        users: [],
+        query: '',
+        count: 0
+      });
+    }
+
     // Search users by name or email
-    const searchTerm = `%${query.trim().toLowerCase()}%`;
+    const searchTerm = `%${sanitizedQuery}%`;
 
     const { data: users, error: searchError } = await serviceClient
       .from('users')

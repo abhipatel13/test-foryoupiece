@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createAnonymousClient } from '@/lib/supabase/server'
 import { sortProductsByStockPriority } from '@/lib/utils'
 
 /**
@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
     
     console.log('🏠 Homepage Data API called:', { dealsLimit, recentlyAddedLimit, includeTrending })
 
-    const supabase = createServiceRoleClient()
+    // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
+    const supabase = createAnonymousClient()
 
     // Execute all queries in parallel for better performance
     const [dealsResult, recentlyAddedResult, trendingResult] = await Promise.all([

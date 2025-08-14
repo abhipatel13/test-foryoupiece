@@ -26,22 +26,11 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       console.error('❌ DEBUG: Failed to create service role client')
       return NextResponse.json({
         success: false,
-        error: 'Service role client creation failed',
-        debug: {
-          environment: process.env.NODE_ENV,
-          hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL
-        }
+        error: 'Service role client creation failed'
       }, { status: 500 })
     }
 
-    console.log('🔍 DEBUG: Environment check:', {
-      nodeEnv: process.env.NODE_ENV,
-      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length,
-      urlValue: process.env.NEXT_PUBLIC_SUPABASE_URL
-    })
+    // SECURITY FIX: Remove debug logs that expose service role configuration
 
     // Test 1: Check if we can read the product
     console.log('🔍 DEBUG: Test 1 - Reading product')

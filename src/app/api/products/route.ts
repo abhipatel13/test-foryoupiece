@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { createAnonymousClient } from '@/lib/supabase/server';
 import { CategoriesService } from '@/lib/categories-service'
 import { sortProductsByStockPriority } from '@/lib/utils';
 
@@ -44,15 +44,38 @@ export async function GET(request: NextRequest) {
 
     console.log('🎯 FIXED API Query params:', { limit, page, offset, categorySlug, search, recentlyAdded, deals });
 
-    // Use Supabase service role client (bypasses RLS)
-    const supabase = createServiceRoleClient();
+    // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
+    const supabase = createAnonymousClient();
 
     console.log('🔗 Supabase client created');
+
+    // SECURITY FIX: Explicit field selection instead of wildcard to prevent data leakage
+    const safeFields = `
+      id,
+      name_en,
+      name_ja,
+      description_en,
+      description_ja,
+      short_description_en,
+      short_description_ja,
+      price,
+      compare_at_price,
+      images,
+      stock_quantity,
+      stock_status,
+      category_id,
+      brand,
+      is_featured,
+      tags,
+      points_rate,
+      created_at,
+      updated_at
+    `;
 
     // Build query with category filtering
     let query = supabase
       .from('products')
-      .select('*, points_rate', { count: 'exact' })
+      .select(safeFields, { count: 'exact' })
       .eq('is_active', true);
 
     // STRICT CATEGORY FILTERING - NO KEYWORD FALLBACKS

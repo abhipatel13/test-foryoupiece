@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/client'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { createAnonymousClient } from '@/lib/supabase/server'
 import { RecommendationEngine } from '@/lib/recommendation-engine'
 import { sortProductsByStockPriority } from '@/lib/utils'
 
@@ -19,8 +18,8 @@ export async function GET(request: NextRequest) {
       excludePurchased
     })
 
-    // Use service role client to fetch products (bypasses RLS)
-    const supabase = createServiceRoleClient()
+    // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
+    const supabase = createAnonymousClient()
 
     // Fetch all active products with category information
     const { data: products, error: productsError } = await supabase
