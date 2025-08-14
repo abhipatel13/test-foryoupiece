@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { 
-  getCurrentSession, 
-  updateSessionActivity, 
+import {
+  getCurrentSession,
+  updateSessionActivity,
   checkSessionWarnings,
-  isTokenBlacklisted 
+  isTokenBlacklisted,
+  createSession,
 } from '@/lib/security/session-manager'
-import { 
-  handleAuthenticationError, 
-  handleGenericError 
+import {
+  handleAuthenticationError,
+  handleGenericError
 } from '@/lib/security/error-sanitizer'
 
 /**
@@ -24,7 +25,9 @@ export async function POST(request: NextRequest) {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
     if (sessionError || !session || !session.user) {
-      console.log('❌ Session validation: No valid session found')
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('❌ Session validation: No valid session found')
+      }
       return NextResponse.json({
         success: false,
         valid: false,
@@ -37,7 +40,9 @@ export async function POST(request: NextRequest) {
     // Check if token is blacklisted
     const isBlacklisted = await isTokenBlacklisted(session.access_token)
     if (isBlacklisted) {
-      console.log('❌ Session validation: Token is blacklisted for user:', user.id.substring(0, 8) + '...')
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('❌ Session validation: Token is blacklisted for user:', user.id.substring(0, 8) + '...')
+      }
       return NextResponse.json({
         success: false,
         valid: false,
@@ -45,21 +50,22 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
-    // Get current session state
-    const sessionState = getCurrentSession(user.id)
+    // Get or create current session state on the server
+    let sessionState = getCurrentSession(user.id)
     if (!sessionState) {
-      console.log('❌ Session validation: No session state found for user:', user.id.substring(0, 8) + '...')
-      return NextResponse.json({
-        success: false,
-        valid: false,
-        reason: 'no_session_state'
-      }, { status: 401 })
+      // Create a fresh server-side session state to avoid false negatives
+      sessionState = createSession(user.id)
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('🆕 Created server session state for user:', user.id.substring(0, 8) + '...')
+      }
     }
 
     // Update session activity and check validity
     const isValid = updateSessionActivity(user.id)
     if (!isValid) {
-      console.log('❌ Session validation: Session expired for user:', user.id.substring(0, 8) + '...')
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+        console.log('❌ Session validation: Session expired for user:', user.id.substring(0, 8) + '...')
+      }
       return NextResponse.json({
         success: false,
         valid: false,
@@ -70,7 +76,9 @@ export async function POST(request: NextRequest) {
     // Check for session warnings
     const warning = checkSessionWarnings(user.id)
 
-    console.log('✅ Session validation: Valid session for user:', user.id.substring(0, 8) + '...')
+    if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+      console.log('✅ Session validation: Valid session for user:', user.id.substring(0, 8) + '...')
+    }
 
     return NextResponse.json({
       success: true,

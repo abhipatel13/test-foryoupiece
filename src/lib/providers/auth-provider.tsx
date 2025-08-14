@@ -11,7 +11,7 @@ import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 
 import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
 // import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
-import { clientSideLogout } from '@/lib/security/session-manager'
+import { clientSideLogout, createSession } from '@/lib/security/session-manager'
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
 
 // Enhanced auth provider with session monitoring
@@ -412,6 +412,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(session.user)
           setUserId(session.user.id)
 
+          // Initialize in-memory session tracker for validation endpoints
+          try {
+            createSession(session.user.id)
+          } catch (e) {
+            console.warn('⚠️ Failed to create client session state:', e)
+          }
+
           // Load profile and cart in parallel for better performance
           console.log('📋 Loading user data in parallel for:', session.user.id)
           try {
@@ -506,6 +513,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
               console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
               setUser(session.user)
               setUserId(session.user.id)
+
+              // Initialize in-memory session tracker for validation endpoints
+              try {
+                createSession(session.user.id)
+              } catch (e) {
+                console.warn('⚠️ Failed to create client session state:', e)
+              }
+
               await loadUserProfile(session.user.id)
               // Only force cart reload when user actually changed
               // setUserId already triggers cart load; avoid duplicate
