@@ -5,18 +5,83 @@ import { createServerClient } from '@supabase/ssr'
 
 const intlMiddleware = createMiddleware(routing)
 
+/**
+ * Enhanced cookie security settings
+ */
+function getSecureCookieOptions(originalOptions: any = {}) {
+  const isProduction = process.env.NODE_ENV === 'production'
+
+  return {
+    ...originalOptions,
+    httpOnly: originalOptions.httpOnly !== false, // Default to httpOnly unless explicitly disabled
+    secure: isProduction, // Only secure in production (HTTPS)
+    sameSite: originalOptions.sameSite || (isProduction ? 'strict' : 'lax'),
+    path: originalOptions.path || '/',
+    // Add session timeout for auth cookies
+    maxAge: originalOptions.maxAge || (originalOptions.name?.includes('auth') ? 8 * 60 * 60 : undefined) // 8 hours for auth cookies
+  }
+}
+
+/**
+ * Enhanced session validation with age checks
+ */
+async function validateSessionSecurity(supabase: any, request: NextRequest) {
+  try {
+    // Get session data for validation
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+    if (sessionError || !session) {
+      return { valid: false, reason: 'no_session' }
+    }
+
+    // Check session age (8 hours maximum for enhanced security)
+    const sessionAge = Date.now() - new Date(session.created_at || session.issued_at || 0).getTime()
+    const maxSessionAge = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+
+    if (sessionAge > maxSessionAge) {
+      console.warn('🔒 Session expired due to age:', {
+        sessionAge: Math.round(sessionAge / (60 * 60 * 1000)) + ' hours',
+        path: request.nextUrl.pathname,
+        timestamp: new Date().toISOString()
+      })
+      return { valid: false, reason: 'session_expired' }
+    }
+
+    // Additional security checks for admin paths
+    if (request.nextUrl.pathname.includes('admin') || request.nextUrl.pathname.includes('fyponly')) {
+      // More strict validation for admin routes
+      const adminMaxAge = 4 * 60 * 60 * 1000 // 4 hours for admin sessions
+      if (sessionAge > adminMaxAge) {
+        console.warn('🔒 Admin session expired due to age:', {
+          sessionAge: Math.round(sessionAge / (60 * 60 * 1000)) + ' hours',
+          path: request.nextUrl.pathname,
+          timestamp: new Date().toISOString()
+        })
+        return { valid: false, reason: 'admin_session_expired' }
+      }
+    }
+
+    return { valid: true, session }
+  } catch (error) {
+    console.error('❌ Session validation error:', error)
+    return { valid: false, reason: 'validation_error' }
+  }
+}
+
 export default async function middleware(request: NextRequest) {
   // Diagnostic entry log (no sensitive data)
   try {
     console.log('🧪 middleware: handling path', request.nextUrl.pathname)
   } catch {}
+
   // Handle Supabase auth for all requests first
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
-  // Preserve all Supabase-issued cookies (with options) to apply to final responses (incl. redirects)
+
+  // Preserve all Supabase-issued cookies (with enhanced security options)
   const pendingCookies: { name: string; value: string; options?: any }[] = []
 
   // Only handle Supabase auth if environment variables are available
@@ -51,24 +116,28 @@ export default async function middleware(request: NextRequest) {
                 }))
               )
             } catch {}
-            // Keep original options to apply on the final response (intl or redirects)
+
+            // Apply enhanced security options to cookies
             cookiesToSet.forEach(({ name, value, options }) => {
               try {
-                pendingCookies.push({ name, value, options })
+                const secureOptions = getSecureCookieOptions({ ...options, name })
+                pendingCookies.push({ name, value, options: secureOptions })
               } catch {}
               // Reflect cookie into request for downstream checks
               request.cookies.set(name, value)
             })
+
             // Create a working response with cookies applied (for early returns)
             supabaseResponse = NextResponse.next({
               request,
             })
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            )
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const secureOptions = getSecureCookieOptions({ ...options, name })
+              supabaseResponse.cookies.set(name, value, secureOptions)
+            })
             try {
               console.log(
-                '🧪 middleware: applied Supabase cookies to response with options',
+                '🧪 middleware: applied Supabase cookies to response with enhanced security',
                 cookiesToSet.map(c => c.name)
               )
             } catch {}
@@ -77,8 +146,9 @@ export default async function middleware(request: NextRequest) {
       }
     )
 
-    // Validate session with getUser() - never trust getSession() on server
+    // Enhanced session validation with security checks
     const { data: { user }, error } = await supabase.auth.getUser()
+    const sessionValidation = await validateSessionSecurity(supabase, request)
 
     // Protected routes that require authentication
     const protectedPaths = ['/en/account', '/en/profile', '/en/checkout', '/en/orders']
@@ -86,14 +156,24 @@ export default async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith(path)
     )
 
-    // Redirect to login if accessing protected route without valid session
-    if (isProtectedPath && (error || !user)) {
+    // Enhanced redirect logic with session validation
+    if (isProtectedPath && (error || !user || !sessionValidation.valid)) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/en/auth/login'
       redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+
+      // Add session expiration reason for better UX
+      if (sessionValidation.reason === 'session_expired') {
+        redirectUrl.searchParams.set('reason', 'session_expired')
+      }
+
       try {
-        console.log('🧪 middleware: redirecting unauthenticated to login', { path: request.nextUrl.pathname })
+        console.log('🧪 middleware: redirecting unauthenticated to login', {
+          path: request.nextUrl.pathname,
+          reason: sessionValidation.reason || 'no_auth'
+        })
       } catch {}
+
       const res = NextResponse.redirect(redirectUrl)
       try {
         pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
@@ -107,8 +187,8 @@ export default async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith(path)
     )
 
-    // Redirect to home if accessing auth pages while authenticated
-    if (isAuthPath && user && !error) {
+    // Redirect to home if accessing auth pages while authenticated (with valid session)
+    if (isAuthPath && user && !error && sessionValidation.valid) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/en'
       try {
@@ -119,6 +199,18 @@ export default async function middleware(request: NextRequest) {
         pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
       } catch {}
       return res
+    }
+
+    // Add security headers to response
+    supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
+    supabaseResponse.headers.set('X-Frame-Options', 'DENY')
+    supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
+    supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+
+    // Add session validation timestamp for client-side monitoring
+    if (user && sessionValidation.valid) {
+      supabaseResponse.headers.set('X-Session-Valid', 'true')
+      supabaseResponse.headers.set('X-Session-Validated-At', Date.now().toString())
     }
   }
 

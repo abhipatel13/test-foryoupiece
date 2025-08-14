@@ -29,7 +29,7 @@ export interface SessionWarning {
   message: string
 }
 
-// Default session configuration
+// Enhanced session configuration with browser-specific optimizations
 const DEFAULT_SESSION_CONFIG: SessionConfig = {
   idleTimeout: 30 * 60 * 1000, // 30 minutes
   absoluteTimeout: 8 * 60 * 60 * 1000, // 8 hours
@@ -37,11 +37,30 @@ const DEFAULT_SESSION_CONFIG: SessionConfig = {
   warningThreshold: 5 * 60 * 1000, // 5 minutes
 }
 
+// Browser-specific session configurations
+const BROWSER_SESSION_CONFIGS: Record<string, Partial<SessionConfig>> = {
+  firefox: {
+    absoluteTimeout: 6 * 60 * 60 * 1000, // 6 hours for Firefox
+    refreshThreshold: 10 * 60 * 1000, // 10 minutes
+  },
+  safari: {
+    absoluteTimeout: 4 * 60 * 60 * 1000, // 4 hours for Safari
+    refreshThreshold: 8 * 60 * 1000, // 8 minutes
+  },
+  chrome: {
+    absoluteTimeout: 8 * 60 * 60 * 1000, // 8 hours for Chrome
+    refreshThreshold: 15 * 60 * 1000, // 15 minutes
+  }
+}
+
 // In-memory session tracking (for client-side)
 const sessionTracker = new Map<string, SessionState>()
 
-// Blacklisted tokens (should be stored in database in production)
-const tokenBlacklist = new Set<string>()
+// Enhanced token blacklist with expiration tracking
+const tokenBlacklist = new Map<string, { blacklistedAt: number; reason: string }>()
+
+// Session validation cache to prevent excessive validation calls
+const sessionValidationCache = new Map<string, { validated: boolean; timestamp: number }>()
 
 /**
  * Generate a unique session ID
@@ -58,12 +77,27 @@ export function getCurrentSession(userId: string): SessionState | null {
 }
 
 /**
- * Create a new session
+ * Detect browser for session configuration
+ */
+function detectBrowserForSession() {
+  if (typeof window === 'undefined') return 'server'
+
+  const userAgent = window.navigator.userAgent
+  if (userAgent.includes('Firefox/')) return 'firefox'
+  if (userAgent.includes('Chrome/')) return 'chrome'
+  if (userAgent.includes('Safari/') && !userAgent.includes('Chrome/')) return 'safari'
+  return 'unknown'
+}
+
+/**
+ * Enhanced session creation with browser-specific configuration
  */
 export function createSession(userId: string, config: Partial<SessionConfig> = {}): SessionState {
-  const sessionConfig = { ...DEFAULT_SESSION_CONFIG, ...config }
+  const browser = detectBrowserForSession()
+  const browserConfig = BROWSER_SESSION_CONFIGS[browser] || {}
+  const sessionConfig = { ...DEFAULT_SESSION_CONFIG, ...browserConfig, ...config }
   const now = Date.now()
-  
+
   const sessionState: SessionState = {
     userId,
     sessionId: generateSessionId(),
@@ -73,15 +107,20 @@ export function createSession(userId: string, config: Partial<SessionConfig> = {
     isValid: true,
     expiresAt: now + sessionConfig.absoluteTimeout
   }
-  
+
   sessionTracker.set(userId, sessionState)
-  
-  console.log('🔐 Session created:', {
+
+  // Clear any existing validation cache for this user
+  sessionValidationCache.delete(userId)
+
+  console.log('🔐 Enhanced session created:', {
     userId: userId.substring(0, 8) + '...',
     sessionId: sessionState.sessionId,
+    browser,
+    timeout: Math.round(sessionConfig.absoluteTimeout / (60 * 60 * 1000)) + 'h',
     expiresAt: new Date(sessionState.expiresAt).toISOString()
   })
-  
+
   return sessionState
 }
 
@@ -233,7 +272,7 @@ export function invalidateSession(userId: string, reason: string): void {
 }
 
 /**
- * Blacklist a token (SERVER-SIDE ONLY)
+ * Enhanced token blacklisting with expiration and cleanup (SERVER-SIDE ONLY)
  * This function should only be called from server-side code (API routes)
  */
 export async function blacklistToken(token: string, userId: string, reason: string): Promise<void> {
@@ -244,24 +283,37 @@ export async function blacklistToken(token: string, userId: string, reason: stri
       return
     }
 
-    tokenBlacklist.add(token)
+    const now = Date.now()
+    tokenBlacklist.set(token, { blacklistedAt: now, reason })
 
-    // In production, store in database
+    // In production, store in database with enhanced metadata
     const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
     const serviceClient = createServiceRoleClient()
-    await serviceClient
-      .from('blacklisted_tokens')
-      .insert({
-        token_hash: await hashToken(token),
-        user_id: userId,
-        reason,
-        blacklisted_at: new Date().toISOString()
-      })
 
-    console.log('🚫 Token blacklisted:', {
+    try {
+      await serviceClient
+        .from('blacklisted_tokens')
+        .insert({
+          token_hash: await hashToken(token),
+          user_id: userId,
+          reason,
+          blacklisted_at: new Date().toISOString(),
+          expires_at: new Date(now + (24 * 60 * 60 * 1000)).toISOString(), // Expire blacklist after 24 hours
+          client_info: typeof window !== 'undefined' ? window.navigator.userAgent : 'server'
+        })
+    } catch (dbError: any) {
+      // Handle duplicate key errors gracefully
+      if (dbError.code !== '23505') { // Not a duplicate key error
+        throw dbError
+      }
+      console.log('🔄 Token already blacklisted, updating reason')
+    }
+
+    console.log('🚫 Enhanced token blacklisted:', {
       userId: userId.substring(0, 8) + '...',
       reason,
-      tokenPrefix: token.substring(0, 10) + '...'
+      tokenPrefix: token.substring(0, 10) + '...',
+      timestamp: new Date().toISOString()
     })
   } catch (error) {
     console.error('❌ Error blacklisting token:', error)
@@ -269,7 +321,7 @@ export async function blacklistToken(token: string, userId: string, reason: stri
 }
 
 /**
- * Check if token is blacklisted (SERVER-SIDE ONLY)
+ * Enhanced token blacklist checking with expiration cleanup (SERVER-SIDE ONLY)
  * This function should only be called from server-side code (API routes)
  */
 export async function isTokenBlacklisted(token: string): Promise<boolean> {
@@ -280,20 +332,29 @@ export async function isTokenBlacklisted(token: string): Promise<boolean> {
       return false
     }
 
-    // Check in-memory cache first
-    if (tokenBlacklist.has(token)) {
-      return true
+    // Check in-memory cache first with expiration
+    const cachedEntry = tokenBlacklist.get(token)
+    if (cachedEntry) {
+      // Check if blacklist entry has expired (24 hours)
+      const expirationTime = cachedEntry.blacklistedAt + (24 * 60 * 60 * 1000)
+      if (Date.now() > expirationTime) {
+        tokenBlacklist.delete(token)
+        console.log('🧹 Expired blacklist entry removed from cache')
+      } else {
+        return true
+      }
     }
 
-    // Check database
+    // Check database with expiration filtering
     const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
     const serviceClient = createServiceRoleClient()
     const tokenHash = await hashToken(token)
 
     const { data, error } = await serviceClient
       .from('blacklisted_tokens')
-      .select('id')
+      .select('id, blacklisted_at, expires_at, reason')
       .eq('token_hash', tokenHash)
+      .gt('expires_at', new Date().toISOString()) // Only get non-expired entries
       .single()
 
     if (error && error.code !== 'PGRST116') {
@@ -303,15 +364,56 @@ export async function isTokenBlacklisted(token: string): Promise<boolean> {
 
     const isBlacklisted = !!data
 
-    // Cache result
-    if (isBlacklisted) {
-      tokenBlacklist.add(token)
+    // Cache result with metadata
+    if (isBlacklisted && data) {
+      tokenBlacklist.set(token, {
+        blacklistedAt: new Date(data.blacklisted_at).getTime(),
+        reason: data.reason
+      })
     }
 
     return isBlacklisted
   } catch (error) {
     console.error('❌ Error checking token blacklist:', error)
     return false
+  }
+}
+
+/**
+ * Clean up expired blacklist entries (SERVER-SIDE ONLY)
+ */
+export async function cleanupExpiredBlacklistEntries(): Promise<void> {
+  try {
+    if (typeof window !== 'undefined') {
+      return // Only run on server side
+    }
+
+    const { createServiceRoleClient } = await import('@/lib/supabase/service-role')
+    const serviceClient = createServiceRoleClient()
+
+    // Remove expired entries from database
+    const { error } = await serviceClient
+      .from('blacklisted_tokens')
+      .delete()
+      .lt('expires_at', new Date().toISOString())
+
+    if (error) {
+      console.error('❌ Error cleaning up expired blacklist entries:', error)
+      return
+    }
+
+    // Clean up in-memory cache
+    const now = Date.now()
+    for (const [token, entry] of tokenBlacklist.entries()) {
+      const expirationTime = entry.blacklistedAt + (24 * 60 * 60 * 1000)
+      if (now > expirationTime) {
+        tokenBlacklist.delete(token)
+      }
+    }
+
+    console.log('🧹 Expired blacklist entries cleaned up')
+  } catch (error) {
+    console.error('❌ Error during blacklist cleanup:', error)
   }
 }
 

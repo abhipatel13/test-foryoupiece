@@ -186,47 +186,86 @@ function LoginPageContent() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Check if user is already logged in
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        console.log('🔄 User already authenticated, redirecting to:', redirectTo)
-        router.push(redirectTo)
+    try {
+      // Check if user is already logged in
+      const checkUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          console.log('🔄 User already authenticated, redirecting to:', redirectTo)
+          router.push(redirectTo)
+        }
       }
-    }
-    checkUser()
+      checkUser()
 
-    // Handle OAuth callback errors
-    const error = searchParams.get('error')
-    const errorMessage = searchParams.get('message')
-    const errorCode = searchParams.get('code')
+      // Handle OAuth callback errors (defensively decode params)
+      const rawError = searchParams.get('error')
+      const rawErrorMessage = searchParams.get('message')
+      const rawErrorCode = searchParams.get('code')
 
-    if (error) {
-      const errorMessages: Record<string, string> = {
-        'user_creation_failed': 'Failed to create user account. Please try again.',
-        'session_creation_failed': 'Failed to create session. Please try again.',
-        'telegram_auth_failed': errorMessage ? `Telegram authentication failed: ${decodeURIComponent(errorMessage)}` : 'Telegram authentication failed. Please try again.',
-        'auth_system_error': 'Authentication system error. Please try again.',
-        'invalid_data': 'Invalid authentication data. Please try again.',
-        'invalid_signature': 'Invalid Telegram signature. Please try again.',
-        'expired_auth': 'Authentication data expired. Please try again.',
-        'config_error': 'Authentication configuration error. Please contact support.',
-        'rate_limit': 'Too many authentication attempts. Please wait and try again.',
+      if (rawError) {
+        // Safe decode helper
+        const safeDecode = (v: string | null) => {
+          if (!v) return null
+          try { return decodeURIComponent(v) } catch { return v }
+        }
+
+        const decodedMessage = safeDecode(rawErrorMessage)
+        const decodedCode = safeDecode(rawErrorCode)
+
+        const errorMessages: Record<string, string> = {
+          'user_creation_failed': 'Failed to create user account. Please try again.',
+          'session_creation_failed': 'Failed to create session. Please try again.',
+          'telegram_auth_failed': decodedMessage ? `Telegram authentication failed: ${decodedMessage}` : 'Telegram authentication failed. Please try again.',
+          'auth_system_error': 'Authentication system error. Please try again.',
+          'invalid_data': 'Invalid authentication data. Please try again.',
+          'invalid_signature': 'Invalid Telegram signature. Please try again.',
+          'expired_auth': 'Authentication data expired. Please try again.',
+          'config_error': 'Authentication configuration error. Please contact support.',
+          'rate_limit': 'Too many authentication attempts. Please wait and try again.',
+        }
+
+        const displayMessage = errorMessages[rawError] || 'Authentication failed. Please try again.'
+
+        // Log detailed error information without risking decode errors
+        try {
+          const errorDetails = {
+            error: rawError,
+            errorMessageRaw: rawErrorMessage,
+            errorMessage: decodedMessage,
+            errorCodeRaw: rawErrorCode,
+            errorCode: decodedCode,
+            displayMessage,
+            timestamp: new Date().toISOString(),
+            // Add URL context for debugging
+            currentUrl: window.location.href,
+            searchParamsAll: Object.fromEntries(searchParams.entries())
+          }
+
+          // Only log if there's actually error data to log
+          if (rawError || rawErrorMessage || rawErrorCode) {
+            console.error('🚨 Login page error details:', errorDetails)
+          } else {
+            console.warn('⚠️ Empty error parameters detected - this may indicate a URL parsing issue')
+          }
+        } catch (logErr) {
+          // Ensure logging never crashes the effect
+          console.error('🚨 Login page error (fallback)', String(logErr))
+        }
+
+        setError(displayMessage)
+        toast.error(displayMessage)
+
+        // Clear error parameters from URL to prevent re-triggering
+        const url = new URL(window.location.href)
+        url.searchParams.delete('error')
+        url.searchParams.delete('message')
+        url.searchParams.delete('code')
+        url.searchParams.delete('details')
+        window.history.replaceState({}, '', url.toString())
       }
-
-      const displayMessage = errorMessages[error] || 'Authentication failed. Please try again.'
-
-      // Log detailed error information for debugging
-      console.error('🚨 Login page error details:', {
-        error,
-        errorMessage: errorMessage ? decodeURIComponent(errorMessage) : null,
-        errorCode: errorCode ? decodeURIComponent(errorCode) : null,
-        displayMessage,
-        timestamp: new Date().toISOString()
-      });
-
-      setError(displayMessage)
-      toast.error(displayMessage)
+    } catch (e) {
+      // Absolute safeguard: the effect must never crash React tree
+      console.error('🚨 Login page init error (guard):', e)
     }
   }, [supabase, router, redirectTo, searchParams])
 

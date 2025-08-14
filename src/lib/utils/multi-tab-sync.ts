@@ -8,10 +8,11 @@ import React from 'react'
  */
 
 interface TabSyncMessage {
-  type: 'AUTH_STATE_CHANGE' | 'ADMIN_STATUS_CHANGE' | 'PROFILE_UPDATE' | 'CACHE_INVALIDATE' | 'SESSION_EXPIRED' | 'SESSION_VALIDATED' | 'CART_CLEARED'
+  type: 'AUTH_STATE_CHANGE' | 'ADMIN_STATUS_CHANGE' | 'PROFILE_UPDATE' | 'CACHE_INVALIDATE' | 'SESSION_EXPIRED' | 'SESSION_VALIDATED' | 'CART_CLEARED' | 'SESSION_WARNING' | 'TOKEN_ROTATED' | 'SECURITY_EVENT'
   payload: any
   timestamp: number
   tabId: string
+  priority?: 'low' | 'normal' | 'high' | 'critical'
 }
 
 interface TabSyncOptions {
@@ -22,6 +23,9 @@ interface TabSyncOptions {
   onSessionExpired?: (payload: any) => void
   onSessionValidated?: (payload: any) => void
   onCartCleared?: () => void
+  onSessionWarning?: (payload: any) => void
+  onTokenRotated?: (payload: any) => void
+  onSecurityEvent?: (payload: any) => void
 }
 
 // Browser compatibility detection for multi-tab sync
@@ -119,13 +123,31 @@ class MultiTabSync {
       const data = event && (event as any).data
       if (!data || typeof data !== 'object') return
 
-      const { type, payload, tabId } = data as any
+      const { type, payload, tabId, timestamp, priority } = data as any
       if (!type || typeof type !== 'string') return
 
       // Ignore messages from the same tab
       if (tabId === this.tabId) return
 
-      console.log('📨 Received tab sync message:', { type, tabId })
+      // Enhanced message age validation based on priority
+      if (timestamp) {
+        const maxAge = this.getMaxMessageAge(priority || 'normal')
+        if (Date.now() - timestamp > maxAge) {
+          console.warn('⏰ Ignoring old multi-tab sync message:', {
+            type,
+            age: Date.now() - timestamp + 'ms',
+            maxAge: maxAge + 'ms'
+          })
+          return
+        }
+      }
+
+      console.log('📨 Enhanced tab sync message received:', {
+        type,
+        tabId: tabId?.substring(0, 8),
+        priority: priority || 'normal',
+        age: timestamp ? Date.now() - timestamp + 'ms' : 'unknown'
+      })
 
       switch (type) {
         case 'AUTH_STATE_CHANGE':
@@ -149,12 +171,31 @@ class MultiTabSync {
         case 'CART_CLEARED':
           this.listeners.onCartCleared?.()
           break
+        case 'SESSION_WARNING':
+          this.listeners.onSessionWarning?.(payload)
+          break
+        case 'TOKEN_ROTATED':
+          this.listeners.onTokenRotated?.(payload)
+          break
+        case 'SECURITY_EVENT':
+          this.listeners.onSecurityEvent?.(payload)
+          break
         default:
           // Unknown message type - ignore
           break
       }
     } catch (err) {
       console.error('❌ Multi-tab sync handleMessage error:', err)
+    }
+  }
+
+  private getMaxMessageAge(priority: string): number {
+    switch (priority) {
+      case 'critical': return 5000   // 5 seconds for critical messages
+      case 'high': return 15000      // 15 seconds for high priority
+      case 'normal': return 30000    // 30 seconds for normal messages
+      case 'low': return 60000       // 60 seconds for low priority
+      default: return 30000
     }
   }
 
@@ -173,14 +214,15 @@ class MultiTabSync {
     this.listeners = { ...this.listeners, ...options }
   }
 
-  public broadcast(type: TabSyncMessage['type'], payload: any) {
+  public broadcast(type: TabSyncMessage['type'], payload: any, priority: 'low' | 'normal' | 'high' | 'critical' = 'normal') {
     if (!this.isInitialized) return
 
     const message: TabSyncMessage = {
       type,
       payload,
       timestamp: Date.now(),
-      tabId: this.tabId
+      tabId: this.tabId,
+      priority
     }
 
     try {
@@ -220,6 +262,19 @@ class MultiTabSync {
     } catch (error) {
       console.error('❌ Failed to broadcast tab sync message:', error)
     }
+  }
+
+  // Convenience methods for different priority levels
+  public broadcastCritical(type: TabSyncMessage['type'], payload: any) {
+    this.broadcast(type, payload, 'critical')
+  }
+
+  public broadcastHigh(type: TabSyncMessage['type'], payload: any) {
+    this.broadcast(type, payload, 'high')
+  }
+
+  public broadcastLow(type: TabSyncMessage['type'], payload: any) {
+    this.broadcast(type, payload, 'low')
   }
 
   public destroy() {

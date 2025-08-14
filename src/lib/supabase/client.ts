@@ -60,10 +60,90 @@ class CrossBrowserStorage {
 
   private isSupabaseAuthKey(key: string) {
     // Supabase v2 stores session under keys like: sb-<project-ref>-auth-token
+    // Also includes PKCE code verifiers and other OAuth state
     // Keep support for legacy keys too
     return (
-      key.startsWith('sb-') && key.endsWith('-auth-token') ||
-      key.startsWith(this.legacyPrefix)
+      key.startsWith('sb-') || // All Supabase keys (including PKCE verifiers)
+      key.startsWith(this.legacyPrefix) ||
+      key === 'foryoupiece-auth' // Our custom storage key
+    )
+  }
+
+  private validateSessionData(data: any): boolean {
+    try {
+      // Enhanced session validation with security checks
+      if (typeof data !== 'object' || data === null) {
+        return false
+      }
+
+      // CRITICAL: Don't validate OAuth flow intermediate data
+      // During PKCE flow, Supabase stores code verifiers and other OAuth state
+      // that doesn't have access tokens yet but is essential for the flow
+      if (this.isOAuthFlowData(data)) {
+        return true // Always allow OAuth flow data to persist
+      }
+
+      // Check for session expiration
+      if (data.expires_at) {
+        const expiresAt = new Date(data.expires_at).getTime()
+        if (Date.now() > expiresAt) {
+          console.warn('🔒 Session expired, removing from storage')
+          return false
+        }
+      }
+
+      // Check for session age (8 hours maximum)
+      if (data.created_at || data.issued_at) {
+        const createdAt = new Date(data.created_at || data.issued_at).getTime()
+        const sessionAge = Date.now() - createdAt
+        const maxAge = 8 * 60 * 60 * 1000 // 8 hours
+
+        if (sessionAge > maxAge) {
+          console.warn('🔒 Session too old, removing from storage')
+          return false
+        }
+      }
+
+      // Validate token structure
+      const hasValidTokens = (
+        ('access_token' in data && data.access_token) ||
+        ('currentSession' in data && data.currentSession &&
+         typeof data.currentSession === 'object' &&
+         data.currentSession.access_token)
+      )
+
+      return hasValidTokens
+    } catch (error) {
+      console.error('❌ Session validation error:', error)
+      return false
+    }
+  }
+
+  private isOAuthFlowData(data: any): boolean {
+    // Detect OAuth flow intermediate data that should not be validated strictly
+    return (
+      // PKCE code verifier and challenge
+      ('code_verifier' in data) ||
+      ('code_challenge' in data) ||
+      ('code_challenge_method' in data) ||
+      // OAuth state parameters
+      ('state' in data && typeof data.state === 'string') ||
+      ('provider' in data && typeof data.provider === 'string') ||
+      // Flow state identifiers
+      ('flow_state_id' in data) ||
+      ('pkce_verifier' in data) ||
+      // Supabase OAuth session markers
+      ('provider_token' in data) ||
+      ('provider_refresh_token' in data) ||
+      // OAuth callback parameters
+      ('redirect_to' in data) ||
+      // Any data structure that looks like OAuth intermediate state
+      (typeof data === 'string' && (
+        data.includes('code_verifier') ||
+        data.includes('flow_state') ||
+        data.includes('oauth') ||
+        data.includes('pkce')
+      ))
     )
   }
 
@@ -77,30 +157,47 @@ class CrossBrowserStorage {
         value = this.memoryFallback.get(key) || null
       }
 
-      // Only validate Supabase auth-related keys
+      // Enhanced validation for Supabase auth-related keys
       if (this.isSupabaseAuthKey(key) && value) {
+        // Debug logging for all Supabase storage access during development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔐 Supabase storage access:', { key, hasValue: !!value, valueLength: value?.length })
+        }
+
         try {
           const data = JSON.parse(value)
-          // Be permissive: different Supabase versions store different shapes.
-          // If it's valid JSON, keep it. Only purge when JSON is corrupted.
-          // Common shapes:
-          // - { access_token, refresh_token, ... }
-          // - { currentSession: { access_token, refresh_token, ... }, expiresAt }
-          if (
-            (typeof data === 'object' && data !== null) &&
-            (
-              ('access_token' in data) ||
-              ('currentSession' in data && data.currentSession && typeof data.currentSession === 'object')
-            )
-          ) {
-            return value
+
+          // CRITICAL: Don't validate OAuth flow intermediate data
+          // During PKCE flow, Supabase stores code verifiers and other OAuth state
+          // that doesn't have access tokens yet but is essential for the flow
+          if (this.isOAuthFlowData(data)) {
+            console.log('✅ OAuth flow data detected, allowing access:', key)
+            return value // Always allow OAuth flow data to persist
           }
-          // Unknown shape: don't be destructive; keep but log once.
-          console.warn('⚠️ Unrecognized Supabase auth storage shape; preserving as-is')
+
+          // Enhanced session validation for non-OAuth data
+          if (!this.validateSessionData(data)) {
+            console.warn('🧹 Removing invalid session data from storage:', key)
+            this.removeItem(key)
+            return null
+          }
+
           return value
         } catch {
+          // For non-JSON values (like simple strings), check if they might be OAuth-related
+          if (typeof value === 'string' && (
+            value.includes('code_verifier') ||
+            value.includes('pkce') ||
+            value.includes('oauth') ||
+            key.includes('code_verifier') ||
+            key.includes('pkce')
+          )) {
+            console.log('✅ OAuth string data detected, allowing access:', key)
+            return value
+          }
+
           // Invalid JSON - remove it
-          console.warn('🧹 Removing corrupted Supabase auth storage item')
+          console.warn('🧹 Removing corrupted Supabase auth storage item:', key)
           this.removeItem(key)
           return null
         }
@@ -115,6 +212,11 @@ class CrossBrowserStorage {
 
   setItem(key: string, value: string): void {
     try {
+      // Debug logging for OAuth-related storage during development
+      if (process.env.NODE_ENV === 'development' && this.isSupabaseAuthKey(key)) {
+        console.log('💾 Supabase storage write:', { key, hasValue: !!value, valueLength: value?.length })
+      }
+
       if (this.storageAvailable) {
         localStorage.setItem(key, value)
       } else {
@@ -165,13 +267,21 @@ export function createClient() {
   const browser = detectBrowser()
   const storage = new CrossBrowserStorage()
 
-  // Browser-specific configuration
+  // Enhanced browser-specific configuration with security improvements
   const authConfig: any = {
-    storage,
+    // TEMPORARILY DISABLE CUSTOM STORAGE - OAUTH STILL HAS ISSUES
+    // storage, // Re-enabled with OAuth-compatible fixes
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
+    // Enhanced session management
+    // storageKey: 'foryoupiece-auth', // Use default for now
+    // Add session timeout configuration
+    sessionTimeout: 8 * 60 * 60 * 1000, // 8 hours
+    // Enhanced token refresh settings
+    refreshTokenRotation: true,
+    refreshTokenGracePeriod: 5 * 60 * 1000, // 5 minutes grace period
   }
 
   // Firefox-specific optimizations
@@ -186,6 +296,9 @@ export function createClient() {
 
     // Firefox handles PKCE flow well
     authConfig.flowType = 'pkce'
+
+    // Firefox-specific session timeout (slightly shorter due to memory management)
+    authConfig.sessionTimeout = 6 * 60 * 60 * 1000 // 6 hours for Firefox
   }
 
   // Safari-specific optimizations
@@ -194,13 +307,37 @@ export function createClient() {
 
     // Safari has stricter cookie policies
     authConfig.persistSession = true
+
+    // Safari-specific session management
+    authConfig.sessionTimeout = 4 * 60 * 60 * 1000 // 4 hours for Safari due to strict policies
+  }
+
+  // Chrome-specific optimizations
+  if (browser.name === 'chrome') {
+    console.log('🌐 Applying Chrome-specific Supabase optimizations')
+
+    // Chrome handles longer sessions well
+    authConfig.sessionTimeout = 8 * 60 * 60 * 1000 // 8 hours for Chrome
+    authConfig.refreshTokenGracePeriod = 10 * 60 * 1000 // 10 minutes grace period
   }
 
   return createBrowserClient<Database>(
     supabaseUrl,
     supabaseAnonKey,
     {
-      auth: authConfig
+      auth: authConfig,
+      // Add global configuration for enhanced security
+      global: {
+        headers: {
+          'X-Client-Info': `foryoupiece-web/${browser.name}-${browser.version}`,
+        },
+      },
+      // Enhanced real-time configuration for session monitoring
+      realtime: {
+        params: {
+          eventsPerSecond: 2, // Limit events for better performance
+        },
+      },
     }
   )
 }
