@@ -1,13 +1,3 @@
-
-
-# 🚨 TOOLS SELECTION PRINCIPLES 🚨
-MUST MANTORY: IF POSSIBLE TRY TO USE SERENA MCP FOR THE FILES READING AND PATTERNS. 
-## MEMORY TOOL SELECTION DECISION
-**ALWAYS PREFER `Serena MCP` memory tools:** `list_memories`, `read_memory`, `write_memory`, `delete_memory`.
-
-## CODEBASE SEARCH TOOL SELECTION DECISION
-- ALWAYS PREFER `Serena MCP` for searching specific symbols (functions, types, variables, etc.): `find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, `search_for_pattern`. It give much precise results than `Context Engine`.
-
 # ForYouPiece E-commerce Application Requirements
 - Foryoupiece is an English-only e-commerce application with a premium Japanese products business model delivering from Japan to Cambodia with future worldwide expansion.
 - User prefers Amazon-inspired layout with modern, minimalistic, product-focused design using black/white color scheme, clean typography, and larger product images.

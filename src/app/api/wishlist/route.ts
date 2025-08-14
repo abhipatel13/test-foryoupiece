@@ -47,7 +47,9 @@ export async function GET(request: NextRequest) {
           id,
           title,
           price,
-          sku
+          compare_at_price,
+          sku,
+          stock_quantity
         )
       `)
       .eq('user_id', user.id)

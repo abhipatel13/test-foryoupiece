@@ -43,9 +43,11 @@ interface WishlistItem {
   }
   variant?: {
     id: string
-    name: string
-    price_adjustment: number
-    sku_suffix: string
+    title: string
+    price: number
+    sku: string
+    stock_quantity?: number
+    compare_at_price?: number
   }
 }
 
@@ -74,27 +76,30 @@ export default function WishlistPage() {
   const addToCart = async (item: WishlistItem) => {
     const product = item.product
     const variant = item.variant
-    
-    // Calculate final price
-    const finalPrice = variant 
-      ? product.price + variant.price_adjustment 
-      : product.price
 
-    const success = addItem({
+    // Calculate final price using variant price if available
+    const finalPrice = variant ? variant.price : product.price
+
+    // Determine stock to validate against
+    const stockForValidation = variant?.stock_quantity ?? product.stock_quantity
+
+    const success = await addItem({
       id: product.id,
       name: product.name_en,
       price: finalPrice,
-      image: product.images[0] || '',
-      sku: variant ? `${product.sku}-${variant.sku_suffix}` : product.sku,
-      stock_quantity: product.stock_quantity,
-      variant_id: variant?.id,
-      variant_name: variant?.name
-    }, 1)
+      originalPrice: (variant?.compare_at_price ?? product.compare_at_price) || undefined,
+      quantity: 1,
+      image: product.images[0] || '/placeholder-product.jpg',
+      sku: variant ? variant.sku : product.sku,
+      variant: variant ? variant.id : undefined,
+      stockQuantity: stockForValidation,
+      points_rate: 1.0
+    }, stockForValidation)
 
     if (success) {
       toast.success(`${product.name_en} added to cart`)
     } else {
-      if (product.stock_quantity <= 0) {
+      if (stockForValidation <= 0) {
         toast.error('This item is currently out of stock')
       } else {
         toast.error('Unable to add item to cart')
@@ -175,7 +180,7 @@ export default function WishlistPage() {
             {wishlistItems.map((item) => {
               const product = item.product
               const variant = item.variant
-              const finalPrice = variant ? product.price + variant.price_adjustment : product.price
+              const finalPrice = variant ? variant.price : product.price
               const discount = calculateDiscount(finalPrice, product.compare_at_price)
               const isRemoving = removingItems.has(product.id)
 
@@ -218,7 +223,7 @@ export default function WishlistPage() {
                       <Link href={`/en/products/${product.sku}`}>
                         <h3 className="font-medium text-gray-900 mb-1 sm:mb-2 line-clamp-2 hover:text-primary transition-colors text-sm sm:text-base">
                           {product.name_en}
-                          {variant && <span className="text-xs sm:text-sm text-gray-500"> - {variant.name}</span>}
+                          {variant && <span className="text-xs sm:text-sm text-gray-500"> - {variant.title}</span>}
                         </h3>
                       </Link>
 

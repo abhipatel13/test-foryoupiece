@@ -26,9 +26,11 @@ interface WishlistItem {
   }
   variant?: {
     id: string
-    name: string
-    price_adjustment: number
-    sku_suffix: string
+    title: string
+    price: number
+    sku: string
+    stock_quantity?: number
+    compare_at_price?: number
   }
 }
 

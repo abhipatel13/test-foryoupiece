@@ -16,40 +16,42 @@ interface CartStoreInterface {
   pointsToRedeem: number
   appliedCoupon: any
   shippingCalculation: any
-  addItem: (item: any) => Promise<void>
-  removeItem: (id: string) => void
-  updateQuantity: (id: string, quantity: number) => void
+  addItem: (item: any, stockQuantity?: number) => Promise<boolean>
+  removeItem: (id: string, variant?: string) => Promise<void>
+  updateQuantity: (id: string, quantity: number, variant?: string) => Promise<boolean>
   clearCart: () => void
   getItemCount: () => number
   getTotal: () => number
   getTotalQuantity: () => number
-  getTotalPrice: () => number
   getShippingFee: () => number
   getTotalSavings: () => number
   getFinalTotal: () => number
-  getFinalTotalWithPoints: () => number
-  getPointsDiscount: () => number
   getTotalPointsEarned: () => number
-  getCouponDiscount: () => number
-  getFinalTotalWithCouponAndPoints: () => number
-  getItemById: (id: string) => any
-  setUserId: (id: string) => void
+  setUserId: (id: string, forceReload?: boolean) => void
   forceLoadCartForUser: (userId: string) => Promise<void>
   clearCartOnLogout: () => Promise<void>
   setHydrated: (hydrated: boolean) => void
-  applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>
-  removeCoupon: () => void
+  // Points
   setPointsToRedeem: (points: number) => void
+  getPointsDiscount: () => number
+  getFinalTotalWithPoints: () => number
+  validatePointsRedemption: (points: number, userPointsBalance: number) => { isValid: boolean; message: string }
   clearPointsRedemption: () => void
-  validatePointsRedemption: () => { isValid: boolean; message: string }
-  validateStock: () => { isValid: boolean; message: string }
-  getStockMessage: () => string
-  calculateShipping: () => void
-  getShippingMessage: () => string
-  getShippingCalculation: () => any
-  validateCartStock: () => Promise<{ isValid: boolean; invalidItems: any[] }>
+  // Coupons
+  applyCoupon: (coupon: any) => void
+  removeCoupon: () => void
+  getCouponDiscount: () => number
+  getFinalTotalWithCouponAndPoints: () => number
+  // Stock validation
+  validateStock: (id: string, requestedQuantity: number, currentStock?: number) => { isValid: boolean; message: string }
+  getStockMessage: (stockQuantity: number) => string
+  validateCartStock: () => Promise<{ success: boolean; hasIssues: boolean; canCheckout: boolean }>
   refreshStockStatus: () => Promise<void>
   isStockValidationNeeded: () => boolean
+  // Shipping
+  calculateShipping: () => Promise<void>
+  getShippingMessage: () => string
+  getShippingCalculation: () => any
 }
 
 // Default SSR-safe cart store implementation
@@ -63,23 +65,17 @@ const createDefaultCartStore = (): CartStoreInterface => ({
   appliedCoupon: null,
   shippingCalculation: null,
   // Provide no-op functions for SSR
-  addItem: async () => {},
-  removeItem: () => {},
-  updateQuantity: () => {},
+  addItem: async () => false,
+  removeItem: async () => {},
+  updateQuantity: async () => false,
   clearCart: () => {},
   getItemCount: () => 0,
   getTotal: () => 0,
   getTotalQuantity: () => 0,
-  getTotalPrice: () => 0,
   getShippingFee: () => 0,
   getTotalSavings: () => 0,
   getFinalTotal: () => 0,
-  getFinalTotalWithPoints: () => 0,
-  getPointsDiscount: () => 0,
   getTotalPointsEarned: () => 0,
-  getCouponDiscount: () => 0,
-  getFinalTotalWithCouponAndPoints: () => 0,
-  getItemById: () => null,
   setUserId: () => {},
   forceLoadCartForUser: async () => {},
   clearCartOnLogout: async () => {},
@@ -91,7 +87,7 @@ const createDefaultCartStore = (): CartStoreInterface => ({
   validatePointsRedemption: () => ({ isValid: false, message: 'Cart not available during SSR' }),
   validateStock: () => ({ isValid: true, message: '' }),
   getStockMessage: () => '',
-  calculateShipping: () => {},
+  calculateShipping: async () => {},
   getShippingMessage: () => '',
   getShippingCalculation: () => null,
   validateCartStock: async () => ({ isValid: true, invalidItems: [] }),
