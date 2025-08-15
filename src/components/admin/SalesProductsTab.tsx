@@ -22,11 +22,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
-  Search, 
-  Percent, 
-  DollarSign, 
-  Package, 
+import {
+  Search,
+  Percent,
+  DollarSign,
+  Package,
   Edit3,
   Trash2,
   Plus,
@@ -35,6 +35,13 @@ import {
   Download
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface SalesProduct {
   id: string
@@ -71,7 +78,15 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [bulkDiscountPercentage, setBulkDiscountPercentage] = useState(10)
   const [editingProduct, setEditingProduct] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<{ price: number; compare_at_price: number }>({ price: 0, compare_at_price: 0 })
+  const [editValues, setEditValues] = useState<{
+    price: number;
+    compare_at_price: number;
+    points_rate: number
+  }>({
+    price: 0,
+    compare_at_price: 0,
+    points_rate: 1.00
+  })
 
   // Fetch sales products
   const fetchSalesProducts = async () => {
@@ -180,12 +195,61 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
   // Handle individual product edit
   const handleEditProduct = async (productId: string) => {
     try {
+      // Find the product being edited to get all required fields
+      const product = products.find(p => p.id === productId)
+      if (!product) {
+        toast.error('Product not found')
+        return
+      }
+
+      // First fetch the complete product data to preserve all required fields
+      const fetchResponse = await fetch(`/api/admin/products/${productId}`)
+      const fetchData = await fetchResponse.json()
+
+      if (!fetchData.success) {
+        toast.error('Failed to fetch product details')
+        return
+      }
+
+      const fullProduct = fetchData.data
+
       const response = await fetch(`/api/admin/products/${productId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Required fields (preserve existing values)
+          sku: fullProduct.sku,
+          name_en: fullProduct.name_en,
+          name_ja: fullProduct.name_ja, // Preserve existing name_ja
+          // Updated fields
           price: editValues.price,
-          compare_at_price: editValues.compare_at_price
+          compare_at_price: editValues.compare_at_price,
+          points_rate: editValues.points_rate,
+          // Preserve all other existing fields
+          description_en: fullProduct.description_en,
+          description_ja: fullProduct.description_ja,
+          short_description_en: fullProduct.short_description_en,
+          short_description_ja: fullProduct.short_description_ja,
+          cost_price: fullProduct.cost_price,
+          stock_quantity: fullProduct.stock_quantity,
+          low_stock_threshold: fullProduct.low_stock_threshold,
+          weight_grams: fullProduct.weight_grams,
+          brand: fullProduct.brand,
+          category_id: fullProduct.category_id,
+          is_active: fullProduct.is_active,
+          is_featured: fullProduct.is_featured,
+          is_preorder: fullProduct.is_preorder,
+          preorder_limit: fullProduct.preorder_limit,
+          requires_shipping: fullProduct.requires_shipping,
+          is_digital: fullProduct.is_digital,
+          track_inventory: fullProduct.track_inventory,
+          allow_backorder: fullProduct.allow_backorder,
+          seo_title: fullProduct.seo_title,
+          seo_description: fullProduct.seo_description,
+          is_trending: fullProduct.is_trending,
+          is_best_seller: fullProduct.is_best_seller,
+          trending_position: fullProduct.trending_position,
+          best_seller_position: fullProduct.best_seller_position
         })
       })
 
@@ -196,7 +260,8 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
         setEditingProduct(null)
         fetchSalesProducts()
       } else {
-        toast.error('Failed to update product')
+        toast.error(`Failed to update product: ${data.error || 'Unknown error'}`)
+        console.error('Product update error:', data)
       }
     } catch (error) {
       console.error('Error updating product:', error)
@@ -470,7 +535,8 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
                             setEditingProduct(product.id)
                             setEditValues({
                               price: product.price,
-                              compare_at_price: product.compare_at_price
+                              compare_at_price: product.compare_at_price || 0,
+                              points_rate: product.points_rate || 1.00
                             })
                           }}
                         >
@@ -491,6 +557,150 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Product Modal */}
+      <Dialog open={editingProduct !== null} onOpenChange={(open) => !open && setEditingProduct(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+            <DialogDescription>
+              Update pricing and points rate for this product
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingProduct && (
+            <div className="space-y-4">
+              {(() => {
+                const product = products.find(p => p.id === editingProduct)
+                if (!product) return null
+
+                return (
+                  <>
+                    {/* Product Info */}
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <img
+                        src={product.images[0] || '/placeholder-product.jpg'}
+                        alt={product.name_en}
+                        className="w-12 h-12 object-cover rounded"
+                      />
+                      <div>
+                        <h4 className="font-medium text-sm">{product.name_en}</h4>
+                        <p className="text-xs text-gray-500">{product.sku}</p>
+                      </div>
+                    </div>
+
+                    {/* Form Fields */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-price">Sale Price ($)</Label>
+                        <Input
+                          id="edit-price"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editValues.price}
+                          onChange={(e) => setEditValues(prev => ({
+                            ...prev,
+                            price: parseFloat(e.target.value) || 0
+                          }))}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-compare-price">Original Price ($)</Label>
+                        <Input
+                          id="edit-compare-price"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editValues.compare_at_price || ''}
+                          onChange={(e) => setEditValues(prev => ({
+                            ...prev,
+                            compare_at_price: parseFloat(e.target.value) || 0
+                          }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="edit-points-rate">Points Rate (%)</Label>
+                      <Input
+                        id="edit-points-rate"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="20"
+                        value={editValues.points_rate}
+                        onChange={(e) => setEditValues(prev => ({
+                          ...prev,
+                          points_rate: parseFloat(e.target.value) || 1.00
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Standard rate is 1%. Higher rates reward more points.
+                      </p>
+                    </div>
+
+                    {/* Calculated Values Display */}
+                    <div className="p-3 bg-blue-50 rounded-lg space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Discount:</span>
+                        <span className="font-medium">
+                          {editValues.compare_at_price > editValues.price
+                            ? `${Math.round(((editValues.compare_at_price - editValues.price) / editValues.compare_at_price) * 100)}%`
+                            : 'No discount'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Points earned:</span>
+                        <span className="font-medium">
+                          {Math.floor(editValues.price * editValues.points_rate * 10)} points
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Savings:</span>
+                        <span className="font-medium">
+                          ${editValues.compare_at_price > editValues.price
+                            ? (editValues.compare_at_price - editValues.price).toFixed(2)
+                            : '0.00'
+                          }
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Validation Messages */}
+                    {editValues.price > editValues.compare_at_price && editValues.compare_at_price > 0 && (
+                      <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                        Sale price cannot be higher than original price
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingProduct(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => handleEditProduct(editingProduct)}
+                        disabled={
+                          editValues.price <= 0 ||
+                          editValues.points_rate <= 0 ||
+                          (editValues.compare_at_price > 0 && editValues.price > editValues.compare_at_price)
+                        }
+                      >
+                        Save Changes
+                      </Button>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

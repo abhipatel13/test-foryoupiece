@@ -331,6 +331,22 @@ export const PUT = withAdminAuth(async (
       }
     }
 
+    // Validate points_rate
+    if (body.points_rate !== null && body.points_rate !== undefined) {
+      if (typeof body.points_rate !== 'number' || body.points_rate < 0 || body.points_rate > 20) {
+        console.error('❌ Product update failed: Invalid points_rate', {
+          points_rate: body.points_rate,
+          type: typeof body.points_rate,
+          isNumber: typeof body.points_rate === 'number',
+          isInRange: body.points_rate >= 0 && body.points_rate <= 20
+        });
+        return NextResponse.json({
+          success: false,
+          error: `Points rate must be between 0% and 20%. Received: ${body.points_rate}%`,
+        }, { status: 400 });
+      }
+    }
+
     // Note: supabase client already created above for validation
 
     // Prepare update data
@@ -345,6 +361,7 @@ export const PUT = withAdminAuth(async (
       price: body.price,
       compare_at_price: (body.compare_at_price && body.compare_at_price > 0) ? body.compare_at_price : null,
       cost_price: (body.cost_price && body.cost_price > 0) ? body.cost_price : null,
+      points_rate: body.points_rate ?? 1.00,
       stock_quantity: body.stock_quantity,
       low_stock_threshold: body.low_stock_threshold || 10,
       weight_grams: body.weight_grams || null,

@@ -22,11 +22,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
-  Search, 
-  Star, 
-  DollarSign, 
-  Package, 
+import {
+  Search,
+  Star,
+  DollarSign,
+  Package,
   GripVertical,
   Trash2,
   Plus,
@@ -34,9 +34,18 @@ import {
   Filter,
   ArrowUp,
   ArrowDown,
-  Crown
+  Crown,
+  X
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 
 interface BestSellerProduct {
   id: string
@@ -62,6 +71,17 @@ interface BestSellersTabProps {
   onCountChange: (count: number) => void
 }
 
+interface AllProduct {
+  id: string
+  sku: string
+  name_en: string
+  price: number
+  stock_quantity: number
+  is_active: boolean
+  is_best_seller: boolean
+  images: string[]
+}
+
 export default function BestSellersTab({ onCountChange }: BestSellersTabProps) {
   const [products, setProducts] = useState<BestSellerProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,6 +89,13 @@ export default function BestSellersTab({ onCountChange }: BestSellersTabProps) {
   const [sortBy, setSortBy] = useState('position_asc')
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [draggedItem, setDraggedItem] = useState<string | null>(null)
+
+  // Add to Best Sellers Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [allProducts, setAllProducts] = useState<AllProduct[]>([])
+  const [modalLoading, setModalLoading] = useState(false)
+  const [modalSearchTerm, setModalSearchTerm] = useState('')
+  const [selectedNewProducts, setSelectedNewProducts] = useState<string[]>([])
 
   // Fetch best seller products
   const fetchBestSellerProducts = async () => {
@@ -160,6 +187,94 @@ export default function BestSellersTab({ onCountChange }: BestSellersTabProps) {
     } catch (error) {
       console.error('Error updating position:', error)
       toast.error('Failed to update position')
+    }
+  }
+
+  // Handle individual best seller toggle
+  const handleToggleBestSeller = async (productId: string, currentStatus: boolean) => {
+    try {
+      const response = await fetch('/api/admin/product-categories/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: currentStatus ? 'remove_best_seller' : 'set_best_seller',
+          product_ids: [productId],
+          data: currentStatus ? {} : { start_position: products.length + 1 }
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(currentStatus ? 'Removed from best sellers' : 'Added to best sellers')
+        fetchBestSellerProducts()
+      } else {
+        toast.error(`Failed to ${currentStatus ? 'remove from' : 'add to'} best sellers`)
+      }
+    } catch (error) {
+      console.error('Error toggling best seller status:', error)
+      toast.error('Failed to update best seller status')
+    }
+  }
+
+  // Fetch all products for the add modal
+  const fetchAllProducts = async () => {
+    try {
+      setModalLoading(true)
+      const params = new URLSearchParams({
+        limit: '100'
+      })
+
+      const response = await fetch(`/api/admin/products?${params}`)
+      const data = await response.json()
+
+      if (data.success) {
+        // Filter out products that are already best sellers
+        const nonBestSellers = data.data.filter((product: AllProduct) => !product.is_best_seller)
+        setAllProducts(nonBestSellers)
+      } else {
+        toast.error('Failed to load products')
+        console.error('Error:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching all products:', error)
+      toast.error('Failed to load products')
+    } finally {
+      setModalLoading(false)
+    }
+  }
+
+  // Handle adding selected products to best sellers
+  const handleAddToBestSellers = async () => {
+    if (selectedNewProducts.length === 0) {
+      toast.error('Please select products to add')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/product-categories/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'set_best_seller',
+          product_ids: selectedNewProducts,
+          data: { start_position: products.length + 1 }
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(`Added ${data.summary.success} products to best sellers`)
+        setSelectedNewProducts([])
+        setIsAddModalOpen(false)
+        fetchBestSellerProducts()
+      } else {
+        toast.error('Failed to add products to best sellers')
+      }
+    } catch (error) {
+      console.error('Error adding to best sellers:', error)
+      toast.error('Failed to add products to best sellers')
     }
   }
 
@@ -333,10 +448,152 @@ export default function BestSellersTab({ onCountChange }: BestSellersTabProps) {
               <Star className="h-5 w-5" />
               Best Seller Products ({products.length})
             </span>
-            <Button onClick={fetchBestSellerProducts} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={fetchAllProducts} size="sm">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Products
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+                  <DialogHeader>
+                    <DialogTitle>Add Products to Best Sellers</DialogTitle>
+                    <DialogDescription>
+                      Select products to add to your best sellers list
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4">
+                    {/* Search */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          placeholder="Search products..."
+                          value={modalSearchTerm}
+                          onChange={(e) => setModalSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Products List */}
+                    <div className="border rounded-lg max-h-96 overflow-y-auto">
+                      {modalLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                          Loading products...
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  checked={selectedNewProducts.length === allProducts.filter(p =>
+                                    p.name_en.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                                    p.sku.toLowerCase().includes(modalSearchTerm.toLowerCase())
+                                  ).length && allProducts.length > 0}
+                                  onCheckedChange={(checked) => {
+                                    const filteredProducts = allProducts.filter(p =>
+                                      p.name_en.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                                      p.sku.toLowerCase().includes(modalSearchTerm.toLowerCase())
+                                    )
+                                    if (checked) {
+                                      setSelectedNewProducts(filteredProducts.map(p => p.id))
+                                    } else {
+                                      setSelectedNewProducts([])
+                                    }
+                                  }}
+                                />
+                              </TableHead>
+                              <TableHead>Product</TableHead>
+                              <TableHead>Price</TableHead>
+                              <TableHead>Stock</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {allProducts
+                              .filter(product =>
+                                product.name_en.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                                product.sku.toLowerCase().includes(modalSearchTerm.toLowerCase())
+                              )
+                              .map((product) => (
+                                <TableRow key={product.id}>
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedNewProducts.includes(product.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedNewProducts(prev => [...prev, product.id])
+                                        } else {
+                                          setSelectedNewProducts(prev => prev.filter(id => id !== product.id))
+                                        }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      {product.images?.[0] && (
+                                        <img
+                                          src={product.images[0]}
+                                          alt={product.name_en}
+                                          className="w-10 h-10 object-cover rounded"
+                                        />
+                                      )}
+                                      <div>
+                                        <div className="font-medium">{product.name_en}</div>
+                                        <div className="text-sm text-gray-500">{product.sku}</div>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="font-semibold">${product.price.toFixed(2)}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={product.stock_quantity > 0 ? 'default' : 'destructive'}>
+                                      {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={product.is_active ? 'default' : 'secondary'}>
+                                      {product.is_active ? 'Active' : 'Inactive'}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="text-sm text-gray-500">
+                        {selectedNewProducts.length} products selected
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleAddToBestSellers}
+                          disabled={selectedNewProducts.length === 0}
+                        >
+                          Add to Best Sellers
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button onClick={fetchBestSellerProducts} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Refresh
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -458,6 +715,15 @@ export default function BestSellersTab({ onCountChange }: BestSellersTabProps) {
                           onClick={() => handlePositionUpdate(product.id, product.position + 1)}
                         >
                           <ArrowDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleBestSeller(product.id, true)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          title="Remove from best sellers"
+                        >
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
