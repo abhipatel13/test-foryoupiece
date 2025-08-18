@@ -29,7 +29,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const router = useRouter()
 
   // Use simple auth hook without complex optimizations
-  const { user, profile, isAuthenticated, loading, signOut } = useSSRSafeAuth()
+  const { user, profile, isAuthenticated, loading, profileLoading, signOut } = useSSRSafeAuth()
 
   // Floating UI setup with proper overlay positioning
   const { refs, floatingStyles, context } = useFloating({
@@ -67,10 +67,19 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         points: profile.points_balance || 0,
         tier: getCorrectUserTier(profile)
       })
+    } else if (user && profileLoading) {
+      // Show minimal shell when user exists but profile is still loading
+      setUserDisplayData({
+        name: user.email?.split('@')[0] || 'User',
+        email: user.email || '',
+        initials: (user.email?.charAt(0) || 'U').toUpperCase(),
+        points: 0,
+        tier: 'bronze'
+      })
     } else {
       setUserDisplayData(null)
     }
-  }, [user, profile])
+  }, [user, profile, profileLoading])
 
   // Handle sign out
   const handleSignOut = useCallback(async () => {
@@ -83,8 +92,9 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     }
   }, [signOut, router])
 
-  // Improved loading state with better UX
-  if (loading) {
+  // Only show loading skeleton during session hydration, not profile loading
+  // This allows the dropdown to be clickable even when profile is still loading
+  if (loading && !user) {
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />

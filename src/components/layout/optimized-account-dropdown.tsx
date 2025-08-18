@@ -24,7 +24,7 @@ interface OptimizedAccountDropdownProps {
 
 export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDropdownProps) {
   const { user, profile, isAuthenticated, loading, signOut } = useSSRSafeAuth()
-  const { mounted } = useHydration()
+  const mounted = useHydration() // Fix: useHydration returns boolean, not object
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
 

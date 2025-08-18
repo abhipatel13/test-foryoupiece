@@ -80,19 +80,27 @@ const createDefaultCartStore = (): CartStoreInterface => ({
   forceLoadCartForUser: async () => {},
   clearCartOnLogout: async () => {},
   setHydrated: () => {},
-  applyCoupon: async () => ({ success: false, message: 'Cart not available during SSR' }),
-  removeCoupon: () => {},
+  // Points
   setPointsToRedeem: () => {},
+  getPointsDiscount: () => 0,
+  getFinalTotalWithPoints: () => 0,
   clearPointsRedemption: () => {},
   validatePointsRedemption: () => ({ isValid: false, message: 'Cart not available during SSR' }),
+  // Coupons
+  applyCoupon: async () => ({ success: false, message: 'Cart not available during SSR' }),
+  removeCoupon: () => {},
+  getCouponDiscount: () => 0,
+  getFinalTotalWithCouponAndPoints: () => 0,
+  // Stock validation
   validateStock: () => ({ isValid: true, message: '' }),
   getStockMessage: () => '',
-  calculateShipping: async () => {},
-  getShippingMessage: () => '',
-  getShippingCalculation: () => null,
   validateCartStock: async () => ({ isValid: true, invalidItems: [] }),
   refreshStockStatus: async () => {},
-  isStockValidationNeeded: () => false
+  isStockValidationNeeded: () => false,
+  // Shipping
+  calculateShipping: async () => {},
+  getShippingMessage: () => '',
+  getShippingCalculation: () => null
 })
 
 /**

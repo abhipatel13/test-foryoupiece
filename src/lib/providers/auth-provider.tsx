@@ -219,13 +219,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('📋 Querying user profile for userId:', userId)
       }
 
-      // Use optimized profile loading with timeout
+      // Use optimized profile loading with soft timeout and background retry
       const profilePromise = userQueries.getProfile(userId)
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Profile load timeout')), 5000)
+      const softTimeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => {
+          console.warn('⏰ Profile load exceeded 10s, continuing with background retry...')
+          resolve(null) // Soft timeout - resolve with null instead of rejecting
+        }, 10000) // Increased to 10s for better network tolerance
       )
 
-      const profile = await Promise.race([profilePromise, timeoutPromise])
+      const profile = await Promise.race([profilePromise, softTimeoutPromise])
 
       if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
         console.log('📋 Profile query result:', profile)
@@ -238,12 +241,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setProfile(profile)
         profileLoadTimestampRef.current = Date.now()
       } else {
+        // Handle soft timeout case - schedule background retry
         if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-          console.log('⚠️ No profile found for user:', userId)
+          console.log('⚠️ Profile load timed out or no profile found, scheduling background retry...')
         }
+
+        // Schedule background retry with exponential backoff
+        setTimeout(async () => {
+          try {
+            const retryProfile = await userQueries.getProfile(userId)
+            if (retryProfile && profileLoadInFlightRef.current === userId) {
+              if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+                console.log('✅ Background retry successful, setting profile:', retryProfile.id)
+              }
+              setProfile(retryProfile)
+              profileLoadTimestampRef.current = Date.now()
+            }
+          } catch (retryError) {
+            console.warn('⚠️ Background profile retry failed:', retryError)
+          }
+        }, 2000) // 2 second retry delay
       }
     } catch (error) {
-      console.error('❌ Error loading user profile:', error)
+      // Downgrade expected timeouts from error to warn to reduce Sentry noise
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.warn('⚠️ Profile load timeout (expected on slow networks):', error.message)
+      } else {
+        console.error('❌ Error loading user profile:', error)
+      }
       // Don't throw - profile loading failure shouldn't break authentication
     } finally {
       // Reduce debounce time for faster subsequent loads
@@ -491,10 +516,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             broadcast('AUTH_STATE_CHANGE', { user: null, event })
           }
 
-          // Reset logout flag after cleanup
+          // Reset logout flag after cleanup (reduced from 1000ms to 300ms for faster recovery)
           setTimeout(() => {
             signOutInProgressRef.current = false
-          }, 1000)
+          }, 300)
 
           router.push('/en/auth/login')
         } else if (event === 'SIGNED_IN') {

@@ -158,11 +158,7 @@ export function useSSRSafeAuth() {
 
       console.log('✅ Sign out cleanup completed')
 
-      // Force redirect to login with immediate page reload
-      if (typeof window !== 'undefined') {
-        // Use replace to prevent back button issues and force immediate redirect
-        window.location.replace('/en/auth/login')
-      }
+      // Note: Redirect is handled by AuthProvider's onAuthStateChange to avoid double redirects
     } catch (error) {
       console.error('Sign out error:', error)
       // Force cleanup even on error
