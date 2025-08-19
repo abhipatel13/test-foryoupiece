@@ -197,11 +197,12 @@ async function syncProductStockQuantities(triggeredBy: string) {
 
     for (const item of boxHeroItems) {
       try {
-        // Find product by SKU
+        // Find product by SKU (skip deleted products)
         const { data: products, error: findError } = await supabase
           .from('products')
-          .select('id, name_en, stock_quantity')
+          .select('id, name_en, stock_quantity, is_deleted')
           .eq('sku', item.sku)
+          .eq('is_deleted', false) // Skip deleted products
           .limit(1);
 
         if (findError) {

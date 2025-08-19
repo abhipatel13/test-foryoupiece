@@ -487,9 +487,16 @@ export class BoxHeroSyncService {
           // Find product by SKU
           const sku = SKU.create(boxHeroItem.sku);
           const productResult = await this.productRepository.findBySku(sku);
-          
+
           if (!productResult.success || !productResult.data) {
             continue; // Skip if product not found
+          }
+
+          // Skip deleted products during sync
+          const product = productResult.data;
+          if ((product as any).is_deleted === true) {
+            console.log(`⏭️ Skipping deleted product: ${boxHeroItem.name} (SKU: ${boxHeroItem.sku})`);
+            continue;
           }
 
           // Calculate total stock

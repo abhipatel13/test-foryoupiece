@@ -47,6 +47,8 @@ export class SupabaseProductRepository implements IProductRepository {
           category:categories(*)
         `)
         .eq('id', id)
+        .eq('is_active', true) // Only return active products
+        .eq('is_deleted', false) // SECURITY FIX: Exclude soft-deleted products
         .single();
 
       if (error) {
@@ -79,6 +81,8 @@ export class SupabaseProductRepository implements IProductRepository {
           category:categories(*)
         `)
         .eq('sku', sku.value)
+        .eq('is_active', true) // Only return active products
+        .eq('is_deleted', false) // SECURITY FIX: Exclude soft-deleted products
         .single();
 
       if (error) {
@@ -129,6 +133,9 @@ export class SupabaseProductRepository implements IProductRepository {
         if (filters.isActive !== undefined) {
           query = query.eq('is_active', filters.isActive);
         }
+
+        // SECURITY FIX: Always exclude soft-deleted products from public queries
+        query = query.eq('is_deleted', false);
         
         if (filters.isInStock) {
           query = query.gt('stock_quantity', 0);
@@ -220,6 +227,7 @@ export class SupabaseProductRepository implements IProductRepository {
         `)
         .or(`name_en.ilike.%${sanitizedQuery}%,name_ja.ilike.%${sanitizedQuery}%,description_en.ilike.%${sanitizedQuery}%,description_ja.ilike.%${sanitizedQuery}%`)
         .eq('is_active', true)
+        .eq('is_deleted', false) // Skip deleted products in search
         .limit(limit);
 
       if (error) {
@@ -297,6 +305,7 @@ export class SupabaseProductRepository implements IProductRepository {
         `)
         .lte('stock_quantity', 'low_stock_threshold')
         .eq('is_active', true)
+        .eq('is_deleted', false) // Skip deleted products in low stock queries
         .limit(limit);
 
       if (error) {

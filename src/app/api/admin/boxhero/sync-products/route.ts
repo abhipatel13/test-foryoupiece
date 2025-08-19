@@ -49,11 +49,12 @@ export async function POST(request: NextRequest) {
 
     for (const item of boxHeroItems) {
       try {
-        // Find product by SKU
+        // Find product by SKU (skip deleted products)
         const { data: products, error: findError } = await supabase
           .from('products')
-          .select('id, name, stock_quantity')
+          .select('id, name, stock_quantity, is_deleted')
           .eq('sku', item.sku)
+          .eq('is_deleted', false) // Skip deleted products
           .limit(1);
 
         if (findError) {

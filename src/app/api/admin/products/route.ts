@@ -8,36 +8,134 @@ import {
 } from '@/lib/security/error-sanitizer';
 
 /**
- * Get products with filtering and pagination (Admin endpoint for testing)
+ * Get products with filtering and pagination (Admin endpoint with soft deletion support)
  * GET /api/admin/products
+ * Query params:
+ * - limit: number of products per page
+ * - offset: pagination offset
+ * - include_deleted: 'true' to include soft-deleted products
+ * - include_inactive: 'true' to include inactive products
+ * - status_filter: 'all', 'active', 'inactive', 'deleted'
  */
 export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('🔍 Admin Products API called');
-    
+
     const url = new URL(request.url);
     const searchParams = url.searchParams;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : 0;
+    const includeDeleted = searchParams.get('include_deleted') === 'true';
+    const includeInactive = searchParams.get('include_inactive') === 'true';
+    const statusFilter = searchParams.get('status_filter') || 'all';
 
-    console.log('📊 Query params:', { limit, offset });
+    console.log('📊 Query params:', {
+      limit,
+      offset,
+      includeDeleted,
+      includeInactive,
+      statusFilter
+    });
 
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
-    
+
     console.log('🔗 Supabase client created');
 
-    const { data: products, error, count } = await supabase
+    // Check if soft deletion columns exist by attempting a simple query
+    let hasSoftDeletionColumns = false;
+    try {
+      const { error: testError } = await supabase
+        .from('products')
+        .select('is_deleted')
+        .limit(0); // Limit 0 to avoid fetching data but still check schema
+
+      // If no error, the column exists
+      hasSoftDeletionColumns = !testError;
+
+      if (testError && testError.code === '42703') {
+        // Column does not exist error
+        console.log('⚠️ Soft deletion columns not found, using legacy mode');
+        hasSoftDeletionColumns = false;
+      } else if (testError) {
+        // Other error, assume columns don't exist for safety
+        console.log('⚠️ Column detection error, using legacy mode:', testError.message);
+        hasSoftDeletionColumns = false;
+      } else {
+        console.log('✅ Soft deletion columns detected');
+        hasSoftDeletionColumns = true;
+      }
+    } catch (error) {
+      console.log('⚠️ Column detection failed, using legacy mode:', error);
+      hasSoftDeletionColumns = false;
+    }
+
+    // Build query based on filters and column availability
+    let query = supabase
       .from('products')
-      .select('*', { count: 'exact' })
-      .eq('is_active', true)
+      .select('*', { count: 'exact' });
+
+    // Apply status filters based on available columns
+    if (hasSoftDeletionColumns) {
+      // New behavior with soft deletion support
+      switch (statusFilter) {
+        case 'active':
+          query = query.eq('is_active', true).eq('is_deleted', false);
+          break;
+        case 'inactive':
+          query = query.eq('is_active', false).eq('is_deleted', false);
+          break;
+        case 'deleted':
+          query = query.eq('is_deleted', true);
+          break;
+        case 'all':
+        default:
+          // Apply legacy filters if specific status not requested
+          if (!includeDeleted) {
+            query = query.eq('is_deleted', false);
+          }
+          if (!includeInactive && statusFilter !== 'deleted') {
+            query = query.eq('is_active', true);
+          }
+          break;
+      }
+    } else {
+      // Legacy behavior without soft deletion columns
+      switch (statusFilter) {
+        case 'active':
+          query = query.eq('is_active', true);
+          break;
+        case 'inactive':
+          query = query.eq('is_active', false);
+          break;
+        case 'deleted':
+          // Return empty result since no soft deletion support
+          console.log('📝 Deleted filter requested but soft deletion not available');
+          return NextResponse.json({
+            success: true,
+            data: [],
+            pagination: { total: 0, limit, offset },
+            message: 'Soft deletion not available - please apply database migration'
+          });
+        case 'all':
+        default:
+          // Only filter by is_active if includeInactive is false
+          if (!includeInactive) {
+            query = query.eq('is_active', true);
+          }
+          break;
+      }
+    }
+
+    const { data: products, error, count } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    console.log('📦 Database query result:', { 
-      productsCount: products?.length, 
-      totalCount: count, 
-      error: error?.message 
+    console.log('📦 Database query result:', {
+      productsCount: products?.length,
+      totalCount: count,
+      error: error?.message,
+      hasSoftDeletionColumns
     });
 
     if (error) {
@@ -49,15 +147,34 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       }, 'products fetch');
     }
 
+    console.log('✅ Products loaded successfully:', {
+      count: products?.length,
+      total: count,
+      softDeletionAvailable: hasSoftDeletionColumns
+    });
+
+    // Add soft deletion fields with default values if columns don't exist
+    const enhancedProducts = products?.map(product => ({
+      ...product,
+      is_deleted: hasSoftDeletionColumns ? product.is_deleted : false,
+      deleted_at: hasSoftDeletionColumns ? product.deleted_at : null,
+      deleted_by: hasSoftDeletionColumns ? product.deleted_by : null,
+      deleted_reason: hasSoftDeletionColumns ? product.deleted_reason : null
+    })) || [];
+
     return NextResponse.json({
       success: true,
-      data: products || [],
+      data: enhancedProducts,
       pagination: {
         total: count || 0,
         limit,
         offset,
         hasMore: (count || 0) > offset + limit,
       },
+      meta: {
+        softDeletionAvailable: hasSoftDeletionColumns,
+        message: hasSoftDeletionColumns ? null : 'Soft deletion features require database migration'
+      }
     });
 
   } catch (error) {

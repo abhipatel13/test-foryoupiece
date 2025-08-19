@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { getProductService } from '@/shared/utils/service-registry'
 import { Product } from '@/domain/entities/Product'
 import { formatPrice } from '@/lib/utils'
@@ -22,10 +23,15 @@ import {
   AlertTriangle,
   CheckCircle,
   Star,
-  Settings
+  Settings,
+  ImageIcon,
+  Trash2,
+  RotateCcw
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PointsRateModal } from '@/components/admin/points-rate-modal'
+import { ProductImagePreviewModal } from '@/components/admin/product-image-preview-modal'
+import { ProductDeleteConfirmationModal } from '@/components/admin/product-delete-confirmation-modal'
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -43,6 +49,26 @@ export default function AdminProductsPage() {
     points_rate?: number
   }[]>([])
   const [isPointsModalOpen, setIsPointsModalOpen] = useState(false)
+  const [imagePreviewModal, setImagePreviewModal] = useState<{
+    isOpen: boolean
+    images: string[]
+    productName: string
+    initialIndex: number
+  }>({
+    isOpen: false,
+    images: [],
+    productName: '',
+    initialIndex: 0
+  })
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean
+    product: Product | null
+    isDeleting: boolean
+  }>({
+    isOpen: false,
+    product: null,
+    isDeleting: false
+  })
 
   const productService = getProductService()
 
@@ -66,17 +92,10 @@ export default function AdminProductsPage() {
     try {
       setLoading(true)
 
-      const filters: any = {}
       const { offset } = calculatePagination(totalProducts, itemsPerPage, currentPage)
 
-      if (statusFilter === 'active') {
-        filters.isActive = true
-      } else if (statusFilter === 'inactive') {
-        filters.isActive = false
-      } else if (statusFilter === 'featured') {
-        filters.isFeatured = true
-      } else if (statusFilter === 'low-stock') {
-        // This will be handled by a separate method
+      // Handle low-stock filter separately using the service
+      if (statusFilter === 'low-stock') {
         const result = await productService.getLowStockProducts(itemsPerPage)
         if (result.success) {
           setProducts(result.data)
@@ -87,23 +106,48 @@ export default function AdminProductsPage() {
         return
       }
 
-      if (searchTerm) {
-        filters.searchQuery = searchTerm
-      }
-
-      const result = await productService.getProductsAdmin({
-        searchQuery: filters.searchQuery,
-        isActive: filters.isActive,
-        isFeatured: filters.isFeatured,
-        limit: itemsPerPage,
-        offset: offset,
-        sortBy: 'created_at',
-        sortDirection: 'desc'
+      // For other filters, call the API directly to support soft deletion
+      const params = new URLSearchParams({
+        limit: itemsPerPage.toString(),
+        offset: offset.toString(),
+        status_filter: statusFilter,
       })
 
+      if (searchTerm) {
+        params.append('search', searchTerm)
+      }
+
+      const response = await fetch(`/api/admin/products?${params.toString()}`)
+      const result = await response.json()
+
       if (result.success) {
-        setProducts(result.data.data)
-        setTotalProducts(result.data.total)
+        // Convert plain objects back to Product entities
+        const productEntities = result.data.map((productData: any) => {
+          // Create a Product entity from the plain object
+          // Note: This is a simplified conversion - in a real app you'd want proper entity reconstruction
+          return {
+            ...productData,
+            id: productData.id,
+            sku: { value: productData.sku },
+            nameEn: productData.name_en,
+            nameJa: productData.name_ja,
+            price: { value: productData.price, format: () => `$${productData.price.toFixed(2)}` },
+            stockQuantity: productData.stock_quantity,
+            lowStockThreshold: productData.low_stock_threshold || 5,
+            isActive: productData.is_active,
+            isFeatured: productData.is_featured || false,
+            isLowStock: () => productData.stock_quantity <= (productData.low_stock_threshold || 5),
+            isInStock: () => productData.stock_quantity > 0,
+            created_at: productData.created_at,
+            updated_at: productData.updated_at,
+            categoryId: productData.category_id,
+            images: productData.images || [],
+            is_deleted: productData.is_deleted || false
+          }
+        })
+
+        setProducts(productEntities)
+        setTotalProducts(result.pagination?.total || result.data.length)
       } else {
         toast.error('Failed to load products')
         console.error('Error loading products:', result.error)
@@ -146,6 +190,103 @@ export default function AdminProductsPage() {
     if (product.isLowStock()) return <AlertTriangle className="h-3 w-3" />
     if (!product.isInStock()) return <AlertTriangle className="h-3 w-3" />
     return <CheckCircle className="h-3 w-3" />
+  }
+
+  const openImagePreview = (images: string[], productName: string, initialIndex = 0) => {
+    setImagePreviewModal({
+      isOpen: true,
+      images,
+      productName,
+      initialIndex
+    })
+  }
+
+  const closeImagePreview = () => {
+    setImagePreviewModal({
+      isOpen: false,
+      images: [],
+      productName: '',
+      initialIndex: 0
+    })
+  }
+
+  const getProductThumbnail = (product: Product) => {
+    const images = (product as any).images || []
+    return images.length > 0 ? images[0] : null
+  }
+
+  const openDeleteModal = (product: Product) => {
+    setDeleteModal({
+      isOpen: true,
+      product,
+      isDeleting: false
+    })
+  }
+
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      product: null,
+      isDeleting: false
+    })
+  }
+
+  const handleDeleteProduct = async (reason?: string) => {
+    if (!deleteModal.product) return
+
+    setDeleteModal(prev => ({ ...prev, isDeleting: true }))
+
+    try {
+      const response = await fetch(`/api/admin/products/${deleteModal.product.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success('Product deleted successfully')
+        closeDeleteModal()
+        loadProducts() // Refresh the list
+      } else {
+        toast.error(result.error || 'Failed to delete product')
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error)
+      toast.error('Failed to delete product')
+    } finally {
+      setDeleteModal(prev => ({ ...prev, isDeleting: false }))
+    }
+  }
+
+  const handleRestoreProduct = async (product: Product) => {
+    try {
+      const response = await fetch(`/api/admin/products/${product.id}/restore`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success('Product restored successfully')
+        loadProducts() // Refresh the list
+      } else {
+        toast.error(result.error || 'Failed to restore product')
+      }
+    } catch (error) {
+      console.error('Error restoring product:', error)
+      toast.error('Failed to restore product')
+    }
+  }
+
+  const isProductDeleted = (product: Product) => {
+    return (product as any).is_deleted === true
   }
 
   // Remove client-side filtering since backend already handles search
@@ -211,6 +352,7 @@ export default function AdminProductsPage() {
                 <SelectItem value="all">All Products</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="deleted">Deleted</SelectItem>
                 <SelectItem value="featured">Featured</SelectItem>
                 <SelectItem value="low-stock">Low Stock</SelectItem>
               </SelectContent>
@@ -236,14 +378,43 @@ export default function AdminProductsPage() {
             <div className="space-y-4">
               {displayedProducts.map((product) => (
                 <div key={product.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Product Image Thumbnail */}
+                    <div className="flex-shrink-0">
+                      {getProductThumbnail(product) ? (
+                        <button
+                          onClick={() => openImagePreview(
+                            (product as any).images || [],
+                            product.nameEn,
+                            0
+                          )}
+                          className="relative w-12 h-12 rounded-md overflow-hidden border border-gray-200 hover:border-gray-300 transition-colors group"
+                        >
+                          <Image
+                            src={getProductThumbnail(product)!}
+                            alt={`${product.nameEn} thumbnail`}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform"
+                            sizes="48px"
+                          />
+                        </button>
+                      ) : (
+                        <div className="w-12 h-12 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center">
+                          <ImageIcon className="h-5 w-5 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-4 mb-2">
-                        <h3 className="font-semibold">{product.nameEn}</h3>
+                        <h3 className="font-semibold truncate">{product.nameEn}</h3>
                         <Badge className={getStatusColor(product)}>
                           {getStatusIcon(product)}
                           <span className="ml-1">{getStatusText(product)}</span>
                         </Badge>
+                        {isProductDeleted(product) && (
+                          <Badge variant="destructive">Deleted</Badge>
+                        )}
                         {product.isFeatured && (
                           <Badge variant="secondary">Featured</Badge>
                         )}
@@ -285,29 +456,54 @@ export default function AdminProductsPage() {
                           View
                         </Link>
                       </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/en/fyponly-admin/products/${product.id}/edit`}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedProducts([{
-                            id: product.id,
-                            name_en: product.nameEn,
-                            sku: product.sku.value,
-                            price: product.price.value,
-                            points_rate: (product as any).points_rate || 1.0
-                          }])
-                          setIsPointsModalOpen(true)
-                        }}
-                      >
-                        <Star className="h-4 w-4 mr-1" />
-                        Points
-                      </Button>
+
+                      {!isProductDeleted(product) && (
+                        <>
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/en/fyponly-admin/products/${product.id}/edit`}>
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Link>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedProducts([{
+                                id: product.id,
+                                name_en: product.nameEn,
+                                sku: product.sku.value,
+                                price: product.price.value,
+                                points_rate: (product as any).points_rate || 1.0
+                              }])
+                              setIsPointsModalOpen(true)
+                            }}
+                          >
+                            <Star className="h-4 w-4 mr-1" />
+                            Points
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => openDeleteModal(product)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        </>
+                      )}
+
+                      {isProductDeleted(product) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRestoreProduct(product)}
+                          className="text-green-600 hover:text-green-700 border-green-300 hover:border-green-400"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-1" />
+                          Restore
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -354,6 +550,24 @@ export default function AdminProductsPage() {
         onClose={() => setIsPointsModalOpen(false)}
         products={selectedProducts}
         onUpdate={loadProducts}
+      />
+
+      {/* Image Preview Modal */}
+      <ProductImagePreviewModal
+        isOpen={imagePreviewModal.isOpen}
+        onClose={closeImagePreview}
+        images={imagePreviewModal.images}
+        productName={imagePreviewModal.productName}
+        initialImageIndex={imagePreviewModal.initialIndex}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ProductDeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        onConfirm={handleDeleteProduct}
+        product={deleteModal.product}
+        isDeleting={deleteModal.isDeleting}
       />
     </div>
   )

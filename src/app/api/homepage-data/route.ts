@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
           category:categories(id, name_en, name_ja, slug)
         `)
         .eq('is_active', true)
+        .eq('is_deleted', false) // SECURITY FIX: Exclude soft-deleted products
         .not('compare_at_price', 'is', null)
         .gt('compare_at_price', 0)
         .order('compare_at_price', { ascending: false }) // Highest discounts first
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
           category:categories(id, name_en, name_ja, slug)
         `)
         .eq('is_active', true)
+        .eq('is_deleted', false) // SECURITY FIX: Exclude soft-deleted products
         .order('boxhero_last_sync_at', { ascending: false, nullsLast: true })
         .order('created_at', { ascending: false })
         .limit(recentlyAddedLimit),

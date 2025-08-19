@@ -76,7 +76,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('products')
       .select(safeFields, { count: 'exact' })
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .eq('is_deleted', false); // SECURITY FIX: Exclude soft-deleted products
 
     // STRICT CATEGORY FILTERING - NO KEYWORD FALLBACKS
     if (categorySlug) {

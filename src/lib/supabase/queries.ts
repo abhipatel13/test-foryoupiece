@@ -151,6 +151,9 @@ const productQueries = {
       query = query.eq('is_active', filters.is_active)
     }
 
+    // SECURITY FIX: Always exclude soft-deleted products from public queries
+    query = query.eq('is_deleted', false)
+
     query = query.order('created_at', { ascending: false })
 
     if (filters?.limit) {

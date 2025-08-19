@@ -536,7 +536,7 @@ export const PUT = withAdminAuth(async (
 });
 
 /**
- * Delete a product by ID (Admin)
+ * Delete a product by ID (Super Admin Only)
  * DELETE /api/admin/products/[id]
  */
 export const DELETE = withAdminAuth(async (
@@ -554,10 +554,34 @@ export const DELETE = withAdminAuth(async (
       }, { status: 400 });
     }
 
+    // ENHANCED SECURITY: Only super_admin can delete products
+    if (adminUser.role !== 'super_admin') {
+      console.warn(`🚫 Product deletion denied - insufficient permissions:`, {
+        userId: user.id,
+        email: adminUser.email,
+        role: adminUser.role,
+        productId: id,
+        timestamp: new Date().toISOString()
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'Only super administrators can delete products',
+        security: {
+          validated: false,
+          reason: 'Insufficient permissions for deletion',
+          requiredRole: 'super_admin',
+          currentRole: adminUser.role,
+          admin: adminUser.email,
+          operation: 'DELETE',
+          timestamp: new Date().toISOString()
+        }
+      }, { status: 403 });
+    }
+
     // Use Supabase service role client (bypasses RLS)
     const supabase = createServiceRoleClient();
 
-    // SECURITY FIX: Validate product access before allowing deletion
+    // Validate product access before allowing deletion
     const validation = await validateProductAccess(id, adminUser, supabase);
     if (!validation.valid) {
       console.warn(`🚫 Admin delete access denied for product ${id}: ${validation.error}`);
@@ -574,21 +598,63 @@ export const DELETE = withAdminAuth(async (
       }, { status: validation.error === 'Product not found' ? 404 : 403 });
     }
 
-    // Soft delete by setting is_active to false
-    const { data: deletedProduct, error } = await supabase
+    const product = validation.product;
+
+    // Get deletion reason from request body (optional)
+    let deletionReason = null;
+    try {
+      const body = await request.json();
+      deletionReason = body.reason || null;
+    } catch {
+      // No body or invalid JSON - continue without reason
+    }
+
+    console.log('🗑️ Starting product deletion process:', {
+      productId: id,
+      sku: product.sku,
+      name: product.name_en,
+      adminEmail: adminUser.email,
+      reason: deletionReason,
+      timestamp: new Date().toISOString()
+    });
+
+    // Begin comprehensive soft deletion process
+    const now = new Date().toISOString();
+
+    // Step 1: Update product with soft deletion fields
+    const { data: deletedProduct, error: deleteError } = await supabase
       .from('products')
-      .update({ 
+      .update({
         is_active: false,
-        updated_at: new Date().toISOString()
+        is_deleted: true,
+        deleted_at: now,
+        deleted_by: user.id,
+        deleted_reason: deletionReason,
+        updated_at: now
       })
       .eq('id', id)
       .select()
       .single();
 
-    if (error) {
-      console.error('Database delete error:', error);
-      
-      if (error.code === 'PGRST116') {
+    if (deleteError) {
+      console.error('❌ Product deletion failed:', deleteError);
+
+      // Log failed deletion attempt
+      await supabase.rpc('log_admin_action', {
+        p_actor_user_id: user.id,
+        p_actor_email: adminUser.email,
+        p_actor_role: adminUser.role,
+        p_action: 'product_delete',
+        p_resource_id: id,
+        p_resource_sku: product.sku,
+        p_resource_name: product.name_en,
+        p_reason: deletionReason,
+        p_success: false,
+        p_error_message: deleteError.message,
+        p_metadata: { step: 'product_update' }
+      });
+
+      if (deleteError.code === 'PGRST116') {
         return NextResponse.json({
           success: false,
           error: 'Product not found',
@@ -597,21 +663,125 @@ export const DELETE = withAdminAuth(async (
 
       return NextResponse.json({
         success: false,
-        error: error.message,
+        error: deleteError.message,
       }, { status: 500 });
     }
 
+    console.log('✅ Product soft deletion completed:', {
+      productId: id,
+      sku: product.sku,
+      deletedAt: now
+    });
+
+    // Step 2: Clean up related data
+    const cleanupResults = {
+      cartItems: 0,
+      wishlistItems: 0,
+      searchSuggestions: 0,
+      trendingFlags: false
+    };
+
+    try {
+      // Remove from active carts
+      const { count: cartItemsRemoved } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('product_id', id);
+      cleanupResults.cartItems = cartItemsRemoved || 0;
+
+      // Remove from wishlists
+      const { count: wishlistItemsRemoved } = await supabase
+        .from('wishlist_items')
+        .delete()
+        .eq('product_id', id);
+      cleanupResults.wishlistItems = wishlistItemsRemoved || 0;
+
+      // Deactivate search suggestions
+      const { count: searchSuggestionsUpdated } = await supabase
+        .from('search_suggestions')
+        .update({ is_active: false })
+        .eq('product_id', id);
+      cleanupResults.searchSuggestions = searchSuggestionsUpdated || 0;
+
+      // Clear trending and best seller flags
+      if (deletedProduct.is_trending || deletedProduct.is_best_seller) {
+        await supabase
+          .from('products')
+          .update({
+            is_trending: false,
+            is_best_seller: false,
+            best_seller_position: null,
+            updated_at: now
+          })
+          .eq('id', id);
+        cleanupResults.trendingFlags = true;
+      }
+
+      console.log('🧹 Related data cleanup completed:', cleanupResults);
+
+    } catch (cleanupError) {
+      console.warn('⚠️ Some cleanup operations failed:', cleanupError);
+      // Continue - cleanup failures shouldn't fail the deletion
+    }
+
+    // Step 3: Log successful deletion
+    await supabase.rpc('log_admin_action', {
+      p_actor_user_id: user.id,
+      p_actor_email: adminUser.email,
+      p_actor_role: adminUser.role,
+      p_action: 'product_delete',
+      p_resource_id: id,
+      p_resource_sku: product.sku,
+      p_resource_name: product.name_en,
+      p_reason: deletionReason,
+      p_success: true,
+      p_metadata: {
+        cleanup_results: cleanupResults,
+        soft_deletion: true,
+        deleted_at: now
+      }
+    });
+
+    console.log('✅ Product deletion completed successfully:', {
+      productId: id,
+      sku: product.sku,
+      cleanupResults
+    });
+
     return NextResponse.json({
       success: true,
-      data: deletedProduct,
+      data: {
+        ...deletedProduct,
+        cleanup_results: cleanupResults
+      },
       message: 'Product deleted successfully',
     });
 
   } catch (error) {
-    console.error('Failed to delete product:', error);
+    console.error('❌ Failed to delete product:', error);
+
+    // Log failed deletion attempt if we have the necessary info
+    try {
+      const supabase = createServiceRoleClient();
+      await supabase.rpc('log_admin_action', {
+        p_actor_user_id: user.id,
+        p_actor_email: adminUser.email,
+        p_actor_role: adminUser.role,
+        p_action: 'product_delete',
+        p_resource_id: id,
+        p_success: false,
+        p_error_message: error instanceof Error ? error.message : 'Unknown error',
+        p_metadata: { step: 'general_error' }
+      });
+    } catch (logError) {
+      console.error('Failed to log deletion error:', logError);
+    }
+
     return NextResponse.json({
       success: false,
       error: 'Internal server error',
     }, { status: 500 });
   }
 });
+
+
