@@ -106,12 +106,17 @@ export class TelegramCallbackHandler {
         return true; // Not an error, just not relevant
       }
 
-      // Check if message is "/done" command
-      const messageText = message.text.trim().toLowerCase();
-      if (messageText !== '/done') {
-        console.log(`📱 Message is not "/done" command: "${message.text}", ignoring`);
-        return true; // Not an error, just not the command we're looking for
+      // Check if message contains an order ID pattern (Direct Order ID Detection)
+      const messageText = message.text.trim();
+      const orderIdMatch = messageText.match(/\b(FYP-\d{8}-\d+-[A-Z0-9]+)\b/i);
+
+      if (!orderIdMatch) {
+        console.log(`📱 Message does not contain order ID pattern: "${message.text}", ignoring`);
+        return true; // Not an error, just not an order confirmation
       }
+
+      const orderId = orderIdMatch[1].toUpperCase(); // Normalize to uppercase
+      console.log(`📱 Detected order ID for confirmation: ${orderId}`);
 
       // Security check: Validate user authorization
       if (!this.isAuthorizedUser(message.from.id, message.from.username)) {
@@ -120,16 +125,18 @@ export class TelegramCallbackHandler {
         return false;
       }
 
-      // Find the most recent pending order notification in this thread
-      const pendingOrder = await this.findPendingOrderFromThread(message.chat.id, message.message_thread_id);
+      // Look up the order by ID
+      console.log(`🎯 Looking up order ID: ${orderId}`);
+      const pendingOrder = await this.findOrderByNumber(orderId);
 
       if (!pendingOrder) {
-        console.log('❌ No pending order found for /done command');
-        await this.sendReplyMessage(message.chat.id, message.message_id, '❌ No pending order found to mark as done');
+        console.log(`❌ Order ${orderId} not found or not in pending state`);
+        await this.sendReplyMessage(message.chat.id, message.message_id,
+          `❌ Order ${orderId} not found or not ready for confirmation. Please check the order number.`);
         return false;
       }
 
-      console.log(`🎯 Processing /done for order: ${pendingOrder.order_number}`);
+      console.log(`🎯 Processing confirmation for order: ${pendingOrder.order_number}`);
 
       // Process the arrival confirmation
       const processedBy = this.formatUserName(message.from);
@@ -137,13 +144,13 @@ export class TelegramCallbackHandler {
 
       if (success) {
         await this.sendReplyMessage(message.chat.id, message.message_id,
-          `✅ Order ${pendingOrder.order_number} marked as done and completed!`);
-        console.log(`✅ Successfully processed /done for order ${pendingOrder.order_number}`);
+          `✅ Order ${pendingOrder.order_number} confirmed and completed!`);
+        console.log(`✅ Successfully processed confirmation for order ${pendingOrder.order_number}`);
         return true;
       } else {
         await this.sendReplyMessage(message.chat.id, message.message_id,
-          `❌ Failed to process completion for order ${pendingOrder.order_number}`);
-        console.error(`❌ Failed to process /done for order ${pendingOrder.order_number}`);
+          `❌ Failed to process confirmation for order ${pendingOrder.order_number}`);
+        console.error(`❌ Failed to process confirmation for order ${pendingOrder.order_number}`);
         return false;
       }
 
@@ -804,68 +811,8 @@ ${emoji} <b>ORDER ${actionText}</b>
     }
   }
 
-  /**
-   * Find the most recent pending order from the thread
-   */
-  private async findPendingOrderFromThread(chatId: number, threadId?: number): Promise<any> {
-    try {
-      const supabase = createServiceRoleClient();
 
-      // Find the most recent order with notification_sent workflow state (waiting for arrival confirmation)
-      // FIXED: Use the SAME COMPLETE QUERY as getOrderDetails to ensure all customer data is available
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            title,
-            quantity,
-            price,
-            total
-          ),
-          users!orders_user_id_fkey (
-            first_name,
-            last_name,
-            email,
-            phone
-          )
-        `)
-        .eq('telegram_workflow_state', 'notification_sent')
-        .not('telegram_message_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1);
 
-      if (error) {
-        console.error('❌ Error finding pending order:', error);
-        return null;
-      }
-
-      if (!orders || orders.length === 0) {
-        console.log('📱 No orders waiting for arrival confirmation found');
-        return null;
-      }
-
-      const order = orders[0];
-      console.log(`📱 Found order ${order.order_number} waiting for arrival confirmation`);
-      console.log('✅ Order data completeness check:', {
-        orderNumber: order.order_number,
-        hasUserData: !!order.users,
-        hasOrderItems: !!(order.order_items && order.order_items.length > 0),
-        hasShippingAddress: !!order.shipping_address,
-        shippingAddressType: typeof order.shipping_address,
-        customerName: order.users ? `${order.users.first_name || ''} ${order.users.last_name || ''}`.trim() : 'No user data',
-        customerPhone: order.phone || 'No phone in order',
-        userPhone: order.users?.phone || 'No phone in user profile',
-        abaBank: order.shipping_address?.abaBankName || 'No ABA bank',
-        fixVersion: 'v3.0-complete-query-fix' // Track this fix
-      });
-
-      return order;
-    } catch (error) {
-      console.error('❌ Error finding pending order from thread:', error);
-      return null;
-    }
-  }
 
   /**
    * Process arrival confirmation and update order status
@@ -918,6 +865,63 @@ ${emoji} <b>ORDER ${actionText}</b>
     } catch (error) {
       console.error('❌ Error processing arrival confirmation:', error);
       return false;
+    }
+  }
+
+
+
+
+
+  /**
+   * Find order by order number
+   */
+  private async findOrderByNumber(orderNumber: string): Promise<any> {
+    try {
+      const supabase = createServiceRoleClient();
+
+      // Use the same complete query as other methods to ensure all data is available
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            title,
+            quantity,
+            price,
+            total
+          ),
+          users!orders_user_id_fkey (
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
+        .eq('order_number', orderNumber)
+        .eq('telegram_workflow_state', 'notification_sent')
+        .not('telegram_message_id', 'is', null)
+        .single();
+
+      if (error) {
+        // Handle the specific case where no rows are returned (PGRST116)
+        if (error.code === 'PGRST116') {
+          console.log(`📱 Order ${orderNumber} not found or not in notification_sent state`);
+          return null;
+        }
+        console.error(`❌ Error finding order ${orderNumber}:`, error);
+        return null;
+      }
+
+      if (!order) {
+        console.log(`📱 Order ${orderNumber} not found or not in notification_sent state`);
+        return null;
+      }
+
+      console.log(`📱 Found order ${order.order_number} by order number`);
+      return order;
+    } catch (error) {
+      console.error(`❌ Error finding order by number ${orderNumber}:`, error);
+      return null;
     }
   }
 }
