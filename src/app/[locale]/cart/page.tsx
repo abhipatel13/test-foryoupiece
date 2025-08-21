@@ -215,7 +215,7 @@ export default function CartPage() {
               <p className="text-gray-600 mb-8">
                 Looks like you haven't added any items to your cart yet.
               </p>
-              <Button asChild className="amazon-button-primary">
+              <Button asChild className="amazon-button-primary w-auto sm:w-auto min-h-[44px] h-10 px-4 py-2">
                 <Link href="/en/products">
                   Continue Shopping
                 </Link>
@@ -231,7 +231,7 @@ export default function CartPage() {
     <div className="bg-gray-50 min-h-screen">
       {/* Breadcrumb - Mobile Responsive */}
       <div className="bg-white border-b">
-        <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-3 max-w-screen-2xl">
+        <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-3 max-w-screen-2xl">
           <div className="text-xs sm:text-sm text-gray-600">
             <Link href="/" className="hover:text-gray-900">Home</Link>
             {' > '}
@@ -240,10 +240,10 @@ export default function CartPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-screen-2xl">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-screen-2xl">
         {/* Amazon-Style Urgency Banner */}
         {itemCount > 0 && (
-          <div className="mb-4 sm:mb-6 bg-orange-50 border-l-4 border-orange-400 p-3 sm:p-4 rounded-r-lg">
+          <div className="mb-4 sm:mb-6 bg-orange-50 border-l-4 border-orange-400 p-2 sm:p-3 rounded-r-lg">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="h-2 w-2 bg-orange-500 rounded-full animate-pulse"></div>
@@ -260,33 +260,35 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* Enhanced Header - Mobile Responsive */}
-        <div className="mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 mb-2">Shopping Cart</h1>
-          <div className="flex items-center justify-between">
+        {/* Enhanced Header - Mobile Optimized */}
+        <div className="mb-3 sm:mb-4 lg:mb-6">
+          <h1 className="text-base sm:text-xl lg:text-2xl font-semibold text-gray-900 mb-1 sm:mb-2">Shopping Cart</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
             <p className="text-sm sm:text-base text-gray-600">
               {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'} in your cart
             </p>
             {totalSavings > 0 && (
-              <div className="text-sm font-medium text-green-700 bg-green-50 px-3 py-1 rounded-full">
+              <div className="text-xs sm:text-sm font-medium text-green-700 bg-green-50 px-2 sm:px-3 py-1 rounded-full">
                 You're saving {formatPrice(totalSavings)}!
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-8">
           {/* Left Side - Cart Items and Key Actions (3/4 width on desktop) */}
-          <div className="lg:col-span-3 space-y-4 lg:space-y-6">
-            {/* Cart Items Section - Improved Layout */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Clean Header */}
-              <div className="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
+          <div className="lg:col-span-3 space-y-3 sm:space-y-4 lg:space-y-6">
+            {/* Cart Items Section - Mobile Optimized Layout */}
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Clean Header - Mobile Optimized */}
+              <div className="p-2 sm:p-4 lg:p-6 border-b border-gray-200 bg-gray-50">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Checkbox className="h-4 w-4" />
-                    <span className="text-sm font-semibold text-gray-900">Select all items</span>
-                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                  <div className="flex items-center space-x-1.5 sm:space-x-3">
+                    <div className="touch-target-44 inline-flex items-center justify-center">
+                      <Checkbox aria-label="Select all items" className="h-3 w-3" />
+                    </div>
+                    <span className="text-xs sm:text-sm font-semibold text-gray-900">Select all items</span>
+                    <span className="text-xs text-gray-500 bg-gray-200 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                       {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'}
                     </span>
                     {stockValidationResult?.hasIssues && (
@@ -301,19 +303,23 @@ export default function CartPage() {
                       size="sm"
                       onClick={performStockValidation}
                       disabled={isValidatingStock}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm px-3 py-2 rounded-lg transition-all duration-200 font-medium"
+                      aria-label={isValidatingStock ? 'Checking stock availability' : 'Check stock availability for all items'}
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs sm:text-sm px-1.5 sm:px-2 lg:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-200 font-medium min-h-[44px] h-8 sm:h-9 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${isValidatingStock ? 'animate-spin' : ''}`} />
-                      {isValidatingStock ? 'Checking...' : 'Check Stock'}
+                      <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${isValidatingStock ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">{isValidatingStock ? 'Checking...' : 'Check Stock'}</span>
+                      <span className="sm:hidden text-xs">{isValidatingStock ? 'Check...' : 'Stock'}</span>
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={handleClearCart}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm px-4 py-2 rounded-lg transition-all duration-200 font-medium"
+                      aria-label="Clear all items from cart"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs sm:text-sm px-1.5 sm:px-2 lg:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-200 font-medium min-h-[44px] h-8 sm:h-9 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Clear Cart
+                      <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Clear Cart</span>
+                      <span className="sm:hidden text-xs">Clear</span>
                     </Button>
                   </div>
                 </div>
@@ -322,31 +328,31 @@ export default function CartPage() {
               {/* Improved Cart Items Layout */}
               <div className="divide-y divide-gray-100">
                 {items.map((item) => (
-                  <div key={generateCartItemKey(item.id, item.variant)} className="p-4 sm:p-6 hover:bg-gray-50 transition-all duration-200">
-                    <div className="flex flex-col sm:flex-row sm:items-start space-y-4 sm:space-y-0 sm:space-x-5">
+                  <div key={generateCartItemKey(item.id, item.variant)} className="p-2 sm:p-4 lg:p-6 hover:bg-gray-50 transition-all duration-200">
+                    <div className="flex flex-col sm:flex-row sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
                       {/* Left Section: Checkbox and Image */}
-                      <div className="flex items-start space-x-4 sm:contents">
+                      <div className="flex items-start space-x-3 sm:contents">
                         {/* Checkbox */}
-                        <div className="pt-2">
+                        <div className="pt-1 sm:pt-2">
                           <Checkbox className="h-4 w-4" />
                         </div>
 
-                        {/* Enhanced Product Image */}
-                        <div className="relative w-20 h-20 sm:w-32 sm:h-32 lg:w-36 lg:h-36 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                        {/* Enhanced Product Image - Mobile Optimized */}
+                        <div className="relative w-14 h-14 sm:w-24 sm:h-24 lg:w-32 lg:h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                           <Image
                             src={item.image}
                             alt={item.name}
                             fill
-                            className="object-contain p-2 sm:p-3"
-                            sizes="(max-width: 640px) 80px, (max-width: 1024px) 128px, 144px"
+                            className="object-contain p-1 sm:p-2"
+                            sizes="(max-width: 640px) 64px, (max-width: 1024px) 96px, 128px"
                           />
                         </div>
 
-                        {/* Product Information - Improved */}
+                        {/* Product Information - Mobile Optimized */}
                         <div className="flex-1 min-w-0 sm:contents">
-                          <div className="space-y-3 sm:flex-1 sm:min-w-0">
-                            {/* Product Name - More Prominent */}
-                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2 leading-tight">
+                          <div className="space-y-2 sm:space-y-3 sm:flex-1 sm:min-w-0">
+                            {/* Product Name - Mobile Optimized */}
+                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 line-clamp-2 leading-tight">
                               {item.name}
                             </h3>
 
@@ -359,28 +365,28 @@ export default function CartPage() {
 
                                 if (status === 'out_of_stock') {
                                   return (
-                                    <div className="flex items-center text-sm text-red-700 font-medium bg-red-50 px-2 py-1 rounded-md">
+                                    <div className="flex items-center text-xs text-red-700 font-medium bg-red-50 px-1.5 py-0.5 rounded-md">
                                       <AlertTriangle className="w-3 h-3 mr-2" />
                                       <span>Out of Stock</span>
                                     </div>
                                   )
                                 } else if (status === 'insufficient_stock') {
                                   return (
-                                    <div className="flex items-center text-sm text-orange-700 font-medium bg-orange-50 px-2 py-1 rounded-md">
+                                    <div className="flex items-center text-xs text-orange-700 font-medium bg-orange-50 px-1.5 py-0.5 rounded-md">
                                       <AlertTriangle className="w-3 h-3 mr-2" />
                                       <span>{message}</span>
                                     </div>
                                   )
                                 } else if (status === 'low_stock') {
                                   return (
-                                    <div className="flex items-center text-sm text-yellow-700 font-medium bg-yellow-50 px-2 py-1 rounded-md">
+                                    <div className="flex items-center text-xs text-yellow-700 font-medium bg-yellow-50 px-1.5 py-0.5 rounded-md">
                                       <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
                                       <span>{message}</span>
                                     </div>
                                   )
                                 } else {
                                   return (
-                                    <div className="flex items-center text-sm text-green-700 font-medium bg-green-50 px-2 py-1 rounded-md">
+                                    <div className="flex items-center text-xs text-green-700 font-medium bg-green-50 px-1.5 py-0.5 rounded-md">
                                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                                       <span>In Stock</span>
                                     </div>
@@ -417,12 +423,14 @@ export default function CartPage() {
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-4 sm:space-y-0 sm:space-x-6">
                         {/* Actions Section - Streamlined */}
                         <div className="flex flex-col space-y-4">
-                          {/* Quantity Selector - Clean Design */}
-                          <div className="bg-gray-50 p-3 rounded-lg">
+                          {/* Quantity Selector - Enterprise Accessibility */}
+                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg overflow-x-hidden">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-700">Quantity</span>
+                              <label htmlFor={`quantity-${item.id}-${item.variant || 'default'}`} className="text-sm font-medium text-gray-700">
+                                Quantity
+                              </label>
                               {item.stockQuantity && item.stockQuantity <= 5 && (
-                                <span className="text-xs text-orange-600 font-medium">
+                                <span className="text-xs text-orange-600 font-medium" role="status" aria-live="polite">
                                   Max: {item.stockQuantity}
                                 </span>
                               )}
@@ -431,7 +439,11 @@ export default function CartPage() {
                               value={item.quantity.toString()}
                               onValueChange={(value) => handleQuantityChange(item.id, parseInt(value), item.variant)}
                             >
-                              <SelectTrigger className="w-full h-10 text-sm border-gray-300 rounded-md shadow-sm hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                              <SelectTrigger
+                                id={`quantity-${item.id}-${item.variant || 'default'}`}
+                                aria-label={`Change quantity for ${item.name}`}
+                                className="w-16 sm:w-20 h-9 text-xs sm:text-sm border-gray-300 rounded-md shadow-sm hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 touch-target-44"
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -445,28 +457,32 @@ export default function CartPage() {
                           </div>
 
                           {/* Streamlined Action Buttons - Enterprise UX */}
-                          <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-2 sm:gap-4 text-sm">
                             {/* Primary Action - Delete */}
                             <button
                               onClick={() => handleRemoveItem(item.id, item.variant)}
-                              className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md font-medium transition-all duration-200 min-h-[44px] sm:min-h-[36px]"
+                              aria-label={`Remove ${item.name} from cart`}
+                              className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all duration-200 min-h-[44px] h-8 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span className="hidden sm:inline">Delete</span>
                             </button>
 
                             {/* Secondary Action - Save for Later */}
-                            <button className="flex items-center gap-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 px-3 py-2 rounded-md font-medium transition-all duration-200 min-h-[44px] sm:min-h-[36px]">
-                              <Heart className="h-4 w-4" />
+                            <button
+                              aria-label={`Save ${item.name} for later`}
+                              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all duration-200 min-h-[44px] h-8 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                            >
+                              <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span className="hidden sm:inline">Save</span>
                             </button>
                           </div>
                         </div>
 
                         {/* Enhanced Price Display - Amazon Style */}
-                        <div className="text-right sm:text-right sm:min-w-[120px]">
+                        <div className="text-right sm:text-right sm:min-w-[120px] min-w-0">
                           {/* Total Price for Quantity */}
-                          <div className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
+                          <div className="text-base sm:text-xl font-bold text-gray-900 mb-1">
                             {formatPrice(item.price * item.quantity)}
                           </div>
 
@@ -515,16 +531,16 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* Prominent Order Total and Checkout Section - Improved UX */}
+            {/* Prominent Order Total and Checkout Section - Mobile Optimized */}
             <div className="bg-white rounded-lg shadow-md border border-gray-200">
-              <div className="p-4 sm:p-6">
+              <div className="p-3 sm:p-4 lg:p-6">
                 {/* Order Summary Header */}
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold text-gray-900">Order Summary</h2>
+                <div className="mb-3 sm:mb-4">
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Order Summary</h2>
                 </div>
 
-                {/* Order Breakdown */}
-                <div className="space-y-3 mb-6">
+                {/* Order Breakdown - Mobile Optimized */}
+                <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Subtotal ({totalQuantity} {totalQuantity === 1 ? 'item' : 'items'})</span>
                     <span className="text-gray-900 font-medium">{formatPrice(subtotal)}</span>
@@ -555,32 +571,32 @@ export default function CartPage() {
                   )}
                 </div>
 
-                {/* MINIMALISTIC FINAL TOTAL */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-5 mb-6">
+                {/* MINIMALISTIC FINAL TOTAL - Mobile Optimized */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-4 lg:p-5 mb-4 sm:mb-6">
                   <div className="text-center">
-                    <div className="text-sm font-medium mb-2 text-slate-600">
+                    <div className="text-sm font-medium mb-1 sm:mb-2 text-slate-600">
                       Total to Pay
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-slate-900">
+                    <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900">
                       {formatPrice(finalTotalWithCouponAndPoints)}
                     </div>
-                    <div className="text-sm text-slate-500 mt-1">
+                    <div className="text-xs sm:text-sm text-slate-500 mt-1">
                       Final amount at checkout
                     </div>
                   </div>
                 </div>
 
-                {/* MOBILE-OPTIMIZED CHECKOUT BUTTON - Reduced sizing for better mobile UX */}
+                {/* MOBILE-OPTIMIZED CHECKOUT BUTTON - Enterprise-level sizing and design */}
                 {stockValidationResult?.canCheckout === false ? (
                   <div className="space-y-3">
                     <Button
                       disabled
-                      className="group relative w-full min-h-[44px] h-12 sm:h-14 lg:h-16 text-sm sm:text-base lg:text-lg font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
+                      className="group relative w-full min-h-[44px] h-11 sm:h-12 text-sm sm:text-base font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
                     >
-                      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-3 sm:py-4 lg:py-5">
-                        <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-gray-400" strokeWidth={1.5} />
+                      <div className="flex items-center justify-center gap-2 px-4 py-2">
+                        <AlertTriangle className="h-4 w-4 text-gray-400" strokeWidth={1.5} />
                         <div className="flex flex-col items-center">
-                          <span className="font-semibold text-gray-400 leading-tight text-sm sm:text-base lg:text-lg">
+                          <span className="font-semibold text-gray-400 leading-tight text-sm sm:text-base">
                             Cannot Proceed to Checkout
                           </span>
                           <span className="text-xs sm:text-sm lg:text-base text-gray-400 mt-0.5">
@@ -589,44 +605,50 @@ export default function CartPage() {
                         </div>
                       </div>
                     </Button>
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <div className="flex items-start space-x-2">
-                        <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-orange-800">
-                          <p className="font-medium">Stock Issues Detected</p>
-                          <p className="mt-1">Some items in your cart are out of stock or have insufficient quantity. Please update your cart or remove unavailable items to continue.</p>
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4" role="alert" aria-live="polite">
+                      <div className="flex items-start space-x-2 sm:space-x-3">
+                        <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm sm:text-base text-orange-800">
+                          <p className="font-semibold mb-1">Stock Issues Detected</p>
+                          <p className="leading-relaxed">Some items in your cart are out of stock or have insufficient quantity. Please update your cart or remove unavailable items to continue.</p>
+                          <button
+                            onClick={performStockValidation}
+                            className="mt-2 text-orange-700 hover:text-orange-800 font-medium underline focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded"
+                          >
+                            Check stock again
+                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <Button asChild className="group relative w-full min-h-[44px] h-12 sm:h-14 lg:h-16 text-sm sm:text-base lg:text-lg font-semibold bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 mb-4">
-                    <Link href="/en/checkout" className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-3 sm:py-4 lg:py-5">
-                      {/* Icon */}
-                      <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-slate-600 group-hover:text-slate-700 transition-colors duration-200" strokeWidth={1.5} />
+                  <Button asChild className="group relative w-full min-h-[44px] h-10 sm:h-11 lg:h-12 text-sm sm:text-base font-semibold bg-black hover:bg-gray-800 text-white border border-black rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 mb-4">
+                    <Link href="/en/checkout" className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2">
+                      {/* Icon - Hidden on very small screens */}
+                      <CreditCard className="hidden xs:block h-3 w-3 sm:h-4 sm:w-4 text-white" strokeWidth={1.5} />
 
-                      {/* Text content */}
+                      {/* Text content - Optimized for mobile */}
                       <div className="flex flex-col items-center">
-                        <span className="font-semibold text-slate-900 leading-tight text-sm sm:text-base lg:text-lg">
+                        <span className="font-semibold text-white leading-tight text-sm sm:text-base">
                           Proceed to Checkout
                         </span>
-                        <span className="text-xs sm:text-sm lg:text-base text-slate-600 group-hover:text-slate-700 transition-colors duration-200 mt-0.5">
+                        <span className="text-xs sm:text-sm text-gray-200 font-medium">
                           Pay {formatPrice(finalTotalWithCouponAndPoints)}
                         </span>
                       </div>
 
-                      {/* Arrow indicator */}
-                      <svg className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      {/* Arrow indicator - Hidden on very small screens */}
+                      <svg className="hidden xs:block h-3 w-3 sm:h-4 sm:w-4 text-gray-300 group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
                     </Link>
                   </Button>
                 )}
 
-                {/* Security Notice */}
-                <div className="flex items-center justify-center text-sm text-gray-600">
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span>Secure checkout with 256-bit SSL encryption</span>
+                {/* Enhanced Security Notice - Enterprise UX */}
+                <div className="flex items-center justify-center text-xs sm:text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                  <Shield className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-green-600" />
+                  <span className="font-medium">Secure checkout with 256-bit SSL encryption</span>
                 </div>
               </div>
             </div>
@@ -663,11 +685,16 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {/* Gift Option - Simplified */}
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <Checkbox />
+                {/* Gift Option - Enhanced UX */}
+                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                  <Checkbox id="gift-option" aria-describedby="gift-description" />
                   <Gift className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm text-gray-700">This order contains a gift</span>
+                  <label htmlFor="gift-option" className="text-sm text-gray-700 cursor-pointer flex-1">
+                    <span className="font-medium">This order contains a gift</span>
+                    <span id="gift-description" className="block text-xs text-gray-500 mt-0.5">
+                      Gift wrapping and message options will be available at checkout
+                    </span>
+                  </label>
                 </div>
 
                 {/* Mobile-First: Coupon Input - Moved to main flow on mobile */}
@@ -752,7 +779,7 @@ export default function CartPage() {
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Need more items?</h3>
                 <p className="text-xs sm:text-sm text-gray-600">Continue shopping to discover more products</p>
               </div>
-              <Button asChild variant="outline" className="w-full sm:w-auto min-h-[44px] h-10 sm:h-auto">
+              <Button asChild variant="outline" className="w-auto sm:w-auto min-h-[44px] h-9 sm:h-10 px-3 py-1.5 self-start">
                 <Link href="/en/products" className="flex items-center justify-center gap-2">
                   <ArrowLeft className="h-4 w-4" />
                   <span className="text-sm sm:text-base">Continue Shopping</span>
