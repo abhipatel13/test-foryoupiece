@@ -38,6 +38,10 @@ export function createServiceRoleClient() {
         update: () => ({ data: null, error: null }),
         delete: () => ({ data: null, error: null }),
       }),
+      rpc: (functionName: string, params?: any) => {
+        console.warn(`🚨 Mock service role client: RPC call to ${functionName} with params:`, params);
+        return Promise.resolve({ data: null, error: { message: 'Mock client - RPC not available during build' } });
+      },
     } as any
   }
 

@@ -725,22 +725,34 @@ export const DELETE = withAdminAuth(async (
     }
 
     // Step 3: Log successful deletion
-    await supabase.rpc('log_admin_action', {
-      p_actor_user_id: user.id,
-      p_actor_email: adminUser.email,
-      p_actor_role: adminUser.role,
-      p_action: 'product_delete',
-      p_resource_id: id,
-      p_resource_sku: product.sku,
-      p_resource_name: product.name_en,
-      p_reason: deletionReason,
-      p_success: true,
-      p_metadata: {
-        cleanup_results: cleanupResults,
-        soft_deletion: true,
-        deleted_at: now
+    try {
+      const { data: logResult, error: logError } = await supabase.rpc('log_admin_action', {
+        p_actor_user_id: user.id,
+        p_actor_email: adminUser.email,
+        p_actor_role: adminUser.role,
+        p_action: 'product_delete',
+        p_resource_id: id,
+        p_resource_sku: product.sku,
+        p_resource_name: product.name_en,
+        p_reason: deletionReason,
+        p_success: true,
+        p_metadata: {
+          cleanup_results: cleanupResults,
+          soft_deletion: true,
+          deleted_at: now
+        }
+      });
+
+      if (logError) {
+        console.error('❌ Failed to log admin action:', logError);
+        // Don't fail the deletion if logging fails, but log the error
+      } else {
+        console.log('📝 Admin action logged successfully:', logResult);
       }
-    });
+    } catch (rpcError) {
+      console.error('❌ RPC call failed for admin action logging:', rpcError);
+      // Don't fail the deletion if logging fails, but log the error
+    }
 
     console.log('✅ Product deletion completed successfully:', {
       productId: id,
