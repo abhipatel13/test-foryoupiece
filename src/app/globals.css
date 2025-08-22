@@ -1974,6 +1974,74 @@ input, textarea, select {
     min-width: 44px;
   }
 
+  /* Cart-specific: checkbox visual size tuned for mobile, with !important to override base h-4 w-4 */
+  .cart-checkbox { height: 12px !important; width: 12px !important; min-height: 0 !important; min-width: 0 !important; display: inline-block; }
+  /* 375-ish phones (iPhone X/12/13 mini/SE 2nd gen) */
+  @media (min-width: 360px) and (max-width: 413px) {
+    .cart-checkbox { height: 13px !important; width: 13px !important; }
+  }
+  /* 414–767 (large phones / small tablets portrait) */
+  @media (min-width: 414px) and (max-width: 767px) {
+    .cart-checkbox { height: 14px !important; width: 14px !important; }
+  }
+
+  /* Cart-specific touch targets: keep comfortable without feeling bloated */
+  .cart-touch-target { min-height: 32px; min-width: 32px; display: inline-flex; align-items: center; justify-content: center; overflow: visible; }
+  /* Compact cart item rows on narrow phones */
+  @media (max-width: 413px) {
+    .cart-item-row { row-gap: 6px; }
+    .cart-item-actions { gap: 8px; }
+    .cart-price-col { min-width: 100px; }
+  }
+  @media (min-width: 360px) and (max-width: 413px) { .cart-touch-target { min-height: 36px; min-width: 36px; } }
+  @media (min-width: 414px) and (max-width: 767px) { .cart-touch-target { min-height: 40px; min-width: 40px; } }
+
+  /* Mobile-optimized checkbox sizes for better touch interaction */
+  .mobile-checkbox-sm {
+    height: 0.875rem; /* 14px - better than current 10px for mobile */
+    width: 0.875rem;
+  }
+
+  .mobile-checkbox-md {
+    height: 1rem; /* 16px - standard size for tablet+ */
+    width: 1rem;
+  }
+
+  /* Improved mobile touch targets - better than current 36px minimum */
+  .mobile-touch-target {
+    min-height: 40px;
+    min-width: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Cart-specific touch target improvements for mobile */
+  @media (max-width: 768px) {
+    .touch-target-sm {
+      min-height: 40px; /* Improved from 36px */
+      min-width: 40px;
+    }
+
+    /* Refined cart mobile compact mode: better balance of compact and usable */
+    .cart-mobile-compact .p-1 { padding: 0.5rem; } /* Improved from 0.25rem */
+    .cart-mobile-compact .p-1.5 { padding: 0.5rem; } /* Slightly more breathing room */
+    .cart-mobile-compact .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+    .cart-mobile-compact .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    .cart-mobile-compact .space-y-1.5 > * + * { margin-top: 0.5rem; } /* Improved spacing */
+    .cart-mobile-compact .space-x-1 > * + * { margin-left: 0.5rem; } /* Better horizontal spacing */
+    .cart-mobile-compact .gap-1.5 { gap: 0.5rem; } /* Improved gap */
+    .cart-mobile-compact .gap-2 { gap: 0.5rem; }
+    .cart-mobile-compact .text-base { font-size: 0.95rem; }
+    .cart-mobile-compact .text-xl { font-size: 1.125rem; }
+    .cart-mobile-compact .rounded-lg { border-radius: 0.5rem; }
+    .cart-mobile-compact .h-12 { height: 2.5rem; }
+    .cart-mobile-compact .h-11 { height: 2.375rem; }
+    .cart-mobile-compact .h-10 { height: 2.25rem; }
+    .cart-mobile-compact .min-h-\[44px\] { min-height: 40px; } /* Improved from 36px */
+    .cart-mobile-compact .min-h-\[36px\] { min-height: 40px; } /* Ensure consistent sizing */
+  }
+
   /* ENHANCED: Line clamp utilities for consistent text truncation */
   .line-clamp-2 {
     display: -webkit-box;

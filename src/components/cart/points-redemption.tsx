@@ -125,15 +125,15 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
   }
 
   return (
-    <Card className="border-gray-200">
-      <CardHeader className="pb-2 sm:pb-3">
+    <Card className="border-gray-200 py-4 sm:py-6 gap-4 sm:gap-6">
+      <CardHeader className="pb-1 sm:pb-3 px-5 sm:px-6">
         <CardTitle className="flex items-center space-x-2 text-sm">
           <Star className="h-4 w-4 text-orange-500" />
           <span>Redeem Loyalty Points</span>
         </CardTitle>
 
         {/* Mobile-Optimized Points Balance Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mt-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mt-1.5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
             <div>
               <p className="text-xs sm:text-sm font-semibold text-blue-900">
@@ -154,10 +154,10 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 sm:space-y-4">
+      <CardContent className="px-5 sm:px-6 space-y-2 sm:space-y-3">
         {/* Current Discount Display - Mobile Optimized */}
         {pointsToRedeem > 0 && isValid && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-2.5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
@@ -173,7 +173,7 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
         )}
 
         {/* Mobile-Optimized Points Input */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="points-input" className="text-xs sm:text-sm font-medium">
             Points to redeem
           </Label>
@@ -214,9 +214,9 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
 
         {/* Mobile-Optimized Suggested Amounts */}
         {suggestedAmounts.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label className="text-xs font-medium text-gray-600">Quick select:</Label>
-            <div className="flex flex-wrap gap-1 sm:gap-2">
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
               {suggestedAmounts.map((points) => (
                 <Button
                   key={points}
@@ -238,7 +238,7 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
         )}
 
         {/* Mobile-Optimized Redemption Rules */}
-        <div className="text-xs text-gray-500 space-y-1">
+        <div className="text-xs text-gray-500 space-y-0.5">
           <p>• Min: 500 points • Increments of 10</p>
           <p className="hidden sm:block">• Maximum redemption: {maxRedeemablePoints.toLocaleString()} points for this order</p>
           <p className="sm:hidden">• Max: {maxRedeemablePoints >= 1000 ? `${Math.floor(maxRedeemablePoints/1000)}k` : maxRedeemablePoints} pts for this order</p>

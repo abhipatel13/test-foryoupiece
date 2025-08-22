@@ -215,7 +215,7 @@ export default function CartPage() {
               <p className="text-gray-600 mb-8">
                 Looks like you haven't added any items to your cart yet.
               </p>
-              <Button asChild className="amazon-button-primary w-auto sm:w-auto min-h-[44px] h-10 px-4 py-2">
+              <Button asChild className="amazon-button-primary w-auto sm:w-auto min-h-[44px] h-11 px-4 py-2">
                 <Link href="/en/products">
                   Continue Shopping
                 </Link>
@@ -228,7 +228,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen cart-mobile-compact">
       {/* Breadcrumb - Mobile Responsive */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-3 max-w-screen-2xl">
@@ -243,7 +243,7 @@ export default function CartPage() {
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-screen-2xl">
         {/* Amazon-Style Urgency Banner */}
         {itemCount > 0 && (
-          <div className="mb-4 sm:mb-6 bg-orange-50 border-l-4 border-orange-400 p-2 sm:p-3 rounded-r-lg">
+          <div className="mb-2 sm:mb-6 bg-orange-50 border-l-4 border-orange-400 p-1.5 sm:p-3 rounded-r-lg">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="h-2 w-2 bg-orange-500 rounded-full animate-pulse"></div>
@@ -261,9 +261,9 @@ export default function CartPage() {
         )}
 
         {/* Enhanced Header - Mobile Optimized */}
-        <div className="mb-3 sm:mb-4 lg:mb-6">
-          <h1 className="text-base sm:text-xl lg:text-2xl font-semibold text-gray-900 mb-1 sm:mb-2">Shopping Cart</h1>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+        <div className="mb-2 sm:mb-4 lg:mb-6">
+          <h1 className="text-base sm:text-xl lg:text-2xl font-semibold text-gray-900 mb-0.5 sm:mb-2">Shopping Cart</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-0.5 sm:space-y-0">
             <p className="text-sm sm:text-base text-gray-600">
               {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'} in your cart
             </p>
@@ -277,15 +277,15 @@ export default function CartPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-8">
           {/* Left Side - Cart Items and Key Actions (3/4 width on desktop) */}
-          <div className="lg:col-span-3 space-y-3 sm:space-y-4 lg:space-y-6">
+          <div className="lg:col-span-3 space-y-2 sm:space-y-4 lg:space-y-6">
             {/* Cart Items Section - Mobile Optimized Layout */}
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-visible lg:overflow-hidden">
               {/* Clean Header - Mobile Optimized */}
               <div className="p-2 sm:p-4 lg:p-6 border-b border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 sm:space-x-3">
-                    <div className="touch-target-44 inline-flex items-center justify-center">
-                      <Checkbox aria-label="Select all items" className="h-3 w-3" />
+                <div className="flex items-center justify-between min-w-0">
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                    <div className="cart-touch-target md:touch-target-44 inline-flex items-center justify-center">
+                      <Checkbox aria-label="Select all items" className="cart-checkbox" />
                     </div>
                     <span className="text-xs sm:text-sm font-semibold text-gray-900">Select all items</span>
                     <span className="text-xs text-gray-500 bg-gray-200 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
@@ -297,14 +297,14 @@ export default function CartPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={performStockValidation}
                       disabled={isValidatingStock}
                       aria-label={isValidatingStock ? 'Checking stock availability' : 'Check stock availability for all items'}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs sm:text-sm px-1.5 sm:px-2 lg:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-200 font-medium min-h-[44px] h-8 sm:h-9 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs sm:text-sm px-2 sm:px-2 lg:px-3 py-2 sm:py-2 rounded-lg transition-all duration-200 font-medium min-h-[40px] h-9 md:min-h-[44px] md:h-10 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                       <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${isValidatingStock ? 'animate-spin' : ''}`} />
                       <span className="hidden sm:inline">{isValidatingStock ? 'Checking...' : 'Check Stock'}</span>
@@ -315,7 +315,7 @@ export default function CartPage() {
                       size="sm"
                       onClick={handleClearCart}
                       aria-label="Clear all items from cart"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs sm:text-sm px-1.5 sm:px-2 lg:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-200 font-medium min-h-[44px] h-8 sm:h-9 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs sm:text-sm px-2 sm:px-2 lg:px-3 py-2 sm:py-2 rounded-lg transition-all duration-200 font-medium min-h-[40px] h-9 md:min-h-[44px] md:h-10 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                     >
                       <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                       <span className="hidden sm:inline">Clear Cart</span>
@@ -325,39 +325,41 @@ export default function CartPage() {
                 </div>
               </div>
 
-              {/* Improved Cart Items Layout */}
+              {/* Improved Cart Items Layout - Optimized Mobile Spacing */}
               <div className="divide-y divide-gray-100">
                 {items.map((item) => (
-                  <div key={generateCartItemKey(item.id, item.variant)} className="p-2 sm:p-4 lg:p-6 hover:bg-gray-50 transition-all duration-200">
-                    <div className="flex flex-col sm:flex-row sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                  <div key={generateCartItemKey(item.id, item.variant)} className="p-2 sm:p-3 lg:p-6 hover:bg-gray-50 transition-all duration-200">
+                    <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-3">
                       {/* Left Section: Checkbox and Image */}
-                      <div className="flex items-start space-x-3 sm:contents">
-                        {/* Checkbox */}
-                        <div className="pt-1 sm:pt-2">
-                          <Checkbox className="h-4 w-4" />
+                      <div className="flex items-start space-x-2 sm:contents">
+                        {/* Checkbox - Mobile Optimized with Touch Target */}
+                        <div className="pt-0.5 sm:pt-2">
+                          <div className="cart-touch-target md:touch-target-44 inline-flex items-center justify-center">
+                            <Checkbox className="cart-checkbox" />
+                          </div>
                         </div>
 
                         {/* Enhanced Product Image - Mobile Optimized */}
-                        <div className="relative w-14 h-14 sm:w-24 sm:h-24 lg:w-32 lg:h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                        <div className="relative w-12 h-12 sm:w-20 sm:h-20 lg:w-32 lg:h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                           <Image
                             src={item.image}
                             alt={item.name}
                             fill
-                            className="object-contain p-1 sm:p-2"
-                            sizes="(max-width: 640px) 64px, (max-width: 1024px) 96px, 128px"
+                            className="object-contain p-1 sm:p-1"
+                            sizes="(max-width: 640px) 48px, (max-width: 1024px) 96px, 128px"
                           />
                         </div>
 
                         {/* Product Information - Mobile Optimized */}
                         <div className="flex-1 min-w-0 sm:contents">
-                          <div className="space-y-2 sm:space-y-3 sm:flex-1 sm:min-w-0">
+                          <div className="space-y-0.5 sm:space-y-2 sm:flex-1 sm:min-w-0">
                             {/* Product Name - Mobile Optimized */}
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 line-clamp-2 leading-tight">
+                            <h3 className="text-[13px] sm:text-base lg:text-lg font-semibold text-gray-900 line-clamp-2 leading-snug">
                               {item.name}
                             </h3>
 
                             {/* Stock Status - Dynamic Design */}
-                            <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-1.5">
                               {(() => {
                                 const status = item.stockStatus || 'in_stock'
                                 const message = item.stockMessage || 'In stock'
@@ -404,15 +406,15 @@ export default function CartPage() {
 
                             {/* Variant Info */}
                             {item.variant && (
-                              <div className="text-xs text-gray-600">
+                              <div className="text-[11px] text-gray-600">
                                 <span className="font-medium">Variant:</span> {item.variant}
                               </div>
                             )}
 
                             {/* Gift Option - Subtle */}
-                            <div className="flex items-center space-x-2 text-xs text-gray-500">
-                              <Checkbox className="h-3 w-3" />
-                              <Gift className="h-3 w-3" />
+                            <div className="flex items-center space-x-1.5 text-xs text-gray-500">
+                              <Checkbox className="cart-checkbox" />
+                              <Gift className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                               <span>This is a gift</span>
                             </div>
                           </div>
@@ -420,13 +422,13 @@ export default function CartPage() {
                       </div>
 
                       {/* Amazon-Style Actions and Price Section */}
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-4 sm:space-y-0 sm:space-x-6">
+                      <div className="cart-item-row grid grid-cols-[1fr_auto] items-start gap-x-2 gap-y-1 sm:flex sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         {/* Actions Section - Streamlined */}
-                        <div className="flex flex-col space-y-4">
+                        <div className="cart-item-actions flex flex-col space-y-1 sm:space-y-2">
                           {/* Quantity Selector - Enterprise Accessibility */}
-                          <div className="bg-gray-50 p-2 sm:p-3 rounded-lg overflow-x-hidden">
-                            <div className="flex items-center justify-between mb-2">
-                              <label htmlFor={`quantity-${item.id}-${item.variant || 'default'}`} className="text-sm font-medium text-gray-700">
+                          <div className="bg-gray-50 p-1.5 sm:p-2 rounded-lg overflow-x-hidden min-w-[140px]">
+                            <div className="flex items-center justify-between mb-0">
+                              <label htmlFor={`quantity-${item.id}-${item.variant || 'default'}`} className="text-xs sm:text-sm font-medium text-gray-700">
                                 Quantity
                               </label>
                               {item.stockQuantity && item.stockQuantity <= 5 && (
@@ -442,7 +444,7 @@ export default function CartPage() {
                               <SelectTrigger
                                 id={`quantity-${item.id}-${item.variant || 'default'}`}
                                 aria-label={`Change quantity for ${item.name}`}
-                                className="w-16 sm:w-20 h-9 text-xs sm:text-sm border-gray-300 rounded-md shadow-sm hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 touch-target-44"
+                                className="self-start w-16 sm:w-20 h-8 sm:h-9 text-xs sm:text-sm border-gray-300 rounded-md shadow-sm hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 touch-target-sm md:touch-target-44"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -462,7 +464,7 @@ export default function CartPage() {
                             <button
                               onClick={() => handleRemoveItem(item.id, item.variant)}
                               aria-label={`Remove ${item.name} from cart`}
-                              className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all duration-200 min-h-[44px] h-8 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                              className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-md font-medium transition-all duration-200 min-h-[36px] h-8 md:min-h-[44px] md:h-9 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                             >
                               <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span className="hidden sm:inline">Delete</span>
@@ -471,7 +473,7 @@ export default function CartPage() {
                             {/* Secondary Action - Save for Later */}
                             <button
                               aria-label={`Save ${item.name} for later`}
-                              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all duration-200 min-h-[44px] h-8 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-md font-medium transition-all duration-200 min-h-[36px] h-8 md:min-h-[44px] md:h-9 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                             >
                               <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span className="hidden sm:inline">Save</span>
@@ -480,14 +482,51 @@ export default function CartPage() {
                         </div>
 
                         {/* Enhanced Price Display - Amazon Style */}
-                        <div className="text-right sm:text-right sm:min-w-[120px] min-w-0">
+                        <div className="cart-price-col self-start sm:self-auto text-right sm:text-right sm:min-w-[120px] min-w-0">
                           {/* Total Price for Quantity */}
-                          <div className="text-base sm:text-xl font-bold text-gray-900 mb-1">
+                          <div className="text-[15px] sm:text-xl font-bold text-gray-900 mb-0.5 lg:mb-1">
                             {formatPrice(item.price * item.quantity)}
                           </div>
 
-                          {/* Price Breakdown */}
-                          <div className="text-sm space-y-1">
+                          {/* Price Breakdown (mobile compact) */}
+                          <div className="lg:hidden space-y-0.5">
+                            {item.originalPrice && item.originalPrice > item.price ? (
+                              <>
+                                <div className="flex items-center justify-end gap-1 text-[11px] text-gray-600 whitespace-nowrap">
+                                  <span className="line-through text-gray-500">{formatPrice(item.originalPrice)} ea</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="font-medium text-gray-800">{formatPrice(item.price)} ea</span>
+                                  {item.quantity > 1 && (
+                                    <>
+                                      <span className="text-gray-400">•</span>
+                                      <span className="text-gray-500">{item.quantity} × {formatPrice(item.price)}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="inline-block bg-red-100 text-red-800 text-[10px] font-medium px-1.5 py-0.5 rounded-full">
+                                    {Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}% OFF
+                                  </span>
+                                  <span className="text-green-700 text-[11px] font-medium">
+                                    Save {formatPrice((item.originalPrice - item.price) * item.quantity)}
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1 text-[11px] text-gray-600 whitespace-nowrap">
+                                <span>{formatPrice(item.price)} ea</span>
+                                {item.quantity > 1 && (
+                                  <>
+                                    <span className="text-gray-400">•</span>
+                                    <span className="text-gray-500">{item.quantity} × {formatPrice(item.price)}</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Price Breakdown (desktop unchanged) */}
+                          <div className="hidden lg:block text-sm space-y-0.5">
                             {item.originalPrice && item.originalPrice > item.price ? (
                               <>
                                 {/* Original Price - Crossed Out */}
@@ -517,12 +556,14 @@ export default function CartPage() {
                             )}
                           </div>
 
-                          {/* Quantity Indicator */}
-                          {item.quantity > 1 && (
-                            <div className="text-xs text-gray-500 mt-2">
-                              {item.quantity} × {formatPrice(item.price)}
-                            </div>
-                          )}
+                          {/* Quantity Indicator (desktop only) */}
+                          <div className="hidden lg:block">
+                            {item.quantity > 1 && (
+                              <div className="text-xs text-gray-500 mt-2">
+                                {item.quantity} × {formatPrice(item.price)}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -531,16 +572,41 @@ export default function CartPage() {
               </div>
             </div>
 
+            {/* Mobile-Only: Coupon and Points Section - Moved BEFORE Order Summary */}
+            <div className="lg:hidden space-y-2 sm:space-y-4">
+              {/* Mobile Coupon Input */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
+                <CouponInput
+                  orderTotal={finalTotal}
+                  appliedCoupon={appliedCoupon || undefined}
+                  onCouponApplied={applyCoupon}
+                  onCouponRemoved={removeCoupon}
+                />
+              </div>
+
+              {/* Mobile Points Redemption */}
+              {profile && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
+                  <PointsRedemption
+                    userPointsBalance={profile.points_balance || 0}
+                    onPointsChange={(points) => {
+                      // Points are automatically updated in the cart store
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Prominent Order Total and Checkout Section - Mobile Optimized */}
             <div className="bg-white rounded-lg shadow-md border border-gray-200">
-              <div className="p-3 sm:p-4 lg:p-6">
+              <div className="p-2 sm:p-4 lg:p-6">
                 {/* Order Summary Header */}
-                <div className="mb-3 sm:mb-4">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Order Summary</h2>
+                <div className="mb-2 sm:mb-4">
+                  <h2 className="text-base sm:text-xl font-semibold text-gray-900">Order Summary</h2>
                 </div>
 
                 {/* Order Breakdown - Mobile Optimized */}
-                <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+                <div className="space-y-1.5 sm:space-y-3 mb-3 sm:mb-6">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600">Subtotal ({totalQuantity} {totalQuantity === 1 ? 'item' : 'items'})</span>
                     <span className="text-gray-900 font-medium">{formatPrice(subtotal)}</span>
@@ -591,7 +657,7 @@ export default function CartPage() {
                   <div className="space-y-3">
                     <Button
                       disabled
-                      className="group relative w-full min-h-[44px] h-11 sm:h-12 text-sm sm:text-base font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
+                      className="group relative w-full min-h-[40px] h-11 sm:h-12 md:min-h-[44px] md:h-12 text-sm sm:text-base font-semibold bg-gray-100 text-gray-400 border border-gray-200 rounded-lg shadow-sm cursor-not-allowed mb-2"
                     >
                       <div className="flex items-center justify-center gap-2 px-4 py-2">
                         <AlertTriangle className="h-4 w-4 text-gray-400" strokeWidth={1.5} />
@@ -622,7 +688,7 @@ export default function CartPage() {
                     </div>
                   </div>
                 ) : (
-                  <Button asChild className="group relative w-full min-h-[44px] h-10 sm:h-11 lg:h-12 text-sm sm:text-base font-semibold bg-black hover:bg-gray-800 text-white border border-black rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 mb-4">
+                  <Button asChild className="group relative w-full min-h-[40px] h-11 sm:h-12 md:min-h-[44px] md:h-12 text-sm sm:text-base font-semibold bg-black hover:bg-gray-800 text-white border border-black rounded-lg shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 mb-4">
                     <Link href="/en/checkout" className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2">
                       {/* Icon - Hidden on very small screens */}
                       <CreditCard className="hidden xs:block h-3 w-3 sm:h-4 sm:w-4 text-white" strokeWidth={1.5} />
@@ -653,6 +719,8 @@ export default function CartPage() {
               </div>
             </div>
           </div>
+
+
 
           {/* Simplified Right Sidebar - Hidden on mobile/tablet for better UX */}
           <div className="hidden lg:block lg:col-span-1">
@@ -687,7 +755,7 @@ export default function CartPage() {
 
                 {/* Gift Option - Enhanced UX */}
                 <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                  <Checkbox id="gift-option" aria-describedby="gift-description" />
+                  <Checkbox id="gift-option" aria-describedby="gift-description" className="cart-checkbox" />
                   <Gift className="h-4 w-4 text-gray-500" />
                   <label htmlFor="gift-option" className="text-sm text-gray-700 cursor-pointer flex-1">
                     <span className="font-medium">This order contains a gift</span>
@@ -697,8 +765,8 @@ export default function CartPage() {
                   </label>
                 </div>
 
-                {/* Mobile-First: Coupon Input - Moved to main flow on mobile */}
-                <div className="lg:border-t lg:border-gray-200 lg:pt-4">
+                {/* Desktop-Only: Coupon Input - Hidden on mobile, moved to main flow */}
+                <div className="hidden lg:block lg:border-t lg:border-gray-200 lg:pt-4">
                   <CouponInput
                     orderTotal={finalTotal}
                     appliedCoupon={appliedCoupon || undefined}
@@ -707,9 +775,9 @@ export default function CartPage() {
                   />
                 </div>
 
-                {/* Mobile-First: Points Redemption - Moved to main flow on mobile */}
+                {/* Desktop-Only: Points Redemption - Hidden on mobile, moved to main flow */}
                 {profile && (
-                  <div className="lg:border-t lg:border-gray-200 lg:pt-4">
+                  <div className="hidden lg:block lg:border-t lg:border-gray-200 lg:pt-4">
                     <PointsRedemption
                       userPointsBalance={profile.points_balance || 0}
                       onPointsChange={(points) => {
@@ -779,7 +847,7 @@ export default function CartPage() {
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">Need more items?</h3>
                 <p className="text-xs sm:text-sm text-gray-600">Continue shopping to discover more products</p>
               </div>
-              <Button asChild variant="outline" className="w-auto sm:w-auto min-h-[44px] h-9 sm:h-10 px-3 py-1.5 self-start">
+              <Button asChild variant="outline" className="w-auto sm:w-auto min-h-[40px] h-10 md:min-h-[44px] md:h-11 px-4 py-2 self-start">
                 <Link href="/en/products" className="flex items-center justify-center gap-2">
                   <ArrowLeft className="h-4 w-4" />
                   <span className="text-sm sm:text-base">Continue Shopping</span>
