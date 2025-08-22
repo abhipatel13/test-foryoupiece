@@ -18,8 +18,36 @@ import { SaveInfoDialog } from '@/components/checkout/save-info-dialog'
 import { CheckoutPointsDisplay } from '@/components/checkout/checkout-points-display'
 import { MapPin, Package, Truck, ShoppingBag, QrCode } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMemo } from 'react'
+
+function Countdown({ endsAt }: { endsAt: string }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const text = useMemo(() => {
+    const end = new Date(endsAt).getTime()
+    const diff = Math.max(0, end - now)
+    const hrs = Math.floor(diff / 3_600_000)
+    const mins = Math.floor((diff % 3_600_000) / 60_000)
+    const secs = Math.floor((diff % 60_000) / 1000)
+    return `Ends in ${hrs}h ${mins}m ${secs}s`
+  }, [now, endsAt])
+  return <div className="text-[11px] text-green-700/80">{text}</div>
+}
+
 
 export default function CheckoutPage() {
+  const { getShippingCalculation, calculateShipping } = useSSRSafeCartStore()
+  const shippingCalculation = getShippingCalculation()
+
+
+	  // Also recalc on mount without dependencies to avoid referencing items before they exist
+	  useEffect(() => { try { calculateShipping() } catch {} }, [])
+
+
+
   const t = useTranslations('checkout')
   const router = useRouter()
   const { user, profile, isAuthenticated, updateProfile } = useSSRSafeAuth()
@@ -40,9 +68,19 @@ export default function CheckoutPage() {
     getFinalTotalWithCouponAndPoints
   } = useSSRSafeCartStore()
   const [loading, setLoading] = useState(false)
+
+	// Recalculate shipping when cart size or coupon changes (after items/appliedCoupon are defined)
+	useEffect(() => {
+	  try { calculateShipping() } catch {}
+	  // eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [items.length, appliedCoupon?.code])
+
   const [showSaveDialog, setShowSaveDialog] = useState(false)
 
   const [shippingAddress, setShippingAddress] = useState({
+
+	// Ensure shipping reflects current active events on mount and when cart/coupon changes
+
     firstName: '',
     lastName: '',
     email: '',
@@ -597,6 +635,18 @@ export default function CheckoutPage() {
                         )}
                       </span>
                     </div>
+
+
+                    {/* Free Shipping EVENT details */}
+                    {shippingCalculation?.freeShippingReason === 'event' && shippingCalculation?.eventContext && (
+                      <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 p-2 rounded-md">
+                        <div className="font-semibold">Free Shipping EVENT</div>
+                        <div className="text-green-700/90">{shippingCalculation.eventContext.title}</div>
+                        {shippingCalculation.eventContext.ends_at && (
+                          <Countdown endsAt={shippingCalculation.eventContext.ends_at} />
+                        )}
+                      </div>
+                    )}
 
                     {/* Free Shipping Indicator */}
                     {shippingFee === 0 && itemCount >= 4 && (

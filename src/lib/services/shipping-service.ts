@@ -4,8 +4,16 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 export interface ShippingCalculationResult {
   shippingFee: number
   isFreeShipping: boolean
-  freeShippingReason: 'quantity' | 'coupon' | 'permanent_tier' | 'none'
+  freeShippingReason: 'quantity' | 'coupon' | 'permanent_tier' | 'event' | 'none'
   message?: string
+  eventContext?: {
+    id: string
+    title: string
+    description?: string | null
+    starts_at: string
+    ends_at?: string | null
+    type: 'free_shipping'
+  }
 }
 
 export interface ShippingOptions {
@@ -45,7 +53,26 @@ export class ShippingService {
     const { itemCount, userId, appliedCouponCode } = options
 
     try {
-      // 1. Check quantity-based free shipping first (4+ items)
+      // 0. Check active free shipping EVENTS first
+      const event = await this.getActiveFreeShippingEvent()
+      if (event) {
+        return {
+          shippingFee: 0,
+          isFreeShipping: true,
+          freeShippingReason: 'event',
+          message: `Free Shipping EVENT: ${event.title}`,
+          eventContext: {
+            id: event.id,
+            title: event.title,
+            description: event.description,
+            starts_at: event.starts_at,
+            ends_at: event.ends_at,
+            type: 'free_shipping'
+          }
+        }
+      }
+
+      // 1. Check quantity-based free shipping (4+ items)
       if (itemCount >= SHIPPING_CONFIG.FREE_SHIPPING_THRESHOLD) {
         return {
           shippingFee: 0,
@@ -157,10 +184,10 @@ export class ShippingService {
 
       // Check if user is allowed to use this coupon
       if (data.allowed_user_ids) {
-        const allowedUsers = Array.isArray(data.allowed_user_ids) 
-          ? data.allowed_user_ids 
+        const allowedUsers = Array.isArray(data.allowed_user_ids)
+          ? data.allowed_user_ids
           : JSON.parse(data.allowed_user_ids as string)
-        
+
         if (!allowedUsers.includes(userId)) {
           return false
         }
@@ -173,6 +200,51 @@ export class ShippingService {
     } catch (error) {
       console.error('Error checking coupon free shipping:', error)
       return false
+    }
+  }
+
+  /**
+   * Helper to fetch an active free_shipping event (server or client fallback)
+   */
+  private async getActiveFreeShippingEvent(): Promise<{
+    id: string
+    title: string
+    description?: string | null
+    starts_at: string
+    ends_at?: string | null
+  } | null> {
+    try {
+      // Client-side fallback via API
+      if (typeof window !== 'undefined') {
+        try {
+          const res = await fetch('/api/events/active?type=free_shipping', { cache: 'no-store' })
+          const json = await res.json()
+          const list = json?.data || []
+          return list.length > 0 ? list[0] : null
+        } catch (e) {
+          // swallow and try server client below
+        }
+      }
+
+      const client = this.getServiceClient()
+      if (!client) return null
+
+      const nowIso = new Date().toISOString()
+      const { data, error } = await client
+        .from('promotional_events')
+        .select('id,title,description,starts_at,ends_at')
+        .eq('event_type', 'free_shipping')
+        .eq('is_active', true)
+        .lte('starts_at', nowIso)
+        .or('ends_at.is.null,ends_at.gte.' + nowIso)
+        .order('starts_at', { ascending: false })
+        .limit(1)
+
+      if (error || !data || data.length === 0) return null
+      return data[0]
+    } catch (err) {
+      console.error('Error checking active free shipping event:', err)
+      return null
     }
   }
 
@@ -250,6 +322,7 @@ export class ShippingService {
         .select('permanent_free_shipping, tier_level')
         .eq('id', userId)
         .single()
+
 
       if (userError) {
         console.error('Error fetching user shipping benefits:', userError)

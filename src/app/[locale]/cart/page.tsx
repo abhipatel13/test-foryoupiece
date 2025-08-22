@@ -19,6 +19,20 @@ import { toast } from 'sonner'
 import { PointsRedemption } from '@/components/cart/points-redemption'
 import { CouponInput } from '@/components/cart/coupon-input'
 
+function Countdown({ endsAt }: { endsAt: string }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const end = new Date(endsAt).getTime()
+  const diff = Math.max(0, end - now)
+  const hrs = Math.floor(diff / 3_600_000)
+  const mins = Math.floor((diff % 3_600_000) / 60_000)
+  const secs = Math.floor((diff % 60_000) / 1000)
+  return <span className="text-[11px] text-green-700/80">Ends in {hrs}h {mins}m {secs}s</span>
+}
+
 export default function CartPage() {
   const t = useTranslations('cart')
   const { profile } = useSSRSafeAuth()
@@ -38,6 +52,7 @@ export default function CartPage() {
     getFinalTotal,
     getFinalTotalWithPoints,
     getPointsDiscount,
+
     getTotalPointsEarned,
     pointsToRedeem,
     appliedCoupon,
@@ -47,8 +62,12 @@ export default function CartPage() {
     getFinalTotalWithCouponAndPoints,
     validateCartStock,
     refreshStockStatus,
-    isStockValidationNeeded
+    isStockValidationNeeded,
+    // shipping helpers
+    getShippingCalculation,
+    calculateShipping,
   } = useSSRSafeCartStore()
+  const shippingCalculation = getShippingCalculation()
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
   const [isValidatingStock, setIsValidatingStock] = useState(false)
   const [stockValidationResult, setStockValidationResult] = useState<{
@@ -68,6 +87,7 @@ export default function CartPage() {
         canCheckout: result.canCheckout
       })
 
+
       if (result.hasIssues) {
         toast.warning('Some items in your cart have stock issues. Please review before checkout.')
       }
@@ -78,6 +98,12 @@ export default function CartPage() {
       setIsValidatingStock(false)
     }
   }
+
+  // Ensure shipping reflects current active events on mount and when cart/coupon changes
+  useEffect(() => {
+    calculateShipping()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length, appliedCoupon?.code])
 
   // Validate stock on page load and when items change
   useEffect(() => {
@@ -612,6 +638,23 @@ export default function CartPage() {
                     <span className="text-gray-900 font-medium">{formatPrice(subtotal)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
+                  {/* Free Shipping EVENT details */}
+                  {(() => {
+                    const calc = getShippingCalculation?.()
+                    if (calc?.freeShippingReason === 'event' && calc?.eventContext) {
+                      return (
+                        <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 p-2 rounded-md">
+                          <div className="font-semibold">Free Shipping EVENT</div>
+                          <div className="text-green-700/90">{calc.eventContext.title}</div>
+                          {calc.eventContext.ends_at && (
+                            <Countdown endsAt={calc.eventContext.ends_at} />
+                          )}
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+
                     <span className="text-gray-600">Shipping</span>
                     <span className="text-gray-900 font-medium">
                       {shippingFee === 0 ? 'FREE' : formatPrice(shippingFee)}
@@ -735,11 +778,19 @@ export default function CartPage() {
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center">
                     <Truck className="h-4 w-4 mr-2" />
-                    {shippingFee === 0 ? (
-                      <span className="text-green-700 font-medium">FREE Delivery (4+ items)</span>
-                    ) : (
-                      <span>Add {4 - totalQuantity} more for FREE delivery</span>
-                    )}
+                    {(() => {
+                      const calc = getShippingCalculation?.()
+                      if (shippingFee === 0) {
+                        if (calc?.freeShippingReason === 'event') {
+                          return <span className="text-green-700 font-medium">Free Shipping EVENT</span>
+                        }
+                        if (totalQuantity >= 4) {
+                          return <span className="text-green-700 font-medium">FREE Delivery (4+ items)</span>
+                        }
+                        return <span className="text-green-700 font-medium">FREE Delivery</span>
+                      }
+                      return <span>Add {Math.max(0, 4 - totalQuantity)} more for FREE delivery</span>
+                    })()}
                   </div>
                 </div>
 

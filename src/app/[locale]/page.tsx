@@ -1,4 +1,6 @@
 'use client'
+import _HeroEventBannerClient from '@/components/marketing/hero-event-banner-client'
+
 // Test compilation
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -276,6 +278,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Promotional Event Banner (when active) */}
+      <_HeroEventBannerClient />
+
       {/* Mobile-First Hero Banner */}
       <section className="bg-gradient-to-r from-primary/5 via-secondary to-accent/5 border-b border-border">
         <div className="desktop-container py-4 sm:py-6 lg:py-8 xl:py-10">

@@ -35,7 +35,8 @@ import {
   Lock,
   Mail,
   Menu,
-  X
+  X,
+  CalendarDays
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -518,6 +519,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       name: 'Settings',
       href: `/${locale}/fyponly-admin/settings`,
       icon: Settings,
+      current: false
+    },
+    {
+      name: 'Events',
+      href: `/${locale}/fyponly-admin/events`,
+      icon: CalendarDays,
       current: false
     }
   ]
