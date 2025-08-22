@@ -62,6 +62,8 @@ export async function GET(request: NextRequest) {
         first_name,
         last_name,
         email,
+        telegram_id,
+        telegram_username,
         points_balance,
         tier_level,
         avatar_url,
@@ -70,7 +72,7 @@ export async function GET(request: NextRequest) {
         created_at,
         updated_at
       `)
-      .or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm},email.ilike.${searchTerm}`)
+      .or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm},email.ilike.${searchTerm},telegram_username.ilike.${searchTerm}`)
       .order('points_balance', { ascending: false })
       .limit(limit);
 

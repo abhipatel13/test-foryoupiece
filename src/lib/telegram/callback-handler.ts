@@ -86,6 +86,52 @@ export class TelegramCallbackHandler {
         return await this.handleLoginStart(message);
       }
 
+      // NEW: Handle direct messages from users to the bot (private chats)
+      if (message.chat?.type === 'private') {
+        try {
+          const supabase = createServiceRoleClient();
+          const fromId = message.from?.id;
+          const fromUsername = message.from?.username;
+          const text = (message.text || '').slice(0, 4000);
+
+          // Resolve our app user by telegram_id
+          const { data: user, error: userErr } = await supabase
+            .from('users')
+            .select('id, email, telegram_username')
+            .eq('telegram_id', fromId)
+            .maybeSingle();
+
+          if (userErr) {
+            console.error('❌ Error querying user for incoming DM:', userErr);
+          }
+
+          if (user?.id) {
+            await supabase.from('notifications').insert({
+              user_id: user.id,
+              title: 'Reply from Telegram',
+              message: text,
+              type: 'info',
+              metadata: {
+                channel: 'telegram',
+                direction: 'incoming',
+                telegram_username: fromUsername || null,
+                telegram_id: fromId,
+                message_id: message.message_id,
+                date: message.date,
+                chat_type: 'private'
+              }
+            });
+            console.log('✅ Stored incoming Telegram DM for user', user.id);
+          } else {
+            console.warn('⚠️ Incoming Telegram DM from unknown user_id', { fromId, fromUsername });
+          }
+        } catch (storeErr) {
+          console.error('❌ Failed to store incoming Telegram DM:', storeErr);
+        }
+        // We handled/stored the DM; do not treat as order flow
+        return true;
+      }
+
       // Check if message is from the notification group and thread
       const notificationGroupId = process.env.TELEGRAM_NOTIFICATION_GROUP_ID;
       const notificationThreadId = process.env.TELEGRAM_NOTIFICATION_THREAD_ID;

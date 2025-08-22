@@ -36,7 +36,8 @@ import {
   Mail,
   Menu,
   X,
-  CalendarDays
+  CalendarDays,
+  MessageCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -525,6 +526,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       name: 'Events',
       href: `/${locale}/fyponly-admin/events`,
       icon: CalendarDays,
+      current: false
+    },
+    {
+      name: 'Customer Communication',
+      href: `/${locale}/fyponly-admin/customer-communication`,
+      icon: MessageCircle,
       current: false
     }
   ]
