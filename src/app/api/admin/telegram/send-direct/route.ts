@@ -88,7 +88,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user: authUser,
       const botUsername = botInfo?.username || 'Authenticationfypbot'
       const deepLink = `https://t.me/${botUsername}?start=start`
 
-      await serviceClient.from('notifications').insert({
+      const { error: undeliverableErr } = await serviceClient.from('notifications').insert({
         user_id: targetUser.id,
         title: 'Telegram DM not deliverable',
         message: 'User must start a chat with the authentication bot before receiving direct messages.',
@@ -105,6 +105,9 @@ export const POST = withAdminAuth(async (request: NextRequest, { user: authUser,
           sent_by: adminUser?.email || authUser?.email || 'admin',
         }
       })
+      if (undeliverableErr) {
+        console.error('❌ Failed to persist undeliverable notification:', undeliverableErr)
+      }
 
       return NextResponse.json({
         success: false,
@@ -136,7 +139,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user: authUser,
 
     if (!tgResult?.ok) {
       // Log failed attempt into notifications with metadata
-      await serviceClient.from('notifications').insert({
+      const { error: failInsertErr } = await serviceClient.from('notifications').insert({
         user_id: targetUser.id,
         title: 'Telegram message delivery failed',
         message: text.substring(0, 500),
@@ -153,6 +156,9 @@ export const POST = withAdminAuth(async (request: NextRequest, { user: authUser,
           sent_by: adminUser?.email || authUser?.email || 'admin',
         }
       })
+      if (failInsertErr) {
+        console.error('❌ Failed to persist failed message notification:', failInsertErr)
+      }
 
       return NextResponse.json({
         success: false,
@@ -161,7 +167,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user: authUser,
     }
 
     // Store success notification for simple history
-    await serviceClient.from('notifications').insert({
+    const { error: sentInsertErr } = await serviceClient.from('notifications').insert({
       user_id: targetUser.id,
       title: 'Message from ForYouPiece',
       message: text.substring(0, 1000),
@@ -179,6 +185,9 @@ export const POST = withAdminAuth(async (request: NextRequest, { user: authUser,
         sent_by: adminUser?.email || authUser?.email || 'admin',
       }
     })
+    if (sentInsertErr) {
+      console.error('❌ Failed to persist sent message notification:', sentInsertErr)
+    }
 
     return NextResponse.json({
       success: true,

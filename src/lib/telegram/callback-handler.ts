@@ -94,20 +94,38 @@ export class TelegramCallbackHandler {
           const fromUsername = message.from?.username;
           const text = (message.text || '').slice(0, 4000);
 
-          // Resolve our app user by telegram_id
-          const { data: user, error: userErr } = await supabase
+          // Resolve our app user by telegram_id first
+          let userIdToStore: string | null = null;
+          const { data: userById, error: userErr } = await supabase
             .from('users')
             .select('id, email, telegram_username')
             .eq('telegram_id', fromId)
             .maybeSingle();
 
           if (userErr) {
-            console.error('❌ Error querying user for incoming DM:', userErr);
+            console.error('❌ Error querying user by telegram_id for incoming DM:', userErr);
           }
 
-          if (user?.id) {
-            await supabase.from('notifications').insert({
-              user_id: user.id,
+          if (userById?.id) {
+            userIdToStore = userById.id;
+          } else if (fromUsername) {
+            // Fallback: resolve by telegram_username if ID match not found
+            const { data: userByUsername, error: usernameErr } = await supabase
+              .from('users')
+              .select('id, email, telegram_username')
+              .eq('telegram_username', fromUsername)
+              .maybeSingle();
+            if (usernameErr) {
+              console.error('❌ Error querying user by telegram_username for incoming DM:', usernameErr);
+            }
+            if (userByUsername?.id) {
+              userIdToStore = userByUsername.id;
+            }
+          }
+
+          if (userIdToStore) {
+            const { error: insertErr } = await supabase.from('notifications').insert({
+              user_id: userIdToStore,
               title: 'Reply from Telegram',
               message: text,
               type: 'info',
@@ -121,7 +139,11 @@ export class TelegramCallbackHandler {
                 chat_type: 'private'
               }
             });
-            console.log('✅ Stored incoming Telegram DM for user', user.id);
+            if (insertErr) {
+              console.error('❌ Failed to store incoming Telegram DM notification:', insertErr);
+            } else {
+              console.log('✅ Stored incoming Telegram DM for user', userIdToStore);
+            }
           } else {
             console.warn('⚠️ Incoming Telegram DM from unknown user_id', { fromId, fromUsername });
           }
