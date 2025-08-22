@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Search, Send, UserSearch, MessageCircle } from 'lucide-react'
+import { Search, Send, UserSearch, MessageCircle, RefreshCw, RotateCcw } from 'lucide-react'
 
 interface AdminUser {
   id: string
@@ -21,60 +21,72 @@ interface AdminUser {
   created_at?: string
 }
 
+interface RecentUserEntry {
+  user: {
+    id: string
+    display_name: string
+    email?: string
+    telegram_username?: string
+  }
+  lastMessage: {
+    id: string
+    title: string
+    message: string
+    created_at: string
+    metadata?: any
+  }
+  unreadCount: number
+}
+
 export default function CustomerCommunicationPage() {
   const params = useParams()
   const locale = params.locale as string
 
-  const [query, setQuery] = useState('')
-  const [searching, setSearching] = useState(false)
-  const [results, setResults] = useState<AdminUser[]>([])
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
+  // Left panel state
+  const [userSearch, setUserSearch] = useState('')
+  const [recentUsers, setRecentUsers] = useState<RecentUserEntry[]>([])
+  const [recentLoading, setRecentLoading] = useState(false)
+  const [recentError, setRecentError] = useState<string | null>(null)
+  const [recentOffset, setRecentOffset] = useState(0)
+  const recentLimit = 20
+  const [hasMoreRecent, setHasMoreRecent] = useState(false)
 
+  // Right panel state
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [history, setHistory] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [debounceTimer, setDebounceTimer] = useState<any>(null)
+  // Manual refresh state
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [refreshing, setRefreshing] = useState(false)
+
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
+
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
 
   const fullName = (u: AdminUser) => [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email.split('@')[0]
 
-  const runSearch = async (q: string) => {
-    if (!q.trim() || q.trim().length < 2) {
-      setResults([])
-      return
-    }
+  // Manual refresh functions
+  const refreshConversations = useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
     try {
-      setSearching(true)
-      const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(q.trim())}&limit=10`)
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || 'Search failed')
-      setResults(data.users)
-    } catch (e: any) {
-      console.error('User search failed', e)
+      await loadRecent(0, userSearch)
+      setLastRefresh(new Date())
     } finally {
-      setSearching(false)
+      setRefreshing(false)
     }
-  }
+  }, [userSearch, refreshing])
 
-  const onQueryChange = (val: string) => {
-    setQuery(val)
-    setShowSuggestions(true)
-    if (debounceTimer) clearTimeout(debounceTimer)
-    const t = setTimeout(() => runSearch(val), 300)
-    setDebounceTimer(t)
-  }
-
-  const searchUsers = async () => {
-    if (!query.trim()) {
-      toast.message('Enter email or Telegram username to search')
-      return
-    }
-    await runSearch(query)
-    if (results.length === 0) {
-      toast.info('No users found for your query')
-    }
-  }
+  const refreshMessages = useCallback(async () => {
+    if (!selectedUser?.id || historyLoading) return
+    await loadHistory(selectedUser.id)
+    setLastRefresh(new Date())
+  }, [selectedUser?.id, historyLoading])
 
   const sendTelegram = async () => {
     if (!selectedUser) {
@@ -121,6 +133,11 @@ export default function CustomerCommunicationPage() {
         message: message.trim(),
         metadata: { channel: 'telegram', telegram_message_id: data.result?.telegram_message_id, direction: 'outgoing' }
       }, ...h])
+
+      // Refresh conversation list to update last message
+      setTimeout(() => {
+        loadRecent(0, userSearch)
+      }, 1000)
     } catch (e: any) {
       console.error('Send telegram failed', e)
       toast.error(e.message || 'Sending failed')
@@ -129,25 +146,96 @@ export default function CustomerCommunicationPage() {
     }
   }
 
-  const loadHistory = async (userId: string) => {
+  const loadRecent = useCallback(async (offset = 0, searchQuery = '') => {
     try {
+      setRecentLoading(true)
+      setRecentError(null)
+
+      const params = new URLSearchParams()
+      params.set('limit', recentLimit.toString())
+      params.set('offset', offset.toString())
+      if (searchQuery.trim()) {
+        params.set('q', searchQuery.trim())
+      }
+
+      const res = await fetch(`/api/admin/communications/recent-users?${params.toString()}`)
+      const data = await res.json()
+
+      if (res.ok && data?.success) {
+        if (offset === 0) {
+          setRecentUsers(data.users || [])
+        } else {
+          setRecentUsers(prev => [...prev, ...(data.users || [])])
+        }
+        setHasMoreRecent(data.hasMore || false)
+        setRecentOffset(offset)
+      } else {
+        setRecentError(data.error || 'Failed to load conversations')
+        if (offset === 0) {
+          setRecentUsers([])
+        }
+      }
+    } catch (e: any) {
+      console.error('Load recent users failed', e)
+      setRecentError(e.message || 'Failed to load conversations')
+      if (offset === 0) {
+        setRecentUsers([])
+      }
+    } finally {
+      setRecentLoading(false)
+    }
+  }, [recentLimit])
+
+  const loadHistory = useCallback(async (userId: string) => {
+    try {
+      setHistoryLoading(true)
       const res = await fetch(`/api/admin/communications/history?userId=${encodeURIComponent(userId)}&limit=20`)
       const data = await res.json()
       if (res.ok && data?.success) {
-        setHistory(data.notifications || [])
+        const newHistory = data.notifications || []
+        setHistory(prevHistory => {
+          // Only update if there are actual changes to prevent unnecessary re-renders
+          if (JSON.stringify(prevHistory) !== JSON.stringify(newHistory)) {
+            // Scroll to bottom if new messages were added
+            setTimeout(scrollToBottom, 100)
+            return newHistory
+          }
+          return prevHistory
+        })
       } else {
         setHistory([])
       }
     } catch (e) {
       setHistory([])
+    } finally {
+      setHistoryLoading(false)
     }
-  }
+  }, [scrollToBottom])
 
+
+
+  // Load initial recent users
+  useEffect(() => {
+    loadRecent(0, '') // Load with empty search on mount
+  }, []) // Only run once on mount
+
+  // Handle search with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadRecent(0, userSearch)
+    }, userSearch.trim() ? 300 : 0) // 300ms debounce for search, immediate for clear
+
+    return () => clearTimeout(timeoutId)
+  }, [userSearch]) // Only run when userSearch changes
+
+  // Load history when user is selected
   useEffect(() => {
     if (selectedUser?.id) {
       loadHistory(selectedUser.id)
     }
-  }, [selectedUser?.id])
+  }, [selectedUser?.id]) // Only run when selectedUser.id changes
+
+
 
   return (
     <div className="space-y-6">
@@ -156,145 +244,162 @@ export default function CustomerCommunicationPage() {
         <p className="text-gray-600">Send direct messages to customers via Telegram using the authentication bot.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><UserSearch className="h-5 w-5"/> Find Customer</CardTitle>
-          <CardDescription>Search by email or Telegram username (e.g. @username)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left: Recent users list */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2"><UserSearch className="h-5 w-5"/> Conversations</CardTitle>
+                <CardDescription>Recent chats with customers</CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={refreshConversations}
+                disabled={refreshing}
+                className="h-8 w-8 p-0"
+                title="Refresh conversations"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by email or Telegram username"
-                value={query}
-                onChange={(e) => onQueryChange(e.target.value)}
-                onFocus={() => results.length > 0 && setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                placeholder="Search by name, email, or @username"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
                 className="pl-9"
               />
-              {showSuggestions && (
-                <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-sm max-h-72 overflow-auto">
-                  {searching && (
-                    <div className="px-3 py-2 text-sm text-gray-500">Searching…</div>
-                  )}
-                  {!searching && results.length === 0 && query.trim().length >= 2 && (
-                    <div className="px-3 py-2 text-sm text-gray-500">No matches</div>
-                  )}
-                  {!searching && results.map(u => (
-                    <button key={u.id} onClick={() => { setSelectedUser(u); setShowSuggestions(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50">
-                      <div className="font-medium text-sm">{fullName(u)}</div>
-                      <div className="text-xs text-gray-600 break-all">{u.email}</div>
-                      <div className="text-xs text-gray-600">{u.telegram_username ? `@${u.telegram_username}` : 'No Telegram linked'}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-            <Button onClick={searchUsers} disabled={searching}>
-              {searching ? 'Searching...' : 'Search'}
-            </Button>
-          </div>
 
-          {/* Results */}
-          <div className="mt-4 grid gap-2">
-            {results.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => setSelectedUser(u)}
-                className={`text-left p-3 rounded-md border transition hover:bg-gray-50 ${selectedUser?.id === u.id ? 'border-gray-900' : 'border-gray-200'}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{fullName(u)}</div>
-                    <div className="text-sm text-gray-600">{u.email}</div>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {u.telegram_username ? `@${u.telegram_username}` : 'No Telegram linked'}
-                  </div>
-                </div>
-              </button>
-            ))}
-            {results.length === 0 && (
-              <div className="text-sm text-gray-500">No results. Try searching above.</div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            {recentLoading && <div className="text-sm text-gray-500">Loading…</div>}
+            {recentError && <div className="text-sm text-red-600">{recentError}</div>}
 
-      {/* Compose */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5"/> Compose Message</CardTitle>
-          <CardDescription>Send a direct Telegram message via @Authenticationfypbot</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label>Selected Customer</Label>
-            <div className="mt-1 text-sm">
-              {selectedUser ? (
-                <span>
-                  {fullName(selectedUser)} {selectedUser.telegram_username ? `(Telegram: @${selectedUser.telegram_username})` : '(No Telegram)'}
-                </span>
-              ) : (
-                <span className="text-gray-500">None selected</span>
-              )}
-            </div>
-          </div>
-          <div>
-            <Label>Message</Label>
-            <Textarea
-              placeholder="Type your message..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={sendTelegram} disabled={sending || !selectedUser || !message.trim()}>
-              {sending ? 'Sending...' : 'Send Telegram'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Messages</CardTitle>
-          <CardDescription>Showing last 20 notifications for the selected customer</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {selectedUser ? (
-            <div className="space-y-3">
-              {history.map((n) => {
-                const dir = n?.metadata?.direction === 'incoming' ? 'incoming' : 'outgoing'
-                const isIncoming = dir === 'incoming'
+            <div className="flex flex-col divide-y">
+              {recentUsers.map((entry) => {
+                const isIncoming = entry.lastMessage?.metadata?.direction === 'incoming'
                 return (
-                  <div key={n.id} className="p-3 rounded-md border border-gray-200">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm text-gray-600">{new Date(n.created_at).toLocaleString()}</div>
-                      <Badge
-                        aria-label={isIncoming ? 'Incoming message' : 'Outgoing message'}
-                        className={isIncoming ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}
-                      >
+                  <button
+                    key={entry.user.id}
+                    onClick={() => setSelectedUser({ id: entry.user.id, email: entry.user.email || '', first_name: entry.user.display_name.split(' ')[0], last_name: entry.user.display_name.split(' ').slice(1).join(' '), telegram_username: entry.user.telegram_username })}
+                    className={`text-left px-3 py-2 rounded-md hover:bg-gray-50 ${selectedUser?.id === entry.user.id ? '!bg-gray-50 ring-1 ring-gray-200' : ''}`}
+                  >
+                    <div className="flex items-center gap-2 justify-between">
+                      <div className="font-medium truncate">{entry.user.display_name}</div>
+                      <div className="text-xs text-gray-500">{new Date(entry.lastMessage.created_at).toLocaleTimeString()}</div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge className={isIncoming ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}>
                         {isIncoming ? 'Incoming' : 'Outgoing'}
                       </Badge>
+                      <div className="text-xs text-gray-600 truncate">{entry.lastMessage.message}</div>
                     </div>
-                    <div className="font-medium mt-1">{n.title}</div>
-                    <div className="text-sm whitespace-pre-wrap mt-0.5">{n.message}</div>
-                  </div>
+                    {entry.unreadCount > 0 && (
+                      <div className="mt-1">
+                        <Badge className="bg-red-500 text-white border border-red-600 rounded-full px-2">{entry.unreadCount}</Badge>
+                      </div>
+                    )}
+                  </button>
                 )
               })}
-              {history.length === 0 && (
-                <div className="text-sm text-gray-500">No messages yet.</div>
+            </div>
+            {hasMoreRecent && (
+              <div className="mt-2 flex justify-center">
+                <Button size="sm" variant="secondary" onClick={() => loadRecent(recentOffset + recentLimit)} disabled={recentLoading}>Load more</Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Right: Chat panel */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <span>Chat</span>
+                  {selectedUser && (
+                    <span className="text-sm text-gray-600">{fullName(selectedUser)} {selectedUser.telegram_username ? `(Telegram: @${selectedUser.telegram_username})` : ''}</span>
+                  )}
+                </CardTitle>
+                <CardDescription>{selectedUser ? 'Two-way conversation history' : 'Select a conversation to view messages'}</CardDescription>
+              </div>
+              {selectedUser && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={refreshMessages}
+                    disabled={historyLoading}
+                    className="h-8 w-8 p-0"
+                    title="Refresh messages"
+                  >
+                    <RotateCcw className={`h-4 w-4 ${historyLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <div className="text-xs text-gray-500">
+                    Last: {lastRefresh.toLocaleTimeString()}
+                  </div>
+                </div>
               )}
             </div>
-          ) : (
-            <div className="text-sm text-gray-500">Select a customer to view history.</div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {!selectedUser && (
+              <div className="text-sm text-gray-500">Select a conversation on the left to start messaging.</div>
+            )}
+            {selectedUser && (
+              <div className="flex flex-col h-[60vh]">
+                <div className="flex-1 overflow-auto space-y-2 pr-1">
+                  {historyLoading && <div className="text-sm text-gray-500">Loading messages…</div>}
+                  {history.map((n) => {
+                    const dir = n?.metadata?.direction === 'incoming' ? 'incoming' : 'outgoing'
+                    const isIncoming = dir === 'incoming'
+                    return (
+                      <div key={n.id} className={`max-w-[85%] w-fit ${isIncoming ? 'self-start' : 'self-end'} `}>
+                        <div className={`px-3 py-2 rounded-lg border text-sm ${isIncoming ? 'bg-emerald-50 border-emerald-100 text-emerald-900' : 'bg-blue-50 border-blue-100 text-blue-900'}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <Badge className={isIncoming ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}>
+                              {isIncoming ? 'Incoming' : 'Outgoing'}
+                            </Badge>
+                            <div className="text-xs text-gray-500">{new Date(n.created_at).toLocaleString()}</div>
+                          </div>
+                          <div className="font-medium mt-1">{n.title}</div>
+                          <div className="whitespace-pre-wrap mt-0.5">{n.message}</div>
+                          {/* Delivery status (basic): use metadata.status if present */}
+                          {n?.metadata?.status && (
+                            <div className="text-[10px] text-gray-500 mt-1">Status: {n.metadata.status}</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {history.length === 0 && !historyLoading && (
+                    <div className="text-sm text-gray-500">No messages yet.</div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+                {/* Compose in chat */}
+                <div className="mt-2 flex gap-2">
+                  <Textarea
+                    placeholder="Type your message..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    rows={2}
+                    className="flex-1"
+                  />
+                  <Button onClick={sendTelegram} disabled={sending || !message.trim()}>
+                    {sending ? 'Sending...' : 'Send'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
