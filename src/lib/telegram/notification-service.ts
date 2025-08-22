@@ -223,7 +223,15 @@ export class TelegramNotificationService {
         chat_id: this.config.notificationGroupId,
         message_thread_id: this.config.notificationThreadId,
         text: message,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '✅ Confirm (Paid)', callback_data: `confirm_${order.id}` },
+              { text: '❌ Cancel Order', callback_data: `cancel_${order.id}` }
+            ]
+          ]
+        }
       });
 
       if (response.ok && response.result) {
@@ -305,7 +313,7 @@ export class TelegramNotificationService {
 
       // Use correct enum values for payment_status and fulfillment_status
       const newPaymentStatus = status === 'confirmed' ? 'verified' : 'failed';
-      const newFulfillmentStatus = status === 'confirmed' ? 'shipped' : 'cancelled';
+      const newFulfillmentStatus = status === 'confirmed' ? 'delivered' : 'cancelled';
 
       console.log(`🔄 Updating order ${orderId} status:`, {
         payment_status: newPaymentStatus,

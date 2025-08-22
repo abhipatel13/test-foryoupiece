@@ -135,18 +135,18 @@ export default function AdminOrdersPage() {
         throw new Error(result.error || 'Failed to complete order')
       }
 
-      // Update local state with shipped order (on the way)
+      // Update local state to Delivered (matches API response)
       setOrders(orders.map(order =>
         order.id === orderId
           ? {
               ...order,
               payment_status: 'verified',
-              fulfillment_status: 'shipped'
+              fulfillment_status: 'delivered'
             }
           : order
       ))
 
-      toast.success('Order shipped successfully! Package is on the way.')
+      toast.success('Order marked as Delivered successfully.')
     } catch (error) {
       console.error('Error completing order:', error)
       toast.error('Failed to complete order')

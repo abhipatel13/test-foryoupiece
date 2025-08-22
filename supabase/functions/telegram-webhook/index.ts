@@ -71,7 +71,7 @@ serve(async (req) => {
         const updateData = action === 'confirm' 
           ? {
               payment_status: 'verified',
-              fulfillment_status: 'shipped',
+              fulfillment_status: 'delivered',
               telegram_status: 'confirmed',
               processed_by: `${username} (@${callbackQuery.from.username || 'unknown'})`,
               processed_at: new Date().toISOString()

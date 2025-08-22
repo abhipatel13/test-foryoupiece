@@ -382,7 +382,7 @@ export class TelegramCallbackHandler {
 
       // Use correct enum values for payment_status and fulfillment_status
       const newPaymentStatus = status === 'confirmed' ? 'verified' : 'failed';
-      const newFulfillmentStatus = status === 'confirmed' ? 'shipped' : 'cancelled';
+      const newFulfillmentStatus = status === 'confirmed' ? 'delivered' : 'cancelled';
 
       console.log(`🔄 Updating order ${orderId} status:`, {
         payment_status: newPaymentStatus,

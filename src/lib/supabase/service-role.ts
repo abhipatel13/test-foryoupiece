@@ -16,17 +16,21 @@ export function createServiceRoleClient() {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    // During build time, environment variables might not be available
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('Supabase environment variables not available during build')
-      console.error('Missing Supabase environment variables:', {
-        hasUrl: !!supabaseUrl,
-        hasServiceKey: !!supabaseServiceKey,
-        nodeEnv: process.env.NODE_ENV
-      })
+    // During build time or local development, environment variables might not be available.
+    // In production, this is a critical misconfiguration and we must fail fast to avoid silent no-ops.
+    const isProd = process.env.NODE_ENV === 'production'
+
+    if (isProd) {
+      throw new Error('SUPABASE service role configuration missing in production (check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)')
     }
 
-    // Return a mock client for build time
+    console.warn('⚠️ Using mock Supabase service role client (non-production only). Missing env:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+      nodeEnv: process.env.NODE_ENV
+    })
+
+    // Return a mock client for build time/dev to prevent crashes, but DO NOT use in production
     return {
       auth: {
         getUser: () => Promise.resolve({ data: { user: null }, error: null }),
@@ -39,8 +43,8 @@ export function createServiceRoleClient() {
         delete: () => ({ data: null, error: null }),
       }),
       rpc: (functionName: string, params?: any) => {
-        console.warn(`🚨 Mock service role client: RPC call to ${functionName} with params:`, params);
-        return Promise.resolve({ data: null, error: { message: 'Mock client - RPC not available during build' } });
+        console.warn(`🚨 Mock service role client: RPC call to ${functionName} with params:`, params)
+        return Promise.resolve({ data: null, error: { message: 'Mock client - RPC not available (dev/build only)' } })
       },
     } as any
   }
