@@ -486,17 +486,19 @@ export async function POST(request: NextRequest) {
       // Get complete order data for admin telegram message
       const { data: orderWithDetails, error: orderError } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (
-            title,
-            quantity,
-            price,
-            total
-          )
-        `)
+        .select('*')
         .eq('id', order.id)
         .single();
+
+      // Get order items separately
+      let orderItems = [];
+      if (orderWithDetails && !orderError) {
+        const { data: items } = await supabase
+          .from('order_items')
+          .select('title, quantity, price, total')
+          .eq('order_id', order.id);
+        orderItems = items || [];
+      }
 
       // Get user profile separately from users table
       let userProfile = null;
@@ -509,9 +511,10 @@ export async function POST(request: NextRequest) {
         userProfile = profile;
       }
 
-      // Combine order data with profile
+      // Combine order data with profile and order items
       const completeOrderData = {
         ...orderWithDetails,
+        order_items: orderItems,
         profiles: userProfile
       };
 
