@@ -1,5 +1,4 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { sendEmailViaResend } from '@/lib/integrations/resend'
 import { renderOrderConfirmationEmailHtml } from '@/templates/email/order-confirmation'
 import { renderOrderShippedEmailHtml } from '@/templates/email/order-shipped'
 import { renderOrderCancelledEmailHtml } from '@/templates/email/order-cancelled'
@@ -10,6 +9,50 @@ const TELEGRAM_API_BASE = 'https://api.telegram.org/bot'
 type StatusEvent = 'shipped' | 'delivered' | 'cancelled'
 
 type OrderWithRelations = any
+
+/**
+ * Send email via Supabase Edge Function
+ * This uses the same email configuration as Supabase auth emails
+ */
+async function sendEmailViaSupabase(params: {
+  to: string | string[]
+  subject: string
+  html: string
+  text?: string
+  emailType?: string
+  metadata?: Record<string, any>
+}): Promise<{ success: boolean; error?: string; id?: string }> {
+  try {
+    const supabase = createServiceRoleClient()
+
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+        text: params.text,
+        emailType: params.emailType,
+        metadata: params.metadata,
+      }
+    })
+
+    if (error) {
+      console.error('❌ Supabase email function error:', error)
+      return { success: false, error: error.message }
+    }
+
+    if (!data?.success) {
+      console.error('❌ Email sending failed:', data)
+      return { success: false, error: data?.error || 'Email sending failed' }
+    }
+
+    console.log('✅ Email sent via Supabase Edge Function:', data.id)
+    return { success: true, id: data.id }
+  } catch (error: any) {
+    console.error('❌ Email function call error:', error)
+    return { success: false, error: error.message || 'Unknown error' }
+  }
+}
 
 async function loadOrderWithRelations(orderId: string) {
   const supabase = createServiceRoleClient()
@@ -115,7 +158,7 @@ export class CustomerNotificationService {
       qrImageUrl: getQrImageUrl(),
     })
 
-    const emailResult = await sendEmailViaResend({
+    const emailResult = await sendEmailViaSupabase({
       to: order.email,
       subject: `Thank you for your purchase! Order ${order.order_number}`,
       html: emailHtml,
@@ -169,7 +212,7 @@ export class CustomerNotificationService {
       })
 
       if (!(await alreadySent(orderId, 'status_shipped', 'email'))) {
-        const emailResult = await sendEmailViaResend({ to: order.email, subject: `Your order is on the way! (${order.order_number})`, html: emailHtml, emailType: 'status_shipped', metadata: { order_id: orderId, channel: 'email' } })
+        const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Your order is on the way! (${order.order_number})`, html: emailHtml, emailType: 'status_shipped', metadata: { order_id: orderId, channel: 'email' } })
         await logDelivery(orderId, order.email, `Your order is on the way! (${order.order_number})`, 'status_shipped', 'email', emailResult.success ? undefined : emailResult.error)
       }
 
@@ -193,7 +236,7 @@ export class CustomerNotificationService {
       })
 
       if (!(await alreadySent(orderId, 'status_cancelled', 'email'))) {
-        const emailResult = await sendEmailViaResend({ to: order.email, subject: `Order Cancelled (${order.order_number})`, html: emailHtml, emailType: 'status_cancelled', metadata: { order_id: orderId, channel: 'email' } })
+        const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Order Cancelled (${order.order_number})`, html: emailHtml, emailType: 'status_cancelled', metadata: { order_id: orderId, channel: 'email' } })
         await logDelivery(orderId, order.email, `Order Cancelled (${order.order_number})`, 'status_cancelled', 'email', emailResult.success ? undefined : emailResult.error)
       }
 
@@ -211,7 +254,7 @@ export class CustomerNotificationService {
 
     if (event === 'delivered') {
       if (!(await alreadySent(orderId, 'status_delivered', 'email'))) {
-        const emailResult = await sendEmailViaResend({ to: order.email, subject: `Delivered: Order ${order.order_number}`, html: `<p>Your order ${order.order_number} was delivered. Thank you!</p>`, emailType: 'status_delivered', metadata: { order_id: orderId, channel: 'email' } })
+        const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Delivered: Order ${order.order_number}`, html: `<p>Your order ${order.order_number} was delivered. Thank you!</p>`, emailType: 'status_delivered', metadata: { order_id: orderId, channel: 'email' } })
         await logDelivery(orderId, order.email, `Delivered: Order ${order.order_number}`, 'status_delivered', 'email', emailResult.success ? undefined : emailResult.error)
       }
       const telegramId = user.telegram_id
