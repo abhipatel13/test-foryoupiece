@@ -15,7 +15,7 @@ async function loadOrderWithRelations(orderId: string) {
   const supabase = createServiceRoleClient()
   const { data: order, error } = await supabase
     .from('orders')
-    .select(`*, order_items(title, quantity, price, total), users:users(first_name, last_name, telegram_id)`) // users aliased
+    .select(`*, order_items(title, quantity, price, total), users!orders_user_id_fkey(first_name, last_name, telegram_id)`)
     .eq('id', orderId)
     .single()
   if (error) throw error
