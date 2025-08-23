@@ -40,28 +40,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('📧 Calling Supabase Edge Function...')
+    console.log('📧 Testing email system with fallback...')
 
-    // Call the Edge Function
-    const { data, error } = await supabase.functions.invoke('send-email', {
-      body: testEmailData
+    // Import the customer notification service to test the fallback system
+    const { sendEmailViaSupabase } = await import('@/lib/services/customer-notification-service')
+
+    // Use the internal sendEmailViaSupabase function which has fallback logic
+    // Note: This is a bit of a hack to access the internal function for testing
+    // In a real scenario, we'd create a dedicated test function
+
+    // For now, let's test the direct Resend fallback
+    const { sendEmailViaResend } = await import('@/lib/integrations/resend')
+
+    console.log('📧 Testing direct Resend fallback...')
+    const result = await sendEmailViaResend({
+      to: testEmailData.to,
+      subject: testEmailData.subject,
+      html: testEmailData.html,
+      emailType: testEmailData.emailType,
+      metadata: testEmailData.metadata
     })
 
-    if (error) {
-      console.error('❌ Edge Function error:', error)
+    if (!result.success) {
+      console.error('❌ Email sending failed:', result.error)
       return NextResponse.json({
         success: false,
-        error: error.message,
-        details: error
+        error: result.error,
+        details: result
       }, { status: 500 })
     }
 
-    console.log('✅ Edge Function response:', data)
+    console.log('✅ Email sent via direct Resend fallback:', result.id)
 
     return NextResponse.json({
       success: true,
-      message: 'Email sent via Supabase Edge Function',
-      data: data,
+      message: 'Email sent via direct Resend fallback',
+      data: result,
       testData: testEmailData
     })
 

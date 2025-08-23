@@ -11,10 +11,10 @@ type StatusEvent = 'shipped' | 'delivered' | 'cancelled'
 type OrderWithRelations = any
 
 /**
- * Send email via Supabase Edge Function
+ * Send email via Supabase Edge Function with fallback to direct Resend
  * This uses the same email configuration as Supabase auth emails
  */
-async function sendEmailViaSupabase(params: {
+export async function sendEmailViaSupabase(params: {
   to: string | string[]
   subject: string
   html: string
@@ -23,6 +23,7 @@ async function sendEmailViaSupabase(params: {
   metadata?: Record<string, any>
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
+    console.log('📧 Attempting to send email via Supabase Edge Function...')
     const supabase = createServiceRoleClient()
 
     const { data, error } = await supabase.functions.invoke('send-email', {
@@ -38,19 +39,64 @@ async function sendEmailViaSupabase(params: {
 
     if (error) {
       console.error('❌ Supabase email function error:', error)
-      return { success: false, error: error.message }
+
+      // If Edge Function fails, try fallback to direct Resend
+      console.log('🔄 Attempting fallback to direct Resend API...')
+      return await sendEmailViaResendFallback(params)
     }
 
     if (!data?.success) {
       console.error('❌ Email sending failed:', data)
-      return { success: false, error: data?.error || 'Email sending failed' }
+
+      // If Edge Function returns failure, try fallback
+      console.log('🔄 Attempting fallback to direct Resend API...')
+      return await sendEmailViaResendFallback(params)
     }
 
     console.log('✅ Email sent via Supabase Edge Function:', data.id)
     return { success: true, id: data.id }
   } catch (error: any) {
     console.error('❌ Email function call error:', error)
-    return { success: false, error: error.message || 'Unknown error' }
+
+    // If Edge Function call fails completely, try fallback
+    console.log('🔄 Attempting fallback to direct Resend API...')
+    return await sendEmailViaResendFallback(params)
+  }
+}
+
+/**
+ * Fallback email sending via direct Resend API
+ */
+async function sendEmailViaResendFallback(params: {
+  to: string | string[]
+  subject: string
+  html: string
+  text?: string
+  emailType?: string
+  metadata?: Record<string, any>
+}): Promise<{ success: boolean; error?: string; id?: string }> {
+  try {
+    const { sendEmailViaResend } = await import('@/lib/integrations/resend')
+
+    const result = await sendEmailViaResend({
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+      text: params.text,
+      emailType: params.emailType,
+      metadata: params.metadata,
+    })
+
+    if (result.success) {
+      console.log('✅ Email sent via direct Resend fallback:', result.id)
+      return { success: true, id: result.id }
+    } else {
+      console.error('❌ Direct Resend fallback failed:', result.error)
+      return { success: false, error: result.error }
+    }
+  } catch (error: any) {
+    console.error('❌ Resend fallback error:', error)
+    return { success: false, error: error.message || 'Fallback email sending failed' }
   }
 }
 
