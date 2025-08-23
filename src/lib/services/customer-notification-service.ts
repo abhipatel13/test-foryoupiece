@@ -115,14 +115,23 @@ export class CustomerNotificationService {
       qrImageUrl: getQrImageUrl(),
     })
 
-    await sendEmailViaResend({
+    const emailResult = await sendEmailViaResend({
       to: order.email,
       subject: `Thank you for your purchase! Order ${order.order_number}`,
       html: emailHtml,
       emailType: 'order_confirmation',
       metadata: { order_id: orderId, channel: 'email' },
     })
-    await logDelivery(orderId, order.email, `Thank you for your purchase! Order ${order.order_number}`, 'order_confirmation', 'email')
+
+    // Log delivery with proper success/failure status
+    await logDelivery(
+      orderId,
+      order.email,
+      `Thank you for your purchase! Order ${order.order_number}`,
+      'order_confirmation',
+      'email',
+      emailResult.success ? undefined : emailResult.error
+    )
 
     // Telegram (best-effort)
     const telegramId = user.telegram_id
@@ -160,8 +169,8 @@ export class CustomerNotificationService {
       })
 
       if (!(await alreadySent(orderId, 'status_shipped', 'email'))) {
-        await sendEmailViaResend({ to: order.email, subject: `Your order is on the way! (${order.order_number})`, html: emailHtml, emailType: 'status_shipped', metadata: { order_id: orderId, channel: 'email' } })
-        await logDelivery(orderId, order.email, `Your order is on the way! (${order.order_number})`, 'status_shipped', 'email')
+        const emailResult = await sendEmailViaResend({ to: order.email, subject: `Your order is on the way! (${order.order_number})`, html: emailHtml, emailType: 'status_shipped', metadata: { order_id: orderId, channel: 'email' } })
+        await logDelivery(orderId, order.email, `Your order is on the way! (${order.order_number})`, 'status_shipped', 'email', emailResult.success ? undefined : emailResult.error)
       }
 
       const telegramId = user.telegram_id
@@ -184,8 +193,8 @@ export class CustomerNotificationService {
       })
 
       if (!(await alreadySent(orderId, 'status_cancelled', 'email'))) {
-        await sendEmailViaResend({ to: order.email, subject: `Order Cancelled (${order.order_number})`, html: emailHtml, emailType: 'status_cancelled', metadata: { order_id: orderId, channel: 'email' } })
-        await logDelivery(orderId, order.email, `Order Cancelled (${order.order_number})`, 'status_cancelled', 'email')
+        const emailResult = await sendEmailViaResend({ to: order.email, subject: `Order Cancelled (${order.order_number})`, html: emailHtml, emailType: 'status_cancelled', metadata: { order_id: orderId, channel: 'email' } })
+        await logDelivery(orderId, order.email, `Order Cancelled (${order.order_number})`, 'status_cancelled', 'email', emailResult.success ? undefined : emailResult.error)
       }
 
       const telegramId = user.telegram_id
@@ -202,8 +211,8 @@ export class CustomerNotificationService {
 
     if (event === 'delivered') {
       if (!(await alreadySent(orderId, 'status_delivered', 'email'))) {
-        await sendEmailViaResend({ to: order.email, subject: `Delivered: Order ${order.order_number}`, html: `<p>Your order ${order.order_number} was delivered. Thank you!</p>`, emailType: 'status_delivered', metadata: { order_id: orderId, channel: 'email' } })
-        await logDelivery(orderId, order.email, `Delivered: Order ${order.order_number}`, 'status_delivered', 'email')
+        const emailResult = await sendEmailViaResend({ to: order.email, subject: `Delivered: Order ${order.order_number}`, html: `<p>Your order ${order.order_number} was delivered. Thank you!</p>`, emailType: 'status_delivered', metadata: { order_id: orderId, channel: 'email' } })
+        await logDelivery(orderId, order.email, `Delivered: Order ${order.order_number}`, 'status_delivered', 'email', emailResult.success ? undefined : emailResult.error)
       }
       const telegramId = user.telegram_id
       if ((telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) && !(await alreadySent(orderId, 'status_delivered', 'telegram'))) {
