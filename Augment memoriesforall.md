@@ -59,6 +59,7 @@
 - Comprehensive admin order details with product thumbnails, quantities, pricing breakdowns, customer info.
 - Enhanced user profiles showing order history, total spent, and lifetime value metrics.
 - Admin panel coupon management system requires full CRUD functionality.
+- ForYouPiece admin panel requires super_admin-only product deletion with soft deletion (is_deleted, deleted_at, deleted_by, deleted_reason fields), CSRF protection, comprehensive audit logging, SKU/name confirmation modals, related data cleanup (cart_items, wishlist_items, search_suggestions), BoxHero sync compatibility, and Playwright MCP testing validation.
 
 # Testing and Quality Assurance
 - Comprehensive end-to-end testing approach for e-commerce integrations, authentication flows, and responsive design.
@@ -81,5 +82,5 @@
 - User prefers Tailwind CSS for styling.
 - All click interactions should be optimized for enterprise-level standards.
 - Account dropdown should appear below header (not overlay).
-- Account page must meet enterprise UI/UX: mobile-first (300–414px), desktop (768–1920+), 44px touch targets, strong typography/spacing, full a11y; zero console errors/hydration issues; performance and cross-browser compliance; and include a comprehensive Playwright MCP E2E test suite validating rendering, interactions, responsiveness, navigation, and error handling.
+- Account page must meet enterprise UI/UX: mobile-first (300–414px), desktop (768–1920+), strong typography/spacing, full a11y; zero console errors/hydration issues; performance and cross-browser compliance; and include a comprehensive Playwright MCP E2E test suite validating rendering, interactions, responsiveness, navigation, and error handling.
 - Desktop: place Rewards & Coupons beside Points for a denser hero area; Mobile: ensure all buttons and tab/subheading controls are visible/clickable without horizontal scrolling (no scrolling needed to reach Coupons/Progress tabs).

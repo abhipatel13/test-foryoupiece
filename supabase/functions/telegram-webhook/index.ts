@@ -68,10 +68,10 @@ serve(async (req) => {
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
         // Update order status
-        const updateData = action === 'confirm' 
+        const updateData = action === 'confirm'
           ? {
               payment_status: 'verified',
-              fulfillment_status: 'delivered',
+              fulfillment_status: 'shipped',
               telegram_status: 'confirmed',
               processed_by: `${username} (@${callbackQuery.from.username || 'unknown'})`,
               processed_at: new Date().toISOString()
@@ -103,6 +103,116 @@ serve(async (req) => {
         }
 
         console.log(`✅ Order ${orderId} status updated to ${action}ed`);
+
+        // Send customer email notification based on action
+        if (action === 'confirm') {
+          try {
+            console.log(`📧 Sending order shipped email notification for order ${orderId}...`);
+
+            // Get order details for email
+            const { data: orderDetails, error: orderError } = await supabase
+              .from('orders')
+              .select(`
+                *,
+                order_items (
+                  *,
+                  products (*)
+                ),
+                users!orders_user_id_fkey (*)
+              `)
+              .eq('id', orderId)
+              .single();
+
+            if (orderError) {
+              console.error('❌ Failed to fetch order details for email:', orderError);
+            } else if (orderDetails) {
+              // Call the customer notification service via Edge Function
+              const notificationUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/customer-notification`;
+              const notificationPayload = {
+                type: 'order_shipped',
+                orderId: orderDetails.id,
+                orderNumber: orderDetails.order_number,
+                customerEmail: orderDetails.users?.email || orderDetails.email,
+                customerName: `${orderDetails.users?.first_name || orderDetails.first_name || ''} ${orderDetails.users?.last_name || orderDetails.last_name || ''}`.trim(),
+                orderTotal: orderDetails.total_amount,
+                orderItems: orderDetails.order_items || [],
+                shippingAddress: orderDetails.shipping_address
+              };
+
+              const notificationResponse = await fetch(notificationUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                },
+                body: JSON.stringify(notificationPayload)
+              });
+
+              if (notificationResponse.ok) {
+                console.log(`✅ Order shipped email notification sent successfully for order ${orderId}`);
+              } else {
+                const errorText = await notificationResponse.text();
+                console.error(`❌ Failed to send order shipped email notification:`, errorText);
+              }
+            }
+          } catch (emailError) {
+            console.error(`❌ Failed to send order shipped email notification:`, emailError);
+            // Don't fail the order confirmation if email fails
+          }
+        } else if (action === 'cancel') {
+          try {
+            console.log(`📧 Sending order cancelled email notification for order ${orderId}...`);
+
+            // Get order details for email
+            const { data: orderDetails, error: orderError } = await supabase
+              .from('orders')
+              .select(`
+                *,
+                order_items (
+                  *,
+                  products (*)
+                ),
+                users!orders_user_id_fkey (*)
+              `)
+              .eq('id', orderId)
+              .single();
+
+            if (orderError) {
+              console.error('❌ Failed to fetch order details for email:', orderError);
+            } else if (orderDetails) {
+              const notificationUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/customer-notification`;
+              const notificationPayload = {
+                type: 'order_cancelled',
+                orderId: orderDetails.id,
+                orderNumber: orderDetails.order_number,
+                customerEmail: orderDetails.users?.email || orderDetails.email,
+                customerName: `${orderDetails.users?.first_name || orderDetails.first_name || ''} ${orderDetails.users?.last_name || orderDetails.last_name || ''}`.trim(),
+                orderTotal: orderDetails.total_amount,
+                orderItems: orderDetails.order_items || [],
+                cancellationReason: orderDetails.cancelled_reason || 'Cancelled by admin via Telegram'
+              };
+
+              const notificationResponse = await fetch(notificationUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                },
+                body: JSON.stringify(notificationPayload)
+              });
+
+              if (notificationResponse.ok) {
+                console.log(`✅ Order cancelled email notification sent successfully for order ${orderId}`);
+              } else {
+                const errorText = await notificationResponse.text();
+                console.error(`❌ Failed to send order cancelled email notification:`, errorText);
+              }
+            }
+          } catch (emailError) {
+            console.error(`❌ Failed to send order cancelled email notification:`, emailError);
+            // Don't fail the order cancellation if email fails
+          }
+        }
 
         // Send confirmation message to Telegram
         const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');

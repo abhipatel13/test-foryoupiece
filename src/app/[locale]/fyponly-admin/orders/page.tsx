@@ -366,6 +366,25 @@ export default function AdminOrdersPage() {
                             </div>
                           )}
 
+                          {/* On Hold Orders - Can be marked as shipped */}
+                          {order.fulfillment_status === 'on_hold' && (
+                            <div className="space-y-2">
+                              <div className="text-sm text-orange-600 font-medium">
+                                📦 Order On Hold
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStatusUpdate(order.id, 'shipped', 'fulfillment')}
+                                disabled={updating === order.id}
+                                className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                              >
+                                <Truck className="h-3 w-3 mr-1" />
+                                Mark as Shipped
+                              </Button>
+                            </div>
+                          )}
+
                           {/* Shipped Orders (On the Way) - Can be marked as delivered */}
                           {order.fulfillment_status === 'shipped' && (
                             <div className="space-y-2">

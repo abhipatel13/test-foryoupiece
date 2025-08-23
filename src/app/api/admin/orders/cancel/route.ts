@@ -166,6 +166,56 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       }
     }
 
+    // Send order cancelled email notification
+    try {
+      console.log('📧 Sending order cancelled email notification...');
+
+      // Get order details for email
+      const { data: orderDetails, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          users!orders_user_id_fkey (
+            first_name,
+            last_name,
+            email,
+            phone,
+            telegram_username
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) {
+        console.error('❌ Failed to fetch order details for email:', orderError);
+      } else if (orderDetails) {
+        // Import the customer notification service
+        const { sendCustomerNotification } = await import('@/lib/services/customer-notification-service');
+
+        // Send order cancelled email
+        await sendCustomerNotification({
+          type: 'order_cancelled',
+          orderId: orderDetails.id,
+          orderNumber: orderDetails.order_number,
+          customerEmail: orderDetails.users?.email || orderDetails.email,
+          customerName: `${orderDetails.users?.first_name || orderDetails.first_name || ''} ${orderDetails.users?.last_name || orderDetails.last_name || ''}`.trim(),
+          orderTotal: orderDetails.total_amount,
+          orderItems: orderDetails.order_items || [],
+          pointsRefunded: order.points_used || 0,
+          cancellationReason: 'Cancelled by admin'
+        });
+
+        console.log('✅ Order cancelled email notification sent successfully');
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send order cancelled email:', emailError);
+      // Don't fail the order cancellation if email fails
+    }
+
     console.log('✅ Order cancelled successfully:', cancelledOrder.id);
 
     return NextResponse.json({

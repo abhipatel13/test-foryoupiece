@@ -1,15 +1,33 @@
+﻿import { formatPrice } from '@/lib/utils'
+
+export interface OrderItemTemplate {
+  title: string
+  quantity: number
+  price: number
+  total: number
+}
+
 export interface OrderCancelledEmailData {
   orderNumber: string
   createdAt: string
   email: string
   customerName?: string
+  phone?: string
+  shippingAddress?: string
+  items: OrderItemTemplate[]
+  subtotal: number
+  shipping: number
+  discount?: number
+  couponDiscount?: number
+  pointsUsed?: number
+  total: number
   cancelReason?: string
 }
 
 export function renderOrderCancelledEmailHtml(d: OrderCancelledEmailData): string {
   const reason = d.cancelReason && d.cancelReason.trim().length > 0
     ? escapeHtml(d.cancelReason)
-    : 'The order may be cancelled due to: Payment not received, Out of stock, Customer request, or Other.'
+    : 'This order may have been cancelled due to payment processing issues, inventory shortage, or other operational reasons. We apologize for any inconvenience caused.'
 
   return `
   <!doctype html>
@@ -19,12 +37,13 @@ export function renderOrderCancelledEmailHtml(d: OrderCancelledEmailData): strin
     <div style="max-width:640px;margin:0 auto;padding:24px">
       <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
         <div style="padding:24px;border-bottom:1px solid #e2e8f0">
-          <h1 style="margin:0;font-size:20px;color:#0f172a">Your order has been cancelled</h1>
+          <h1 style="margin:0;font-size:20px;color:#0f172a">Order Cancelled</h1>
           <p style="margin:6px 0 0;color:#475569">Order ${escapeHtml(d.orderNumber)}</p>
         </div>
         <div style="padding:24px">
-          <p style="margin:0 0 12px;color:#334155">We’re sorry to inform you that your order was cancelled.</p>
-          <p style="margin:0 0 12px;color:#334155">Reason: ${reason}</p>
+          <p style="margin:0 0 12px;color:#334155">We're sorry to inform you that your order was cancelled.</p>
+          <p style="margin:0 0 16px;color:#334155">Reason: ${reason}</p>
+          <p style="margin:0 0 12px;color:#334155">You're welcome to place a new order if the issue has been resolved. If you need assistance, please contact our support team.</p>
           <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px">If you have any questions, contact support@foryoupiece.com</div>
         </div>
       </div>
@@ -37,4 +56,3 @@ export function renderOrderCancelledEmailHtml(d: OrderCancelledEmailData): strin
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c] as string))
 }
-

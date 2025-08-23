@@ -160,6 +160,54 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       console.log('ℹ️ Order payment status not verified after update, no points awarded');
     }
 
+    // Send order shipped/completed email notification
+    try {
+      console.log('📧 Sending order completed email notification...');
+
+      // Get order details for email
+      const { data: orderDetails, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          users!orders_user_id_fkey (*)
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) {
+        console.error('❌ Failed to fetch order details for email:', orderError);
+      } else if (orderDetails) {
+        // Import the customer notification service
+        const { sendCustomerNotification } = await import('@/lib/services/customer-notification-service');
+
+        // Send order completed email
+        await sendCustomerNotification({
+          type: 'order_shipped',
+          orderId: orderDetails.id,
+          orderNumber: orderDetails.order_number,
+          customerEmail: orderDetails.users?.email || orderDetails.customer_email,
+          customerName: `${orderDetails.users?.first_name || orderDetails.first_name} ${orderDetails.users?.last_name || orderDetails.last_name}`,
+          orderTotal: orderDetails.total_amount,
+          orderItems: orderDetails.order_items || [],
+          shippingAddress: {
+            line1: orderDetails.address_line_1,
+            line2: orderDetails.address_line_2,
+            city: 'Phnom Penh',
+            country: 'Cambodia'
+          }
+        });
+
+        console.log('✅ Order completed email notification sent successfully');
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send order completed email:', emailError);
+      // Don't fail the order completion if email fails
+    }
+
     return NextResponse.json({
       success: true,
       order: updatedOrder

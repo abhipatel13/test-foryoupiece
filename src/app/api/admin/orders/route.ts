@@ -185,6 +185,76 @@ export const PATCH = withAdminAuth(async (request: NextRequest, { user, adminUse
 
     console.log('✅ Order updated successfully:', data);
 
+    // Send email notification for status changes
+    try {
+      // Check if this is a significant status change that requires email notification
+      const shouldSendEmail = (
+        (statusType === 'fulfillment' && status === 'shipped') ||
+        (statusType === 'fulfillment' && status === 'delivered') ||
+        (statusType === 'fulfillment' && status === 'cancelled')
+      );
+
+      if (shouldSendEmail) {
+        console.log(`📧 Sending ${status} email notification for order ${orderId}...`);
+
+        // Get order details for email
+        const { data: orderDetails, error: orderError } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (
+              *,
+              products (*)
+            ),
+            users!orders_user_id_fkey (*)
+          `)
+          .eq('id', orderId)
+          .single();
+
+        if (orderError) {
+          console.error('❌ Failed to fetch order details for email:', orderError);
+        } else if (orderDetails) {
+          // Import the customer notification service
+          const { sendCustomerNotification } = await import('@/lib/services/customer-notification-service');
+
+          // Determine notification type based on status
+          let notificationType: 'order_shipped' | 'order_cancelled';
+          if (status === 'shipped') {
+            notificationType = 'order_shipped';
+          } else if (status === 'cancelled') {
+            notificationType = 'order_cancelled';
+          } else {
+            // For delivered status, we don't have a specific notification type yet
+            // Skip email notification for now
+            console.log(`📧 Skipping email notification for ${status} status - no notification type defined`);
+            return NextResponse.json({
+              success: true,
+              order: data
+            });
+          }
+
+          // Send email notification
+          await sendCustomerNotification({
+            type: notificationType,
+            orderId: orderDetails.id,
+            orderNumber: orderDetails.order_number,
+            customerEmail: orderDetails.users?.email || orderDetails.email,
+            customerName: `${orderDetails.users?.first_name || orderDetails.first_name || ''} ${orderDetails.users?.last_name || orderDetails.last_name || ''}`.trim(),
+            orderTotal: orderDetails.total_amount,
+            orderItems: orderDetails.order_items || [],
+            shippingAddress: orderDetails.shipping_address,
+            pointsRefunded: status === 'cancelled' ? orderDetails.points_used || 0 : undefined,
+            cancellationReason: status === 'cancelled' ? 'Cancelled by admin' : undefined
+          });
+
+          console.log(`✅ ${status} email notification sent successfully for order ${orderId}`);
+        }
+      }
+    } catch (emailError) {
+      console.error(`❌ Failed to send ${status} email notification:`, emailError);
+      // Don't fail the order update if email fails
+    }
+
     return NextResponse.json({
       success: true,
       order: data

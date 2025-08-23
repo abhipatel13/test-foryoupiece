@@ -450,7 +450,7 @@ export class TelegramCallbackHandler {
 
       // Use correct enum values for payment_status and fulfillment_status
       const newPaymentStatus = status === 'confirmed' ? 'verified' : 'failed';
-      const newFulfillmentStatus = status === 'confirmed' ? 'delivered' : 'cancelled';
+      const newFulfillmentStatus = status === 'confirmed' ? 'shipped' : 'cancelled';
 
       console.log(`🔄 Updating order ${orderId} status:`, {
         payment_status: newPaymentStatus,
@@ -478,6 +478,95 @@ export class TelegramCallbackHandler {
       }
 
       console.log(`✅ Order ${orderId} status updated to ${status}`);
+
+      // Send customer email notification for confirmed orders
+      if (status === 'confirmed') {
+        try {
+          console.log(`📧 Sending order shipped email notification for order ${orderId}...`);
+
+          // Get order details for email
+          const { data: orderDetails, error: orderError } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (
+                *,
+                products (*)
+              ),
+              users!orders_user_id_fkey (*)
+            `)
+            .eq('id', orderId)
+            .single();
+
+          if (orderError) {
+            console.error('❌ Failed to fetch order details for email:', orderError);
+          } else if (orderDetails) {
+            const { sendCustomerNotification } = await import('@/lib/services/customer-notification-service');
+
+            await sendCustomerNotification({
+              type: 'order_shipped',
+              orderId: orderDetails.id,
+              orderNumber: orderDetails.order_number,
+              customerEmail: orderDetails.users?.email || orderDetails.email,
+              customerName: `${orderDetails.users?.first_name || orderDetails.first_name || ''} ${orderDetails.users?.last_name || orderDetails.last_name || ''}`.trim(),
+              orderTotal: orderDetails.total_amount,
+              orderItems: orderDetails.order_items || [],
+              shippingAddress: orderDetails.shipping_address
+            });
+
+            console.log(`✅ Order shipped email notification sent successfully for order ${orderId}`);
+          }
+        } catch (emailError) {
+          console.error(`❌ Failed to send order shipped email notification for order ${orderId}:`, emailError);
+          // Don't fail the order update if email fails
+        }
+      }
+
+      // Send customer email notification for cancelled orders
+      if (status === 'cancelled') {
+        try {
+          console.log(`📧 Sending order cancelled email notification for order ${orderId}...`);
+
+          // Get order details for email
+          const { data: orderDetails, error: orderError } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (
+                *,
+                products (*)
+              ),
+              users!orders_user_id_fkey (*)
+            `)
+            .eq('id', orderId)
+            .single();
+
+          if (orderError) {
+            console.error('❌ Failed to fetch order details for email:', orderError);
+          } else if (orderDetails) {
+            const { sendCustomerNotification } = await import('@/lib/services/customer-notification-service');
+
+            await sendCustomerNotification({
+              type: 'order_cancelled',
+              orderId: orderDetails.id,
+              orderNumber: orderDetails.order_number,
+              customerEmail: orderDetails.users?.email || orderDetails.email,
+              customerName: `${orderDetails.users?.first_name || orderDetails.first_name || ''} ${orderDetails.users?.last_name || orderDetails.last_name || ''}`.trim(),
+              orderTotal: orderDetails.total_amount,
+              orderItems: orderDetails.order_items || [],
+              shippingAddress: orderDetails.shipping_address,
+              pointsRefunded: orderDetails.points_used || 0,
+              cancellationReason: 'Cancelled via Telegram'
+            });
+
+            console.log(`✅ Order cancelled email notification sent successfully for order ${orderId}`);
+          }
+        } catch (emailError) {
+          console.error(`❌ Failed to send order cancelled email notification for order ${orderId}:`, emailError);
+          // Don't fail the order update if email fails
+        }
+      }
+
       return true;
     } catch (error) {
       console.error('❌ Error updating order status:', error);
@@ -903,6 +992,29 @@ ${emoji} <b>ORDER ${actionText}</b>
       }
 
       console.log(`✅ Order ${order.order_number} arrival confirmed successfully`);
+
+      // Send customer email notification for order shipped
+      try {
+        console.log(`📧 Sending order shipped email notification for order ${order.order_number}...`);
+
+        const { sendCustomerNotification } = await import('@/lib/services/customer-notification-service');
+
+        await sendCustomerNotification({
+          type: 'order_shipped',
+          orderId: order.id,
+          orderNumber: order.order_number,
+          customerEmail: order.users?.email || order.email,
+          customerName: `${order.users?.first_name || order.first_name || ''} ${order.users?.last_name || order.last_name || ''}`.trim(),
+          orderTotal: order.total_amount,
+          orderItems: order.order_items || [],
+          shippingAddress: order.shipping_address
+        });
+
+        console.log(`✅ Order shipped email notification sent successfully for order ${order.order_number}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send order shipped email notification for order ${order.order_number}:`, emailError);
+        // Don't fail the order confirmation if email fails
+      }
 
       // Send delivery notification to the second group
       const { telegramNotificationService } = await import('@/lib/telegram/notification-service');

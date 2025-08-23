@@ -248,11 +248,28 @@ export class CustomerNotificationService {
     const user = order.users || {}
 
     if (event === 'shipped') {
+      const shippingAddressStr = formatShippingAddress(order.shipping_address)
+      const customerName = [user.first_name, user.last_name].filter(Boolean).join(' ') || ''
+
       const emailHtml = renderOrderShippedEmailHtml({
         orderNumber: order.order_number,
         createdAt: order.created_at,
         email: order.email,
-        customerName: [user.first_name, user.last_name].filter(Boolean).join(' ') || '',
+        customerName,
+        phone: order.phone,
+        shippingAddress: shippingAddressStr,
+        items: (order.order_items || []).map((it: any) => ({
+          title: it.title,
+          quantity: it.quantity,
+          price: it.price,
+          total: it.total
+        })),
+        subtotal: Number(order.subtotal || 0),
+        shipping: Number(order.shipping_cost || 0),
+        discount: Number(order.discount_amount || 0),
+        couponDiscount: Number(order.coupon_discount_amount || 0),
+        pointsUsed: Number(order.points_used || 0),
+        total: Number(order.total_amount || 0),
         trackingNumber: order.tracking_number || undefined,
         trackingUrl: order.tracking_number ? `https://track.aftership.com/${encodeURIComponent(order.tracking_number)}` : undefined,
       })
@@ -273,11 +290,28 @@ export class CustomerNotificationService {
     }
 
     if (event === 'cancelled') {
+      const shippingAddressStr = formatShippingAddress(order.shipping_address)
+      const customerName = [user.first_name, user.last_name].filter(Boolean).join(' ') || ''
+
       const emailHtml = renderOrderCancelledEmailHtml({
         orderNumber: order.order_number,
         createdAt: order.created_at,
         email: order.email,
-        customerName: [user.first_name, user.last_name].filter(Boolean).join(' ') || '',
+        customerName,
+        phone: order.phone,
+        shippingAddress: shippingAddressStr,
+        items: (order.order_items || []).map((it: any) => ({
+          title: it.title,
+          quantity: it.quantity,
+          price: it.price,
+          total: it.total
+        })),
+        subtotal: Number(order.subtotal || 0),
+        shipping: Number(order.shipping_cost || 0),
+        discount: Number(order.discount_amount || 0),
+        couponDiscount: Number(order.coupon_discount_amount || 0),
+        pointsUsed: Number(order.points_used || 0),
+        total: Number(order.total_amount || 0),
         cancelReason: order.cancelled_reason || undefined,
       })
 
@@ -315,4 +349,50 @@ export class CustomerNotificationService {
 }
 
 export const customerNotificationService = new CustomerNotificationService()
+
+/**
+ * Wrapper function for sending customer notifications
+ * This provides a unified interface for different notification types
+ */
+export async function sendCustomerNotification(params: {
+  type: 'order_confirmation' | 'order_shipped' | 'order_cancelled'
+  orderId: string
+  orderNumber?: string
+  customerEmail?: string
+  customerName?: string
+  orderTotal?: number
+  orderItems?: any[]
+  shippingAddress?: any
+  pointsRefunded?: number
+  cancellationReason?: string
+}): Promise<void> {
+  const { type, orderId } = params
+
+  try {
+    console.log(`📧 Sending ${type} notification for order ${orderId}`)
+
+    switch (type) {
+      case 'order_confirmation':
+        await customerNotificationService.sendOrderConfirmation(orderId)
+        break
+
+      case 'order_shipped':
+        await customerNotificationService.sendOrderStatusUpdate(orderId, 'shipped')
+        break
+
+      case 'order_cancelled':
+        await customerNotificationService.sendOrderStatusUpdate(orderId, 'cancelled')
+        break
+
+      default:
+        console.error(`❌ Unknown notification type: ${type}`)
+        throw new Error(`Unknown notification type: ${type}`)
+    }
+
+    console.log(`✅ ${type} notification sent successfully for order ${orderId}`)
+  } catch (error) {
+    console.error(`❌ Failed to send ${type} notification for order ${orderId}:`, error)
+    throw error
+  }
+}
 
