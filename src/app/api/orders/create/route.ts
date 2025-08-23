@@ -474,14 +474,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 📱 Send Telegram notification for new order
+    // 📱 Send Telegram notification for new order (admin) + customer confirmation email/telegram (best-effort)
     try {
       console.log('📱 Triggering Telegram notification for order:', order.order_number);
 
-      // Import and use notification service directly
+      // Admin/internal telegram notification service
       const { telegramNotificationService } = await import('@/lib/telegram/notification-service');
+      // Customer notifications orchestrator
+      const { customerNotificationService } = await import('@/lib/services/customer-notification-service');
 
-      // Get complete order data for notification
+      // Get complete order data for admin telegram message
       const { data: orderWithDetails, error: orderError } = await supabase
         .from('orders')
         .select(`
@@ -501,7 +503,7 @@ export async function POST(request: NextRequest) {
       if (orderWithDetails && orderWithDetails.user_id) {
         const { data: profile } = await supabase
           .from('users')
-          .select('first_name, last_name, aba_bank_name')
+          .select('first_name, last_name, aba_bank_name, telegram_id')
           .eq('id', orderWithDetails.user_id)
           .single();
         userProfile = profile;
@@ -514,9 +516,8 @@ export async function POST(request: NextRequest) {
       };
 
       if (completeOrderData && !orderError) {
-        // Send notification ONLY to notification group (first step of sequential workflow)
+        // Admin group notification (unchanged)
         const notificationSent = await telegramNotificationService.sendOrderNotification(completeOrderData);
-
         if (notificationSent) {
           console.log('✅ Telegram notification sent successfully to notification group');
           console.log('📱 Waiting for "/arrived" confirmation before sending delivery notification');
@@ -524,14 +525,17 @@ export async function POST(request: NextRequest) {
           console.error('❌ Failed to send Telegram notification');
         }
 
-        // ⚠️ REMOVED: Automatic stock group notification - now only sent after "/arrived" confirmation
-        // This implements the sequential workflow: notification -> wait for /arrived -> delivery notification
+        // Customer confirmation (email + telegram best-effort) - fire and forget
+        customerNotificationService
+          .sendOrderConfirmation(order.id)
+          .then(() => console.log('✅ Customer order confirmation dispatched'))
+          .catch((e: any) => console.warn('⚠️ Customer order confirmation failed:', e?.message || e));
       } else {
         console.error('❌ Failed to fetch order details for Telegram notification:', orderError);
       }
     } catch (telegramError) {
-      console.error('❌ Error triggering Telegram notification:', telegramError);
-      // Don't fail the order creation if Telegram notification fails
+      console.error('❌ Error triggering notifications:', telegramError);
+      // Don't fail the order creation if notifications fail
     }
 
     return NextResponse.json({
