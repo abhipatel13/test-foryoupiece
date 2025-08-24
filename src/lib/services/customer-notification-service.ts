@@ -130,7 +130,19 @@ function isTelegramSyntheticEmail(email?: string | null): boolean {
   return /@telegram\.foryoupiece\.local$/i.test(email) || /^tg_\d+@/i.test(email)
 }
 
-async function trySendTelegramDM(userTelegramId: number | null | undefined, text: string): Promise<{ success: boolean; error?: string }>{
+type TelegramDMResult = {
+  success: boolean
+  error?: string
+  debug?: {
+    bot_id?: string
+    bot_username?: string
+    chat_verified?: boolean
+    telegram_api_desc?: string
+    chat_id?: number
+  }
+}
+
+async function trySendTelegramDM(userTelegramId: number | null | undefined, text: string): Promise<TelegramDMResult>{
   // Prefer the Authentication bot for customer DMs since users have already started a chat with it
   const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN
   const overrideRaw = process.env.NODE_ENV !== 'production' ? process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID : undefined
@@ -147,9 +159,33 @@ async function trySendTelegramDM(userTelegramId: number | null | undefined, text
 
   const chatId = overrideChatId ?? (userTelegramId as any)
   if (!botToken || !chatId) {
-    return { success: false, error: 'Missing bot token or telegram chat id' }
+    return { success: false, error: 'Missing bot token or telegram chat id', debug: { chat_id: chatId } }
   }
   try {
+    // Identify bot
+    let bot_id: string | undefined
+    let bot_username: string | undefined
+    try {
+      const meResp = await fetch(`${TELEGRAM_API_BASE}${botToken}/getMe`)
+      const meJson = await meResp.json().catch(() => null)
+      if (meJson?.ok) { bot_id = String(meJson.result.id); bot_username = meJson.result.username }
+    } catch {}
+
+    // Verify chat existence (best-effort; avoid failing if endpoint errors)
+    let chat_verified: boolean | undefined
+    let chat_desc: string | undefined
+    try {
+      const chatResp = await fetch(`${TELEGRAM_API_BASE}${botToken}/getChat`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: Number(chatId) })
+      })
+      const chatJson = await chatResp.json().catch(() => null)
+      chat_verified = !!chatJson?.ok
+      if (!chat_verified) chat_desc = chatJson?.description
+    } catch (e: any) {
+      chat_verified = undefined
+      chat_desc = e?.message
+    }
+
     const url = `${TELEGRAM_API_BASE}${botToken}/sendMessage`
     const resp = await fetch(url, {
       method: 'POST',
@@ -160,11 +196,11 @@ async function trySendTelegramDM(userTelegramId: number | null | undefined, text
       // Include Telegram error JSON/text for easier debugging
       let errText = ''
       try { errText = await resp.text() } catch {}
-      return { success: false, error: errText || `HTTP ${resp.status}` }
+      return { success: false, error: errText || `HTTP ${resp.status}` , debug: { bot_id, bot_username, chat_verified, telegram_api_desc: errText, chat_id: Number(chatId) } }
     }
-    return { success: true }
+    return { success: true, debug: { bot_id, bot_username, chat_verified, chat_id: Number(chatId) } }
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Unknown telegram error' }
+    return { success: false, error: e?.message || 'Unknown telegram error', debug: { chat_id: Number(chatId) } }
   }
 }
 
@@ -286,11 +322,12 @@ export class CustomerNotificationService {
           `Payment: ${getPaymentLink()}`,
         ].join('\n')
         const sent = await trySendTelegramDM(telegramId, msg)
+        const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
         if (sent.success) {
-          await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram')
+          await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', undefined, meta)
         } else {
-          await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', sent.error)
-          console.warn('⚠️ Telegram DM failed for order confirmation:', sent.error)
+          await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', sent.error, meta)
+          console.warn('⚠️ Telegram DM failed for order confirmation:', sent.error, meta)
         }
       }
     }
@@ -343,8 +380,9 @@ export class CustomerNotificationService {
         const line = order.tracking_number ? `Tracking: <b>${order.tracking_number}</b>` : 'Tracking will be provided soon.'
         const msg = `Your order is on the way!\nOrder: <b>${order.order_number}</b>\n${line}`
         const sent = await trySendTelegramDM(telegramId, msg)
-        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram')
-        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', sent.error)
+        const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
+        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', undefined, meta)
+        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', sent.error, meta)
       }
     }
 
@@ -392,8 +430,9 @@ export class CustomerNotificationService {
           : 'Possible reasons: Payment not received, Out of stock, Customer request, Other.'
         const msg = `Your order has been cancelled.\nOrder: <b>${order.order_number}</b>\nReason: ${reason}`
         const sent = await trySendTelegramDM(telegramId, msg)
-        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram')
-        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', sent.error)
+        const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
+        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', undefined, meta)
+        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', sent.error, meta)
       }
     }
 
@@ -412,8 +451,9 @@ export class CustomerNotificationService {
       if ((telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) && !(await alreadySent(orderId, 'status_delivered', 'telegram'))) {
         const msg = `Delivered: <b>${order.order_number}</b>\nThank you for shopping with us!`
         const sent = await trySendTelegramDM(telegramId, msg)
-        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram')
-        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', sent.error)
+        const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
+        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', undefined, meta)
+        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', sent.error, meta)
       }
     }
   }
