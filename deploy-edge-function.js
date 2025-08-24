@@ -7,6 +7,9 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Load environment variables from .env.local
+require('dotenv').config({ path: '.env.local' });
+
 console.log('🚀 Starting Edge Function deployment...');
 
 // Check if Edge Function exists
