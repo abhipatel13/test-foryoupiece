@@ -71,6 +71,23 @@ serve(async (req) => {
       data: result
     })
 
+    // Return proper error status codes for failed requests
+    if (!success) {
+      console.error('❌ Resend API failed:', result)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: result.message || `HTTP ${response.status}`,
+          status: response.status,
+          data: result
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: response.status >= 500 ? 500 : 400, // Return appropriate error status
+        }
+      )
+    }
+
     // Log the email attempt to database
     await supabase.from('email_logs').insert({
       recipient: recipients.join(','),

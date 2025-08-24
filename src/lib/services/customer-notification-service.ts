@@ -177,13 +177,20 @@ async function logDelivery(orderId: string, recipient: string, subject: string, 
 
 export class CustomerNotificationService {
   async sendOrderConfirmation(orderId: string): Promise<void> {
+    console.log(`📧 Starting order confirmation for order: ${orderId}`)
+
     const order = await loadOrderWithRelations(orderId)
     const user = order.users || {}
     const shippingAddressStr = formatShippingAddress(order.shipping_address)
     const customerName = [user.first_name, user.last_name].filter(Boolean).join(' ') || ''
 
+    console.log(`📧 Order confirmation details: ${order.order_number} → ${order.email}`)
+
     // Idempotency (email)
-    if (await alreadySent(orderId, 'order_confirmation', 'email')) return
+    if (await alreadySent(orderId, 'order_confirmation', 'email')) {
+      console.log(`📧 Order confirmation already sent for order: ${orderId}`)
+      return
+    }
 
     // Email
     const emailHtml = renderOrderConfirmationEmailHtml({
@@ -204,6 +211,7 @@ export class CustomerNotificationService {
       qrImageUrl: getQrImageUrl(),
     })
 
+    console.log(`📧 Attempting to send order confirmation email...`)
     const emailResult = await sendEmailViaSupabase({
       to: order.email,
       subject: `Thank you for your purchase! Order ${order.order_number}`,
@@ -211,6 +219,8 @@ export class CustomerNotificationService {
       emailType: 'order_confirmation',
       metadata: { order_id: orderId, channel: 'email' },
     })
+
+    console.log(`📧 Email result:`, { success: emailResult.success, error: emailResult.error })
 
     // Log delivery with proper success/failure status
     await logDelivery(
@@ -221,6 +231,15 @@ export class CustomerNotificationService {
       'email',
       emailResult.success ? undefined : emailResult.error
     )
+
+    // If email failed, throw an error to trigger proper error handling
+    if (!emailResult.success) {
+      const errorMessage = `Order confirmation email failed for order ${orderId}: ${emailResult.error}`
+      console.error(`❌ ${errorMessage}`)
+      throw new Error(errorMessage)
+    }
+
+    console.log(`✅ Order confirmation email sent successfully for order: ${orderId}`)
 
     // Telegram (best-effort)
     const telegramId = user.telegram_id

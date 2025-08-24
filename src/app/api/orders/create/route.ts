@@ -474,14 +474,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 📱 Send Telegram notification for new order (admin) + customer confirmation email/telegram (best-effort)
+    // 📱 Send Telegram notification for new order (admin) + enqueue customer confirmation email
     try {
-      console.log('📱 Triggering Telegram notification for order:', order.order_number);
+      console.log('📱 Triggering notifications for order:', order.order_number);
 
       // Admin/internal telegram notification service
       const { telegramNotificationService } = await import('@/lib/telegram/notification-service');
-      // Customer notifications orchestrator
-      const { customerNotificationService } = await import('@/lib/services/customer-notification-service');
 
       // Get complete order data for admin telegram message
       const { data: orderWithDetails, error: orderError } = await supabase
@@ -528,11 +526,28 @@ export async function POST(request: NextRequest) {
           console.error('❌ Failed to send Telegram notification');
         }
 
-        // Customer confirmation (email + telegram best-effort) - fire and forget
-        customerNotificationService
-          .sendOrderConfirmation(order.id)
-          .then(() => console.log('✅ Customer order confirmation dispatched'))
-          .catch((e: any) => console.warn('⚠️ Customer order confirmation failed:', e?.message || e));
+        // Enqueue customer order confirmation email (transactional outbox pattern)
+        try {
+          console.log('📧 Enqueuing customer order confirmation email for order:', order.id);
+
+          const { error: enqueueError } = await supabase.rpc('enqueue_email_message', {
+            p_order_id: order.id,
+            p_email_type: 'order_confirmation',
+            p_payload: {
+              order_number: order.order_number,
+              customer_email: order.email,
+              enqueued_at: new Date().toISOString()
+            }
+          });
+
+          if (enqueueError) {
+            console.error('❌ Failed to enqueue customer order confirmation:', enqueueError);
+          } else {
+            console.log('✅ Customer order confirmation email enqueued successfully');
+          }
+        } catch (enqueueErr: any) {
+          console.error('❌ Error enqueuing customer order confirmation:', enqueueErr?.message || enqueueErr);
+        }
       } else {
         console.error('❌ Failed to fetch order details for Telegram notification:', orderError);
       }
