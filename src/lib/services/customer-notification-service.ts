@@ -130,6 +130,39 @@ function isTelegramSyntheticEmail(email?: string | null): boolean {
   return /@telegram\.foryoupiece\.local$/i.test(email) || /^tg_\d+@/i.test(email)
 }
 
+
+// --- Telegram DM helpers ---
+function escapeHtml(s: string): string {
+  if (!s) return ''
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+}
+
+function formatItems(items: any[], maxLines: number = 10): string {
+  if (!Array.isArray(items) || items.length === 0) return '—'
+  const lines: string[] = []
+  for (let i = 0; i < items.length && lines.length < maxLines; i++) {
+    const it = items[i]
+    const title = escapeHtml(it?.title || 'Item')
+    const qty = Number(it?.quantity || 0)
+    const price = Number(it?.price || 0)
+    const total = Number(it?.total || qty * price)
+    lines.push(`• ${title} ×${qty} — $${price.toFixed(2)} (=$${total.toFixed(2)})`)
+  }
+  if (items.length > maxLines) lines.push(`…and ${items.length - maxLines} more item(s)`)
+  return lines.join('\n')
+}
+
+function trimAddress(addr: string, maxLen: number = 200): string {
+  if (!addr) return ''
+  const a = addr.trim()
+  return a.length <= maxLen ? a : a.slice(0, maxLen - 1) + '…'
+}
+
+function limitMessage(text: string, maxLen: number = 3900): string {
+  if (!text) return ''
+  return text.length <= maxLen ? text : text.slice(0, maxLen - 1) + '…'
+}
+
 type TelegramDMResult = {
   success: boolean
   error?: string
@@ -313,20 +346,25 @@ export class CustomerNotificationService {
 
     // Telegram (best-effort)
     const telegramId = user.telegram_id
-    if (telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) {
+    if (telegramId) {
       if (!(await alreadySent(orderId, 'order_confirmation', 'telegram'))) {
-        const msg = [
+        const itemsBlock = formatItems(order.order_items || [], 10)
+        const addr = trimAddress(shippingAddressStr)
+        const msg = limitMessage([
           `Thank you for your purchase!`,
           `Order: <b>${order.order_number}</b>`,
           `Total: <b>$${Number(order.total_amount || 0).toFixed(2)}</b>`,
-          `Payment: ${getPaymentLink()}`,
-        ].join('\n')
+          `\n<b>Items</b>`,
+          itemsBlock,
+          addr ? `\n<b>Ship to</b>\n${escapeHtml(addr)}` : '',
+          `\nPayment: ${getPaymentLink()}`,
+        ].filter(Boolean).join('\n'))
         const sent = await trySendTelegramDM(telegramId, msg)
         const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
         if (sent.success) {
-          await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', undefined, meta)
+          await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', undefined, meta)
         } else {
-          await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', sent.error, meta)
+          await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} confirmation`, 'order_confirmation', 'telegram', sent.error, meta)
           console.warn('⚠️ Telegram DM failed for order confirmation:', sent.error, meta)
         }
       }
@@ -376,13 +414,22 @@ export class CustomerNotificationService {
       }
 
       const telegramId = user.telegram_id
-      if ((telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) && !(await alreadySent(orderId, 'status_shipped', 'telegram'))) {
+      if (telegramId && !(await alreadySent(orderId, 'status_shipped', 'telegram'))) {
+        const itemsBlock = formatItems(order.order_items || [], 10)
+        const addr = trimAddress(formatShippingAddress(order.shipping_address))
         const line = order.tracking_number ? `Tracking: <b>${order.tracking_number}</b>` : 'Tracking will be provided soon.'
-        const msg = `Your order is on the way!\nOrder: <b>${order.order_number}</b>\n${line}`
+        const msg = limitMessage([
+          `Your order is on the way!`,
+          `Order: <b>${order.order_number}</b>`,
+          `${line}`,
+          `\n<b>Items</b>`,
+          itemsBlock,
+          addr ? `\n<b>Ship to</b>\n${escapeHtml(addr)}` : '',
+        ].filter(Boolean).join('\n'))
         const sent = await trySendTelegramDM(telegramId, msg)
         const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
-        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', undefined, meta)
-        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', sent.error, meta)
+        if (sent.success) await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', undefined, meta)
+        else await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} shipped`, 'status_shipped', 'telegram', sent.error, meta)
       }
     }
 
@@ -424,15 +471,24 @@ export class CustomerNotificationService {
       }
 
       const telegramId = user.telegram_id
-      if ((telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) && !(await alreadySent(orderId, 'status_cancelled', 'telegram'))) {
+      if (telegramId && !(await alreadySent(orderId, 'status_cancelled', 'telegram'))) {
         const reason = order.cancelled_reason && order.cancelled_reason.trim().length > 0
           ? order.cancelled_reason
-          : 'Possible reasons: Payment not received, Out of stock, Customer request, Other.'
-        const msg = `Your order has been cancelled.\nOrder: <b>${order.order_number}</b>\nReason: ${reason}`
+          : 'Payment not received / Out of stock / Customer request.'
+        const itemsBlock = formatItems(order.order_items || [], 10)
+        const addr = trimAddress(formatShippingAddress(order.shipping_address))
+        const msg = limitMessage([
+          `Your order has been cancelled.`,
+          `Order: <b>${order.order_number}</b>`,
+          `Reason: ${escapeHtml(reason)}`,
+          `\n<b>Items</b>`,
+          itemsBlock,
+          addr ? `\n<b>Ship to</b>\n${escapeHtml(addr)}` : '',
+        ].filter(Boolean).join('\n'))
         const sent = await trySendTelegramDM(telegramId, msg)
         const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
-        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', undefined, meta)
-        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', sent.error, meta)
+        if (sent.success) await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', undefined, meta)
+        else await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} cancelled`, 'status_cancelled', 'telegram', sent.error, meta)
       }
     }
 
@@ -448,12 +504,18 @@ export class CustomerNotificationService {
         }
       }
       const telegramId = user.telegram_id
-      if ((telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) && !(await alreadySent(orderId, 'status_delivered', 'telegram'))) {
-        const msg = `Delivered: <b>${order.order_number}</b>\nThank you for shopping with us!`
+      if (telegramId && !(await alreadySent(orderId, 'status_delivered', 'telegram'))) {
+        const itemsBlock = formatItems(order.order_items || [], 8)
+        const msg = limitMessage([
+          `Delivered: <b>${order.order_number}</b>`,
+          `\n<b>Items</b>`,
+          itemsBlock,
+          `\nThank you for shopping with us!`
+        ].join('\n'))
         const sent = await trySendTelegramDM(telegramId, msg)
         const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
-        if (sent.success) await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', undefined, meta)
-        else await logDelivery(orderId, `telegram:${telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', sent.error, meta)
+        if (sent.success) await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', undefined, meta)
+        else await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} delivered`, 'status_delivered', 'telegram', sent.error, meta)
       }
     }
   }

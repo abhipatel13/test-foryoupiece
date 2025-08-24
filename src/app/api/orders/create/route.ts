@@ -551,10 +551,10 @@ export async function POST(request: NextRequest) {
               // Immediately process the queue for instant delivery (hybrid approach)
               try {
                 const { customerNotificationService } = await import('@/lib/services/customer-notification-service');
-                customerNotificationService
-                  .sendOrderConfirmation(order.id)
-                  .then(() => console.log('✅ Immediate email processing completed'))
-                  .catch((e: any) => console.warn('⚠️ Immediate email processing failed (will retry via queue):', e?.message || e));
+                // In production serverless runtime, non-awaited async work can be aborted after response returns.
+                // Await the immediate processing to ensure DMs/emails are dispatched reliably.
+                await customerNotificationService.sendOrderConfirmation(order.id)
+                console.log('✅ Immediate email processing completed')
               } catch (immediateErr: any) {
                 console.warn('⚠️ Could not trigger immediate processing:', immediateErr?.message || immediateErr);
               }
