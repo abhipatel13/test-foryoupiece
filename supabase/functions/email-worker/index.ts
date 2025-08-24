@@ -213,7 +213,7 @@ async function loadOrderData(supabase: any, orderId: string): Promise<OrderData>
     .from('orders')
     .select(`
       *,
-      users (first_name, last_name, telegram_id),
+      users:users!orders_user_id_fkey (first_name, last_name, telegram_id),
       order_items (title, quantity, price, total)
     `)
     .eq('id', orderId)
