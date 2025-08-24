@@ -79,15 +79,30 @@ export async function POST(request: NextRequest) {
           throw new Error(`Failed to mark as processing: ${markError.message}`)
         }
 
+        // Idempotency guard: if an email for this order/type is already sent, skip sending
+        const { data: dupCheck } = await supabase
+          .from('email_logs')
+          .select('id')
+          .eq('email_type', email.email_type)
+          .eq('status', 'sent')
+          .contains('metadata', { order_id: email.order_id, channel: 'email' })
+          .limit(1)
+
+        if (dupCheck && dupCheck.length > 0) {
+          await supabase.rpc('mark_email_sent', { p_outbox_id: email.outbox_id, p_provider_id: 'skipped_duplicate' })
+          results.push({ outbox_id: email.outbox_id, order_id: email.order_id, status: 'skipped_duplicate' })
+          continue
+        }
+
         // Load order data
         const orderData = await loadOrderData(supabase, email.order_id)
-        
+
         // Generate email content
         const emailContent = generateEmailContent(email.email_type, orderData)
-        
+
         // Send email via Resend
         const emailResult = await sendEmailViaResend(emailContent)
-        
+
         // Log the email attempt
         await logEmailDelivery(supabase, {
           outbox_id: email.outbox_id,
