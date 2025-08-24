@@ -6,6 +6,11 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
  * This processes pending emails from the email_outbox table
  */
 
+function isTelegramSyntheticEmail(email?: string | null): boolean {
+  if (!email) return false
+  return /@telegram\.foryoupiece\.local$/i.test(email) || /^tg_\d+@/i.test(email)
+}
+
 interface PendingEmail {
   outbox_id: string
   order_id: string
@@ -96,6 +101,25 @@ export async function POST(request: NextRequest) {
 
         // Load order data
         const orderData = await loadOrderData(supabase, email.order_id)
+
+        // Skip sending emails for Telegram-authenticated users
+        const isTelegramUser = !!orderData?.users?.telegram_id || isTelegramSyntheticEmail(orderData?.email)
+        if (isTelegramUser) {
+          console.log('✳️ Skipping queued email for Telegram user')
+          await logEmailDelivery(supabase, {
+            outbox_id: email.outbox_id,
+            order_id: email.order_id,
+            recipient: orderData.email,
+            subject: `Skipped: ${email.email_type}`,
+            email_type: email.email_type,
+            provider_id: 'skipped_telegram_user',
+            status: 'sent',
+            error_message: null
+          })
+          await supabase.rpc('mark_email_sent', { p_outbox_id: email.outbox_id, p_provider_id: 'skipped_telegram_user' })
+          results.push({ outbox_id: email.outbox_id, order_id: email.order_id, status: 'skipped_telegram_user' })
+          continue
+        }
 
         // Generate email content
         const emailContent = generateEmailContent(email.email_type, orderData)
@@ -188,7 +212,7 @@ async function loadOrderData(supabase: any, orderId: string): Promise<OrderData>
     .from('orders')
     .select(`
       *,
-      users:users!orders_user_id_fkey (first_name, last_name),
+      users:users!orders_user_id_fkey (first_name, last_name, telegram_id),
       order_items (title, quantity, price, total)
     `)
     .eq('id', orderId)

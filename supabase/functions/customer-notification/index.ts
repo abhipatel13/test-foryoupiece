@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function isTelegramSyntheticEmail(email?: string | null): boolean {
+  if (!email) return false
+  return /@telegram\.foryoupiece\.local$/i.test(email) || /^tg_\d+@/i.test(email)
+}
+
 interface NotificationRequest {
   type: 'order_confirmation' | 'order_shipped' | 'order_cancelled'
   orderId: string
@@ -174,6 +179,23 @@ async function sendOrderShippedEmail(supabase: any, orderData: NotificationReque
     </body>
     </html>`;
 
+    // Skip email for Telegram users
+    if (isTelegramSyntheticEmail(orderData.customerEmail || undefined)) {
+      console.log('✳️ Skipping customer-notification shipped email for Telegram user')
+      try {
+        await supabase.from('email_logs').insert({
+          recipient: orderData.customerEmail,
+          subject: `Your order is on the way! (${orderData.orderNumber})`,
+          email_type: 'status_shipped',
+          status: 'sent',
+          provider: 'resend',
+          provider_id: 'skipped_telegram_user',
+          metadata: { order_id: orderData.orderId, channel: 'email', skipped_reason: 'skipped_telegram_user' }
+        })
+      } catch (_) {}
+      return { success: true, emailId: 'skipped_telegram_user' };
+    }
+
     // Call the existing send-email Edge Function with HTML
     const emailUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`;
     const emailResponse = await fetch(emailUrl, {
@@ -245,6 +267,23 @@ async function sendOrderCancelledEmail(supabase: any, orderData: NotificationReq
       </div>
     </body>
     </html>`;
+
+    // Skip email for Telegram users
+    if (isTelegramSyntheticEmail(orderData.customerEmail || undefined)) {
+      console.log('✳️ Skipping customer-notification cancelled email for Telegram user')
+      try {
+        await supabase.from('email_logs').insert({
+          recipient: orderData.customerEmail,
+          subject: `Order Cancelled (${orderData.orderNumber})`,
+          email_type: 'status_cancelled',
+          status: 'sent',
+          provider: 'resend',
+          provider_id: 'skipped_telegram_user',
+          metadata: { order_id: orderData.orderId, channel: 'email', skipped_reason: 'skipped_telegram_user' }
+        })
+      } catch (_) {}
+      return { success: true, emailId: 'skipped_telegram_user' };
+    }
 
     const emailUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`;
     const emailResponse = await fetch(emailUrl, {

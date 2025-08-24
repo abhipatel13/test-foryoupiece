@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function isTelegramSyntheticEmail(email?: string | null): boolean {
+  if (!email) return false
+  return /@telegram\.foryoupiece\.local$/i.test(email) || /^tg_\d+@/i.test(email)
+}
+
 interface EmailMessage {
   outbox_id: string
   order_id: string
@@ -173,13 +178,31 @@ async function processEmailMessage(supabase: any, resendApiKey: string, message:
 
   // Load order data
   const orderData = await loadOrderData(supabase, emailData.order_id)
-  
+
+  // Skip sending for Telegram-authenticated users
+  const isTelegramUser = !!orderData?.users?.telegram_id || isTelegramSyntheticEmail(orderData?.email)
+  if (isTelegramUser) {
+    console.log('✳️ Skipping worker email for Telegram user')
+    await logEmailDelivery(supabase, {
+      outbox_id: emailData.outbox_id,
+      order_id: emailData.order_id,
+      recipient: orderData.email,
+      subject: `Skipped: ${emailData.email_type}`,
+      email_type: emailData.email_type,
+      provider_id: 'skipped_telegram_user',
+      status: 'sent',
+      error_message: null
+    })
+    await supabase.rpc('mark_email_sent', { p_outbox_id: emailData.outbox_id, p_provider_id: 'skipped_telegram_user' })
+    return
+  }
+
   // Generate email content based on type
   const emailContent = await generateEmailContent(emailData.email_type, orderData)
-  
+
   // Send email via Resend
   const emailResult = await sendEmailViaResend(resendApiKey, emailContent)
-  
+
   // Log the email attempt
   await logEmailDelivery(supabase, {
     outbox_id: emailData.outbox_id,

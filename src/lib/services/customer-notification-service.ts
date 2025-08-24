@@ -125,6 +125,11 @@ function getQrImageUrl(): string {
   return `${process.env.NEXT_PUBLIC_SITE_URL || ''}/93155.jpg`
 }
 
+function isTelegramSyntheticEmail(email?: string | null): boolean {
+  if (!email) return false
+  return /@telegram\.foryoupiece\.local$/i.test(email) || /^tg_\d+@/i.test(email)
+}
+
 async function trySendTelegramDM(userTelegramId: number | null | undefined, text: string): Promise<{ success: boolean; error?: string }>{
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   const override = process.env.NODE_ENV !== 'production' ? process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID : undefined
@@ -162,7 +167,7 @@ async function alreadySent(orderId: string, typeKey: string, channel: 'email'|'t
   return !!(data && data.length > 0)
 }
 
-async function logDelivery(orderId: string, recipient: string, subject: string, typeKey: string, channel: 'email'|'telegram', error_message?: string) {
+async function logDelivery(orderId: string, recipient: string, subject: string, typeKey: string, channel: 'email'|'telegram', error_message?: string, extraMetadata?: Record<string, any>) {
   const supabase = createServiceRoleClient()
   await supabase.from('email_logs').insert({
     recipient,
@@ -170,7 +175,7 @@ async function logDelivery(orderId: string, recipient: string, subject: string, 
     email_type: typeKey,
     status: error_message ? 'failed' : 'sent',
     error_message: error_message || null,
-    metadata: { order_id: orderId, channel },
+    metadata: { order_id: orderId, channel, ...(extraMetadata || {}) },
     created_at: new Date().toISOString(),
   })
 }
@@ -192,54 +197,70 @@ export class CustomerNotificationService {
       return
     }
 
-    // Email
-    const emailHtml = renderOrderConfirmationEmailHtml({
-      orderNumber: order.order_number,
-      createdAt: order.created_at,
-      email: order.email,
-      customerName,
-      phone: order.phone,
-      shippingAddress: shippingAddressStr,
-      items: (order.order_items || []).map((it: any) => ({ title: it.title, quantity: it.quantity, price: it.price, total: it.total })),
-      subtotal: Number(order.subtotal || 0),
-      shipping: Number(order.shipping_cost || 0),
-      discount: Number(order.discount_amount || 0),
-      couponDiscount: Number(order.coupon_discount_amount || 0),
-      pointsUsed: Number(order.points_used || 0),
-      total: Number(order.total_amount || 0),
-      paymentLink: getPaymentLink(),
-      qrImageUrl: getQrImageUrl(),
-    })
+    // Determine if we should skip email for Telegram-authenticated users
+    const isTelegramUser = !!user.telegram_id || isTelegramSyntheticEmail(order.email)
 
-    console.log(`📧 Attempting to send order confirmation email...`)
-    const emailResult = await sendEmailViaSupabase({
-      to: order.email,
-      subject: `Thank you for your purchase! Order ${order.order_number}`,
-      html: emailHtml,
-      emailType: 'order_confirmation',
-      metadata: { order_id: orderId, channel: 'email' },
-    })
+    if (isTelegramUser) {
+      console.log('✳️ Skipping email for Telegram-authenticated user; will use Telegram DM only')
+      await logDelivery(
+        orderId,
+        order.email,
+        `Thank you for your purchase! Order ${order.order_number}`,
+        'order_confirmation',
+        'email',
+        undefined,
+        { skipped_reason: 'skipped_telegram_user' }
+      )
+    } else {
+      // Email
+      const emailHtml = renderOrderConfirmationEmailHtml({
+        orderNumber: order.order_number,
+        createdAt: order.created_at,
+        email: order.email,
+        customerName,
+        phone: order.phone,
+        shippingAddress: shippingAddressStr,
+        items: (order.order_items || []).map((it: any) => ({ title: it.title, quantity: it.quantity, price: it.price, total: it.total })),
+        subtotal: Number(order.subtotal || 0),
+        shipping: Number(order.shipping_cost || 0),
+        discount: Number(order.discount_amount || 0),
+        couponDiscount: Number(order.coupon_discount_amount || 0),
+        pointsUsed: Number(order.points_used || 0),
+        total: Number(order.total_amount || 0),
+        paymentLink: getPaymentLink(),
+        qrImageUrl: getQrImageUrl(),
+      })
 
-    console.log(`📧 Email result:`, { success: emailResult.success, error: emailResult.error })
+      console.log(`📧 Attempting to send order confirmation email...`)
+      const emailResult = await sendEmailViaSupabase({
+        to: order.email,
+        subject: `Thank you for your purchase! Order ${order.order_number}`,
+        html: emailHtml,
+        emailType: 'order_confirmation',
+        metadata: { order_id: orderId, channel: 'email' },
+      })
 
-    // Log delivery with proper success/failure status
-    await logDelivery(
-      orderId,
-      order.email,
-      `Thank you for your purchase! Order ${order.order_number}`,
-      'order_confirmation',
-      'email',
-      emailResult.success ? undefined : emailResult.error
-    )
+      console.log(`📧 Email result:`, { success: emailResult.success, error: emailResult.error })
 
-    // If email failed, throw an error to trigger proper error handling
-    if (!emailResult.success) {
-      const errorMessage = `Order confirmation email failed for order ${orderId}: ${emailResult.error}`
-      console.error(`❌ ${errorMessage}`)
-      throw new Error(errorMessage)
+      // Log delivery with proper success/failure status
+      await logDelivery(
+        orderId,
+        order.email,
+        `Thank you for your purchase! Order ${order.order_number}`,
+        'order_confirmation',
+        'email',
+        emailResult.success ? undefined : emailResult.error
+      )
+
+      // If email failed, throw an error to trigger proper error handling
+      if (!emailResult.success) {
+        const errorMessage = `Order confirmation email failed for order ${orderId}: ${emailResult.error}`
+        console.error(`❌ ${errorMessage}`)
+        throw new Error(errorMessage)
+      }
+
+      console.log(`✅ Order confirmation email sent successfully for order: ${orderId}`)
     }
-
-    console.log(`✅ Order confirmation email sent successfully for order: ${orderId}`)
 
     // Telegram (best-effort)
     const telegramId = user.telegram_id
@@ -294,8 +315,14 @@ export class CustomerNotificationService {
       })
 
       if (!(await alreadySent(orderId, 'status_shipped', 'email'))) {
-        const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Your order is on the way! (${order.order_number})`, html: emailHtml, emailType: 'status_shipped', metadata: { order_id: orderId, channel: 'email' } })
-        await logDelivery(orderId, order.email, `Your order is on the way! (${order.order_number})`, 'status_shipped', 'email', emailResult.success ? undefined : emailResult.error)
+        const isTelegramUser = !!user.telegram_id || isTelegramSyntheticEmail(order.email)
+        if (isTelegramUser) {
+          console.log('✳️ Skipping shipped email for Telegram user')
+          await logDelivery(orderId, order.email, `Your order is on the way! (${order.order_number})`, 'status_shipped', 'email', undefined, { skipped_reason: 'skipped_telegram_user' })
+        } else {
+          const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Your order is on the way! (${order.order_number})`, html: emailHtml, emailType: 'status_shipped', metadata: { order_id: orderId, channel: 'email' } })
+          await logDelivery(orderId, order.email, `Your order is on the way! (${order.order_number})`, 'status_shipped', 'email', emailResult.success ? undefined : emailResult.error)
+        }
       }
 
       const telegramId = user.telegram_id
@@ -335,8 +362,14 @@ export class CustomerNotificationService {
       })
 
       if (!(await alreadySent(orderId, 'status_cancelled', 'email'))) {
-        const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Order Cancelled (${order.order_number})`, html: emailHtml, emailType: 'status_cancelled', metadata: { order_id: orderId, channel: 'email' } })
-        await logDelivery(orderId, order.email, `Order Cancelled (${order.order_number})`, 'status_cancelled', 'email', emailResult.success ? undefined : emailResult.error)
+        const isTelegramUser = !!user.telegram_id || isTelegramSyntheticEmail(order.email)
+        if (isTelegramUser) {
+          console.log('✳️ Skipping cancelled email for Telegram user')
+          await logDelivery(orderId, order.email, `Order Cancelled (${order.order_number})`, 'status_cancelled', 'email', undefined, { skipped_reason: 'skipped_telegram_user' })
+        } else {
+          const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Order Cancelled (${order.order_number})`, html: emailHtml, emailType: 'status_cancelled', metadata: { order_id: orderId, channel: 'email' } })
+          await logDelivery(orderId, order.email, `Order Cancelled (${order.order_number})`, 'status_cancelled', 'email', emailResult.success ? undefined : emailResult.error)
+        }
       }
 
       const telegramId = user.telegram_id
@@ -353,8 +386,14 @@ export class CustomerNotificationService {
 
     if (event === 'delivered') {
       if (!(await alreadySent(orderId, 'status_delivered', 'email'))) {
-        const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Delivered: Order ${order.order_number}`, html: `<p>Your order ${order.order_number} was delivered. Thank you!</p>`, emailType: 'status_delivered', metadata: { order_id: orderId, channel: 'email' } })
-        await logDelivery(orderId, order.email, `Delivered: Order ${order.order_number}`, 'status_delivered', 'email', emailResult.success ? undefined : emailResult.error)
+        const isTelegramUser = !!user.telegram_id || isTelegramSyntheticEmail(order.email)
+        if (isTelegramUser) {
+          console.log('✳️ Skipping delivered email for Telegram user')
+          await logDelivery(orderId, order.email, `Delivered: Order ${order.order_number}`, 'status_delivered', 'email', undefined, { skipped_reason: 'skipped_telegram_user' })
+        } else {
+          const emailResult = await sendEmailViaSupabase({ to: order.email, subject: `Delivered: Order ${order.order_number}`, html: `<p>Your order ${order.order_number} was delivered. Thank you!</p>`, emailType: 'status_delivered', metadata: { order_id: orderId, channel: 'email' } })
+          await logDelivery(orderId, order.email, `Delivered: Order ${order.order_number}`, 'status_delivered', 'email', emailResult.success ? undefined : emailResult.error)
+        }
       }
       const telegramId = user.telegram_id
       if ((telegramId || process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID) && !(await alreadySent(orderId, 'status_delivered', 'telegram'))) {
