@@ -526,27 +526,51 @@ export async function POST(request: NextRequest) {
           console.error('❌ Failed to send Telegram notification');
         }
 
-        // Enqueue customer order confirmation email (transactional outbox pattern)
+        // Enhanced customer order confirmation with fallback (hybrid approach)
         try {
-          console.log('📧 Enqueuing customer order confirmation email for order:', order.id);
+          console.log('📧 Processing customer order confirmation for order:', order.id);
 
-          const { error: enqueueError } = await supabase.rpc('enqueue_email_message', {
-            p_order_id: order.id,
-            p_email_type: 'order_confirmation',
-            p_payload: {
-              order_number: order.order_number,
-              customer_email: order.email,
-              enqueued_at: new Date().toISOString()
+          // First, try to enqueue using the new transactional outbox pattern
+          try {
+            const { error: enqueueError } = await supabase.rpc('enqueue_email_message', {
+              p_order_id: order.id,
+              p_email_type: 'order_confirmation',
+              p_payload: {
+                order_number: order.order_number,
+                customer_email: order.email,
+                enqueued_at: new Date().toISOString()
+              }
+            });
+
+            if (enqueueError) {
+              console.error('❌ Failed to enqueue email, falling back to direct send:', enqueueError);
+              throw new Error(`Enqueue failed: ${enqueueError.message}`);
+            } else {
+              console.log('✅ Customer order confirmation email enqueued successfully');
+
+              // Immediately process the queue for instant delivery (hybrid approach)
+              try {
+                const { customerNotificationService } = await import('@/lib/services/customer-notification-service');
+                customerNotificationService
+                  .sendOrderConfirmation(order.id)
+                  .then(() => console.log('✅ Immediate email processing completed'))
+                  .catch((e: any) => console.warn('⚠️ Immediate email processing failed (will retry via queue):', e?.message || e));
+              } catch (immediateErr: any) {
+                console.warn('⚠️ Could not trigger immediate processing:', immediateErr?.message || immediateErr);
+              }
             }
-          });
+          } catch (enqueueErr: any) {
+            console.error('❌ Enqueue failed, using direct fallback:', enqueueErr?.message || enqueueErr);
 
-          if (enqueueError) {
-            console.error('❌ Failed to enqueue customer order confirmation:', enqueueError);
-          } else {
-            console.log('✅ Customer order confirmation email enqueued successfully');
+            // Fallback to the original direct method
+            const { customerNotificationService } = await import('@/lib/services/customer-notification-service');
+            customerNotificationService
+              .sendOrderConfirmation(order.id)
+              .then(() => console.log('✅ Fallback customer order confirmation dispatched'))
+              .catch((e: any) => console.warn('⚠️ Fallback customer order confirmation failed:', e?.message || e));
           }
-        } catch (enqueueErr: any) {
-          console.error('❌ Error enqueuing customer order confirmation:', enqueueErr?.message || enqueueErr);
+        } catch (overallErr: any) {
+          console.error('❌ Overall customer notification error:', overallErr?.message || overallErr);
         }
       } else {
         console.error('❌ Failed to fetch order details for Telegram notification:', orderError);
