@@ -21,78 +21,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`📧 Enqueuing test email: ${email_type} for ${customer_email}`)
 
-    // Create a test order entry (minimal data for testing)
-    const testOrder = {
-      id: test_order_id,
-      order_number: `TEST-${Date.now()}`,
-      email: customer_email,
-      total_amount: 10.50,
-      subtotal: 9.00,
-      shipping_cost: 1.50,
-      discount_amount: 0,
-      coupon_discount_amount: 0,
-      points_used: 0,
-      status: 'on_hold',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+    // NOTE: Do not create orders in test. Expect a valid order_id to be provided, or create one via normal flow.
+    if (!test_order_id || String(test_order_id).startsWith('test-')) {
+      return NextResponse.json({ success: false, error: 'Provide a valid existing order_id in test_order_id' }, { status: 400 })
     }
 
-    // Insert test order
-    const { error: orderError } = await supabase
-      .from('orders')
-      .upsert(testOrder)
+    // Skip creating order items in this test endpoint
 
-    if (orderError) {
-      throw new Error(`Failed to create test order: ${orderError.message}`)
-    }
-
-    // Create test order items
-    const testItems = [
-      {
-        order_id: test_order_id,
-        title: 'Test Product 1',
-        quantity: 1,
-        price: 9.00,
-        total: 9.00
-      }
-    ]
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .upsert(testItems)
-
-    if (itemsError) {
-      console.warn('⚠️ Failed to create test order items:', itemsError.message)
-    }
-
-    // Create test user profile
-    const testUser = {
-      id: 'test-user-' + Date.now(),
-      first_name: 'Test',
-      last_name: 'User',
-      email: customer_email
-    }
-
-    const { error: userError } = await supabase
-      .from('users')
-      .upsert(testUser)
-
-    if (userError) {
-      console.warn('⚠️ Failed to create test user:', userError.message)
-    }
-
-    // Update order with user_id
-    await supabase
-      .from('orders')
-      .update({ user_id: testUser.id })
-      .eq('id', test_order_id)
+    // Skip creating user/profile in this test endpoint. Expect order to exist with proper user_id.
 
     // Enqueue the email using the transactional outbox pattern
     const { data: outboxId, error: enqueueError } = await supabase.rpc('enqueue_email_message', {
       p_order_id: test_order_id,
       p_email_type: email_type,
       p_payload: {
-        order_number: testOrder.order_number,
         customer_email: customer_email,
         test: true,
         enqueued_at: new Date().toISOString()
