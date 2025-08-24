@@ -131,9 +131,21 @@ function isTelegramSyntheticEmail(email?: string | null): boolean {
 }
 
 async function trySendTelegramDM(userTelegramId: number | null | undefined, text: string): Promise<{ success: boolean; error?: string }>{
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  const override = process.env.NODE_ENV !== 'production' ? process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID : undefined
-  const chatId = override ? Number(override) : (userTelegramId as any)
+  // Prefer the Authentication bot for customer DMs since users have already started a chat with it
+  const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN
+  const overrideRaw = process.env.NODE_ENV !== 'production' ? process.env.DEV_TELEGRAM_OVERRIDE_CHAT_ID : undefined
+
+  // Validate override chat id (must be a numeric Telegram chat id)
+  let overrideChatId: number | undefined
+  if (overrideRaw) {
+    const n = Number(overrideRaw)
+    if (!Number.isFinite(n)) {
+      return { success: false, error: 'DEV_TELEGRAM_OVERRIDE_CHAT_ID must be a numeric Telegram chat id' }
+    }
+    overrideChatId = n
+  }
+
+  const chatId = overrideChatId ?? (userTelegramId as any)
   if (!botToken || !chatId) {
     return { success: false, error: 'Missing bot token or telegram chat id' }
   }
@@ -144,10 +156,11 @@ async function trySendTelegramDM(userTelegramId: number | null | undefined, text
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     })
-    const ok = resp.ok
-    if (!ok) {
-      const t = await resp.text()
-      return { success: false, error: t }
+    if (!resp.ok) {
+      // Include Telegram error JSON/text for easier debugging
+      let errText = ''
+      try { errText = await resp.text() } catch {}
+      return { success: false, error: errText || `HTTP ${resp.status}` }
     }
     return { success: true }
   } catch (e: any) {
