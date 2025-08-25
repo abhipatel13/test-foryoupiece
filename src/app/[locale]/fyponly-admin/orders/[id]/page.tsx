@@ -99,6 +99,7 @@ interface OrderDetails {
     email: string
     phone: string | null
     telegram_username: string | null
+    telegram_id?: number | null
   } | null
 }
 
@@ -257,6 +258,19 @@ export default function AdminOrderDetailsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Order #{order.order_number}</h1>
             <p className="text-gray-600">Created on {formatDateTime(order.created_at)}</p>
+            <p className="text-gray-700 mt-1 flex items-center gap-2">
+              {order.user?.telegram_username ? (
+                <>
+                  <MessageCircle className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium">@{order.user.telegram_username}</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium">{order.customer_email}</span>
+                </>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
@@ -339,11 +353,23 @@ export default function AdminOrderDetailsPage() {
                     <span className="font-medium">Name:</span>
                     <span>{order.customer_name || 'Not provided'}</span>
                   </div>
+
+                  {/* Email - Always show prominently */}
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-gray-400" />
                     <span className="font-medium">Email:</span>
-                    <span>{order.customer_email}</span>
+                    <span className="text-blue-600 font-medium">{order.customer_email}</span>
                   </div>
+
+                  {/* User Profile Email (if different from order email) */}
+                  {order.user?.email && order.user.email !== order.customer_email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                      <span className="font-medium">Profile Email:</span>
+                      <span className="text-blue-600">{order.user.email}</span>
+                    </div>
+                  )}
+
                   {order.customer_phone && (
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-400" />
@@ -351,18 +377,44 @@ export default function AdminOrderDetailsPage() {
                       <span>{order.customer_phone}</span>
                     </div>
                   )}
+
+                  {/* Telegram Information - Enhanced Display */}
+                  {order.user?.telegram_username || order.user?.telegram_id ? (
+                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MessageCircle className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium text-blue-900">Telegram Contact</span>
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        {order.user.telegram_username && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Username:</span>
+                            <span className="text-blue-700 font-medium">@{order.user.telegram_username}</span>
+                          </div>
+                        )}
+                        {order.user.telegram_id && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Telegram ID:</span>
+                            <span className="text-blue-700 font-mono">{order.user.telegram_id}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4 text-gray-400" />
+                        <span className="font-medium text-gray-600">Telegram Contact</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">Customer has not connected Telegram account</p>
+                    </div>
+                  )}
+
                   {order.aba_bank_name && (
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-gray-400" />
                       <span className="font-medium">ABA Bank Name:</span>
                       <span>{order.aba_bank_name}</span>
-                    </div>
-                  )}
-                  {order.user?.telegram_username && (
-                    <div className="flex items-center gap-2">
-                      <MessageCircle className="h-4 w-4 text-gray-400" />
-                      <span className="font-medium">Telegram:</span>
-                      <span>@{order.user.telegram_username}</span>
                     </div>
                   )}
                 </div>

@@ -6,7 +6,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
  * Admin API: All Telegram users with recent conversation data
  * GET /api/admin/communications/recent-users?q=search&limit=20&offset=0
  *
- * Returns all users with Telegram accounts, prioritizing those with recent messages
+ * Returns all users with Telegram accounts (username or ID), prioritizing those with recent messages
  */
 export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
@@ -20,11 +20,11 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: 'Service configuration error' }, { status: 500 })
     }
 
-    // Build user query for all Telegram users
+    // Build user query for all Telegram users (users with either telegram_username OR telegram_id)
     let userQuery = supabase
       .from('users')
       .select('id, first_name, last_name, email, telegram_username, telegram_id')
-      .not('telegram_username', 'is', null) // Only users with Telegram accounts
+      .or('telegram_username.not.is.null,telegram_id.not.is.null') // Users with Telegram accounts (username OR ID)
 
     // Apply search filter if provided
     if (q.length >= 2) {
@@ -84,10 +84,31 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
       }
     }
 
+    // Fetch most recent order for each user for sorting purposes
+    const { data: recentOrders, error: ordersErr } = await supabase
+      .from('orders')
+      .select('user_id, created_at')
+      .in('user_id', userIds)
+      .order('created_at', { ascending: false })
+
+    if (ordersErr) {
+      console.warn('Failed to fetch recent orders for sorting:', ordersErr.message)
+    }
+
+    // Create map of most recent order date per user
+    const mostRecentOrderMap = new Map<string, string>()
+    for (const order of recentOrders || []) {
+      const uid = order.user_id
+      if (!mostRecentOrderMap.has(uid)) {
+        mostRecentOrderMap.set(uid, order.created_at)
+      }
+    }
+
     // Build result array with all Telegram users
     const allUsers = allTelegramUsers.map(user => {
       const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email?.split('@')[0] || 'Unknown User'
       const lastMessage = lastMessageMap.get(user.id)
+      const mostRecentOrderDate = mostRecentOrderMap.get(user.id)
 
       return {
         user: {
@@ -107,18 +128,32 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
         },
         unreadCount: unreadCountMap.get(user.id) || 0,
         hasMessages: !!lastMessage,
+        mostRecentOrderDate: mostRecentOrderDate || null,
+        hasRecentOrders: !!mostRecentOrderDate,
       }
     })
 
-    // Sort: users with messages first (by last message date), then users without messages (by name)
+    // Sort: users with recent orders first (by most recent order date), then by messages, then by name
     allUsers.sort((a, b) => {
+      // Priority 1: Users with recent orders come first
+      if (a.hasRecentOrders && !b.hasRecentOrders) return -1
+      if (!a.hasRecentOrders && b.hasRecentOrders) return 1
+
+      // Priority 2: Among users with recent orders, sort by most recent order date
+      if (a.hasRecentOrders && b.hasRecentOrders) {
+        return new Date(b.mostRecentOrderDate!).getTime() - new Date(a.mostRecentOrderDate!).getTime()
+      }
+
+      // Priority 3: Among users without recent orders, prioritize those with messages
       if (a.hasMessages && !b.hasMessages) return -1
       if (!a.hasMessages && b.hasMessages) return 1
 
+      // Priority 4: Among users with messages, sort by last message date
       if (a.hasMessages && b.hasMessages) {
         return new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
       }
 
+      // Priority 5: Finally, sort by display name
       return a.user.display_name.localeCompare(b.user.display_name)
     })
 

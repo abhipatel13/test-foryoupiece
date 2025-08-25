@@ -49,7 +49,8 @@ export const GET = withAdminAuth(async (
           last_name,
           email,
           phone,
-          telegram_username
+          telegram_username,
+          telegram_id
         ),
         order_items(
           id,
