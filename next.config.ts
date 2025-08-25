@@ -162,8 +162,18 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // IMPORTANT: Favicons and manifest should revalidate more often to avoid stale branding
+        source: '/(favicon\.ico|favicon\.jpg|site\.webmanifest)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400', // 1 day cache, no immutable so browsers can refresh
+          },
+        ],
+      },
+      {
         // COST OPTIMIZATION: Long-term caching for static assets
-        source: '/(favicon|logo|qr-payment|file|globe|next|vercel|window)\\.(jpg|jpeg|png|svg|webp|avif)',
+        source: '/(favicon|logo|qr-payment|file|globe|next|vercel|window)\\.(ico|jpg|jpeg|png|svg|webp|avif)',
         headers: [
           {
             key: 'Cache-Control',
