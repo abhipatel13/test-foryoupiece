@@ -50,8 +50,10 @@ export async function GET(request: NextRequest) {
     console.log('🔗 Supabase client created');
 
     // SECURITY FIX: Explicit field selection instead of wildcard to prevent data leakage
+    // Include SKU to ensure product detail links work from listing pages.
     const safeFields = `
       id,
+      sku,
       name_en,
       name_ja,
       description_en,

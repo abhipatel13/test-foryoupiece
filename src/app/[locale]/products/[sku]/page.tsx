@@ -252,7 +252,7 @@ export default function ProductDetailPage() {
               <>
                 <span className="mx-2">›</span>
                 <Link
-                  href={`/en/products?category=${product.category.id}`}
+                  href={`/en/products?category=${product.category.slug}`}
                   className="accessible-link"
                 >
                   {product.category.name_en}
