@@ -130,16 +130,16 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
   if (loading) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="p-2 sm:p-3 pb-1 sm:pb-2">
           <div className="animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-1/2 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-5 bg-gray-200 rounded w-1/2 mb-1"></div>
+            <div className="h-3 bg-gray-200 rounded w-3/4"></div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-16 bg-gray-200 rounded"></div>
-            <div className="h-10 bg-gray-200 rounded"></div>
+        <CardContent className="p-2 sm:p-3">
+          <div className="animate-pulse space-y-2">
+            <div className="h-12 bg-gray-200 rounded"></div>
+            <div className="h-8 bg-gray-200 rounded"></div>
           </div>
         </CardContent>
       </Card>
@@ -149,18 +149,18 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
   if (error || !checkoutPointsInfo) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-red-600">
-            <AlertCircle className="h-5 w-5" />
+        <CardHeader className="p-2 sm:p-3 pb-1 sm:pb-2">
+          <CardTitle className="flex items-center space-x-1.5 text-red-600 text-sm sm:text-base">
+            <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5" />
             <span>Points System Unavailable</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600">
+        <CardContent className="p-2 sm:p-3">
+          <p className="text-xs sm:text-sm text-gray-600">
             Unable to load points information. You can still complete your order without using points.
           </p>
           {error && (
-            <p className="text-xs text-red-500 mt-2">Error: {error}</p>
+            <p className="text-xs text-red-500 mt-1">Error: {error}</p>
           )}
         </CardContent>
       </Card>
@@ -173,14 +173,14 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
   return (
     <TooltipProvider>
       <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-        <CardHeader className="pb-4">
+        <CardHeader className="p-2 sm:p-3 pb-1 sm:pb-2">
           <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Star className="h-5 w-5 text-blue-600" />
-              <span>Loyalty Points</span>
+            <div className="flex items-center space-x-1.5">
+              <Star className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              <span className="text-sm sm:text-base">Loyalty Points</span>
               <Tooltip>
                 <TooltipTrigger>
-                  <HelpCircle className="h-4 w-4 text-gray-400" />
+                  <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Use your loyalty points to get discounts on your order</p>
@@ -192,38 +192,38 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
               variant="ghost"
               size="sm"
               onClick={() => setShowBreakdown(!showBreakdown)}
-              className="text-xs"
+              className="text-xs h-6 px-2"
             >
               {showBreakdown ? 'Hide Details' : 'Show Details'}
             </Button>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm mt-0.5 sm:mt-1">
             Redeem your points for instant discounts (minimum 500 points)
           </CardDescription>
         </CardHeader>
-        
-        <CardContent className="space-y-4">
+
+        <CardContent className="p-2 sm:p-3 space-y-2 sm:space-y-2.5">
           {/* Points Balance Display */}
-          <div className="bg-white border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <Coins className="h-5 w-5 text-blue-600" />
-                <span className="font-semibold text-gray-900">Available Points</span>
+          <div className="bg-white border border-blue-200 rounded-lg p-1.5 sm:p-2.5">
+            <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+              <div className="flex items-center space-x-1.5">
+                <Coins className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                <span className="text-sm sm:text-base font-semibold text-gray-900">Available Points</span>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-lg sm:text-xl font-bold text-blue-600">
                   {checkoutPointsInfo.available_points.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-xs text-gray-600">
                   Worth {formatPrice(pointsToDollars(checkoutPointsInfo.available_points))}
                 </div>
               </div>
             </div>
 
-            {/* Points Breakdown */}
+            {/* Points Breakdown - mobile hidden when collapsed */}
             {showBreakdown && (
-              <div className="space-y-3 pt-3 border-t border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-1.5 pt-1.5 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Earned Points:</span>
                     <span className="font-medium">{Math.max(0, points_breakdown.earned_points).toLocaleString()}</span>
@@ -233,21 +233,21 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
                     <span className="font-medium text-orange-600">{Math.max(0, points_breakdown.tier_reward_points).toLocaleString()}</span>
                   </div>
                 </div>
-                
+
                 {/* Tier Information */}
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <Trophy className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-medium">Current Tier</span>
+                <div className="bg-gray-50 rounded-lg p-1.5 sm:p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center space-x-1.5">
+                      <Trophy className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500" />
+                      <span className="text-xs sm:text-sm font-medium">Current Tier</span>
                     </div>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs py-0 px-1.5">
                       {points_breakdown.tier_info.current_tier.toUpperCase()}
                     </Badge>
                   </div>
                   
                   {points_breakdown.tier_info.next_tier && (
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <div className="flex justify-between text-xs text-gray-600">
                         <span>Progress to {points_breakdown.tier_info.next_tier?.toUpperCase()}</span>
                         <span>{points_breakdown.tier_info.progress_percentage.toFixed(0)}%</span>
@@ -267,14 +267,14 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
 
           {/* Current Discount Display */}
           {pointsToRedeem > 0 && isValid && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-1.5 sm:p-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-800">Points Applied</span>
+                <div className="flex items-center space-x-1.5">
+                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+                  <span className="text-xs sm:text-sm font-medium text-green-800">Points Applied</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-green-600">
+                  <div className="text-sm sm:text-base font-bold text-green-600">
                     -{formatPrice(pointsDiscount)}
                   </div>
                   <div className="text-xs text-green-700">
@@ -286,11 +286,11 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
           )}
 
           {/* Points Input */}
-          <div className="space-y-3">
-            <Label htmlFor="checkout-points-input" className="text-sm font-medium">
+          <div className="space-y-1.5">
+            <Label htmlFor="checkout-points-input" className="text-xs sm:text-sm font-medium">
               Points to redeem
             </Label>
-            <div className="flex space-x-2">
+            <div className="flex space-x-1.5">
               <Input
                 id="checkout-points-input"
                 type="number"
@@ -300,24 +300,24 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
                 min="0"
                 max={redemption_rules.max_redeemable}
                 step="10"
-                className={`flex-1 ${!isValid ? 'border-red-300 focus:border-red-500' : ''}`}
+                className={`flex-1 h-8 sm:h-9 text-sm ${!isValid ? 'border-red-300 focus:border-red-500' : ''}`}
               />
               {pointsToRedeem > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleClearRedemption}
-                  className="px-3"
+                  className="px-2 h-8 sm:h-9 text-xs"
                 >
                   Clear
                 </Button>
               )}
             </div>
-            
+
             {/* Validation Message */}
             {validationMessage && (
-              <div className="flex items-center space-x-2 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
+              <div className="flex items-center space-x-1.5 text-xs sm:text-sm text-red-600">
+                <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>{validationMessage}</span>
               </div>
             )}
@@ -325,23 +325,24 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
 
           {/* Suggested Amounts */}
           {suggested_amounts.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Quick Select</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs sm:text-sm font-medium">Quick Select</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                 {suggested_amounts.slice(0, 6).map((amount) => (
                   <Button
                     key={amount}
                     variant="outline"
                     size="sm"
                     onClick={() => handleSuggestedAmount(amount)}
-                    className="text-xs h-8"
+                    className="text-xs h-7 px-1.5 py-1"
                     disabled={amount > checkoutPointsInfo.available_points}
                   >
-                    {amount.toLocaleString()}
-                    <br />
-                    <span className="text-xs text-gray-500">
-                      {formatPrice(pointsToDollars(amount))}
-                    </span>
+                    <div className="text-center leading-tight">
+                      <div>{amount.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500">
+                        {formatPrice(pointsToDollars(amount))}
+                      </div>
+                    </div>
                   </Button>
                 ))}
               </div>
@@ -349,7 +350,7 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
           )}
 
           {/* Redemption Rules */}
-          <div className="text-xs text-gray-500 space-y-1">
+          <div className="text-xs text-gray-500 space-y-0.5">
             <p>• Minimum redemption: {redemption_rules.minimum_points.toLocaleString()} points</p>
             <p>• Points must be redeemed in increments of {redemption_rules.increment}</p>
             <p>• {redemption_rules.conversion_rate.toLocaleString()} points = $1.00 USD</p>

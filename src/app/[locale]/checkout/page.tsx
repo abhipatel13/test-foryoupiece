@@ -151,6 +151,17 @@ export default function CheckoutPage() {
   const couponDiscount = getCouponDiscount()
   const finalTotalWithCouponAndPoints = getFinalTotalWithCouponAndPoints()
 
+  // Required field validation - dynamic list based on current values
+  const missingRequiredFields: string[] = useMemo(() => {
+    const missing: string[] = []
+    if (!shippingAddress.firstName?.trim()) missing.push('First Name')
+    if (!shippingAddress.lastName?.trim()) missing.push('Last Name')
+    if (!shippingAddress.phone?.trim()) missing.push('Phone Number')
+    if (!shippingAddress.abaBankName?.trim()) missing.push('ABA Bank Name')
+    return missing
+  }, [shippingAddress])
+
+
   if (!isAuthenticated) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -343,9 +354,9 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 max-w-7xl">
+      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header Section - Mobile Optimized */}
-        <div className="mb-4 sm:mb-6 lg:mb-8">
+        <div className="mb-2 sm:mb-6 lg:mb-8">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             {t('title')}
           </h1>
@@ -355,25 +366,26 @@ export default function CheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmitOrder} className="w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 w-full overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-6 lg:gap-8 w-full overflow-hidden">
             {/* Checkout Form - Mobile-First Responsive */}
-            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <div className="order-2 lg:order-1 lg:col-span-2 flex flex-col space-y-0.5 sm:space-y-6">
+              {/* Mobile order: Payment -> Notes -> Shipping -> Points */}
               {/* Shipping Address */}
-              <Card>
-                <CardHeader className="pb-3 sm:pb-6">
+              <Card className="order-3 lg:order-none">
+                <CardHeader className="p-2 sm:p-6 pb-1.5 sm:pb-6">
                   <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
                     <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>{t('shippingAddress')}</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 sm:space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <CardContent className="space-y-2 sm:space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">First Name</Label>
+                      <Label htmlFor="firstName" className="text-xs sm:text-sm font-medium text-slate-700">First Name <span className="text-red-600">*</span></Label>
                       <Input
                         id="firstName"
                         required
-                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.firstName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -383,11 +395,11 @@ export default function CheckoutPage() {
                       />
                     </div>
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="lastName" className="text-sm font-medium text-slate-700">Last Name</Label>
+                      <Label htmlFor="lastName" className="text-xs sm:text-sm font-medium text-slate-700">Last Name <span className="text-red-600">*</span></Label>
                       <Input
                         id="lastName"
                         required
-                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.lastName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -398,14 +410,14 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="email" className="text-sm font-medium text-slate-700">Email</Label>
+                      <Label htmlFor="email" className="text-xs sm:text-sm font-medium text-slate-700">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         required
-                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.email}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -415,12 +427,12 @@ export default function CheckoutPage() {
                       />
                     </div>
                     <div className="space-y-1 sm:space-y-2">
-                      <Label htmlFor="phone" className="text-sm font-medium text-slate-700">Phone</Label>
+                      <Label htmlFor="phone" className="text-xs sm:text-sm font-medium text-slate-700">Phone Number <span className="text-red-600">*</span></Label>
                       <Input
                         id="phone"
                         type="tel"
                         required
-                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.phone}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -432,11 +444,11 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="address1" className="text-sm font-medium">Address Line 1</Label>
+                    <Label htmlFor="address1" className="text-xs sm:text-sm font-medium">Address Line 1</Label>
                     <Input
                       id="address1"
                       required
-                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                      className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       value={shippingAddress.address1}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
@@ -447,10 +459,10 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="address2" className="text-sm font-medium">Address Line 2 (Optional)</Label>
+                    <Label htmlFor="address2" className="text-xs sm:text-sm font-medium">Address Line 2 (Optional)</Label>
                     <Input
                       id="address2"
-                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                      className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       value={shippingAddress.address2}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
@@ -461,11 +473,11 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="space-y-1 sm:space-y-2">
-                    <Label htmlFor="abaBankName" className="text-sm font-medium">ABA Bank Name *</Label>
+                    <Label htmlFor="abaBankName" className="text-xs sm:text-sm font-medium">ABA Bank Name <span className="text-red-600">*</span></Label>
                     <Input
                       id="abaBankName"
                       required
-                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                      className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       placeholder="Taravatey Than"
                       value={shippingAddress.abaBankName}
                       onChange={(e) => setShippingAddress({
@@ -478,20 +490,20 @@ export default function CheckoutPage() {
               </Card>
 
               {/* Payment Method - Mobile Responsive */}
-              <Card>
-                <CardHeader className="pb-3 sm:pb-6">
+              <Card className="order-1 lg:order-none">
+                <CardHeader className="p-2 sm:p-6 pb-1.5 sm:pb-6">
                   <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
                     <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>Payment Method</span>
                   </CardTitle>
-                  <CardDescription className="text-sm">
+                  <CardDescription className="hidden sm:block text-sm">
                     Your order will be placed and you'll receive payment instructions
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg bg-blue-50">
+                <CardContent className="p-2 sm:p-6 pt-1 sm:pt-6">
+                  <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-4 border rounded-lg bg-blue-50">
                     <QrCode className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
-                    <div>
+                    <div className="py-0.5 sm:py-0">
                       <div className="font-medium text-blue-900 text-sm sm:text-base">QR Code Payment</div>
                       <div className="text-xs sm:text-sm text-blue-700">
                         Pay via QR code after order confirmation
@@ -502,62 +514,64 @@ export default function CheckoutPage() {
               </Card>
 
               {/* Order Notes - Mobile Responsive */}
-              <Card>
-                <CardHeader className="pb-3 sm:pb-6">
+              <Card className="order-2 lg:order-none">
+                <CardHeader className="p-2 sm:p-6 pb-1.5 sm:pb-6">
                   <CardTitle className="text-base sm:text-lg">Order Notes (Optional)</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-2 sm:p-6 pt-1.5 sm:pt-6">
                   <Textarea
                     placeholder="Any special instructions for your order..."
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     rows={3}
-                    className="min-h-[88px] text-sm sm:text-base px-3 sm:px-4 py-3 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300 resize-none"
+                    className="min-h-[56px] text-sm sm:text-base px-3 sm:px-4 py-2 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300 resize-none"
                   />
                 </CardContent>
               </Card>
 
               {/* Points Redemption */}
               {isAuthenticated && user && (
-                <CheckoutPointsDisplay
-                  userId={user.id}
-                  orderTotal={finalTotalWithCouponAndPoints}
-                  onPointsChange={(points) => {
-                    // Points are automatically updated in the cart store
-                    // This callback can be used for additional UI updates if needed
-                  }}
-                />
+                <div className="order-4 lg:order-none">
+                  <CheckoutPointsDisplay
+                    userId={user.id}
+                    orderTotal={finalTotalWithCouponAndPoints}
+                    onPointsChange={(points) => {
+                      // Points are automatically updated in the cart store
+                      // This callback can be used for additional UI updates if needed
+                    }}
+                  />
+                </div>
               )}
             </div>
 
             {/* Enhanced Order Summary - Mobile-First Responsive */}
-            <div className="lg:col-span-1">
+            <div className="order-1 lg:order-2 lg:col-span-1">
               <Card className="lg:sticky lg:top-4 shadow-lg border-2 border-gray-100">
-                <CardHeader className="pb-4 sm:pb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 rounded-t-lg">
-                  <CardTitle className="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <div className="p-2 bg-blue-100 rounded-lg">
+                <CardHeader className="pb-3 sm:pb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 rounded-t-lg">
+                  <CardTitle className="text-base sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
                       <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                     </div>
                     {t('orderSummary')}
                   </CardTitle>
-                  <CardDescription className="text-sm text-slate-600 mt-2">
+                  <CardDescription className="text-xs sm:text-sm text-slate-600 mt-1 sm:mt-2">
                     Review your order details before checkout
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+                <CardContent className="space-y-3 sm:space-y-6 p-3 sm:p-6">
                   {/* Order Items - Enhanced Display */}
-                  <div className="space-y-3 sm:space-y-4">
-                    <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-2">
+                  <div className="space-y-2.5 sm:space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-1.5">
                       Items ({itemCount})
                     </h3>
                     {items.map((item) => (
-                      <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between items-start p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1 pr-3">
+                      <div key={generateCartItemKey(item.id, item.variant)} className="flex justify-between items-start p-2.5 bg-gray-50 rounded-lg">
+                        <div className="flex-1 pr-2.5">
                           <p className="font-medium text-sm sm:text-base line-clamp-2 text-gray-900">{item.name}</p>
                           {item.variant && (
-                            <p className="text-gray-600 text-xs mt-1 bg-gray-200 px-2 py-1 rounded-full inline-block">{item.variant}</p>
+                            <p className="text-gray-600 text-xs mt-1 bg-gray-200 px-2 py-0.5 rounded-full inline-block">{item.variant}</p>
                           )}
-                          <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center justify-between mt-1.5">
                             <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
                             {item.originalPrice && item.originalPrice > item.price && (
                               <div className="flex items-center gap-1">
@@ -579,10 +593,10 @@ export default function CheckoutPage() {
                     ))}
                   </div>
 
-                  <Separator className="my-4" />
+                  <Separator className="my-3 sm:my-4" />
 
                   {/* Enhanced Order Summary - Mobile Responsive */}
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className="space-y-1.5 sm:space-y-3">
                     {/* Subtotal */}
                     <div className="flex justify-between items-center text-sm sm:text-base">
                       <span className="text-gray-700">Subtotal ({itemCount} items)</span>
@@ -591,8 +605,8 @@ export default function CheckoutPage() {
 
                     {/* Individual Item Discounts - Redesigned */}
                     {items.some(item => item.originalPrice && item.originalPrice > item.price) && (
-                      <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 p-4 rounded-xl">
-                        <div className="flex items-center gap-2 mb-3">
+                      <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 p-3 sm:p-4 rounded-xl">
+                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
                           <div className="p-1.5 bg-rose-100 rounded-lg">
                             <svg className="h-4 w-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -657,7 +671,7 @@ export default function CheckoutPage() {
 
                     {/* Points Discount - Redesigned */}
                     {pointsDiscount > 0 && (
-                      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 p-4 rounded-xl">
+                      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 p-3 sm:p-4 rounded-xl">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-amber-100 rounded-lg">
@@ -682,7 +696,7 @@ export default function CheckoutPage() {
 
                     {/* Coupon Discount - Redesigned */}
                     {appliedCoupon && couponDiscount > 0 && (
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-xl">
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-3 sm:p-4 rounded-xl">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-100 rounded-lg">
@@ -707,7 +721,7 @@ export default function CheckoutPage() {
 
                     {/* Total Savings Summary - Redesigned */}
                     {(totalSavings > 0 || pointsDiscount > 0 || couponDiscount > 0) && (
-                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 p-4 rounded-xl shadow-sm">
+                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 p-3 sm:p-4 rounded-xl shadow-sm">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-emerald-100 rounded-lg">
@@ -729,22 +743,35 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    <Separator className="my-4" />
+
+                  {/* Validation summary for missing fields (mobile-first) */}
+                  {missingRequiredFields.length > 0 && (
+                    <div className="mt-2 text-[12px] sm:text-sm text-red-700 bg-red-50 border border-red-200 p-2 rounded">
+                      <div className="font-semibold mb-1">Please complete all required fields marked with * before placing your order:</div>
+                      <ul className="list-disc ml-4">
+                        {missingRequiredFields.map((f) => (
+                          <li key={f}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                    <Separator className="my-3 sm:my-4" />
 
                     {/* Final Total - Redesigned */}
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-2 border-slate-200 p-6 rounded-xl shadow-sm">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-2 border-slate-200 p-4 sm:p-6 rounded-xl shadow-sm">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                           <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                           </svg>
                           Order Total
                         </span>
-                        <span className="text-2xl font-bold text-slate-900">
+                        <span className="text-xl sm:text-2xl font-bold text-slate-900">
                           {formatPrice(finalTotalWithCouponAndPoints)}
                         </span>
                       </div>
-                      <div className="text-sm text-slate-600 flex items-center gap-1">
+                      <div className="text-xs sm:text-sm text-slate-600 flex items-center gap-1">
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -755,11 +782,11 @@ export default function CheckoutPage() {
 
                   <Button
                     type="submit"
-                    className="group w-full min-h-[44px] h-12 sm:h-14 text-sm sm:text-base font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:border-slate-400 disabled:shadow-none"
+                    className="group w-full min-h-[40px] h-11 sm:h-14 text-sm sm:text-base font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:border-slate-400 disabled:shadow-none"
                     disabled={loading}
                     aria-label={loading ? 'Processing your order...' : 'Place your order'}
                   >
-                    <div className="flex items-center justify-center gap-3 px-4">
+                    <div className="flex items-center justify-center gap-2.5 sm:gap-3 px-3 sm:px-4">
                       {loading ? (
                         <>
                           <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>

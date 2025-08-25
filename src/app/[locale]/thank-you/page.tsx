@@ -91,6 +91,33 @@ function ThankYouPageContent() {
   const loadOrder = async () => {
     try {
       setLoading(true)
+
+      // Dev-only mock to enable UI testing without a real order ID
+      if (process.env.NODE_ENV !== 'production' && orderId === 'mock') {
+        const mockOrder: Order = {
+          id: '00000000-0000-0000-0000-000000000000',
+          order_number: 'FYP-MOCK-123456',
+          total_amount: 52.5,
+          subtotal: 51.0,
+          shipping_cost: 1.5,
+          discount_amount: 0,
+          points_used: 1000,
+          points_earned: 510,
+          coupon_discount_amount: 0,
+          fulfillment_status: 'on_hold',
+          payment_status: 'pending',
+          created_at: new Date().toISOString(),
+          items: [
+            { id: 'item-1', title: 'Shiseido Tsubaki Premium Repair Shampoo', quantity: 1, price: 12.0, total: 12.0, original_price: 15.0, discount_amount: 3.0, discount_percentage: 20 },
+            { id: 'item-2', title: 'Rohto Hada Labo Gokujyun Lotion', quantity: 2, price: 10.5, total: 21.0 },
+            { id: 'item-3', title: 'Kao Merries Diapers M Size (58 pcs)', quantity: 1, price: 18.0, total: 18.0 }
+          ]
+        }
+        setOrder(mockOrder)
+        setUserPointsBalance(4000)
+        setLoading(false)
+        return
+      }
       const orderData = await orderQueries.getOrder(orderId!)
 
       if (!orderData) {
@@ -184,36 +211,122 @@ function ThankYouPageContent() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Mobile-first responsive container with proper desktop centering */}
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
-        {/* Modern Minimalistic Header */}
-        <div className="text-center mb-8 sm:mb-12">
-          <div className="flex justify-center mb-6">
-            <div className="bg-slate-50 border border-slate-200 rounded-full p-4 sm:p-5">
-              <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 text-slate-700" strokeWidth={1.5} />
+      {/* Mobile-first responsive container with optimized spacing */}
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6 lg:py-12">
+        {/* Modern Minimalistic Header - Compressed for mobile */}
+        <div className="text-center mb-4 sm:mb-8 lg:mb-12">
+          <div className="flex justify-center mb-3 sm:mb-6">
+            <div className="bg-slate-50 border border-slate-200 rounded-full p-3 sm:p-4 lg:p-5">
+              <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 text-slate-700" strokeWidth={1.5} />
             </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mb-4 leading-tight">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-slate-900 mb-2 sm:mb-4 leading-tight">
             Order Confirmed
           </h1>
-          <p className="text-base sm:text-lg text-slate-600 max-w-xl mx-auto leading-relaxed">
+          <p className="text-sm sm:text-base lg:text-lg text-slate-600 max-w-xl mx-auto leading-snug sm:leading-relaxed">
             Your order has been placed successfully. Please complete payment to process your order.
           </p>
         </div>
 
+        {/* QR Payment Instructions - Priority Section */}
+        <div className="mb-4 sm:mb-6 lg:mb-8">
+          <Card className="border border-slate-200 shadow-sm bg-slate-50 py-4 sm:py-6 gap-4 sm:gap-6">
+            <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1">
+              <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
+                <QrCode className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
+                <span>Payment Instructions</span>
+              </CardTitle>
+              <CardDescription className="text-sm text-slate-600 mt-0.5 sm:mt-1 leading-snug sm:leading-relaxed">
+                Please make a payment of <strong className="text-slate-900">{formatPrice(order.total_amount)}</strong> via this QR code.
+                Once paid, our admin will verify and process your order within 24 hours.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6 space-y-2 sm:space-y-4">
+              {/* QR Code Image */}
+              <div className="text-center">
+                <div className="inline-block p-2 sm:p-4 bg-white border border-slate-200 rounded-lg">
+                  <a href={paymentLink} target="_blank" rel="noopener noreferrer" className="block">
+                    <Image
+                      src="/93155.jpg"
+                      alt="Payment QR Code"
+                      width={160}
+                      height={160}
+                      className="cursor-pointer hover:opacity-80 transition-opacity duration-200 sm:w-48 sm:h-48"
+                    />
+                  </a>
+                </div>
+                <p className="text-sm text-slate-600 mt-1 sm:mt-2">
+                  Scan with your banking app or click to open payment page
+                </p>
+              </div>
+
+              {/* Payment Link */}
+              <div className="space-y-2 sm:space-y-3">
+                <h4 className="font-medium text-gray-900">Payment Link:</h4>
+                <div className="flex items-center space-x-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
+                  <CreditCard className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <code className="text-sm text-gray-700 flex-1 break-all">
+                    {paymentLink}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyPaymentLink}
+                    className="flex-shrink-0"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="flex space-x-2 mt-1 sm:mt-2">
+                  <Button
+                    onClick={copyPaymentLink}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Link
+                  </Button>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <a href={paymentLink} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Payment
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Important Note */}
+              <div className="bg-blue-50 p-3 sm:p-4 rounded-lg mt-1">
+                <h4 className="font-medium text-blue-900 mb-2">Important:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Payment verification may take a few hours</li>
+                  <li>• You'll receive a notification when your order is processed</li>
+                  <li>• Contact support if you have any questions</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Enhanced responsive grid layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-10 xl:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 lg:gap-8 xl:gap-10">
           {/* Order Details - Enhanced styling */}
-          <div className="space-y-6 sm:space-y-8">
+          <div className="space-y-4 sm:space-y-6">
             {/* Order Summary */}
-            <Card className="border border-slate-200 shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
-                  <Package className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
+            <Card className="border border-slate-200 shadow-sm py-4 sm:py-6 gap-4 sm:gap-6">
+              <CardHeader className="pb-2 sm:pb-4">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg font-semibold text-slate-900">
+                  <Package className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Order Summary</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-5 sm:space-y-6">
+              <CardContent className="space-y-3 sm:space-y-5 lg:space-y-6">
                 <div className="flex items-center justify-between py-2">
                   <span className="text-sm sm:text-base font-medium text-slate-600">Order Number:</span>
                   <div className="flex items-center space-x-2">
@@ -247,11 +360,11 @@ function ThankYouPageContent() {
                   </span>
                 </div>
                 
-                <Separator className="my-6" />
+                <Separator className="my-4 sm:my-6" />
 
                 <div className="space-y-4 sm:space-y-5">
                   <h4 className="text-base sm:text-lg font-bold text-slate-900">Items Ordered:</h4>
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {order.items.map((item) => (
                       <div key={item.id} className="bg-slate-50 rounded-lg p-4 border border-slate-100">
                         <div className="flex justify-between items-start">
@@ -300,17 +413,17 @@ function ThankYouPageContent() {
             </Card>
 
             {/* Pricing Breakdown */}
-            <Card className="border border-slate-200 shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
-                  <CreditCard className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
+            <Card className="border border-slate-200 shadow-sm py-4 sm:py-6 gap-4 sm:gap-6">
+              <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg font-semibold text-slate-900">
+                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Pricing Breakdown</span>
                 </CardTitle>
-                <CardDescription className="text-sm text-slate-600 mt-1">
+                <CardDescription className="text-xs sm:text-sm text-slate-600 mt-1">
                   Detailed breakdown showing all discounts and savings
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="px-4 sm:px-6 space-y-2 sm:space-y-3">
                 {/* Items Subtotal with Sale Breakdown */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -472,14 +585,14 @@ function ThankYouPageContent() {
             </Card>
 
             {/* Order Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5" />
+            <Card className="py-4 sm:py-6 gap-4 sm:gap-6">
+              <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                  <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span>What Happens Next?</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6 space-y-2 sm:space-y-3">
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <div className="bg-blue-100 rounded-full p-1 mt-1">
@@ -521,126 +634,39 @@ function ThankYouPageContent() {
             </Card>
           </div>
 
-          {/* Payment Instructions - Enhanced */}
-          <div className="space-y-6 sm:space-y-8">
-            {/* QR Code Payment */}
-            <Card className="border border-slate-200 shadow-sm bg-slate-50">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
-                  <QrCode className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
-                  <span>Payment Instructions</span>
-                </CardTitle>
-                <CardDescription className="text-sm text-slate-600 mt-1 leading-relaxed">
-                  Please make a payment of <strong className="text-slate-900">{formatPrice(order.total_amount)}</strong> via this QR code.
-                  Once paid, our admin will verify and process your order within 24 hours.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6 sm:space-y-8">
-                {/* QR Code Image */}
-                <div className="text-center">
-                  <div className="inline-block p-4 bg-white border border-slate-200 rounded-lg">
-                    <a href={paymentLink} target="_blank" rel="noopener noreferrer" className="block">
-                      <Image
-                        src="/93155.jpg"
-                        alt="Payment QR Code"
-                        width={192}
-                        height={192}
-                        className="cursor-pointer hover:opacity-80 transition-opacity duration-200"
-                      />
-                    </a>
-                  </div>
-                  <p className="text-sm text-slate-600 mt-3">
-                    Scan with your banking app or click to open payment page
-                  </p>
-                </div>
-
-                {/* Payment Link */}
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Payment Link:</h4>
-                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                    <CreditCard className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    <code className="text-sm text-gray-700 flex-1 break-all">
-                      {paymentLink}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={copyPaymentLink}
-                      className="flex-shrink-0"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={copyPaymentLink}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy Link
-                    </Button>
-                    <Button
-                      asChild
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <a href={paymentLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Open Payment
-                      </a>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Important Note */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Important:</h4>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Payment verification may take a few hours</li>
-                    <li>• You'll receive a notification when your order is processed</li>
-                    <li>• Contact support if you have any questions</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Modern Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                asChild
-                variant="outline"
-                className="flex-1 min-h-[44px] h-11 text-sm font-medium border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-lg transition-all duration-200"
-              >
-                <Link href="/profile" className="flex items-center justify-center gap-2">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span>View Order History</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="flex-1 min-h-[44px] h-11 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-              >
-                <Link href="/" className="flex items-center justify-center gap-2">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                  <span>Continue Shopping</span>
-                </Link>
-              </Button>
-            </div>
+          {/* Modern Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-4 sm:mt-6">
+            <Button
+              asChild
+              variant="outline"
+              className="flex-1 min-h-[44px] h-11 text-sm font-medium border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-lg transition-all duration-200"
+            >
+              <Link href="/profile" className="flex items-center justify-center gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>View Order History</span>
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="flex-1 min-h-[44px] h-11 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+            >
+              <Link href="/" className="flex items-center justify-center gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                <span>Continue Shopping</span>
+              </Link>
+            </Button>
           </div>
         </div>
 
-        {/* Simple Footer Section */}
-        <div className="mt-12 text-center border-t border-slate-200 pt-8">
-          <div className="max-w-lg mx-auto space-y-3">
-            <h3 className="text-base font-semibold text-slate-900">Need Help?</h3>
-            <p className="text-sm text-slate-600">
+        {/* Simple Footer Section - Compressed for mobile */}
+        <div className="mt-6 sm:mt-8 lg:mt-12 text-center border-t border-slate-200 pt-4 sm:pt-6 lg:pt-8">
+          <div className="max-w-lg mx-auto space-y-2 sm:space-y-3">
+            <h3 className="text-sm sm:text-base font-semibold text-slate-900">Need Help?</h3>
+            <p className="text-xs sm:text-sm text-slate-600">
               Questions about your order? Contact our support team.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4">
