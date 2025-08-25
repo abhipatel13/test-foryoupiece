@@ -246,18 +246,27 @@ export function CheckoutPointsDisplay({ userId, orderTotal, onPointsChange }: Ch
                     </Badge>
                   </div>
                   
-                  {points_breakdown.tier_info.next_tier && (
+                  {points_breakdown.tier_info.next_tier ? (
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs text-gray-600">
                         <span>Progress to {points_breakdown.tier_info.next_tier?.toUpperCase()}</span>
                         <span>{points_breakdown.tier_info.progress_percentage.toFixed(0)}%</span>
                       </div>
                       <Progress value={points_breakdown.tier_info.progress_percentage} className="h-1" />
-                      {points_breakdown.tier_info.points_to_next && (
+                      {typeof points_breakdown.tier_info.points_to_next === 'number' && (
                         <p className="text-xs text-gray-500">
                           {points_breakdown.tier_info.points_to_next.toLocaleString()} points to next tier
                         </p>
                       )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-gray-600">
+                        <span>Max tier achieved</span>
+                        <span>{points_breakdown.tier_info.progress_percentage.toFixed(0)}%</span>
+                      </div>
+                      <Progress value={points_breakdown.tier_info.progress_percentage} className="h-1" />
+                      <p className="text-xs text-gray-500">You're at the highest tier</p>
                     </div>
                   )}
                 </div>

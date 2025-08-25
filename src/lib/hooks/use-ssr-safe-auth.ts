@@ -199,6 +199,7 @@ export function useSSRSafeAuth() {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/en/auth/callback?redirectTo=/`,
         data: userData
       }
     })

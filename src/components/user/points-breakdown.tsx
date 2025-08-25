@@ -203,11 +203,19 @@ export function PointsBreakdownComponent({
           </div>
         </div>
 
-        {tier_info.next_tier && tier_info.points_to_next && (
+        {tier_info.next_tier && tier_info.points_to_next ? (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-gray-500">
               <span>To {tier_info.next_tier.toUpperCase()}</span>
               <span>{tier_info.points_to_next.toLocaleString()} pts</span>
+            </div>
+            <Progress value={tier_info.progress_percentage} className="h-1" />
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Max tier achieved</span>
+              <span>{tier_info.progress_percentage.toFixed(0)}%</span>
             </div>
             <Progress value={tier_info.progress_percentage} className="h-1" />
           </div>
@@ -286,7 +294,7 @@ export function PointsBreakdownComponent({
                     </Tooltip>
                   </div>
 
-                  {showTierProgress && tier_info.next_tier && tier_info.points_to_next && (
+                  {showTierProgress && (tier_info.next_tier && tier_info.points_to_next ? (
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs text-gray-600">
                         <span>Progress to {tier_info.next_tier.toUpperCase()}</span>
@@ -297,7 +305,16 @@ export function PointsBreakdownComponent({
                         {tier_info.points_to_next.toLocaleString()} points to next tier
                       </p>
                     </div>
-                  )}
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-gray-600">
+                        <span>Max tier achieved</span>
+                        <span>{tier_info.progress_percentage.toFixed(0)}%</span>
+                      </div>
+                      <Progress value={tier_info.progress_percentage} className="h-2" />
+                      <p className="text-xs text-gray-500">You're at the highest tier</p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -382,7 +399,7 @@ export function PointsBreakdownComponent({
             </div>
 
             {/* Tier Progress */}
-            {showTierProgress && tier_info.next_tier && tier_info.points_to_next && (
+            {showTierProgress && (tier_info.next_tier && tier_info.points_to_next ? (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Progress to {tier_info.next_tier.toUpperCase()}</span>
@@ -393,7 +410,16 @@ export function PointsBreakdownComponent({
                   {tier_info.points_to_next.toLocaleString()} points to next tier
                 </p>
               </div>
-            )}
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Max tier achieved</span>
+                  <span className="font-medium">{tier_info.progress_percentage.toFixed(0)}%</span>
+                </div>
+                <Progress value={tier_info.progress_percentage} className="h-2" />
+                <p className="text-xs text-gray-500">You're at the highest tier</p>
+              </div>
+            ))}
           </div>
 
           {/* Tier Benefits */}

@@ -41,7 +41,7 @@ const userQueries = {
       .from('users')
       .select(`
         id, email, phone, first_name, last_name, avatar_url,
-        points_balance, tier_level, total_spent, total_orders,
+        points_balance, total_points_earned, tier_level, total_spent, total_orders,
         preferred_language, created_at, updated_at,
         address_line_1, address_line_2, aba_bank_name,
         permanent_free_shipping

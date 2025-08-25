@@ -642,11 +642,17 @@ export default function CheckoutPage() {
                     <div className="flex justify-between items-center text-sm sm:text-base">
                       <span className="text-gray-700">Shipping & handling</span>
                       <span className="font-medium">
-                        {shippingFee === 0 ? (
-                          <span className="text-green-700 font-semibold">FREE</span>
-                        ) : (
-                          formatPrice(shippingFee)
-                        )}
+                        {(() => {
+                          const calc = shippingCalculation || getShippingCalculation?.()
+                          if (shippingFee === 0) {
+                            if (calc?.freeShippingReason === 'permanent_tier') return <span className="text-green-700 font-semibold">Diamond Rank Free Delivery</span>
+                            if (calc?.freeShippingReason === 'quantity') return <span className="text-green-700 font-semibold">FREE (4+ items)</span>
+                            if (calc?.freeShippingReason === 'event' && calc?.eventContext?.title) return <span className="text-green-700 font-semibold">{`FREE (Event: ${calc.eventContext.title})`}</span>
+                            if (calc?.freeShippingReason === 'coupon') return <span className="text-green-700 font-semibold">FREE (Coupon applied)</span>
+                            return <span className="text-green-700 font-semibold">FREE</span>
+                          }
+                          return formatPrice(shippingFee)
+                        })()}
                       </span>
                     </div>
 

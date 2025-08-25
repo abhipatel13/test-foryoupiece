@@ -1,5 +1,6 @@
 import { SHIPPING_CONFIG } from '@/shared/constants'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { getTierFromPoints } from '@/lib/utils'
 
 export interface ShippingCalculationResult {
   shippingFee: number
@@ -129,25 +130,53 @@ export class ShippingService {
 
   /**
    * Check if user has permanent free shipping (Diamond tier)
+   * Falls back to checking tier via total_points_earned when flag isn't set yet.
+   * Works on both server (service role client) and client (fetches profile API).
    */
   private async checkPermanentFreeShipping(userId: string): Promise<boolean> {
     try {
-      if (!this.serviceClient) {
-        return false
+      // If running on the server and we have a service client, use direct DB lookup with tier fallback
+      const client = this.getServiceClient()
+      if (client) {
+        const { data, error } = await client
+          .from('users')
+          .select('permanent_free_shipping, total_points_earned, tier_level')
+          .eq('id', userId)
+          .single()
+
+        if (error) {
+          console.error('Error checking permanent free shipping (server):', error)
+          // don't throw; fall through to client-side fallback
+        } else if (data) {
+          if (data.permanent_free_shipping === true) return true
+          // Fallback: compute tier from points in case flag wasn't set yet
+          const totalPointsEarned = data.total_points_earned ?? 0
+          const computedTier = getTierFromPoints(totalPointsEarned)
+          if (computedTier === 'diamond' || data.tier_level === 'diamond') return true
+          return false
+        }
       }
 
-      const { data, error } = await this.serviceClient
-        .from('users')
-        .select('permanent_free_shipping')
-        .eq('id', userId)
-        .single()
-
-      if (error) {
-        console.error('Error checking permanent free shipping:', error)
-        return false
+      // Client-side fallback: fetch lightweight profile including permanent_free_shipping
+      if (typeof window !== 'undefined') {
+        try {
+          const res = await fetch(`/api/users/${userId}/profile`, { cache: 'no-store' })
+          if (!res.ok) return false
+          const json = await res.json()
+          const profile = json?.data?.profile
+          if (!profile) return false
+          if (profile.permanent_free_shipping === true) return true
+          const totalPointsEarned = profile.total_points_earned ?? 0
+          const computedTier = getTierFromPoints(totalPointsEarned)
+          if (computedTier === 'diamond' || profile.tier_level === 'diamond') return true
+          return false
+        } catch (e) {
+          console.error('Error checking permanent free shipping (client):', e)
+          return false
+        }
       }
 
-      return data?.permanent_free_shipping === true
+      return false
     } catch (error) {
       console.error('Error checking permanent free shipping:', error)
       return false

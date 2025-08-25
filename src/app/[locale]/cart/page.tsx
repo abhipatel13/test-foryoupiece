@@ -657,7 +657,7 @@ export default function CartPage() {
 
                     <span className="text-gray-600">Shipping</span>
                     <span className="text-gray-900 font-medium">
-                      {shippingFee === 0 ? 'FREE' : formatPrice(shippingFee)}
+                      {(() => { const calc = shippingCalculation || getShippingCalculation?.(); if (shippingFee === 0) { if (calc?.freeShippingReason === 'permanent_tier') return 'Diamond Rank Free Delivery'; if (calc?.freeShippingReason === 'quantity') return 'FREE (4+ items)'; if (calc?.freeShippingReason === 'event' && calc?.eventContext?.title) return `FREE (Event: ${calc.eventContext.title})`; if (calc?.freeShippingReason === 'coupon') return 'FREE (Coupon applied)'; return 'FREE'; } return formatPrice(shippingFee); })()}
                     </span>
                   </div>
                   {couponDiscount > 0 && (
@@ -781,11 +781,17 @@ export default function CartPage() {
                     {(() => {
                       const calc = getShippingCalculation?.()
                       if (shippingFee === 0) {
-                        if (calc?.freeShippingReason === 'event') {
-                          return <span className="text-green-700 font-medium">Free Shipping EVENT</span>
+                        if (calc?.freeShippingReason === 'permanent_tier') {
+                          return <span className="text-green-700 font-medium">Diamond Rank Free Delivery</span>
                         }
-                        if (totalQuantity >= 4) {
+                        if (calc?.freeShippingReason === 'quantity') {
                           return <span className="text-green-700 font-medium">FREE Delivery (4+ items)</span>
+                        }
+                        if (calc?.freeShippingReason === 'event') {
+                          return <span className="text-green-700 font-medium">{`FREE Delivery (Event${calc?.eventContext?.title ? `: ${calc.eventContext.title}` : ''})`}</span>
+                        }
+                        if (calc?.freeShippingReason === 'coupon') {
+                          return <span className="text-green-700 font-medium">FREE Delivery (Coupon applied)</span>
                         }
                         return <span className="text-green-700 font-medium">FREE Delivery</span>
                       }
