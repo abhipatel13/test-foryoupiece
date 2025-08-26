@@ -89,6 +89,13 @@ function ProductsPageContent() {
   // Brands state - will be loaded from actual product data
   const [brands, setBrands] = useState<string[]>([])
 
+  // Ensure mobile filter Sheet is closed when view changes to a mode that hides filters
+  useEffect(() => {
+    if (showFilters && (isRecommendedView || isSearchView || isDealsView)) {
+      setShowFilters(false)
+    }
+  }, [showFilters, isRecommendedView, isSearchView, isDealsView])
+
   // Load brands from products
   useEffect(() => {
     const loadBrands = async () => {
