@@ -64,6 +64,7 @@ export async function GET(
         last_name,
         avatar_url,
         points_balance,
+        total_points_earned,
         tier_level,
         total_spent,
         total_orders,
@@ -104,27 +105,28 @@ export async function GET(
       diamond: 50000
     }
 
-    const currentPoints = profile.points_balance || 0
-    let currentTier = 'bronze'
-    let nextTier = 'silver'
-    let pointsToNext = tierThresholds.silver
+    // Use lifetime points earned for tier calculations (not current balance)
+    const totalPointsEarned = profile.total_points_earned || 0
+    let currentTier: keyof typeof tierThresholds | 'diamond' = 'bronze'
+    let nextTier: keyof typeof tierThresholds | null = 'silver'
+    let pointsToNext = tierThresholds.silver - totalPointsEarned
 
-    if (currentPoints >= tierThresholds.diamond) {
+    if (totalPointsEarned >= tierThresholds.diamond) {
       currentTier = 'diamond'
       nextTier = null
       pointsToNext = 0
-    } else if (currentPoints >= tierThresholds.platinum) {
+    } else if (totalPointsEarned >= tierThresholds.platinum) {
       currentTier = 'platinum'
       nextTier = 'diamond'
-      pointsToNext = tierThresholds.diamond - currentPoints
-    } else if (currentPoints >= tierThresholds.gold) {
+      pointsToNext = tierThresholds.diamond - totalPointsEarned
+    } else if (totalPointsEarned >= tierThresholds.gold) {
       currentTier = 'gold'
       nextTier = 'platinum'
-      pointsToNext = tierThresholds.platinum - currentPoints
-    } else if (currentPoints >= tierThresholds.silver) {
+      pointsToNext = tierThresholds.platinum - totalPointsEarned
+    } else if (totalPointsEarned >= tierThresholds.silver) {
       currentTier = 'silver'
       nextTier = 'gold'
-      pointsToNext = tierThresholds.gold - currentPoints
+      pointsToNext = tierThresholds.gold - totalPointsEarned
     }
 
     const response = {
@@ -144,8 +146,8 @@ export async function GET(
           current_tier: currentTier,
           next_tier: nextTier,
           points_to_next: pointsToNext,
-          progress_percentage: nextTier 
-            ? Math.round(((currentPoints - tierThresholds[currentTier as keyof typeof tierThresholds]) / 
+          progress_percentage: nextTier
+            ? Math.round(((totalPointsEarned - tierThresholds[currentTier as keyof typeof tierThresholds]) /
                (tierThresholds[nextTier as keyof typeof tierThresholds] - tierThresholds[currentTier as keyof typeof tierThresholds])) * 100)
             : 100
         },

@@ -22,7 +22,7 @@ export function useSSRSafeAuth() {
   const userStore = useSSRSafeUserStore()
   const cartStore = useSSRSafeCartStore()
 
-  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
+  const { user, profile, isHydrated, setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser, updatePoints } = userStore
   const { setUserId, forceLoadCartForUser, clearCartOnLogout } = cartStore
 
   // Use memoized Supabase client to prevent redundant creation
@@ -59,10 +59,30 @@ export function useSSRSafeAuth() {
       try {
         // Use request deduplication for better performance
         const { requestUtils } = await import('@/lib/utils/request-deduplication')
-        const profileData = await requestUtils.fetchUserProfile(userId)
+        const profileResponse = await requestUtils.fetchUserProfile(userId)
+        // API returns { success, data: { profile, ... } } – extract the profile object
+        const profileData = (profileResponse && (profileResponse.data?.profile ?? (profileResponse as any).profile ?? profileResponse)) as any
 
         if (profileData) {
           setProfile(profileData)
+          try {
+            // Also fetch authoritative points summary and sync points_balance
+            const pointsSummary = await requestUtils.fetchUserPointsSummary(userId)
+            const newPoints = (pointsSummary?.points_balance ?? (pointsSummary as any)?.balance ?? 0) as number
+            if (typeof newPoints === 'number' && !Number.isNaN(newPoints)) {
+              updatePoints(newPoints)
+              if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+                console.log('🔢 Points sync from summary -> store.updatePoints:', newPoints)
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ Failed to fetch points summary for dropdown sync:', e)
+          } finally {
+            // Prefetch points breakdown for dropdown performance
+            try {
+              await requestUtils.prefetchUserData(userId)
+            } catch {}
+          }
         }
       } catch (error) {
         console.error('Failed to load user profile:', error)

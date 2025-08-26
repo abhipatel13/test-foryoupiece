@@ -1,34 +1,30 @@
-# ForYouPiece E-commerce Application Requirements
-- Foryoupiece is an English-only e-commerce application with a premium Japanese products business model delivering from Japan to Cambodia with future worldwide expansion.
+# ForYouPiece E-commerce Overview
+- ForYouPiece is an English-only e-commerce application selling premium Japanese products to Cambodia with future worldwide expansion plans.
 - User prefers Amazon-inspired layout with modern, minimalistic, product-focused design using black/white color scheme, clean typography, and larger product images.
-- Requires mobile-first responsive design with minimum 2 products per row on mobile, proper touch targets (44px minimum), and testing across multiple viewports (320px, 375px, 414px, 768px, 1024+).
-- ForYouPiece requires minimum 2-column layout on mobile devices (320px, 375px, 414px viewports) with responsive design patterns, duplicate prevention logic for user actions, and comprehensive cross-viewport testing for all features.
 - Navigation structure: 'Trending Now', 'Deals and Discounts', 'Recently Added', 'Recommended for You', 'Categories' with smooth scroll-to-section behavior.
 - Show stock warnings only for critically low inventory (1 left, limited stock for 2), use 'Fast delivery' instead of 'In Stock' for Cambodian commerce compliance.
-- 'Recently Added' section should display genuinely new products based on creation date/sync timestamp from BoxHero API.
-- User prefers mobile-first functionality patterns and wants desktop search dropdown to work like the mobile version which 'works like magic'.
-- ForYouPiece requires Amazon-like multi-tab session management where authentication state is shared across all tabs, new tabs show authenticated state immediately, and no performance degradation occurs with multiple tabs open.
-- ForYouPiece requires robust cart state synchronization across browser sessions with proper isolation between authenticated/guest users, SSR-safe Zustand implementation, and complete cart cleanup on logout to prevent cross-session data leakage.
+
+# UI/UX Requirements
+- Mobile-first responsive design with minimum 2 products per row on mobile, proper touch targets (44px minimum), and testing across multiple viewports (320px, 375px, 414px, 768px, 1024+).
+- Enterprise-level UI/UX framework with responsive grid, reusable component library, WCAG accessibility standards, dynamic theming, and optimized form UX with inline validation.
+- Account dropdown should appear below header (not overlay); search input fields positioned in upper portion of viewport for better mobile accessibility.
+- User prefers Tailwind CSS for styling with !important modifiers (!pl-12, !pr-12) to override base Input component's px-3 class where needed.
+- Mobile cart UI standard: On mobile (320–414px) checkboxes should use visual size h-3 w-3 wrapped in a container to preserve accessibility.
+- For mobile cart UI (300px-768px viewports), prioritize compact sizing over strict accessibility touch targets to create fast, efficient, mobile-native experience with reduced visual clutter and streamlined checkout flow.
 
 # Authentication and Security
-- Implements multiple authentication methods: Google OAuth, Facebook OAuth, and Telegram Login Widget with Supabase integration.
-- Secure admin system with obscured routes (/fyponly/admin), strict role-based access control, and separation between admin and regular user flows.
-- Supabase native MFA with email-based verification for admin authentication, requiring 2FA for first-time logins and periodically (7-30 days).
-- Modern browsers (Chrome 115+, Firefox 117+, Safari 16.4+) block third-party cookies affecting Telegram Login Widget, requiring fallback solutions.
-- Authentication form input padding issues fixed by adding !important modifier (!pl-12, !pr-12) to override base Input component's px-3 class.
-- For cross-browser authentication issues with Supabase, implement server-side session validation using getUser() instead of getSession(), add custom storage validation, implement periodic session checks, clear all localStorage/sessionStorage on sign-out, and use version-controlled Zustand stores with migration to handle stale data across browsers.
-- ForYouPiece requires comprehensive security audit procedures including Git history cleanup for credential exposure, test file security scanning for hardcoded credentials, secure .env.local.example templates, and end-to-end testing validation for all authentication flows and API integrations.
-- ForYouPiece admin system requires httpOnly cookies for token storage instead of localStorage, automatic session timeout, token rotation, and preservation of all existing admin functionality during security fixes.
-- Gate Supabase client console logs behind NEXT_PUBLIC_DEBUG_SUPABASE and only show them in development; keep changes minimal without altering business logic.
-- ForYouPiece requires comprehensive cross-authentication method testing (Telegram↔Google OAuth↔Facebook OAuth) with focus on session cleanup, state conflicts, cart persistence across auth switches, and production environment testing at https://foryoupiece.com/ before local testing.
+- Multiple authentication methods: Google OAuth, Facebook OAuth, and Telegram Login Widget with Supabase integration.
+- Secure admin system with obscured routes (/fyponly/admin), role-based access control, and separation between admin and regular user flows.
+- Implement server-side session validation using getUser() instead of getSession(), add custom storage validation, implement periodic session checks.
+- Admin system requires httpOnly cookies for token storage, automatic session timeout, and token rotation.
+- Gate Supabase client console logs behind NEXT_PUBLIC_DEBUG_SUPABASE and only show them in development.
+- ForYouPiece production admin failures are primarily caused by missing SUPABASE_SERVICE_ROLE_KEY environment variables, schema drift (missing log_admin_action RPC and RLS policies), super_admin email/IP restrictions, and stricter session aging in production vs development environments.
 
 # BoxHero API Integration
-- Manual sync system with BoxHero API  for inventory management, accessed via /en/fyponly-admin URL.
+- Manual sync system with BoxHero API for inventory management, accessed via /en/fyponly-admin URL.
 - Sync-based architecture where API calls only happen during manual sync operations, with Supabase as single source of truth for frontend data.
-- Enhanced BoxHero sync with comprehensive reporting, real-time data refresh in admin dashboard, activity logs, and proper cache invalidation.
 - BoxHero API supports proper pagination with cursor/has_more parameters requiring proper while loop iteration until has_more = false.
-- BoxHero sync includes trending tags that should automatically populate the trending section - trending products should include items tagged as trending in BoxHero, not just algorithmic selections.
-- ForYouPiece trending system has algorithmic caps (default 10 items, hard ceiling 30 total), uses get_trending_products() RPC that ignores manual is_trending flags, references missing manual_trending_products table, and BoxHero sync doesn't set trending flags - designed as curated shortlist rather than full catalog.
+- BoxHero sync includes trending tags that should automatically populate the trending section (default 10 items, hard ceiling 30 total).
 
 # Cart and Checkout
 - $1.50 fixed shipping fee with free shipping for 4+ items, no tax calculations.
@@ -36,51 +32,39 @@
 - Show crossed-out original prices with discount amounts and percentages for sale items, display total savings in cart summary.
 - Simplified address fields (only Address Line 1 required, Address Line 2 optional), ABA Bank Name field with 'Taravatey Than' placeholder.
 - Manual QR code payment processing where orders are placed with 'On Hold' status, users see thank you page with payment instructions.
-- Cart page mobile optimization requires button sizing for 44px minimum touch targets, compact layout to minimize scrolling to checkout, streamlined UI to reduce information overload on small screens, and fully functional points redemption system with mobile-optimized interface.
 
 # Loyalty Points System
-- New user signup points allocation increased from 100 to 1000 points.
 - 10 points per $1 spent (1% cashback equivalent), 1000 points = $1 value for redemption.
 - Rank tiers: Silver (5k+), Gold (15k+), Platinum (35k+), Diamond (50k+ points) with annual rank reset on January 1st.
 - Redemption requires minimum 500 points in increments of 10 points, with smart suggestions and validation rules for checkout.
 - Points are deducted immediately on order placement (not admin confirmation), with automatic refund on order cancellation.
-- ForYouPiece loyalty tier system requires automatic reward distribution on tier upgrades (Silver 5k+, Gold 15k+, Platinum 35k+, Diamond 50k+), unique coupon code generation, user-specific reward isolation, account page 'Rewards & Coupons' section with tier progress indicators, and comprehensive end-to-end testing validation.
+- Automatic reward distribution on tier upgrades with unique coupon code generation and user-specific reward isolation.
 
 # Telegram Bots and Notifications
-- Two separate Telegram bots: @Authenticationfypbot (8066090295) for OAuth and @notificationfypbot  for notifications.
+- Two separate Telegram bots: @Authenticationfypbot (8066090295) for OAuth and @notificationfypbot for notifications.
 - Order notifications sent to specific threads (thread ID 2) within groups: -1002251987881 (notifications).
-- Telegram confirmation messages should use detailed format with 'PAID✅✅' status, complete customer info, order summary, and items list, sent to group -1002667614926 thread 3 instead of just simple confirmation messages.
+- Telegram confirmation messages should use detailed format with 'PAID✅✅' status, complete customer info, order summary, and items list, sent to group -1002667614926 thread 3.
 - System automatically completes orders in admin panel when confirmed via Telegram buttons.
+- For customer notifications: use English-only, Resend is already connected to Supabase, test Telegram to @Creatorww123 and send dev emails to akito12350@gmail.com, and ensure idempotency with email-only fallback when no telegram_id.
+- User prefers implementing automatic email notifications triggered by centralized order status changes rather than integration-specific logic, ensuring notifications work universally regardless of trigger source (admin panel, Telegram, API calls, etc.).
 
-# Admin Features and Order Management
+# Admin Features
 - Streamlined admin order management with single-click completion replacing 3-step process.
-- Admin panel displays paginated data immediately on page load with search/filter functionality.
-- Admin panel pagination should use 40 items per page with server-side pagination, maintain URL state for bookmarking, preserve search/filter functionality, and follow enterprise-level UI/UX framework standards with responsive design.
-- Comprehensive admin order details with product thumbnails, quantities, pricing breakdowns, customer info.
-- Enhanced user profiles showing order history, total spent, and lifetime value metrics.
+- Admin panel displays paginated data (40 items per page) with server-side pagination, URL state preservation, and search/filter functionality.
+- Super_admin-only product deletion with soft deletion (is_deleted, deleted_at, deleted_by, deleted_reason fields), CSRF protection, and comprehensive audit logging.
 - Admin panel coupon management system requires full CRUD functionality.
-- ForYouPiece admin panel requires super_admin-only product deletion with soft deletion (is_deleted, deleted_at, deleted_by, deleted_reason fields), CSRF protection, comprehensive audit logging, SKU/name confirmation modals, related data cleanup (cart_items, wishlist_items, search_suggestions), BoxHero sync compatibility, and Playwright MCP testing validation.
+- Redesign Customer Communication admin panel to a chat-style interface with a left user list (search, pagination, unread badges) and right chat (incoming left-green, outgoing right-blue, timestamps, delivery status, real-time updates), keep direction badges, and require comprehensive Playwright MCP testing.
+- ForYouPiece admin communication panel should have real-time message updates as primary option or manual reload button as fallback, maintaining current message formatting and preserving all existing functionality without breaking current features.
 
-# Testing and Quality Assurance
-- Comprehensive end-to-end testing approach for e-commerce integrations, authentication flows, and responsive design.
-- Systematic testing across critical user flows by clicking through interfaces, checking console errors, and verifying permissions.
-- Cross-viewport testing approach for responsive design changes (320px through 1920px).
-- End-to-end testing for Telegram order notification systems including security validation and webhook authorization.
-- For critical production issues, always conduct thorough end-to-end testing with real data flows, verify database queries and data transformations at each step, and provide concrete evidence rather than making assumptions about fixes.
-- Production admin panel has critical issues where changes don't reflect on live website - requires comprehensive end-to-end testing of admin saves, frontend reflection, cross-environment comparison, and database verification, with focus on best seller toggle and image upload features.
-- For authentication and account page testing, always conduct systematic end-to-end testing including authentication flow verification, account page content validation, cross-viewport testing (375px, 768px, 1920px), error handling for protected pages, and restart development server before testing to ensure clean state.
-- For authentication system testing, perform comprehensive end-to-end testing including click testing of all auth buttons, complete login flow verification with proper redirection, console monitoring for errors, user profile integration verification, and cross-page authentication state consistency testing.
-- For authentication system testing, always test with browser dev tools open to monitor console errors and network requests, verify session expiration handling (clean sign-out vs valid session retention), check for authentication loops or redundant requests, and test both expired and valid session scenarios comprehensively.
-- For authentication system testing, prioritize profile loading validation with full data visibility confirmation, cross-browser testing (Chrome, Firefox, Safari), performance impact assessment of console logging on UI rendering, and comprehensive console error analysis with specific focus on failed API requests and session validation failures.
-- ForYouPiece tier rewards system requires comprehensive end-to-end testing including multi-tier progression validation (Silver→Gold→Platinum→Diamond), UI verification at each tier, data integrity validation, error handling testing, and production-like testing without debug tools.
-
-# UI/UX Framework
-- Enterprise-level UI/UX framework with mobile-first responsive grid, reusable component library, WCAG accessibility standards.
-- Dynamic theming support, optimized form UX with inline validation, performance optimization with lazy-loading.
-- Standardized micro-interactions for consistent user experience across all devices.
-- Mobile UI positioning standards: search input fields should be positioned in upper portion of viewport rather than vertical center for better mobile accessibility.
-- User prefers Tailwind CSS for styling.
-- All click interactions should be optimized for enterprise-level standards.
-- Account dropdown should appear below header (not overlay).
-- Account page must meet enterprise UI/UX: mobile-first (300–414px), desktop (768–1920+), strong typography/spacing, full a11y; zero console errors/hydration issues; performance and cross-browser compliance; and include a comprehensive Playwright MCP E2E test suite validating rendering, interactions, responsiveness, navigation, and error handling.
-- Desktop: place Rewards & Coupons beside Points for a denser hero area; Mobile: ensure all buttons and tab/subheading controls are visible/clickable without horizontal scrolling (no scrolling needed to reach Coupons/Progress tabs).
+# Testing and Deployment Requirements
+- Comprehensive end-to-end testing for e-commerce integrations, authentication flows, and responsive design across viewports (320px through 1920px).
+- For authentication system testing, always test with browser dev tools open to monitor console errors and network requests.
+- For critical production issues, conduct thorough end-to-end testing with real data flows, verify database queries and data transformations at each step.
+- For testing, route customer emails to akito12350@gmail.com even without using DEV_EMAIL_OVERRIDE (they configured Resend/Vercel env but prefer production-like sends to this address).
+- For customer notification system testing, use two-phase approach: Phase 1 local testing (localhost:3001) then Phase 2 production testing, with RESEND_OVERRIDE_ALL_TO=akito12350@gmail.com and DEV_TELEGRAM_OVERRIDE_CHAT_ID for @Creatorww123, validating email routing, Telegram DMs, order status updates, console logs, email_logs table entries, and idempotency.
+- During testing, route all customer notifications to test addresses by setting RESEND_OVERRIDE_ALL_TO=akito12350@gmail.com and DEV_TELEGRAM_OVERRIDE_CHAT_ID (for @Creatorww123), keeping admin Telegram notifications unchanged.
+- ForYouPiece production deployments: remove testing environment variables (ENABLE_TEST_APIS, RESEND_OVERRIDE_ALL_TO, DEV_TELEGRAM_OVERRIDE_CHAT_ID) and test endpoints before deployment, then perform comprehensive end-to-end testing with real customer notification flows, email delivery, and Telegram notifications to validate production readiness.
+- ForYouPiece production testing: verify real credentials (RESEND_API_KEY, TELEGRAM_BOT_TOKEN), test end-to-end customer notifications with real emails, confirm admin/customer channel separation, validate idempotency system, and ensure no development overrides remain active in production environment.
+- ForYouPiece production deployment verification requires 6-step end-to-end testing: Playwright MCP order flow test, Supabase email_logs database verification, Resend dashboard message confirmation, Vercel function logs review, email receipt validation, and detailed results reporting with screenshots/logs.
+- ForYouPiece email system testing requires comprehensive end-to-end verification: order placement → customer notification service trigger → Supabase Edge Function call → Resend API delivery → database logging → actual email receipt confirmation, with debugging at each failure point.
+- For cancellation flows, testing should be performed via the website admin panel (cancellation happens in admin), and order creation is already working.

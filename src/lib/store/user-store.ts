@@ -61,6 +61,9 @@ export const useUserStore = create<UserStore>()(
 
       setProfile: (profile) => {
         set({ profile })
+        if (profile && typeof (profile as any).points_balance === 'number') {
+          console.log('🔎 setProfile received points_balance:', (profile as any).points_balance)
+        }
       },
 
       setLoading: (isLoading) => {
@@ -81,7 +84,7 @@ export const useUserStore = create<UserStore>()(
           set({
             profile: {
               ...profile,
-              points,
+              points_balance: points,
             },
           })
         }

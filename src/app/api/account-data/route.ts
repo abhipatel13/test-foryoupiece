@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         .from('users')
         .select(`
           id, email, phone, first_name, last_name, avatar_url,
-          points_balance, tier_level, total_spent, total_orders,
+          points_balance, total_points_earned, tier_level, total_spent, total_orders,
           preferred_language, created_at, updated_at
         `)
         .eq('id', user.id)
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       // 3. Get points summary (if needed for tier calculations)
       serviceClient
         .from('users')
-        .select('points_balance, tier_level, total_spent')
+        .select('points_balance, total_points_earned, tier_level, total_spent')
         .eq('id', user.id)
         .single()
     ])
@@ -98,9 +98,10 @@ export async function GET(request: NextRequest) {
         diamond: 50000
       }
 
+      // Use lifetime total_points_earned for tier progress, not current balance
       const currentTier = pointsData.tier_level || 'bronze'
-      const currentPoints = pointsData.points_balance || 0
-      
+      const totalPointsEarned = pointsData.total_points_earned || 0
+
       // Find next tier
       const tiers = Object.entries(tierThresholds)
       const currentTierIndex = tiers.findIndex(([tier]) => tier === currentTier)
@@ -108,13 +109,13 @@ export async function GET(request: NextRequest) {
 
       if (nextTier) {
         const [nextTierName, nextTierThreshold] = nextTier
-        const pointsToNext = nextTierThreshold - currentPoints
-        const progressPercentage = Math.min(100, (currentPoints / nextTierThreshold) * 100)
+        const pointsToNext = nextTierThreshold - totalPointsEarned
+        const progressPercentage = Math.min(100, (totalPointsEarned / nextTierThreshold) * 100)
 
         tierProgress = {
           current_tier: currentTier,
           next_tier: nextTierName,
-          current_points: currentPoints,
+          current_points: totalPointsEarned,
           points_to_next: Math.max(0, pointsToNext),
           progress_percentage: progressPercentage
         }

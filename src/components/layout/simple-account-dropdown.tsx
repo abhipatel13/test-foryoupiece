@@ -51,12 +51,16 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const dismiss = useDismiss(context)
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss])
 
-  // Simple user data preparation
+  // Simple user data preparation with defensive points mapping
   useEffect(() => {
     if (user && profile) {
       const firstName = profile.first_name || ''
       const lastName = profile.last_name || ''
       const name = firstName && lastName ? `${firstName} ${lastName}` : user.email?.split('@')[0] || 'User'
+
+      // Prefer points_balance; if undefined, try fallback fields
+      const rawPoints = (profile as any).points_balance ?? (profile as any).points ?? 0
+      const points = typeof rawPoints === 'number' && !Number.isNaN(rawPoints) ? rawPoints : 0
 
       setUserDisplayData({
         name,
@@ -64,7 +68,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         initials: firstName && lastName
           ? `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
           : (user.email?.charAt(0) || 'U').toUpperCase(),
-        points: profile.points_balance || 0,
+        points,
         tier: getCorrectUserTier(profile)
       })
     } else if (user && profileLoading) {
