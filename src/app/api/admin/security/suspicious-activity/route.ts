@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceRoleClient } from '@/lib/supabase/service-role-client'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 /**
  * Admin Security Monitoring API
