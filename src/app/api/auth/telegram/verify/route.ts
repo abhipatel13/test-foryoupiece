@@ -732,35 +732,58 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
 
     const sessionUserId = sessionData.session.user.id
 
-    // 4) Upsert profile using service role (bypass RLS). Set 1000 points only if new.
+    // 4) Create profile on first login; update thereafter to avoid firing BEFORE INSERT trigger
+    //    that creates a welcome-bonus transaction. Using UPSERT caused the INSERT part of
+    //    ON CONFLICT to run its BEFORE INSERT trigger on every login, duplicating history.
     let isNewProfile = false
     const { data: existingProfile } = await supabaseAdmin
       .from('users')
-      .select('id, points_balance')
+      .select('id')
       .eq('id', sessionUserId)
       .maybeSingle?.() || { data: null }
 
     isNewProfile = !existingProfile
 
-    const profilePayload: any = {
-      id: sessionUserId,
-      telegram_id: parseInt(authData.id),
-      telegram_username: authData.username,
-      email: syntheticEmail,
-      first_name: authData.first_name,
-      last_name: authData.last_name,
-      avatar_url: authData.photo_url,
-      preferred_language: 'en',
-    }
-    if (isNewProfile) profilePayload.points_balance = 1000
+    if (isNewProfile) {
+      // Insert new profile (the DB trigger award_welcome_bonus will add the single welcome transaction)
+      const insertPayload: any = {
+        id: sessionUserId,
+        telegram_id: parseInt(authData.id),
+        telegram_username: authData.username,
+        email: syntheticEmail,
+        first_name: authData.first_name,
+        last_name: authData.last_name,
+        avatar_url: authData.photo_url,
+        preferred_language: 'en',
+      }
 
-    const { error: upsertError } = await (supabaseAdmin as any)
-      .from('users')
-      .upsert(profilePayload, { onConflict: 'id' })
+      const { error: insertError } = await (supabaseAdmin as any)
+        .from('users')
+        .insert(insertPayload)
 
-    if (upsertError) {
-      console.error('❌ Failed to upsert user profile (non-fatal):', upsertError)
-      // Continue anyway — session is established
+      if (insertError) {
+        console.error('❌ Failed to insert user profile (non-fatal):', insertError)
+        // Continue anyway — session is established
+      }
+    } else {
+      // Update existing profile without INSERT to prevent welcome-bonus trigger
+      const { error: updateError } = await (supabaseAdmin as any)
+        .from('users')
+        .update({
+          telegram_id: parseInt(authData.id),
+          telegram_username: authData.username,
+          email: syntheticEmail,
+          first_name: authData.first_name,
+          last_name: authData.last_name,
+          avatar_url: authData.photo_url,
+          preferred_language: 'en',
+        })
+        .eq('id', sessionUserId)
+
+      if (updateError) {
+        console.error('❌ Failed to update user profile (non-fatal):', updateError)
+        // Continue anyway — session is established
+      }
     }
 
     const processingTime = Date.now() - startTime

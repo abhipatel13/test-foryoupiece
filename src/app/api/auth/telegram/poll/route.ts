@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
       userId = newUser.user.id
       console.log('✅ New Telegram user created:', userId.substring(0, 8) + '...')
 
-      // Create user profile
+      // Create user profile (do not set points here; DB trigger will award welcome bonus once)
       const { error: profileError } = await supabaseSSR
         .from('users')
         .insert({
@@ -136,7 +136,6 @@ export async function GET(request: NextRequest) {
           email: syntheticEmail,
           first_name: telegramData.first_name,
           last_name: telegramData.last_name,
-          points_balance: 1000, // New user signup bonus
           preferred_language: 'en'
         })
 
