@@ -31,7 +31,6 @@ import { toast } from 'sonner'
 export default function AdminTrendingProductsPage() {
   const [selectedTab, setSelectedTab] = useState('overview')
   const [newProductId, setNewProductId] = useState('')
-  const [newPosition, setNewPosition] = useState('')
   
   const { 
     data: trendingData, 
@@ -57,19 +56,18 @@ export default function AdminTrendingProductsPage() {
   }
 
   const handleAddManualProduct = async () => {
-    if (!newProductId || !newPosition) {
-      toast.error('Please provide both product ID and position')
+    if (!newProductId) {
+      toast.error('Please provide product ID')
       return
     }
 
     try {
       await addProduct.mutateAsync({
         product_id: newProductId,
-        position: parseInt(newPosition),
+        // position removed, backend will auto-assign a compatibility position
         user_id: 'admin' // Replace with actual admin user ID
-      })
+      } as any)
       setNewProductId('')
-      setNewPosition('')
       toast.success('Product added to trending successfully')
     } catch (error) {
       toast.error('Failed to add product to trending')
@@ -368,16 +366,6 @@ export default function AdminTrendingProductsPage() {
                     placeholder="Enter product UUID"
                     value={newProductId}
                     onChange={(e) => setNewProductId(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="position">Position</Label>
-                  <Input
-                    id="position"
-                    type="number"
-                    placeholder="1-50"
-                    value={newPosition}
-                    onChange={(e) => setNewPosition(e.target.value)}
                   />
                 </div>
               </div>

@@ -37,7 +37,8 @@ import {
   Menu,
   X,
   CalendarDays,
-  MessageCircle
+  MessageCircle,
+  TrendingUp
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -87,10 +88,12 @@ function AdminLoginForm() {
 
     try {
       // Use the new Supabase MFA-enabled admin login API
-      const response = await fetch('/api/admin/auth/login', {
+      const response = await fetch('/api/admin/session', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
           email: formData.email,
@@ -463,6 +466,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       current: false
     },
     {
+      name: 'Trending Products',
+      href: `/${locale}/fyponly-admin/trending-products`,
+      icon: TrendingUp,
+      current: false
+    },
+    {
       name: 'Orders',
       href: `/${locale}/fyponly-admin/orders`,
       icon: ShoppingCart,
@@ -577,7 +586,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   const Icon = item.icon
                   return (
                     <Link
-                      key={item.name}
+                      key={item.href}
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -634,7 +643,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   const Icon = item.icon
                   return (
                     <Link
-                      key={item.name}
+                      key={item.href}
                       href={item.href}
                       className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     >

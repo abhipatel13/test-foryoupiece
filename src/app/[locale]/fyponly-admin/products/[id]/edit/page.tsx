@@ -83,7 +83,6 @@ export default function ProductEditPage() {
     seo_description: '',
     is_trending: false,
     is_best_seller: false,
-    trending_position: 0,
     best_seller_position: 0,
     images: [],
   })
@@ -200,7 +199,6 @@ export default function ProductEditPage() {
         seo_description: productData.seo_description || '',
         is_trending: productData.is_trending ?? false,
         is_best_seller: productData.is_best_seller ?? false,
-        trending_position: productData.trending_position || 0,
         best_seller_position: productData.best_seller_position || 0,
         images: productData.images || [],
       })
@@ -331,10 +329,7 @@ export default function ProductEditPage() {
         newData.best_seller_position = 0
       }
 
-      // When trending is toggled OFF, clear the position
-      if (field === 'is_trending' && value === false) {
-        newData.trending_position = 0
-      }
+      // No manual trending position any more
 
       return newData
     })
@@ -763,20 +758,7 @@ export default function ProductEditPage() {
                     />
                   </div>
 
-                  {formData.is_trending && (
-                    <div className="space-y-2">
-                      <Label htmlFor="trending_position">Trending Position</Label>
-                      <Input
-                        id="trending_position"
-                        type="number"
-                        min="1"
-                        placeholder="1"
-                        value={formData.trending_position}
-                        onChange={(e) => handleInputChange('trending_position', parseInt(e.target.value) || 0)}
-                      />
-                      <p className="text-sm text-gray-600">Lower numbers appear first (1 = top position)</p>
-                    </div>
-                  )}
+                  {/* Trending position removed: ordering now automatic (stock-first + random within groups) */}
                 </div>
 
                 {/* Best Seller Product */}

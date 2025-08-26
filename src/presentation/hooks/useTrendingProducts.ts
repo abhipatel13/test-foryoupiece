@@ -15,9 +15,9 @@ export interface TrendingProduct {
   category_name: string;
   selection_type: 'algorithm' | 'manual';
   algorithm_category?: 'top_selling' | 'recently_added' | 'random_stock';
-  product_position: number;
-  trending_score: number;
-  sales_count: number;
+  product_position?: number | null;
+  trending_score?: number | null;
+  sales_count?: number | null;
 }
 
 export interface TrendingProductsResponse {
@@ -145,7 +145,6 @@ export function useManageTrendingProducts() {
   const addProduct = useMutation({
     mutationFn: async (params: {
       product_id: string;
-      position: number;
       user_id?: string;
     }) => {
       // Get secure auth headers (validates session)

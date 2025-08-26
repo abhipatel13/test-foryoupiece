@@ -104,8 +104,33 @@ export async function GET(request: NextRequest) {
     // Total BEFORE pagination/limit
     const totalCount = productsList.length
 
-    // Sort by stock priority for consistent UX
-    productsList = sortProductsByStockPriority(productsList)
+    // New ordering: Stock-first, then deterministic random within each stock group
+    // Seed rotates every 72 hours to refresh order predictably
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000
+    const rotationBucket = Math.floor(Date.now() / threeDaysMs)
+
+    // Simple deterministic hash to float in [0,1)
+    const hashToFloat = (str: string, seed: number) => {
+      let h = 2166136261 ^ seed
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i)
+        h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)
+      }
+      // Convert to positive 32-bit and normalize
+      const u = (h >>> 0) / 4294967296
+      return u
+    }
+
+    const seededRandomSort = (a: any, b: any) => {
+      const keyA = String(a.product_id || a.id || a.sku || '')
+      const keyB = String(b.product_id || b.id || b.sku || '')
+      const ra = hashToFloat(keyA, rotationBucket)
+      const rb = hashToFloat(keyB, rotationBucket)
+      return ra - rb
+    }
+
+    // Apply stock-first and seeded random within groups
+    productsList = sortProductsByStockPriority(productsList, seededRandomSort)
 
     // Apply limit/offset if provided (API contract), but UI uses client-side pagination with a high limit
     const sliced = productsList.slice(offset, offset + Math.min(limit, productsList.length - offset))

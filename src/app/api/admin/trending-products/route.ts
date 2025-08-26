@@ -80,9 +80,9 @@ export const POST = withSecureAdminAuth(async (request: NextRequest, { user, adm
 
     console.log('➕ Adding manual trending product:', { product_id, position, user_id })
 
-    if (!product_id || position === undefined) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: product_id and position' 
+    if (!product_id) {
+      return NextResponse.json({
+        error: 'Missing required field: product_id'
       }, { status: 400 })
     }
 
@@ -102,12 +102,27 @@ export const POST = withSecureAdminAuth(async (request: NextRequest, { user, adm
       }, { status: 404 })
     }
 
-    // Add to manual trending products
+    // Determine a safe position value to satisfy DB constraint but ignore for frontend ordering
+    let nextPosition = 1
+    try {
+      const { data: maxRow } = await supabase
+        .from('manual_trending_products')
+        .select('position')
+        .order('position', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      nextPosition = (maxRow?.position || 0) + 1
+    } catch (e) {
+      // Fallback to 1
+      nextPosition = 1
+    }
+
+    // Add to manual trending products (position kept for compatibility only)
     const { data: trendingProduct, error: insertError } = await supabase
       .from('manual_trending_products')
       .insert({
         product_id,
-        position,
+        position: nextPosition,
         is_active: true,
         created_by: user_id || adminUser.id
       })

@@ -326,7 +326,8 @@ export const POST = withAdminAuth(async (
       seo_description: body.seo_description || null,
       is_trending: body.is_trending ?? false,
       is_best_seller: body.is_best_seller ?? false,
-      trending_position: body.trending_position || null,
+      // Trending position is deprecated: always null
+      trending_position: null,
       best_seller_position: body.best_seller_position || null,
     };
 

@@ -378,8 +378,8 @@ export const PUT = withAdminAuth(async (
       seo_description: body.seo_description || null,
       is_trending: body.is_trending ?? false,
       is_best_seller: body.is_best_seller ?? false,
-      // Ensure position is null when the corresponding flag is false
-      trending_position: (body.is_trending ?? false) ? (body.trending_position || null) : null,
+      // Trending position is deprecated: always null, ordering handled in API layer
+      trending_position: null,
       best_seller_position: (body.is_best_seller ?? false) ? (body.best_seller_position || null) : null,
       updated_at: new Date().toISOString(),
     };

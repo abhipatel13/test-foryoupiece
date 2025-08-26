@@ -449,10 +449,12 @@ function AdminLoginForm() {
     setError(null)
 
     try {
-      const response = await fetch('/api/admin/auth/login', {
+      const response = await fetch('/api/admin/session', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
           email: formData.email,
