@@ -104,28 +104,33 @@ serve(async (req) => {
 
         console.log(`✅ Order ${orderId} status updated to ${action}ed`);
 
+        // Fetch order details once for downstream notifications
+        let orderDetails: any = null;
+        try {
+          const { data: od, error: odErr } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (*),
+              users!orders_user_id_fkey (*)
+            `)
+            .eq('id', orderId)
+            .single();
+          if (odErr) {
+            console.error('❌ Failed to fetch order details:', odErr);
+          } else {
+            orderDetails = od;
+          }
+        } catch (e) {
+          console.error('❌ Error fetching order details:', e);
+        }
+
         // Send customer email notification based on action
         if (action === 'confirm') {
           try {
             console.log(`📧 Sending order shipped email notification for order ${orderId}...`);
 
-            // Get order details for email
-            const { data: orderDetails, error: orderError } = await supabase
-              .from('orders')
-              .select(`
-                *,
-                order_items (
-                  *,
-                  products (*)
-                ),
-                users!orders_user_id_fkey (*)
-              `)
-              .eq('id', orderId)
-              .single();
-
-            if (orderError) {
-              console.error('❌ Failed to fetch order details for email:', orderError);
-            } else if (orderDetails) {
+            if (orderDetails) {
               // Call the customer notification service via Edge Function
               const notificationUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/customer-notification`;
               const notificationPayload = {
@@ -163,23 +168,7 @@ serve(async (req) => {
           try {
             console.log(`📧 Sending order cancelled email notification for order ${orderId}...`);
 
-            // Get order details for email
-            const { data: orderDetails, error: orderError } = await supabase
-              .from('orders')
-              .select(`
-                *,
-                order_items (
-                  *,
-                  products (*)
-                ),
-                users!orders_user_id_fkey (*)
-              `)
-              .eq('id', orderId)
-              .single();
-
-            if (orderError) {
-              console.error('❌ Failed to fetch order details for email:', orderError);
-            } else if (orderDetails) {
+            if (orderDetails) {
               const notificationUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/customer-notification`;
               const notificationPayload = {
                 type: 'order_cancelled',
@@ -214,6 +203,45 @@ serve(async (req) => {
           }
         }
 
+        // After confirmation, optionally forward ORDER CONFIRMATION to stock group to trigger stock webhook
+        if (action === 'confirm' && orderDetails && Deno.env.get('TELEGRAM_STOCK_FORWARD_ON_CONFIRM') === 'true') {
+          try {
+            const stockBotToken = Deno.env.get('TELEGRAM_STOCK_BOT_TOKEN');
+            const stockGroupId = Deno.env.get('TELEGRAM_STOCK_GROUP_ID');
+            const stockThreadId = Deno.env.get('TELEGRAM_STOCK_THREAD_ID');
+            if (!stockBotToken || !stockGroupId || !stockThreadId) {
+              console.warn('⚠️ Stock bot configuration incomplete, skipping ORDER CONFIRMATION message');
+            } else {
+              // Build ORDER CONFIRMATION message expected by stock webhook
+              const customerName = (orderDetails.users?.first_name || orderDetails.first_name || '') + ' ' + (orderDetails.users?.last_name || orderDetails.last_name || '');
+              const phoneNumber = orderDetails.shipping_address?.phone || orderDetails.phone || 'Not provided';
+              const address = orderDetails.shipping_address || {};
+              const addrLines = [] as string[];
+              if (address.address1) addrLines.push(address.address1);
+              if (address.address2) addrLines.push(address.address2);
+              const addrComponents = [...addrLines, address.city, address.country, address.postal_code].filter((c: any) => c && String(c).trim() !== '');
+              const fullAddress = addrComponents.length > 0 ? addrComponents.join(', ') : 'Not provided';
+
+              const items = (orderDetails.order_items || []).map((it: any, i: number) => `${i + 1}. ${it.title} *${it.quantity} =${Number(it.price || 0)}$`).join('\n') || 'No items found';
+              const shippingFee = Number(orderDetails.shipping_fee || orderDetails.shipping_cost || 0);
+              const totalAmount = Number(orderDetails.total_amount || 0);
+
+              const orderConfirmationMessage = `🎀✨ ORDER CONFIRMATION ✨🎀\n\n👤 Customer Info\nName: ${customerName.trim() || 'Unknown Customer'}\nPhone number: ${phoneNumber}\nAddress: ${fullAddress}\n\n🛒 Items\nItem name x Qty = Price\n${items}\n\n💰 Pricing Summary\n• Delivery Fee: $ ${shippingFee.toFixed(0)}\n• Total amount: $ ${totalAmount.toFixed(0)}\n• Deposit: $\n• Amount Due: $ ${totalAmount.toFixed(0)} ✅✅\n\n📌 Important Notes\n🚨 Final Sale : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted.\n🚚 Delivery : We will notify you once your items are ready for delivery.\n\n🙏 Thank you for your purchase! 🤍`;
+
+              const stockUrl = `https://api.telegram.org/bot${stockBotToken}/sendMessage`;
+              const payload = { chat_id: stockGroupId, message_thread_id: parseInt(stockThreadId), text: orderConfirmationMessage };
+              const sendRes = await postWithRetry(stockUrl, payload, 3);
+              if (sendRes?.ok) {
+                console.log('✅ ORDER CONFIRMATION sent to stock group to trigger stock deduction');
+              } else {
+                console.error('❌ Failed to send ORDER CONFIRMATION to stock group:', sendRes?.description || 'Unknown error');
+              }
+            }
+          } catch (err) {
+            console.error('❌ Error sending ORDER CONFIRMATION to stock group:', err);
+          }
+        }
+
         // Send confirmation message to Telegram
         const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
         const confirmationGroupId = Deno.env.get('TELEGRAM_CONFIRMATION_GROUP_ID');
@@ -241,23 +269,18 @@ ${action === 'confirm' ? '✅ Order confirmed and marked as shipped' : '❌ Orde
           };
 
           try {
-            const telegramResponse = await fetch(telegramUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(telegramPayload)
-            });
-
-            if (telegramResponse.ok) {
+            const telegramResponse = await postWithRetry(telegramUrl, telegramPayload, 3);
+            if (telegramResponse?.ok) {
               console.log(`📱 Confirmation message sent for order ${order.order_number}`);
             } else {
-              console.error('❌ Failed to send confirmation message:', await telegramResponse.text());
+              console.error('❌ Failed to send confirmation message:', telegramResponse?.description || 'Unknown error');
             }
           } catch (error) {
             console.error('❌ Error sending confirmation message:', error);
           }
         }
 
-        // Answer the callback query to remove loading state
+        // Answer the callback query to remove loading state (with simple retry)
         const answerCallbackUrl = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
         const answerPayload = {
           callback_query_id: callbackQuery.id,
@@ -265,12 +288,58 @@ ${action === 'confirm' ? '✅ Order confirmed and marked as shipped' : '❌ Orde
           show_alert: false
         };
 
+        // Retry helper honoring 429 retry_after
+        const postWithRetry = async (url: string, body: any, maxRetries = 3) => {
+          let attempt = 0;
+          let lastErr: any = null;
+          while (attempt < maxRetries) {
+            attempt++;
+            try {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 10000);
+              const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+              });
+              clearTimeout(timeout);
+              const text = await resp.text();
+              let json: any = undefined;
+              try { json = JSON.parse(text); } catch { json = { ok: false, description: text }; }
+              if (resp.status === 429) {
+                const retryAfterSec = Number(json?.parameters?.retry_after) || 1;
+                const waitMs = Math.min(Math.max(retryAfterSec, 1) * 1000 * attempt, 30000);
+                console.warn(`⚠️ Telegram 429 for ${url} (attempt ${attempt}). Waiting ${waitMs}ms`);
+                await new Promise(r => setTimeout(r, waitMs));
+                continue;
+              }
+              if (!resp.ok) {
+                lastErr = new Error(json?.description || `HTTP ${resp.status}`);
+                const waitMs = Math.min(500 * attempt, 3000);
+                if (attempt < maxRetries) {
+                  console.warn(`⚠️ Telegram POST failed for ${url} (attempt ${attempt}): ${lastErr.message}. Retrying in ${waitMs}ms`);
+                  await new Promise(r => setTimeout(r, waitMs));
+                  continue;
+                }
+              }
+              return json;
+            } catch (e: any) {
+              lastErr = e;
+              const waitMs = Math.min(500 * attempt, 3000);
+              if (attempt < maxRetries) {
+                console.warn(`⚠️ Telegram POST error for ${url} (attempt ${attempt}): ${e?.message || e}. Retrying in ${waitMs}ms`);
+                await new Promise(r => setTimeout(r, waitMs));
+                continue;
+              }
+              return { ok: false, description: e?.message || 'Network error' };
+            }
+          }
+          return { ok: false, description: lastErr?.message || 'Unknown error' };
+        };
+
         try {
-          await fetch(answerCallbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(answerPayload)
-          });
+          await postWithRetry(answerCallbackUrl, answerPayload, 3);
           console.log('✅ Callback query answered');
         } catch (error) {
           console.error('❌ Error answering callback query:', error);

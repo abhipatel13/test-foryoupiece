@@ -587,16 +587,68 @@ ${orderItemsText}
    */
   private async sendMessage(params: any): Promise<TelegramResponse> {
     const url = `${TELEGRAM_API_BASE}${this.config.botToken}/sendMessage`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(params),
-    });
 
-    return await response.json();
+    const maxRetries = 3;
+    let attempt = 0;
+    let lastError: any = null;
+
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        const controller = new AbortController();
+        const timeoutMs = 10000; // 10s network timeout to avoid long hangs
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        const text = await response.text();
+        let json: any = undefined;
+        try { json = JSON.parse(text); } catch { json = { ok: false, description: text }; }
+
+        // Handle Telegram rate limiting (HTTP 429) honoring retry_after
+        if (response.status === 429) {
+          const retryAfterSec = Number(json?.parameters?.retry_after) || 1;
+          const waitMs = Math.min(Math.max(retryAfterSec, 1) * 1000 * attempt, 30000);
+          console.warn(`⚠️ Telegram rate limited (attempt ${attempt}/${maxRetries}), retrying in ${waitMs}ms`);
+          await new Promise(res => setTimeout(res, waitMs));
+          continue;
+        }
+
+        if (!response.ok) {
+          lastError = new Error(json?.description || `HTTP ${response.status}`);
+          // Backoff and retry for transient errors
+          const waitMs = Math.min(500 * attempt, 3000);
+          if (attempt < maxRetries) {
+            console.warn(`⚠️ Telegram send failed (attempt ${attempt}/${maxRetries}): ${lastError.message}. Retrying in ${waitMs}ms`);
+            await new Promise(res => setTimeout(res, waitMs));
+            continue;
+          }
+          // Return the last JSON if available to preserve previous behavior
+          return json as TelegramResponse;
+        }
+
+        // Success
+        return json as TelegramResponse;
+      } catch (err: any) {
+        lastError = err;
+        const waitMs = Math.min(500 * attempt, 3000);
+        if (attempt < maxRetries) {
+          console.warn(`⚠️ Telegram send error (attempt ${attempt}/${maxRetries}): ${err?.message || err}. Retrying in ${waitMs}ms`);
+          await new Promise(res => setTimeout(res, waitMs));
+          continue;
+        }
+        return { ok: false, description: err?.message || 'Network error' } as TelegramResponse;
+      }
+    }
+
+    return { ok: false, description: lastError?.message || 'Unknown Telegram error' } as TelegramResponse;
   }
 
   /**

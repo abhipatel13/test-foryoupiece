@@ -43,12 +43,13 @@ serve(async (req) => {
   }
 
   try {
+    const startTime = Date.now();
     console.log('📦 Telegram stock webhook received:', req.method);
 
     // Validate webhook secret
     const telegramSignature = req.headers.get('x-telegram-bot-api-secret-token');
     const expectedSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET');
-    
+
     if (expectedSecret && telegramSignature !== expectedSecret) {
       console.error('❌ Invalid stock webhook signature');
       return new Response('Unauthorized', { status: 401, headers: corsHeaders });
@@ -263,7 +264,7 @@ serve(async (req) => {
           products_failed: failureCount,
           updated_products: results.filter(r => r.status === 'updated'),
           unmatched_products: results.filter(r => r.status === 'not_found').map(r => r.product),
-          processing_time_ms: Date.now() - Date.now(), // Simplified for edge function
+          processing_time_ms: Date.now() - startTime,
           processed_at: new Date().toISOString()
         });
     } catch (logError) {
