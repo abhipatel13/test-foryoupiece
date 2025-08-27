@@ -19,15 +19,15 @@ export const metadata: Metadata = {
   keywords: "premium Japanese products, Japan to Cambodia shipping, authentic Japanese goods, e-commerce, online shopping, quality products",
   icons: {
     icon: [
-      { url: '/favicon.ico?v=2', sizes: '16x16 32x32 48x48', type: 'image/x-icon' },
-      { url: '/favicon.jpg?v=2', sizes: '32x32', type: 'image/jpeg' },
+      { url: '/favicon.ico?v=3', sizes: '16x16 32x32 48x48', type: 'image/x-icon' },
+      { url: '/favicon.jpg?v=3', sizes: '32x32', type: 'image/jpeg' },
     ],
-    shortcut: ['/favicon.ico?v=2', '/favicon.jpg?v=2'],
+    shortcut: ['/favicon.ico?v=3', '/favicon.jpg?v=3'],
     apple: [
-      { url: '/favicon.jpg?v=2', sizes: '180x180', type: 'image/jpeg' },
+      { url: '/favicon.jpg?v=3', sizes: '180x180', type: 'image/jpeg' },
     ],
   },
-  manifest: '/site.webmanifest',
+  manifest: '/site.webmanifest?v=3',
 };
 
 export const viewport = {

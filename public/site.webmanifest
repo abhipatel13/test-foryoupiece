@@ -4,12 +4,12 @@
   "description": "Premium Japanese products delivered directly from Japan to Cambodia",
   "icons": [
     {
-      "src": "/favicon.ico?v=2",
+      "src": "/favicon.ico?v=3",
       "sizes": "16x16 32x32 48x48",
       "type": "image/x-icon"
     },
     {
-      "src": "/favicon.jpg?v=2",
+      "src": "/favicon.jpg?v=3",
       "sizes": "32x32 180x180 192x192 512x512",
       "type": "image/jpeg",
       "purpose": "any"

@@ -172,8 +172,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // COST OPTIMIZATION: Long-term caching for static assets
-        source: '/(favicon|logo|qr-payment|file|globe|next|vercel|window)\\.(ico|jpg|jpeg|png|svg|webp|avif)',
+        // COST OPTIMIZATION: Long-term caching for static assets (exclude favicons so branding updates propagate)
+        // Note: Favicons are handled by the dedicated rule above with a short TTL
+        source: '/(logo|qr-payment|file|globe|next|vercel|window)\\.(ico|jpg|jpeg|png|svg|webp|avif)',
         headers: [
           {
             key: 'Cache-Control',

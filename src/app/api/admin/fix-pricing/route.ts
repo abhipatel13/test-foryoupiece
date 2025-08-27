@@ -77,11 +77,12 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Update product price by SKU
+        // Update product price by SKU and clear stale compare_at_price to prevent false discounts
         const { error } = await supabase
           .from('products')
-          .update({ 
+          .update({
             price: usdPrice,
+            compare_at_price: null,
             updated_at: new Date().toISOString()
           })
           .eq('sku', item.sku);

@@ -23,7 +23,7 @@ function getSecureCookieOptions(originalOptions: any = {}) {
 }
 
 /**
- * Enhanced session validation with age checks
+ * Enhanced session validation with proper expiry checks
  */
 async function validateSessionSecurity(supabase: any, request: NextRequest) {
   try {
@@ -34,30 +34,34 @@ async function validateSessionSecurity(supabase: any, request: NextRequest) {
       return { valid: false, reason: 'no_session' }
     }
 
-    // Check session age (8 hours maximum for enhanced security)
-    const sessionAge = Date.now() - new Date(session.created_at || session.issued_at || 0).getTime()
-    const maxSessionAge = 8 * 60 * 60 * 1000 // 8 hours in milliseconds
+    // Prefer official expiry from Supabase session (seconds since epoch)
+    const nowMs = Date.now()
+    const expiresAtMs = typeof session.expires_at === 'number' ? session.expires_at * 1000 : null
 
-    if (sessionAge > maxSessionAge) {
-      console.warn('🔒 Session expired due to age:', {
-        sessionAge: Math.round(sessionAge / (60 * 60 * 1000)) + ' hours',
+    if (expiresAtMs && nowMs >= expiresAtMs) {
+      console.warn('🔒 Session expired based on expires_at:', {
         path: request.nextUrl.pathname,
-        timestamp: new Date().toISOString()
+        now: new Date(nowMs).toISOString(),
+        expiresAt: new Date(expiresAtMs).toISOString()
       })
       return { valid: false, reason: 'session_expired' }
     }
 
-    // Additional security checks for admin paths
+    // Additional security checks for admin paths (fallback to stricter window only if expires_at missing)
     if (request.nextUrl.pathname.includes('admin') || request.nextUrl.pathname.includes('fyponly')) {
-      // More strict validation for admin routes
-      const adminMaxAge = 4 * 60 * 60 * 1000 // 4 hours for admin sessions
-      if (sessionAge > adminMaxAge) {
-        console.warn('🔒 Admin session expired due to age:', {
-          sessionAge: Math.round(sessionAge / (60 * 60 * 1000)) + ' hours',
-          path: request.nextUrl.pathname,
-          timestamp: new Date().toISOString()
-        })
-        return { valid: false, reason: 'admin_session_expired' }
+      if (!expiresAtMs) {
+        // When no explicit expiry is available, enforce a conservative 4h window using last_sign_in_at
+        const lastSignIn = (session.user as any)?.last_sign_in_at
+        const lastSignInMs = lastSignIn ? new Date(lastSignIn).getTime() : null
+        const adminMaxAge = 4 * 60 * 60 * 1000 // 4 hours
+        if (!lastSignInMs || (nowMs - lastSignInMs) > adminMaxAge) {
+          console.warn('🔒 Admin session failed fallback age check:', {
+            path: request.nextUrl.pathname,
+            lastSignIn,
+            now: new Date(nowMs).toISOString()
+          })
+          return { valid: false, reason: 'admin_session_expired' }
+        }
       }
     }
 
