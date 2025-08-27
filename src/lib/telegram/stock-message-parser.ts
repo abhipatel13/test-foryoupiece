@@ -82,6 +82,12 @@ export class StockMessageParser {
     const message = update.message || update.edited_message;
     if (!message) return false;
 
+    // Ignore edited messages entirely to prevent duplicate deductions
+    if (update.edited_message) {
+      console.log('📦 Edited Telegram message detected — skipping stock processing to prevent duplicates');
+      return false;
+    }
+
     // Must have text content
     if (!message.text) return false;
 

@@ -76,6 +76,14 @@ serve(async (req) => {
       });
     }
 
+    // Ignore edited messages entirely to prevent duplicate deductions
+    if (update.edited_message) {
+      console.log('📦 Edited Telegram message detected — skipping stock processing to prevent duplicates');
+      return new Response(JSON.stringify({ ok: true, message: 'Edited message ignored' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Check if message is from correct group and thread
     const stockGroupId = parseInt(Deno.env.get('TELEGRAM_STOCK_GROUP_ID') || '0');
     const stockThreadId = parseInt(Deno.env.get('TELEGRAM_STOCK_THREAD_ID') || '0');
@@ -129,6 +137,26 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Idempotency check: skip if this telegram_message_id already processed
+    try {
+      const { data: existing, error: existingErr } = await supabase
+        .from('telegram_stock_updates')
+        .select('id')
+        .eq('telegram_message_id', message.message_id)
+        .limit(1);
+
+      if (existingErr) {
+        console.warn('⚠️ Idempotency check failed (edge function), proceeding:', existingErr.message);
+      } else if (existing && existing.length > 0) {
+        console.log(`📦 Duplicate Telegram message detected (message_id=${message.message_id}). Skipping processing.`);
+        return new Response(JSON.stringify({ ok: true, message: 'Duplicate message ignored' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    } catch (e) {
+      console.warn('⚠️ Unexpected error during idempotency check (edge function):', e);
+    }
 
     // Parse products from message
     const products = parseProductsFromMessage(message.text);

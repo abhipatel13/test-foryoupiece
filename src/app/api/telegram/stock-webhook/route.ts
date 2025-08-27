@@ -45,6 +45,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, message: 'Message ignored' });
     }
 
+    // Explicitly ignore edited messages to prevent duplicate deductions
+    if (update.edited_message) {
+      console.log('📦 Edited Telegram message detected at route level — skipping processing');
+      return NextResponse.json({ ok: true, message: 'Edited message ignored' });
+    }
+
     console.log('📦 Processing stock update message...');
 
     // Process the stock update

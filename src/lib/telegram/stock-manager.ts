@@ -91,6 +91,27 @@ export class StockManager {
       }
       console.log(`✅ [STOCK] User ${userInfo.displayName} is authorized`);
 
+      // Step 2.5: Idempotency check - skip if this Telegram message_id was already processed
+      console.log('📦 [STOCK] Step 2.5: Idempotency check...');
+      const { data: existingLogs, error: existingLogsError } = await this.supabase
+        .from('telegram_stock_updates')
+        .select('id')
+        .eq('telegram_message_id', message.message_id)
+        .limit(1);
+
+      if (existingLogsError) {
+        console.warn('⚠️ [STOCK] Idempotency check failed, proceeding cautiously:', existingLogsError.message);
+      }
+
+      if (existingLogs && existingLogs.length > 0) {
+        console.log(`📦 [STOCK] Duplicate Telegram message detected (message_id=${message.message_id}). Skipping stock deductions.`);
+        // Treat as successful no-op to avoid retries
+        result.success = true;
+        result.processingTimeMs = Date.now() - startTime;
+        // Do not generate a response for duplicates
+        return result;
+      }
+
       // Step 3: Parse message for products
       console.log('📦 [STOCK] Step 3: Parsing message for products...');
       const parseResult = stockMessageParser.parseMessage(message.text || '');
