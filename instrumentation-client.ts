@@ -12,6 +12,30 @@ Sentry.init({
     Sentry.replayIntegration(),
   ],
 
+  // Reduce noise from known benign third-party errors (Telegram widget)
+  ignoreErrors: [
+    /TelegramGameProxy/i,
+    /window\.?TelegramGameProxy/i,
+  ],
+  // Optionally drop events originating from the Telegram widget script URL
+  denyUrls: [
+    /telegram\.org\/js\/telegram-widget\.js/i,
+  ],
+  // Last-resort filter to prevent noisy events from being sent
+  beforeSend(event) {
+    try {
+      const val = event?.exception?.values?.[0];
+      const message = (val?.value || event?.message || "") as string;
+      if (typeof message === 'string' && message.toLowerCase().includes('telegramgameproxy')) {
+        // Drop this noisy, third-party error
+        return null;
+      }
+    } catch (_) {
+      // Never let filtering throw
+    }
+    return event;
+  },
+
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
   // Enable logs to be sent to Sentry

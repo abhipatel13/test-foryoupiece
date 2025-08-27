@@ -222,8 +222,8 @@ const nextConfig: NextConfig = {
       }
     }
 
-    // Simple development configuration
-    if (dev) {
+    // Simple development configuration (Windows polling gated by NEXT_WEBPACK_USEPOLLING)
+    if (dev && process.env.NEXT_WEBPACK_USEPOLLING === '1') {
       config.watchOptions = {
         poll: 1000,
         aggregateTimeout: 300,
