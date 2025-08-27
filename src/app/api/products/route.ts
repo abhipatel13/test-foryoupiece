@@ -81,6 +81,9 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true)
       .eq('is_deleted', false); // SECURITY FIX: Exclude soft-deleted products
 
+    // Track resolved category id once
+    let categoryId: string | null = null
+
     // STRICT CATEGORY FILTERING - NO KEYWORD FALLBACKS
     if (categorySlug) {
       console.log(`🎯 FIXED API: Filtering by category slug: ${categorySlug}`);
@@ -89,9 +92,9 @@ export async function GET(request: NextRequest) {
 
       if (category) {
         console.log(`🎯 FIXED API: Found category: ${category.name_en || category.name_ja || 'Unknown'} (ID: ${category.id})`);
-
+        categoryId = category.id
         // ONLY use category_id - NO keyword-based filtering
-        query = query.eq('category_id', category.id);
+        query = query.eq('category_id', categoryId);
         console.log(`🎯 FIXED API: Applied STRICT category_id filter ONLY`);
       } else {
         console.log(`🎯 FIXED API: Category not found, returning empty results`);
@@ -115,105 +118,192 @@ export async function GET(request: NextRequest) {
       query = query.or(`name_en.ilike.%${search}%,name_ja.ilike.%${search}%,description_en.ilike.%${search}%,description_ja.ilike.%${search}%,sku.ilike.%${search}%`);
     }
 
-    // Apply sorting based on request type
-    if (recentlyAdded) {
-      // For recently added products, prioritize BoxHero sync timestamp, then creation date
-      query = query
-        .order('boxhero_last_sync_at', { ascending: false, nullsLast: true })
-        .order('created_at', { ascending: false });
-    } else {
-      // Default sorting by creation date
-      query = query.order('created_at', { ascending: false });
+    // Apply sorting fields (we'll apply them per stock group fetch)
+    const applyOrdering = (q: any) => {
+      if (recentlyAdded) {
+        return q
+          .order('boxhero_last_sync_at', { ascending: false, nullsLast: true })
+          .order('created_at', { ascending: false })
+      }
+      return q.order('created_at', { ascending: false })
     }
 
-    // For deals filtering, we need to get all products first, then filter client-side
-    // because the filtering logic is complex (discount OR enhanced points)
-    let { data: products, error, count } = await query
-      .range(offset, offset + limit - 1);
+    // DEALS view: keep existing behavior (deals are in-stock only already)
+    if (deals) {
+      let { data: products, error } = await applyOrdering(query)
+        .range(0, limit * 4 - 1) // fetch extra to filter client-side
 
-    // Apply deals filtering if requested
-    if (deals && products) {
-      console.log(`🎯 DEALS API: Filtering for deals and discounts`);
+      if (error) {
+        console.error('🎯 DEALS API: Database error:', error)
+        return NextResponse.json(
+          { error: 'Failed to fetch products', details: error.message },
+          { status: 500 }
+        )
+      }
 
-      // Filter products that have price discounts (compare_at_price > price)
-      // TODO: Add enhanced points support when points_rate field is added to products table
-      const dealsProducts = products.filter(product => {
-        // Check for price discount (compare_at_price > price)
-        const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
-        const hasValidPrice = typeof product.price === 'number' && product.price > 0;
-        const hasImage = Array.isArray(product.images) && product.images.length > 0;
-        const inStock = product.stock_quantity > 0;
-        return hasDiscount && hasValidPrice && hasImage && inStock;
-      });
+      // Filter products that have price discounts (compare_at_price > price) and in stock
+      const dealsProducts = (products || []).filter(product => {
+        const hasDiscount = product.compare_at_price && product.compare_at_price > product.price
+        const hasValidPrice = typeof product.price === 'number' && product.price > 0
+        const hasImage = Array.isArray(product.images) && product.images.length > 0
+        const inStock = product.stock_quantity > 0
+        return hasDiscount && hasValidPrice && hasImage && inStock
+      })
 
-      // Sort deals by discount percentage (descending)
+      // Sort by discount percentage (descending)
       dealsProducts.sort((a, b) => {
-        // Calculate discount percentages
         const aDiscountPercent = a.compare_at_price && a.compare_at_price > a.price
           ? ((a.compare_at_price - a.price) / a.compare_at_price) * 100
-          : 0;
+          : 0
         const bDiscountPercent = b.compare_at_price && b.compare_at_price > b.price
           ? ((b.compare_at_price - b.price) / b.compare_at_price) * 100
-          : 0;
+          : 0
+        return bDiscountPercent - aDiscountPercent
+      })
 
-        // Sort by discount percentage (descending)
-        return bDiscountPercent - aDiscountPercent;
-      });
+      const paged = dealsProducts.slice(offset, offset + limit)
 
-      products = dealsProducts;
-      count = dealsProducts.length;
-
-      console.log(`🎯 DEALS API: Filtered to ${products.length} deals products`);
+      return NextResponse.json({
+        success: true,
+        data: paged,
+        pagination: {
+          total: dealsProducts.length,
+          limit,
+          offset,
+          page: Math.floor(offset / limit) + 1,
+          totalPages: Math.ceil(dealsProducts.length / limit),
+          hasMore: dealsProducts.length > offset + paged.length,
+          hasPrevious: offset > 0,
+          startItem: offset + 1,
+          endItem: Math.min(offset + paged.length, dealsProducts.length),
+        },
+      })
     }
 
-    console.log(`🎯 FIXED API: Result - Products: ${products?.length || 0}, Total: ${count || 0}`);
+    // GLOBAL stock-first pagination across pages
+    // 1) Count in-stock and out-of-stock items matching filters
+    const countBase = createAnonymousClient()
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .eq('is_deleted', false)
 
-    if (error) {
-      console.error('🎯 FIXED API: Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch products', details: error.message },
-        { status: 500 }
-      );
+    // Re-apply category filter for counts
+    let inStockCountQuery = countBase.clone ? countBase.clone() : createAnonymousClient().from('products').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('is_deleted', false)
+    let outStockCountQuery = countBase.clone ? countBase.clone() : createAnonymousClient().from('products').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('is_deleted', false)
+
+    if (categorySlug) {
+      const category = await CategoriesService.getCategoryBySlug(categorySlug)
+      if (!category) {
+        return NextResponse.json({
+          products: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false }
+        })
+      }
+      inStockCountQuery = inStockCountQuery.eq('category_id', category.id)
+      outStockCountQuery = outStockCountQuery.eq('category_id', category.id)
     }
 
-    // Apply global stock-priority sorting while preserving existing sort logic
-    let sortedProducts = products || [];
-    if (sortedProducts.length > 0) {
-      // Define secondary sort function based on request type
-      const secondarySort = (a: any, b: any) => {
-        if (recentlyAdded) {
-          // For recently added: BoxHero sync timestamp first, then creation date
-          const aSync = a.boxhero_last_sync_at ? new Date(a.boxhero_last_sync_at).getTime() : 0;
-          const bSync = b.boxhero_last_sync_at ? new Date(b.boxhero_last_sync_at).getTime() : 0;
-          if (bSync !== aSync) return bSync - aSync;
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        } else {
-          // Default: creation date descending
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    if (search) {
+      const orClause = `name_en.ilike.%${search}%,name_ja.ilike.%${search}%,description_en.ilike.%${search}%,description_ja.ilike.%${search}%,sku.ilike.%${search}%`
+      inStockCountQuery = inStockCountQuery.or(orClause)
+      outStockCountQuery = outStockCountQuery.or(orClause)
+    }
+
+    const [{ count: inStockCount, error: inErr }, { count: outStockCount, error: outErr }] = await Promise.all([
+      inStockCountQuery.gt('stock_quantity', 0),
+      outStockCountQuery.lte('stock_quantity', 0)
+    ])
+
+    if (inErr || outErr) {
+      console.error('❌ Count query error:', inErr || outErr)
+      return NextResponse.json({ error: 'Failed to count products' }, { status: 500 })
+    }
+
+    const totalIn = inStockCount || 0
+    const totalOut = outStockCount || 0
+    const totalCount = totalIn + totalOut
+
+    // 2) Fetch the correct slice(s)
+    const supa = createAnonymousClient()
+    const buildDataQuery = () => {
+      let q = supa
+        .from('products')
+        .select(safeFields)
+        .eq('is_active', true)
+        .eq('is_deleted', false)
+
+      if (categoryId) {
+        q = q.eq('category_id', categoryId)
+      }
+      if (search) {
+        q = q.or(`name_en.ilike.%${search}%,name_ja.ilike.%${search}%,description_en.ilike.%${search}%,description_ja.ilike.%${search}%,sku.ilike.%${search}%`)
+      }
+      return applyOrdering(q)
+    }
+
+    let results: any[] = []
+
+    if (offset < totalIn) {
+      // Fetch from in-stock first
+      const start = offset
+      const end = Math.min(totalIn - 1, offset + limit - 1)
+      const { data: firstChunk, error: fetchErr1 } = await buildDataQuery()
+        .gt('stock_quantity', 0)
+        .range(start, end)
+
+      if (fetchErr1) {
+        console.error('❌ Fetch in-stock slice error:', fetchErr1)
+        return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })
+      }
+      results = firstChunk || []
+
+      if (results.length < limit) {
+        const need = limit - results.length
+        const outStart = 0
+        const outEnd = need - 1
+        const { data: secondChunk, error: fetchErr2 } = await buildDataQuery()
+          .lte('stock_quantity', 0)
+          .range(outStart, outEnd)
+        if (fetchErr2) {
+          console.error('❌ Fetch out-of-stock tail error:', fetchErr2)
+          return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })
         }
-      };
-
-      sortedProducts = sortProductsByStockPriority(sortedProducts, secondarySort);
+        results = results.concat(secondChunk || [])
+      }
+    } else {
+      // Entirely within out-of-stock pages
+      const outStart = offset - totalIn
+      const outEnd = outStart + limit - 1
+      const { data: chunk, error: fetchErr } = await buildDataQuery()
+        .lte('stock_quantity', 0)
+        .range(outStart, outEnd)
+      if (fetchErr) {
+        console.error('❌ Fetch out-of-stock slice error:', fetchErr)
+        return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })
+      }
+      results = chunk || []
     }
 
-    const totalPages = Math.ceil((count || 0) / limit);
-    const currentPage = Math.floor(offset / limit) + 1;
+    // 3) Response with accurate pagination meta
+    const totalPages = Math.ceil(totalCount / limit)
+    const currentPage = Math.floor(offset / limit) + 1
 
     return NextResponse.json({
       success: true,
-      data: sortedProducts,
+      data: results,
       pagination: {
-        total: count || 0,
+        total: totalCount,
         limit,
         offset,
         page: currentPage,
         totalPages,
-        hasMore: (count || 0) > offset + limit,
+        hasMore: totalCount > offset + results.length,
         hasPrevious: offset > 0,
-        startItem: offset + 1,
-        endItem: Math.min(offset + limit, count || 0),
+        startItem: totalCount === 0 ? 0 : offset + 1,
+        endItem: Math.min(offset + results.length, totalCount),
       },
-    });
+    })
 
   } catch (error) {
     console.error('❌ Admin Products API error:', error);

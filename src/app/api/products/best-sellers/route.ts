@@ -66,31 +66,101 @@ export async function GET(request: NextRequest) {
         .order('best_seller_position', { ascending: true })
     }
 
-    // Try primary query first (expects categories.name_en/name_ja)
-    let { data: products, error, count } = await buildQuery(false)
-      .range(offset, offset + limit - 1)
+    // First, get counts for in-stock and out-of-stock best sellers
+    const countBase = supabase
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .eq('is_best_seller', true)
+      .not('best_seller_position', 'is', null)
 
-    // If the schema doesn't have name_en/name_ja, retry with legacy categories.name
-    if (error && (error.message?.includes('name_en') || error.message?.includes('name_ja') || error.message?.includes('does not exist'))) {
-      console.warn('⚠️ Best Sellers API: Falling back to legacy categories.name due to schema mismatch')
-      const fallback = await buildQuery(true).range(offset, offset + limit - 1)
-      products = fallback.data as any
-      error = fallback.error as any
-      count = (fallback as any).count
+    const [{ count: inCount, error: inErr }, { count: outCount, error: outErr }] = await Promise.all([
+      supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('is_best_seller', true)
+        .not('best_seller_position', 'is', null)
+        .gt('stock_quantity', 0),
+      supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('is_best_seller', true)
+        .not('best_seller_position', 'is', null)
+        .lte('stock_quantity', 0)
+    ])
+
+    if (inErr || outErr) {
+      console.error('❌ Best Sellers count error:', inErr || outErr)
+      return NextResponse.json({ success: false, error: 'Failed to count best sellers' }, { status: 500 })
     }
 
-    if (error) {
-      console.error('❌ Error fetching best sellers:', error)
-      return NextResponse.json({
-        success: false,
-        error: error.message
-      }, { status: 500 })
+    const totalIn = inCount || 0
+    const totalOut = outCount || 0
+    const total = totalIn + totalOut
+
+    // Fetch the appropriate slice(s) maintaining best_seller_position within each stock group
+    const fetchGroup = async (inStock: boolean, start: number, end: number, legacy = false) => {
+      const q = buildQuery(legacy)
+        [inStock ? 'gt' : 'lte']('stock_quantity', 0)
+        .range(start, end)
+      const { data, error } = await q
+      return { data, error }
     }
 
-    console.log(`✅ Best Sellers API: Found ${products?.length || 0} products (total: ${count})`)
+    let products: any[] = []
+    let error: any = null
+
+    if (offset < totalIn) {
+      const end = Math.min(totalIn - 1, offset + limit - 1)
+      let res = await fetchGroup(true, offset, end, false)
+
+      // Legacy fallback if needed
+      if (res.error && (res.error.message?.includes('name_en') || res.error.message?.includes('name_ja') || res.error.message?.includes('does not exist'))) {
+        console.warn('⚠️ Best Sellers API: Falling back to legacy categories.name for in-stock slice')
+        res = await fetchGroup(true, offset, end, true)
+      }
+
+      if (res.error) {
+        console.error('❌ Error fetching in-stock best sellers:', res.error)
+        return NextResponse.json({ success: false, error: res.error.message }, { status: 500 })
+      }
+
+      products = res.data || []
+
+      if (products.length < limit && totalOut > 0) {
+        const need = limit - products.length
+        let res2 = await fetchGroup(false, 0, need - 1, false)
+        if (res2.error && (res2.error.message?.includes('name_en') || res2.error.message?.includes('name_ja') || res2.error.message?.includes('does not exist'))) {
+          console.warn('⚠️ Best Sellers API: Falling back to legacy categories.name for out-of-stock tail')
+          res2 = await fetchGroup(false, 0, need - 1, true)
+        }
+        if (res2.error) {
+          console.error('❌ Error fetching out-of-stock tail:', res2.error)
+          return NextResponse.json({ success: false, error: res2.error.message }, { status: 500 })
+        }
+        products = products.concat(res2.data || [])
+      }
+    } else {
+      const outStart = offset - totalIn
+      const outEnd = outStart + limit - 1
+      let res = await fetchGroup(false, outStart, outEnd, false)
+      if (res.error && (res.error.message?.includes('name_en') || res.error.message?.includes('name_ja') || res.error.message?.includes('does not exist'))) {
+        console.warn('⚠️ Best Sellers API: Falling back to legacy categories.name for out-of-stock slice')
+        res = await fetchGroup(false, outStart, outEnd, true)
+      }
+      if (res.error) {
+        console.error('❌ Error fetching out-of-stock best sellers:', res.error)
+        return NextResponse.json({ success: false, error: res.error.message }, { status: 500 })
+      }
+      products = res.data || []
+    }
+
+    console.log(`✅ Best Sellers API: Returned ${products.length} items (total: ${total}, in: ${totalIn}, out: ${totalOut})`)
 
     // Transform the data to match the expected format
-    const transformedProducts = products?.map((product: any) => {
+    const transformedProducts = products.map((product: any) => {
       const hasLegacyName = product?.categories && 'name' in product.categories && !('name_en' in product.categories)
       const category = product.categories ? {
         id: product.categories.id,
@@ -118,20 +188,19 @@ export async function GET(request: NextRequest) {
         created_at: product.created_at,
         updated_at: product.updated_at,
         category,
-        // Add stock status for display
         stock_status: product.stock_quantity > 0 ? 'in_stock' : 'out_of_stock'
       }
-    }) || []
+    })
 
     return NextResponse.json({
       success: true,
       data: transformedProducts,
       pagination: {
-        total: count || 0,
+        total,
         page,
         limit,
-        totalPages: Math.ceil((count || 0) / limit),
-        hasNext: offset + limit < (count || 0),
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + transformedProducts.length < total,
         hasPrev: page > 1
       }
     })
