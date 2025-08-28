@@ -343,6 +343,50 @@ export const useCartStore = create<CartStore>()(
           }
         }
 
+        // Fire Meta Pixel AddToCart after successful local + server updates
+        try {
+          // Consent gating consistent with layout
+          const hasConsent = (() => {
+            try {
+              const key = 'fyp_consent_marketing'
+              const ls = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
+              const ck = (typeof document !== 'undefined' && document.cookie && document.cookie.indexOf('fyp_consent_marketing=true') !== -1) ? 'true' : null
+              return ls === 'true' || ck === 'true'
+            } catch { return false }
+          })()
+
+          // @ts-ignore
+          if (hasConsent && typeof window !== 'undefined' && typeof window.fbq === 'function') {
+            const content_id = item.sku || item.id
+            const content_name = item.name
+            const value = item.price * item.quantity
+            const currency = 'USD' // keep consistent with Purchase; update if you adopt order.currency on client
+
+            const params = {
+              content_ids: [String(content_id)],
+              content_id: String(content_id),
+              content_name: String(content_name),
+              content_type: 'product',
+              value: Number(value),
+              currency,
+              contents: [{ id: String(content_id), quantity: item.quantity, item_price: item.price }]
+            } as const
+
+            // @ts-ignore
+            window.fbq('track', 'AddToCart', params)
+            if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+              console.log('Meta Pixel AddToCart fired', params)
+            }
+          } else if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+            console.log('Meta Pixel AddToCart skipped (no consent or fbq missing)')
+          }
+        } catch (e) {
+          if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+            console.error('Meta Pixel AddToCart error', e)
+          }
+        }
+
+
         return true
       },
 

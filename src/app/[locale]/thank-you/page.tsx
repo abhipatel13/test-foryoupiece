@@ -20,6 +20,8 @@ interface OrderItem {
   quantity: number
   price: number
   total: number
+  sku?: string
+  product_id?: string
   original_price?: number // For sale items
   discount_amount?: number // Individual item discount
   discount_percentage?: number // Discount percentage
@@ -166,6 +168,75 @@ function ThankYouPageContent() {
       setLoading(false)
     }
   }
+
+  // Meta Pixel Purchase tracking
+  useEffect(() => {
+    try {
+      if (!order) return
+
+      // Consent gating - match layout.tsx logic
+      const hasConsent = (() => {
+        try {
+          const key = 'fyp_consent_marketing'
+          const ls = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
+          const ck = (typeof document !== 'undefined' && document.cookie && document.cookie.indexOf('fyp_consent_marketing=true') !== -1) ? 'true' : null
+          return ls === 'true' || ck === 'true'
+        } catch { return false }
+      })()
+      if (!hasConsent) return
+
+      // Avoid duplicate firing across reloads for the same order
+      const dedupeKey = `fyp_purchase_tracked_${order.id}`
+      try {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem(dedupeKey) === 'true') {
+          if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+            console.log('Meta Pixel Purchase: already tracked for order', order.id)
+          }
+          return
+        }
+      } catch {}
+
+      // fbq guard
+      // @ts-ignore
+      if (typeof window === 'undefined' || typeof window.fbq !== 'function') {
+        if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+          console.warn('Meta Pixel: fbq not available on thank-you page')
+        }
+        return
+      }
+
+      // Build contents mapping according to Meta spec
+      const contents = order.items.map((it) => ({
+        id: (it as any).sku || `${it.id}`,
+        quantity: it.quantity,
+        item_price: it.price,
+      }))
+
+      const eventPayload = {
+        value: Number(order.total_amount || 0),
+        currency: 'USD',
+        contents,
+        content_type: 'product',
+        num_items: order.items.reduce((sum, it) => sum + it.quantity, 0),
+      } as const
+
+      // Use order.id as eventID (unique per order). This will be reused by CAPI for dedup later.
+      const orderEventId = `${order.id}`
+
+      // @ts-ignore
+      window.fbq('track', 'Purchase', eventPayload, { eventID: orderEventId })
+
+      try { if (typeof localStorage !== 'undefined') localStorage.setItem(dedupeKey, 'true') } catch {}
+
+      if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+        console.log('Meta Pixel Purchase fired', { eventPayload, eventID: orderEventId })
+      }
+    } catch (err) {
+      if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
+        console.error('Meta Pixel Purchase error', err)
+      }
+    }
+  }, [order])
 
   const copyPaymentLink = () => {
     navigator.clipboard.writeText(paymentLink)
@@ -359,7 +430,7 @@ function ThankYouPageContent() {
                     {formatPrice(order.total_amount)}
                   </span>
                 </div>
-                
+
                 <Separator className="my-4 sm:my-6" />
 
                 <div className="space-y-4 sm:space-y-5">
@@ -605,7 +676,7 @@ function ThankYouPageContent() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start space-x-3">
                     <div className="bg-gray-100 rounded-full p-1 mt-1">
                       <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
@@ -617,7 +688,7 @@ function ThankYouPageContent() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start space-x-3">
                     <div className="bg-gray-100 rounded-full p-1 mt-1">
                       <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
