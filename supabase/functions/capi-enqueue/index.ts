@@ -22,9 +22,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const auth = req.headers.get('authorization')
+    const auth = req.headers.get('x-enqueue-secret')
     const secret = Deno.env.get('CAPIG_ENQUEUE_SECRET')
-    if (!secret || auth !== `Bearer ${secret}`) return json({ success: false, error: 'Unauthorized' }, 401)
+    if (!secret || auth !== secret) return json({ success: false, error: 'Unauthorized' }, 401)
 
     const body = (await req.json()) as EnqueueBody
     if (!body?.event_name || !body?.event_id || !body?.order_id || !body?.payload) {

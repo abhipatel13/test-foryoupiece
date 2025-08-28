@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
         'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        'Authorization': `Bearer ${secret}`,
+        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+        'X-ENQUEUE-SECRET': process.env.CAPIG_ENQUEUE_SECRET!,
       },
       body: JSON.stringify({
         event_name: 'Purchase',
