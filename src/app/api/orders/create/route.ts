@@ -580,6 +580,27 @@ export async function POST(request: NextRequest) {
       // Don't fail the order creation if notifications fail
     }
 
+    // 🔔 Enqueue Meta CAPI Purchase (non-blocking)
+    try {
+      const consentCookie = request.cookies.get('fyp_consent_marketing')?.value === 'true'
+      if (consentCookie) {
+        const host = request.headers.get('host') || ''
+        const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http'
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${proto}://${host}` : '')
+        if (baseUrl) {
+          await fetch(`${baseUrl}/api/analytics/queue-purchase`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: order.id, consent: true })
+          })
+        }
+      } else {
+        console.log('📉 Meta CAPI enqueue skipped (no marketing consent)')
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Meta CAPI enqueue error (non-fatal):', err?.message || err)
+    }
+
     return NextResponse.json({
       success: true,
       order: {

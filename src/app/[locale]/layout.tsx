@@ -7,6 +7,7 @@ import { AuthProvider } from '@/lib/providers/auth-provider';
 import { MainLayout } from '@/components/layout/main-layout';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SessionMonitor } from '@/components/session-monitor';
+import { MetaPageviewTracker } from '@/components/analytics/meta-pageview-tracker';
 
 export const dynamicParams = true
 
@@ -46,6 +47,7 @@ export default async function LocaleLayout({
               maxRetries={2} // Reduced retries to prevent cascading failures
             />
             <MainLayout>
+              <MetaPageviewTracker />
               {children}
             </MainLayout>
           </NextIntlClientProvider>
