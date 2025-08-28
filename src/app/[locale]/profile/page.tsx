@@ -244,11 +244,21 @@ export default function ProfilePage() {
               console.log('✅ Session bridge successful, user authenticated')
               toast.success('Successfully logged in with Telegram!')
 
-              // Clean up URL parameters
+              // Clean up URL parameters first to avoid reload loops
               const url = new URL(window.location.href)
               url.searchParams.delete('auth')
               url.searchParams.delete('session_bridge')
               window.history.replaceState({}, '', url.toString())
+
+              // One-time reload to synchronize UI state specifically for Telegram login
+              // Reload after the success notification has been shown
+              setTimeout(() => {
+                try {
+                  window.location.reload()
+                } catch (e) {
+                  console.warn('Telegram post-login reload failed:', e)
+                }
+              }, 500)
             }
           }).catch((error) => {
             console.error('❌ Session bridge error:', error)
@@ -264,10 +274,19 @@ export default function ProfilePage() {
       console.log('✅ Telegram authentication success (no bridge)')
       toast.success('Successfully logged in with Telegram!')
 
-      // Clean up URL parameters
+      // Clean up URL parameters first to avoid reload loops
       const url = new URL(window.location.href)
       url.searchParams.delete('auth')
       window.history.replaceState({}, '', url.toString())
+
+      // One-time reload to synchronize UI state specifically for Telegram login
+      setTimeout(() => {
+        try {
+          window.location.reload()
+        } catch (e) {
+          console.warn('Telegram post-login reload failed:', e)
+        }
+      }, 500)
     }
   }, [searchParams])
 
