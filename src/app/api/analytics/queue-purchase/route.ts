@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Server not configured' }, { status: 500 })
     }
 
-    const res = await fetch(`${supabaseUrl}/functions/v1/capi-enqueue`, {
+    const res = await fetch(`https://xhfmyghtcugcocchzgja.functions.supabase.co/capi-enqueue`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
