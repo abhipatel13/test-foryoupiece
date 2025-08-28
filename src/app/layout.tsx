@@ -77,6 +77,27 @@ export default function RootLayout({
           }}
         />
         <Script
+          id="marketing-consent-auto"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                // Always grant marketing consent (Cambodia policy)
+                if (typeof localStorage !== 'undefined') {
+                  localStorage.setItem('fyp_consent_marketing', 'true');
+                }
+                // Set cookie for server-side CAPI (read by API routes)
+                (function(){
+                  var isHttps = (typeof location !== 'undefined' && location.protocol === 'https:');
+                  var attrs = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000']; // 1 year
+                  if (isHttps) attrs.push('Secure');
+                  document.cookie = 'fyp_consent_marketing=true; ' + attrs.join('; ');
+                })();
+              } catch (_e) {}
+            `,
+          }}
+        />
+        <Script
           id="meta-pixel"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{

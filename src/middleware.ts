@@ -218,6 +218,17 @@ export default async function middleware(request: NextRequest) {
     }
   }
 
+
+	  // Always set marketing consent cookie (Cambodia policy)
+	  try {
+	    const isProduction = process.env.NODE_ENV === 'production'
+	    const consentOptions = { path: '/', sameSite: 'lax', secure: isProduction, httpOnly: false, maxAge: 31536000 }
+	    // Set on primary response
+	    supabaseResponse.cookies.set('fyp_consent_marketing', 'true', consentOptions)
+	    // Ensure it is merged into any subsequent redirect or intl response
+	    pendingCookies.push({ name: 'fyp_consent_marketing', value: 'true', options: consentOptions })
+	  } catch {}
+
   // Allow root path to be served directly without locale redirect
   if (request.nextUrl.pathname === '/') {
     return supabaseResponse
