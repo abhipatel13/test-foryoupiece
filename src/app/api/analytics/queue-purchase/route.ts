@@ -68,8 +68,9 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${supabaseUrl}/functions/v1/capi-enqueue`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         'Authorization': `Bearer ${secret}`,
-        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         event_name: 'Purchase',
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
     })
 
     const result = await res.json().catch(() => ({}))
+    console.log(`🔍 CAPI enqueue response: status=${res.status}, ok=${res.ok}, body=${JSON.stringify(result).slice(0, 200)}`)
     if (!res.ok || !result?.success) {
       return NextResponse.json({ success: false, error: result?.error || `HTTP ${res.status}` }, { status: 500 })
     }
