@@ -316,7 +316,7 @@ export default function HomePage() {
       <div className="desktop-container py-4 sm:py-6 lg:py-8 xl:py-10">
 
         {/* 1. TRENDING PRODUCTS - Enhanced Mobile-First Design */}
-        <section className="mb-8 sm:mb-10 lg:mb-12">
+        <section id="trending-section" className="scroll-mt-12 sm:scroll-mt-14 xl:scroll-mt-16 mb-8 sm:mb-10 lg:mb-12">
           <div className="mobile-section-header">
             <div className="mobile-section-title">
               <TrendingUp className="mobile-section-icon text-primary flex-shrink-0" />
@@ -462,7 +462,7 @@ export default function HomePage() {
         </section>
 
         {/* 3. DEALS AND DISCOUNTS - Enhanced Mobile-First Design */}
-        <section className="mb-12" key={`deals-section-${firefoxRefreshKey}`}>
+        <section id="deals-section" className="scroll-mt-12 sm:scroll-mt-14 xl:scroll-mt-16 mb-12" key={`deals-section-${firefoxRefreshKey}`}>
           <div className="mobile-section-header">
             <div className="mobile-section-title">
               <Percent className="mobile-section-icon text-primary flex-shrink-0" />
@@ -502,7 +502,7 @@ export default function HomePage() {
         </section>
 
         {/* 4. RECENTLY ADDED - Enhanced Mobile-First Design */}
-        <section className="mb-12">
+        <section id="recently-added-section" className="scroll-mt-12 sm:scroll-mt-14 xl:scroll-mt-16 mb-12">
           <div className="mobile-section-header">
             <div className="mobile-section-title">
               <Clock className="mobile-section-icon text-primary flex-shrink-0" />
@@ -540,7 +540,7 @@ export default function HomePage() {
         </section>
 
         {/* 5. RECOMMENDED FOR YOU - Enhanced Mobile-First Design */}
-        <section className="mb-12">
+        <section id="recommended-section" className="scroll-mt-12 sm:scroll-mt-14 xl:scroll-mt-16 mb-12">
           <div className="mobile-section-header">
             <div className="mobile-section-title">
               <Heart className="mobile-section-icon text-primary flex-shrink-0" />
@@ -585,7 +585,7 @@ export default function HomePage() {
         </section>
 
         {/* BoxHero Categories - Real Inventory Data */}
-        <section id="categories-section" className="mb-16">
+        <section id="categories-section" className="scroll-mt-12 sm:scroll-mt-14 xl:scroll-mt-16 mb-16">
           <div className="mb-8 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Shop by Category</h2>
             <p className="text-muted-foreground text-sm sm:text-base">Explore our authentic product categories</p>

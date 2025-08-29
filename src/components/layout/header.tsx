@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type React from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
@@ -70,23 +71,30 @@ export function Header() {
 
 
 
-  const handleScrollToCategories = () => {
-    // Close mobile menu first
+  // Robust smooth-scroll with fixed header offset
+  const navigateToSection = (sectionId: string, fallbackHref?: string) => {
+    // Always close mobile menu first
     setShowMobileMenu(false)
 
-    // Smooth scroll to categories section on the current page
-    const categoriesSection = document.getElementById('categories-section')
-    if (categoriesSection) {
-      categoriesSection.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      })
+    if (typeof window === 'undefined') return
+
+    const onHome = window.location.pathname === '/' || window.location.pathname === '/en'
+    const target = document.getElementById(sectionId)
+
+    if (onHome && target) {
+      const header = document.querySelector('header.modern-header') as HTMLElement | null
+      const headerHeight = header?.offsetHeight ?? 0
+      const targetTop = target.getBoundingClientRect().top + window.scrollY
+      const y = Math.max(0, targetTop - headerHeight - 4) // small extra gap
+      window.scrollTo({ top: y, behavior: 'smooth' })
     } else {
-      // If no categories section found on current page, navigate to home page with hash
-      if (typeof window !== 'undefined') {
-        window.location.href = '/#categories-section'
-      }
+      // Default to homepage anchor so browser jumps to section, preserving existing pages
+      window.location.href = fallbackHref || `/#${sectionId}`
     }
+  }
+
+  const handleScrollToCategories = () => {
+    navigateToSection('categories-section')
   }
 
   // Function to handle navigation link clicks and close mobile menu
@@ -99,7 +107,7 @@ export function Header() {
 
 
       {/* Mobile-First Responsive Header - Ultra Compact */}
-      <header className="sticky top-0 z-50 w-full modern-header overflow-x-hidden">
+      <header className="fixed top-0 z-50 w-full modern-header overflow-x-hidden">
         {/* Main Header Bar - Ultra Compact Mobile Design */}
         <div className="desktop-container">
           <div className="flex h-12 sm:h-14 lg:h-14 xl:h-16 items-center justify-between min-w-0 gap-1 sm:gap-2 lg:gap-4">
@@ -134,28 +142,32 @@ export function Header() {
             {/* Navigation Menu - Integrated into Header (Desktop) */}
             <nav className="hidden lg:flex items-center gap-1 xl:gap-2 flex-shrink-0">
               <Link
-                href="/en/trending"
+                href="/#trending-section"
+                onClick={(e) => { e.preventDefault(); navigateToSection('trending-section', '/#trending-section') }}
                 className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
               >
                 <TrendingUp className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>Trending</span>
               </Link>
               <Link
-                href="/en/products?deals=true"
+                href="/#deals-section"
+                onClick={(e) => { e.preventDefault(); navigateToSection('deals-section', '/#deals-section') }}
                 className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
               >
                 <Percent className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>Deals</span>
               </Link>
               <Link
-                href="/en/products?recently_added=true"
+                href="/#recently-added-section"
+                onClick={(e) => { e.preventDefault(); navigateToSection('recently-added-section', '/#recently-added-section') }}
                 className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
               >
                 <Clock className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>New</span>
               </Link>
               <Link
-                href="/en/products?recommended=true"
+                href="/#recommended-section"
+                onClick={(e) => { e.preventDefault(); navigateToSection('recommended-section', '/#recommended-section') }}
                 className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
               >
                 <Heart className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -203,32 +215,32 @@ export function Header() {
                   {/* Mobile Navigation - Better Touch Targets */}
                   <nav className="flex flex-col p-4 space-y-2 flex-1">
                     <Link
-                      href="/en/trending"
-                      onClick={handleMobileNavClick}
+                      href="/#trending-section"
+                      onClick={(e) => { e.preventDefault(); navigateToSection('trending-section', '/#trending-section') }}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <TrendingUp className="h-5 w-5 text-primary" />
                       Trending Now
                     </Link>
                     <Link
-                      href="/en/products?deals=true"
-                      onClick={handleMobileNavClick}
+                      href="/#deals-section"
+                      onClick={(e) => { e.preventDefault(); navigateToSection('deals-section', '/#deals-section') }}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <Percent className="h-5 w-5 text-primary" />
                       Deals & Discounts
                     </Link>
                     <Link
-                      href="/en/products?recently_added=true"
-                      onClick={handleMobileNavClick}
+                      href="/#recently-added-section"
+                      onClick={(e) => { e.preventDefault(); navigateToSection('recently-added-section', '/#recently-added-section') }}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <Clock className="h-5 w-5 text-primary" />
                       Recently Added
                     </Link>
                     <Link
-                      href="/en/products?recommended=true"
-                      onClick={handleMobileNavClick}
+                      href="/#recommended-section"
+                      onClick={(e) => { e.preventDefault(); navigateToSection('recommended-section', '/#recommended-section') }}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
                     >
                       <Heart className="h-5 w-5 text-primary" />
