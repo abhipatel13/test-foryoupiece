@@ -73,6 +73,31 @@ async function validateSessionSecurity(supabase: any, request: NextRequest) {
 }
 
 export default async function middleware(request: NextRequest) {
+  // Generate per-request CSP nonce
+  const isDev = process.env.NODE_ENV !== 'production'
+  const nonce = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`).toString()
+
+  // Build CSP header value (nonce-based, no 'unsafe-inline' or 'unsafe-eval' in prod)
+  const cspValue = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live ${isDev ? "'unsafe-eval'" : ''}`.trim(),
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com https://telegram.org wss://*.supabase.co",
+    "frame-src 'self' https://accounts.google.com https://www.facebook.com https://oauth.telegram.org https://telegram.org https://t.me",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self' https://www.facebook.com",
+    "frame-ancestors 'none'",
+    "upgrade-insecure-requests"
+  ].join('; ')
+
+  // Prepare forwarded headers with x-nonce
+  const forwardedHeaders = new Headers(request.headers)
+  forwardedHeaders.set('x-nonce', nonce)
+
   // Diagnostic entry log (no sensitive data)
   try {
     console.log('🧪 middleware: handling path', request.nextUrl.pathname)
@@ -81,9 +106,14 @@ export default async function middleware(request: NextRequest) {
   // Handle Supabase auth for all requests first
   let supabaseResponse = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: forwardedHeaders,
     },
   })
+  supabaseResponse.headers.set('Content-Security-Policy', cspValue)
+  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
+  supabaseResponse.headers.set('X-Frame-Options', 'DENY')
+  supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
+  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
   // Preserve all Supabase-issued cookies (with enhanced security options)
   const pendingCookies: { name: string; value: string; options?: any }[] = []
@@ -205,7 +235,7 @@ export default async function middleware(request: NextRequest) {
       return res
     }
 
-    // Add security headers to response
+    // Add security headers to response (CSP set above)
     supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
     supabaseResponse.headers.set('X-Frame-Options', 'DENY')
     supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
@@ -238,6 +268,8 @@ export default async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === '/shop' || request.nextUrl.pathname === '/shop/') {
     const redirectUrl = new URL('/en/products', request.url)
     const res = NextResponse.redirect(redirectUrl)
+    // Ensure CSP header and nonce are set on redirects
+    res.headers.set('Content-Security-Policy', cspValue)
     try {
       pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
     } catch {}
@@ -261,6 +293,13 @@ export default async function middleware(request: NextRequest) {
 
   // Apply internationalization middleware for all other paths
   const intlResponse = intlMiddleware(request)
+
+  // Ensure CSP and core security headers are present on intl response
+  intlResponse.headers.set('Content-Security-Policy', cspValue)
+  intlResponse.headers.set('X-Content-Type-Options', 'nosniff')
+  intlResponse.headers.set('X-Frame-Options', 'DENY')
+  intlResponse.headers.set('X-XSS-Protection', '1; mode=block')
+  intlResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
   // Merge Supabase cookies with intl response (preserve options)
   if (pendingCookies.length > 0) {

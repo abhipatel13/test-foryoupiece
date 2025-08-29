@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
 /**
  * Debug Edge Function Issue
  * This endpoint will help us understand why the Edge Function is failing
+ *
+ * Hardened: Wrapped with admin auth + rate limiting and gated in production.
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest) => {
+  // Disable in production by default unless explicitly enabled
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG_EDGE_FUNCTION !== 'true') {
+    return NextResponse.json({
+      success: false,
+      error: 'This debug endpoint is disabled in production',
+    }, { status: 403 })
+  }
+
   try {
     console.log('🔍 Debugging Edge Function issue...')
 
     const supabase = createServiceRoleClient()
-    
+
     if (!supabase) {
       return NextResponse.json({
         success: false,
@@ -26,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Test 1: Try to call the Edge Function with minimal payload
     console.log('🧪 Test 1: Calling Edge Function with minimal payload...')
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
@@ -39,7 +50,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('❌ Edge Function error:', error)
-        
+
         // Let's get more details about the error
         const errorDetails = {
           name: error.name,
@@ -60,7 +71,7 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ Edge Function responded:', data)
-      
+
       return NextResponse.json({
         success: true,
         message: 'Edge Function is working!',
@@ -72,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     } catch (functionError: any) {
       console.error('❌ Edge Function call exception:', functionError)
-      
+
       return NextResponse.json({
         success: false,
         error: 'Edge Function call threw exception',
@@ -102,12 +113,20 @@ export async function POST(request: NextRequest) {
       }
     }, { status: 500 })
   }
-}
+}, { rateLimitType: 'admin_api' })
 
-export async function GET() {
+export const GET = withAdminAuth(async () => {
+  // Disable in production by default unless explicitly enabled
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG_EDGE_FUNCTION !== 'true') {
+    return NextResponse.json({
+      success: false,
+      error: 'This debug endpoint is disabled in production',
+    }, { status: 403 })
+  }
+
   return NextResponse.json({
     message: 'Edge Function Debug Endpoint',
     usage: 'POST to this endpoint to debug the Edge Function issue',
     purpose: 'Identify why the send-email Edge Function is returning 503 BOOT_ERROR'
   })
-}
+}, { rateLimitType: 'admin_api' })

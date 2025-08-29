@@ -37,12 +37,16 @@ export const viewport = {
   userScalable: false,
 };
 
+import { headers } from 'next/headers'
+
 // Root layout for direct root access
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const nonce = (await headers()).get('x-nonce') || undefined
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -51,6 +55,7 @@ export default function RootLayout({
         <Script
           id="chunk-error-handler"
           strategy="beforeInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               // Handle chunk loading errors
@@ -79,6 +84,7 @@ export default function RootLayout({
         <Script
           id="marketing-consent-auto"
           strategy="beforeInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -100,6 +106,7 @@ export default function RootLayout({
         <Script
           id="meta-pixel"
           strategy="afterInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               (function() {

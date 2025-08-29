@@ -120,25 +120,9 @@ const nextConfig: NextConfig = {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
           },
-          // Content Security Policy - Updated for OAuth authentication
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https: http:",
-              "connect-src 'self' https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com https://telegram.org wss://*.supabase.co",
-              "frame-src 'self' https://accounts.google.com https://www.facebook.com https://oauth.telegram.org https://telegram.org https://t.me",
-              "worker-src 'self' blob:",
-              "object-src 'none'",
-              "base-uri 'self'",
-              "form-action 'self' https://www.facebook.com",
-              "frame-ancestors 'none'",
-              "upgrade-insecure-requests"
-            ].join('; '),
-          },
+          // Content Security Policy is now set dynamically in middleware with per-request nonce
+          // to support strict CSP without 'unsafe-inline' or 'unsafe-eval'.
+          // (Header removed here to avoid conflicts.)
           // Permissions Policy (Feature Policy)
           {
             key: 'Permissions-Policy',
