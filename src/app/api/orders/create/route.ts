@@ -584,16 +584,17 @@ export async function POST(request: NextRequest) {
     try {
       const consentCookie = request.cookies.get('fyp_consent_marketing')?.value === 'true'
       if (consentCookie) {
-        const host = request.headers.get('host') || ''
-        const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http'
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${proto}://${host}` : '')
-        if (baseUrl) {
-          await fetch(`${baseUrl}/api/analytics/queue-purchase`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: order.id, consent: true })
-          })
-        }
+        // Forward client hints and cookies to ensure fbp/fbc/ip/ua are available in the analytics route
+        const fbp = request.cookies.get('_fbp')?.value
+        const fbc = request.cookies.get('_fbc')?.value
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        const ua = request.headers.get('user-agent') || undefined
+
+        await fetch(`/api/analytics/queue-purchase`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, consent: true, client: { fbp, fbc, ip, ua } })
+        })
       } else {
         console.log('📉 Meta CAPI enqueue skipped (no marketing consent)')
       }

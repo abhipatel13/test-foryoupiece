@@ -44,21 +44,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: error?.message || 'Order not found' }, { status: 404 })
     }
 
-    // client hints
+    // client hints (allow overrides from body.client forwarded by the creator route)
+    const clientOverride = (body && typeof body === 'object' ? (body as any).client : undefined) || {}
     const hdrs = await nextHeaders()
-    const ip = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
-    const ua = hdrs.get('user-agent') || undefined
+    const ip = clientOverride.ip || hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
+    const ua = clientOverride.ua || hdrs.get('user-agent') || undefined
 
-    // cookies
+    // cookies (allow overrides when forwarded)
     const ck = await nextCookies()
-    const fbp = ck.get('_fbp')?.value
-    const fbc = ck.get('_fbc')?.value
+    const fbp = clientOverride.fbp || ck.get('_fbp')?.value
+    const fbc = clientOverride.fbc || ck.get('_fbc')?.value
 
     // Build contents
     const contents = (order.order_items || []).map((it: any) => ({ id: it.sku || it.title, quantity: it.quantity, item_price: it.price }))
 
     // Direct CAPIG (Stape) only
-    const CAPIG_URL = process.env.STAPE_CAPIG_URL || 'https://capig.foryoupiece.com/events'
+    const RAW_CAPIG = (process.env.STAPE_CAPIG_URL || 'https://capig.foryoupiece.com/events').trim()
+    // Normalize: ensure trailing '/events' exactly; fix common misconfig '/event'
+    let CAPIG_URL = RAW_CAPIG.replace(/\/$/, '')
+    CAPIG_URL = CAPIG_URL.replace(/\/event$/, '/events')
+    if (!/\/events$/.test(CAPIG_URL)) CAPIG_URL = `${CAPIG_URL}/events`
     const CAPIG_ID = process.env.STAPE_CAPIG_IDENTIFIER
     const CAPIG_KEY = process.env.STAPE_CAPIG_API_KEY
     const PIXEL_ID = process.env.META_PIXEL_ID
