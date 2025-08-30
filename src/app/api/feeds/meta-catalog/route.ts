@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       sku,
       name_en,
       description_en,
+      short_description_en,
       price,
       compare_at_price,
       images,
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
       'id',
       'title',
       'description',
+      'rich_text_description',
       'availability',
       'condition',
       'price',
@@ -118,7 +120,13 @@ export async function GET(request: NextRequest) {
     for (const p of all) {
       const id = p.sku || ''
       const title = p.name_en || ''
-      const description = (p.description_en || '').replace(/\s+/g, ' ').trim()
+      const shortDesc = (p.short_description_en || '').replace(/\s+/g, ' ').trim()
+      const longDesc = (p.description_en || '').replace(/\s+/g, ' ').trim()
+      const description = shortDesc || longDesc
+      // Use HTML for rich_text_description; fallback to short when long is missing
+      const richTextDescription = longDesc
+        ? `<p>${longDesc}</p>`
+        : (description ? `<p>${description}</p>` : '')
       const availability = mapAvailability(p.stock_status, p.stock_quantity)
       const condition = 'new'
 
@@ -143,6 +151,7 @@ export async function GET(request: NextRequest) {
         csvEscape(id),
         csvEscape(title),
         csvEscape(description),
+        csvEscape(richTextDescription),
         csvEscape(availability),
         csvEscape(condition),
         csvEscape(priceStr),
