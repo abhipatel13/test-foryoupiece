@@ -36,6 +36,13 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const format = (url.searchParams.get('format') || 'csv').toLowerCase()
 
+    // Optional security: require token if configured
+    const requiredToken = process.env.META_FEED_TOKEN
+    const providedToken = url.searchParams.get('token')
+    if (requiredToken && providedToken !== requiredToken) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     if (format !== 'csv') {
       return NextResponse.json({ success: false, error: 'Only CSV is supported' }, { status: 400 })
     }
@@ -54,6 +61,9 @@ export async function GET(request: NextRequest) {
       stock_quantity,
       stock_status,
       brand,
+      weight_grams,
+      is_preorder,
+      preorder_date,
       categories(name_en, slug)
     `
 
@@ -81,7 +91,7 @@ export async function GET(request: NextRequest) {
       from += batch.length
     }
 
-    // Meta spec header fields
+    // Meta spec header fields (includes recommended optional fields)
     const headers = [
       'id',
       'title',
@@ -94,7 +104,12 @@ export async function GET(request: NextRequest) {
       'image_link',
       'brand',
       'additional_image_link',
-      'product_type'
+      'product_type',
+      'mpn',
+      'item_group_id',
+      'shipping_weight',
+      'availability_date',
+      'inventory'
     ]
 
     const rows: string[] = []
@@ -112,11 +127,17 @@ export async function GET(request: NextRequest) {
       const salePriceStr = hasCompare ? asPriceUSD(Number(p.price)) : ''
 
       const link = `${siteUrl}/en/products/${encodeURIComponent(p.sku)}`
-      const images: string[] = Array.isArray(p.images) ? p.images : []
+      const rawImages: string[] = Array.isArray(p.images) ? p.images : []
+      const absolutize = (u: string) => (u?.startsWith('http') ? u : `${siteUrl}${u.startsWith('/') ? '' : '/'}${u}`)
+      const images: string[] = rawImages.map(absolutize)
       const imageLink = images[0] || ''
       const additional = images.slice(1, 10).join(',')
       const brand = p.brand || 'ForYouPiece'
       const productType = p.categories?.name_en || ''
+      const mpn = p.sku || ''
+      const itemGroupId = '' // No variant grouping currently
+      const shippingWeight = p.weight_grams ? `${Number(p.weight_grams)} g` : ''
+      const availabilityDate = p.is_preorder && p.preorder_date ? new Date(p.preorder_date).toISOString() : ''
 
       const row = [
         csvEscape(id),
@@ -130,7 +151,12 @@ export async function GET(request: NextRequest) {
         csvEscape(imageLink),
         csvEscape(brand),
         csvEscape(additional),
-        csvEscape(productType)
+        csvEscape(productType),
+        csvEscape(mpn),
+        csvEscape(itemGroupId),
+        csvEscape(shippingWeight),
+        csvEscape(availabilityDate),
+        csvEscape(p.stock_quantity ?? '')
       ].join(',')
 
       rows.push(row)
