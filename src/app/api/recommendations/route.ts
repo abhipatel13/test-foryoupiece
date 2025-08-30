@@ -10,12 +10,44 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('user_id')
     const includeDiscounts = searchParams.get('include_discounts') === 'true'
     const excludePurchased = searchParams.get('exclude_purchased') !== 'false' // Default true
+    const context = (searchParams.get('context') as 'cart' | 'general') || 'general'
+    const diversify = searchParams.get('diversify') === 'true'
+
+    // Optional cart context: accept comma-separated IDs or JSON array
+    let cartItems: string[] = []
+    const rawCart = searchParams.get('cart_items')
+    if (rawCart) {
+      try {
+        cartItems = Array.isArray(rawCart as any)
+          ? (rawCart as any)
+          : JSON.parse(rawCart)
+      } catch {
+        cartItems = rawCart.split(',').map(s => s.trim()).filter(Boolean)
+      }
+    }
+
+    // Optional explicit exclusion IDs
+    let excludeIds: string[] = []
+    const rawExclude = searchParams.get('exclude_ids')
+    if (rawExclude) {
+      try {
+        excludeIds = Array.isArray(rawExclude as any)
+          ? (rawExclude as any)
+          : JSON.parse(rawExclude)
+      } catch {
+        excludeIds = rawExclude.split(',').map(s => s.trim()).filter(Boolean)
+      }
+    }
 
     console.log('🎯 Personalized Recommendations API called:', {
       limit,
       userId,
       includeDiscounts,
-      excludePurchased
+      excludePurchased,
+      context,
+      diversify,
+      cartItemsCount: cartItems.length,
+      excludeIdsCount: excludeIds.length
     })
 
     // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
@@ -95,7 +127,11 @@ export async function GET(request: NextRequest) {
         userId,
         limit,
         includeDiscounts,
-        excludePurchased
+        excludePurchased,
+        cartItems,
+        context,
+        excludeIds,
+        diversify
       }
     )
 

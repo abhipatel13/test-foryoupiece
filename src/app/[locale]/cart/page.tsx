@@ -18,6 +18,7 @@ import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, CreditCard, Heart, Gift, T
 import { toast } from 'sonner'
 import { PointsRedemption } from '@/components/cart/points-redemption'
 import { CouponInput } from '@/components/cart/coupon-input'
+import { ProductCard } from '@/components/product/product-card'
 
 function Countdown({ endsAt }: { endsAt: string }) {
   const [now, setNow] = useState(Date.now())
@@ -35,7 +36,7 @@ function Countdown({ endsAt }: { endsAt: string }) {
 
 export default function CartPage() {
   const t = useTranslations('cart')
-  const { profile } = useSSRSafeAuth()
+  const { profile, user } = useSSRSafeAuth()
   // Use SSR-safe cart store to prevent SSR errors
   const {
     items,
@@ -74,6 +75,70 @@ export default function CartPage() {
     hasIssues: boolean
     canCheckout: boolean
   } | null>(null)
+
+  // Recommendations state for cart page
+  const [recommendedProducts, setRecommendedProducts] = useState<any[]>([])
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false)
+
+  // Load recommendations reliably (auth and non-auth users)
+  useEffect(() => {
+    let aborted = false
+    const controller = new AbortController()
+
+    const fetchRecommendations = async () => {
+      try {
+        setRecommendationsLoading(true)
+
+        // Prefer personalized API; falls back to general products if it fails
+        const params = new URLSearchParams()
+        params.set('limit', '6')
+        params.set('include_discounts', 'true')
+        params.set('exclude_purchased', 'true')
+        params.set('context', 'cart')
+        params.set('diversify', 'true')
+        if (user?.id) params.set('user_id', user.id)
+
+        // Pass cart item product IDs when available
+        const cartIds = (items || []).map(i => i.id).filter(Boolean)
+        if (cartIds.length > 0) {
+          // encode as JSON string to preserve IDs safely
+          params.set('cart_items', JSON.stringify(cartIds))
+        }
+
+        const res = await fetch(`/api/recommendations?${params.toString()}`, { signal: controller.signal })
+        const data = await res.json().catch(() => ({ success: false }))
+
+        if (!aborted && data?.success && Array.isArray(data.data)) {
+          setRecommendedProducts(data.data)
+          return
+        }
+
+        // Fallback: fetch latest active products
+        const { productQueries } = await import('@/lib/supabase/queries')
+        const fallback = await productQueries.getProducts({ is_active: true, limit: 6 })
+        if (!aborted) setRecommendedProducts(fallback || [])
+      } catch (e) {
+        if (aborted) return
+        try {
+          const { productQueries } = await import('@/lib/supabase/queries')
+          const fallback = await productQueries.getProducts({ is_active: true, limit: 6 })
+          if (!aborted) setRecommendedProducts(fallback || [])
+        } catch {
+          if (!aborted) setRecommendedProducts([])
+        }
+      } finally {
+        if (!aborted) setRecommendationsLoading(false)
+      }
+    }
+
+    // Only fetch when cart exists; if empty, page returns earlier
+    fetchRecommendations()
+
+    return () => {
+      aborted = true
+      controller.abort()
+    }
+  }, [items.length, user?.id])
 
   // Real-time stock validation
   const performStockValidation = async () => {
@@ -388,7 +453,7 @@ export default function CartPage() {
                             <div className="flex items-center space-x-1.5">
                               {(() => {
                                 const status = item.stockStatus || 'in_stock'
-                                const message = item.stockMessage || 'In stock'
+                                const message = item.stockMessage || 'Fast delivery'
                                 const stockQuantity = item.stockQuantity || 0
 
                                 if (status === 'out_of_stock') {
@@ -416,7 +481,7 @@ export default function CartPage() {
                                   return (
                                     <div className="flex items-center text-xs text-green-700 font-medium bg-green-50 px-1.5 py-0.5 rounded-md">
                                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                                      <span>In Stock</span>
+                                      <span>Fast delivery</span>
                                     </div>
                                   )
                                 }
@@ -922,25 +987,18 @@ export default function CartPage() {
                 <span className="hidden sm:inline">Customers who bought items in your cart also bought</span>
                 <span className="sm:hidden">You might also like</span>
               </h2>
-              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800 text-sm">
-                <span className="hidden sm:inline">View all</span>
-                <span className="sm:hidden">More</span>
+              <Button asChild variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800 text-sm">
+                <Link href="/en/products?recommended=true">
+                  <span className="hidden sm:inline">View all</span>
+                  <span className="sm:hidden">More</span>
+                </Link>
               </Button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
-              {/* Placeholder for recommended products - Show fewer on mobile */}
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 lg:p-4 hover:shadow-md transition-shadow cursor-pointer">
-                  <div className="aspect-square bg-gray-200 rounded-lg mb-2 sm:mb-3"></div>
-                  <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2"></div>
-                  <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2 w-3/4"></div>
-                  <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16"></div>
-                </div>
-              ))}
-              {/* Show additional items only on larger screens */}
-              <div className="hidden md:block">
-                {[...Array(2)].map((_, i) => (
-                  <div key={i + 4} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 lg:p-4 hover:shadow-md transition-shadow cursor-pointer">
+
+            {recommendationsLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
                     <div className="aspect-square bg-gray-200 rounded-lg mb-2 sm:mb-3"></div>
                     <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2"></div>
                     <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2 w-3/4"></div>
@@ -948,7 +1006,27 @@ export default function CartPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
+                {recommendedProducts && recommendedProducts.length > 0 ? (
+                  recommendedProducts.slice(0, 6).map((product: any) => (
+                    <div key={product.id} className="transform hover:scale-[1.02] transition-all duration-200">
+                      <ProductCard product={product} locale="en" />
+                    </div>
+                  ))
+                ) : (
+                  // If no data, keep a minimal placeholder to preserve layout
+                  [...Array(4)].map((_, i) => (
+                    <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3 lg:p-4">
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-2 sm:mb-3"></div>
+                      <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2"></div>
+                      <div className="h-2 sm:h-3 bg-gray-200 rounded mb-1 sm:mb-2 w-3/4"></div>
+                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16"></div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

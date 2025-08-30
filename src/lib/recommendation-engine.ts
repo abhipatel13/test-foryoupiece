@@ -40,6 +40,14 @@ export interface PersonalizedRecommendationOptions {
   limit?: number;
   includeDiscounts?: boolean;
   excludePurchased?: boolean;
+  // New: current cart items to enable cart-aware recommendations
+  cartItems?: string[];
+  // Context in which recommendations are shown
+  context?: 'cart' | 'general';
+  // Optional list of product IDs to exclude (e.g., from other sections)
+  excludeIds?: string[];
+  // Encourage diversity from cart brands/categories
+  diversify?: boolean;
 }
 
 /**
@@ -390,10 +398,10 @@ export async function getEnhancedPersonalizedRecommendations(
   products: Product[],
   options: PersonalizedRecommendationOptions = {}
 ): Promise<Product[]> {
-  const { userId, limit = 6, includeDiscounts = false, excludePurchased = true } = options;
+  const { userId, limit = 6, includeDiscounts = false, excludePurchased = true, cartItems = [], context = 'general', excludeIds = [], diversify = false } = options;
 
-  // If no user ID provided, return random in-stock products
-  if (!userId) {
+  // If no user ID provided and no cart context, return random in-stock products
+  if (!userId && (!cartItems || cartItems.length === 0)) {
     const randomProducts = products
       .filter(product => product.stock_quantity > 0)
       .sort(() => Math.random() - 0.5)
@@ -404,6 +412,54 @@ export async function getEnhancedPersonalizedRecommendations(
       // Preserve random order as secondary sort
       return 0
     });
+  }
+
+  // If no user but we have cart items, generate cart-aware suggestions
+  if (!userId && cartItems && cartItems.length > 0) {
+    // Exclude cart items and any explicitly excluded IDs
+    const excludeSet = new Set([...(cartItems || []), ...(excludeIds || [])])
+    let candidates = products.filter(p => p.stock_quantity > 0 && !excludeSet.has(p.id))
+
+    // Prioritize products that share categories or tags with items in cart
+    const cartSet = new Set(cartItems)
+    const cartCategories = new Set<string>()
+    const cartTags = new Set<string>()
+
+    products.forEach(p => {
+      if (cartSet.has(p.id)) {
+        const catName = (p as any).category?.name_en
+        if (catName) cartCategories.add(catName)
+        if (Array.isArray(p.tags)) p.tags.forEach(t => cartTags.add(String(t).toLowerCase()))
+      }
+    })
+
+    const scored = candidates.map(p => {
+      let score = 0
+      const catName = (p as any).category?.name_en
+      if (catName && cartCategories.has(catName)) score += 20
+      if (Array.isArray(p.tags)) {
+        const lower = p.tags.map(t => String(t).toLowerCase())
+        lower.forEach(t => { if (cartTags.has(t)) score += 5 })
+      }
+      if (p.is_featured) score += 3
+      if ((p as any).brand) score += 1
+      return { ...p, _cartScore: score }
+    })
+    let sorted = scored.sort((a, b) => (b as any)._cartScore - (a as any)._cartScore)
+
+    if (diversify) {
+      // Simple diversification: limit to max 2 per category and interleave brands
+      const byCategory: Record<string, any[]> = {}
+      sorted.forEach(p => {
+        const cat = (p as any).category?.name_en || 'Other'
+        byCategory[cat] = byCategory[cat] || []
+        if (byCategory[cat].length < 2) byCategory[cat].push(p)
+      })
+      sorted = Object.values(byCategory).flat()
+    }
+
+    sorted = sorted.slice(0, limit)
+    return sortProductsByStockPriority(sorted, () => 0)
   }
 
   try {
@@ -565,6 +621,18 @@ export async function getEnhancedPersonalizedRecommendations(
       );
     }
 
+    // Exclude items currently in cart when cart context is provided
+    if (cartItems && cartItems.length > 0) {
+      const cartSet = new Set(cartItems)
+      filteredProducts = filteredProducts.filter(p => !cartSet.has(p.id))
+    }
+
+    // Exclude explicit IDs
+    if (excludeIds && excludeIds.length > 0) {
+      const ex = new Set(excludeIds)
+      filteredProducts = filteredProducts.filter(p => !ex.has(p.id))
+    }
+
     if (includeDiscounts) {
       // Prioritize products with discounts if user prefers them
       if (userBehavior.preferredDiscounts) {
@@ -577,18 +645,59 @@ export async function getEnhancedPersonalizedRecommendations(
     }
 
     // Calculate enhanced personalization scores and sort
-    const scoredProducts = filteredProducts
+    let scoredProducts = filteredProducts
       .map(product => ({
         ...product,
         personalizationScore: calculateEnhancedPersonalizationScore(product, userBehavior)
       }))
       .sort((a, b) => b.personalizationScore - a.personalizationScore)
-      .slice(0, limit);
+
+    // For cart context, add complementary and diversity adjustments
+    if (context === 'cart') {
+      // Additional boost for products sharing category/brand with cart items
+      const cartSet = new Set([...(cartItems || []), ...(userBehavior.cartItems || [])])
+      const cartCategories = new Set<string>()
+      const cartBrands = new Set<string>()
+      products.forEach(p => {
+        if (cartSet.has(p.id)) {
+          const cat = (p as any).category?.name_en
+          const br = (p as any).brand
+          if (cat) cartCategories.add(cat)
+          if (br) cartBrands.add(br)
+        }
+      })
+      scoredProducts = scoredProducts.map(p => {
+        let bonus = 0
+        const cat = (p as any).category?.name_en
+        const br = (p as any).brand
+        if (cat && cartCategories.has(cat)) bonus += 10
+        if (br && cartBrands.has(br)) bonus += 4
+        return { ...p, personalizationScore: (p as any).personalizationScore + bonus }
+      })
+
+      // Diversity: limit max 2 per category if requested
+      if (diversify) {
+        const seenPerCategory: Record<string, number> = {}
+        const diversified: any[] = []
+        for (const p of scoredProducts) {
+          const cat = (p as any).category?.name_en || 'Other'
+          seenPerCategory[cat] = (seenPerCategory[cat] || 0)
+          if (seenPerCategory[cat] < 2) {
+            diversified.push(p)
+            seenPerCategory[cat]++
+          }
+          if (diversified.length >= limit) break
+        }
+        scoredProducts = diversified
+      }
+    }
+
+    scoredProducts = scoredProducts.slice(0, limit)
 
     // Apply global stock-priority sorting while preserving personalization scores
-    return sortProductsByStockPriority(scoredProducts, (a, b) => {
+    return sortProductsByStockPriority(scoredProducts as any, (a, b) => {
       // Secondary sort by personalization score (descending)
-      return b.personalizationScore - a.personalizationScore
+      return (b as any).personalizationScore - (a as any).personalizationScore
     });
 
   } catch (error) {

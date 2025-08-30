@@ -49,8 +49,6 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Script
           id="chunk-error-handler"
