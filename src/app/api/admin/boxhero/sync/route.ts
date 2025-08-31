@@ -200,7 +200,7 @@ async function syncProductStockQuantities(triggeredBy: string) {
         // Find product by SKU (skip deleted products)
         const { data: products, error: findError } = await supabase
           .from('products')
-          .select('id, name_en, stock_quantity, is_deleted')
+          .select('id, name_en, stock_quantity, is_deleted, is_trending, tags')
           .eq('sku', item.sku)
           .eq('is_deleted', false) // Skip deleted products
           .limit(1);
@@ -221,21 +221,48 @@ async function syncProductStockQuantities(triggeredBy: string) {
         const currentStock = product.stock_quantity || 0;
         const newStock = item.quantity || 0;
 
-        // Only update if stock quantity has changed
+        // Determine trending from BoxHero attrs if available
+        const attrs = (item as any).attrs as Array<{ name: string; value?: any }>|undefined;
+        const boxHeroTags = Array.isArray(attrs) ? attrs.map(a => a.name).filter(Boolean) : [];
+        const isTrendingFromBoxHero = boxHeroTags.some(tag => {
+          const t = String(tag).toLowerCase();
+          return t.includes('trending') || t.includes('trend');
+        });
+
+        // Build update payload
+        const updatePayload: any = {
+          updated_at: new Date().toISOString()
+        };
         if (currentStock !== newStock) {
+          updatePayload.stock_quantity = newStock;
+        }
+        // Only set is_trending to true if BoxHero marks it trending; never unset here (manual flag respected)
+        if (isTrendingFromBoxHero && product.is_trending !== true) {
+          updatePayload.is_trending = true;
+        }
+        // Optionally merge tags if present
+        if (boxHeroTags.length > 0) {
+          const existingTags: string[] = Array.isArray(product.tags) ? product.tags : [];
+          const merged = Array.from(new Set([...(existingTags || []), ...boxHeroTags]));
+          updatePayload.tags = merged;
+        }
+
+        if (Object.keys(updatePayload).length > 1) { // more than just updated_at
           const { error: updateError } = await supabase
             .from('products')
-            .update({
-              stock_quantity: newStock,
-              updated_at: new Date().toISOString()
-            })
+            .update(updatePayload)
             .eq('id', product.id);
 
           if (updateError) {
             console.error(`❌ Error updating product ${product.id}:`, updateError);
             errors.push(`Update error for ${product.name_en}: ${updateError.message}`);
           } else {
-            console.log(`✅ Updated ${product.name_en}: ${currentStock} → ${newStock}`);
+            if (updatePayload.stock_quantity !== undefined) {
+              console.log(`✅ Updated ${product.name_en}: ${currentStock} → ${newStock}`);
+            }
+            if (updatePayload.is_trending) {
+              console.log(`🔥 Marked trending based on BoxHero tags: ${product.name_en}`);
+            }
             itemsUpdated++;
           }
         } else {

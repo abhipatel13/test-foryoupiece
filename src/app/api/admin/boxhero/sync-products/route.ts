@@ -153,7 +153,7 @@ async function fetchBoxHeroItems(): Promise<BoxHeroItem[]> {
   let hasMore = true;
 
   while (hasMore) {
-    const url = new URL('https://rest-api.boxhero.io/v2/items');
+    const url = new URL('https://rest.boxhero-app.com/v1/items');
     if (cursor) {
       url.searchParams.set('cursor', cursor);
     }
@@ -164,15 +164,17 @@ async function fetchBoxHeroItems(): Promise<BoxHeroItem[]> {
       headers: {
         'Authorization': `Bearer ${BOXHERO_API_TOKEN}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     });
 
     if (!response.ok) {
-      throw new Error(`BoxHero API error: ${response.status} ${response.statusText}`);
+      const errText = await response.text().catch(() => '');
+      throw new Error(`BoxHero API error: ${response.status} ${response.statusText}${errText ? ` - ${errText.substring(0, 200)}` : ''}`);
     }
 
     const data = await response.json();
-    
+
     if (data.items && Array.isArray(data.items)) {
       allItems.push(...data.items);
     }
