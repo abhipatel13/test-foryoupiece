@@ -285,4 +285,4 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-}
+});

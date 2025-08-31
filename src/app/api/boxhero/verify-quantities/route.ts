@@ -7,7 +7,6 @@ import { withAdminAuth } from '@/lib/auth/admin-middleware';
  */
 export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
-  try {
     if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
       return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
     }
@@ -266,4 +265,4 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-}
+});
