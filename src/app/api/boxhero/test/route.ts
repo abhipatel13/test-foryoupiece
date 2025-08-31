@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { boxHeroApi } from '@/lib/boxhero-api';
 import { BoxHeroService } from '@/infrastructure/services/BoxHeroService';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * GET /api/boxhero/test
  * Comprehensive BoxHero API test to identify data integrity issues
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
+      return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
+    }
+
     console.log('🧪 BoxHero API Comprehensive Test called');
 
     // Test both API implementations
@@ -177,4 +182,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

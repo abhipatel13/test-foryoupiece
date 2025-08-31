@@ -53,11 +53,19 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
     // Get total products
-    console.log('📦 Fetching total products...');
-    const { count: totalProducts, error: productsError } = await supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
+    console.log('📦 Fetching total products (all active/inactive, excluding deleted)...');
+    // Count all products excluding soft-deleted ones if column exists
+    let totalProducts = 0
+    let productsError: any = null
+    try {
+      const { count, error } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+      if (error) throw error
+      totalProducts = count || 0
+    } catch (err: any) {
+      productsError = err
+    }
 
     if (productsError) {
       console.error('❌ Error fetching total products:', productsError);

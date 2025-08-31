@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useQueryClient } from '@tanstack/react-query'
+import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client'
 
 import {
   LayoutDashboard,
@@ -340,6 +342,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [adminUser, setAdminUser] = useState<any>(null)
   const [checkingAdmin, setCheckingAdmin] = useState(true)
   const [adminCheckComplete, setAdminCheckComplete] = useState(false)
+  const queryClient = useQueryClient()
+  const realtimeInitializedRef = useRef(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     // Only check admin status once per user session
@@ -351,6 +356,46 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       setAdminCheckComplete(false)
     }
   }, [user, isAuthenticated, adminCheckComplete])
+  // Cross-tab admin data update listeners (BroadcastChannel and localStorage)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    let ch: BroadcastChannel | null = null
+    try {
+      if ('BroadcastChannel' in window) {
+        ch = new BroadcastChannel('fyp-admin-updates')
+        ch.onmessage = (ev: MessageEvent) => {
+          const data: any = (ev as any).data
+          if (data?.type === 'data-updated') {
+            window.dispatchEvent(new CustomEvent('fyp:admin:data-updated', { detail: data }))
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('🔔 Admin data updated via BroadcastChannel:', data)
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === 'fyp:admin:last-update' && e.newValue) {
+        try {
+          const detail = JSON.parse(e.newValue)
+          window.dispatchEvent(new CustomEvent('fyp:admin:data-updated', { detail }))
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('🔔 Admin data updated via localStorage event:', detail)
+          }
+        } catch {}
+      }
+    }
+
+    window.addEventListener('storage', storageHandler)
+
+    return () => {
+      try { ch && ch.close() } catch {}
+      window.removeEventListener('storage', storageHandler)
+    }
+  }, [])
+
 
   const checkAdminStatus = async () => {
     if (!user || !isAuthenticated || adminCheckComplete) {
@@ -392,6 +437,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     }
   }
 
+
+
+  // Keep conditional returns after hook declarations to preserve hook order
   if (loading || checkingAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -406,6 +454,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   if (!isAuthenticated) {
     return <AdminLoginForm />
   }
+
+
 
   if (!isAdmin) {
     // Log unauthorized access attempt only in development

@@ -95,26 +95,22 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
       // Invalidate frontend caches after successful sync
       try {
-        // Send cache invalidation signal to frontend
-        const cacheInvalidationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/api/cache/invalidate`, {
+        // Derive base URL dynamically from incoming request to support dev ports (e.g., 3001)
+        const requestOrigin = request.headers.get('origin') || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}`
+        // 1) Signal React Query clients (userland) to refetch relevant keys
+        fetch(`${requestOrigin}/api/cache/invalidate`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            keys: ['products', 'categories', 'inventory'],
-            reason: 'boxhero_sync_completed'
-          })
-        });
-
-        if (!cacheInvalidationResponse.ok) {
-          console.warn('⚠️ Cache invalidation failed, but sync completed successfully');
-        } else {
-          console.log('✅ Frontend cache invalidated after BoxHero sync');
-        }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys: ['products','categories','inventory','admin-dashboard-stats'], reason: 'boxhero_sync_completed' })
+        }).catch(() => {})
+        // 2) Signal admin-specific cache invalidation to record analytics and force client refresh
+        fetch(`${requestOrigin}/api/admin/cache/invalidate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cacheTypes: ['products','dashboard','categories'], reason: 'boxhero_sync', forceRefresh: true })
+        }).catch(() => {})
       } catch (cacheError) {
         console.warn('⚠️ Cache invalidation error:', cacheError);
-        // Don't fail the sync if cache invalidation fails
       }
 
       return NextResponse.json({
@@ -218,8 +214,10 @@ async function syncProductStockQuantities(triggeredBy: string) {
         }
 
         const product = products[0];
-        const currentStock = product.stock_quantity || 0;
-        const newStock = item.quantity || 0;
+        const currentStockRaw = Number(product.stock_quantity)
+        const currentStock = Number.isFinite(currentStockRaw) ? Math.max(0, Math.floor(currentStockRaw)) : 0;
+        const newStockRaw = Number((item as any).quantity)
+        const newStock = Number.isFinite(newStockRaw) ? Math.max(0, Math.floor(newStockRaw)) : 0;
 
         // Determine trending from BoxHero attrs if available
         const attrs = (item as any).attrs as Array<{ name: string; value?: any }>|undefined;

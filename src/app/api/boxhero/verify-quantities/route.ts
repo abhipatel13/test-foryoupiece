@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * GET /api/boxhero/verify-quantities
  * Investigate if 1,273 represents total quantities, not unique items
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
+  try {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
+      return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
+    }
+
     console.log('🔍 BoxHero API Quantity Investigation - Testing the Theory');
     console.log('📊 Theory: 755 = unique products, 1,273 = total inventory quantities');
-    
+
     const boxHeroToken = process.env.BOXHERO_API_TOKEN;
     if (!boxHeroToken) {
       throw new Error('BOXHERO_API_TOKEN not found in environment variables');
     }
 
     const baseUrl = 'https://rest.boxhero-app.com';
-    
+
     // Step 1: Get first page to examine data structure
     console.log('📄 Step 1: Examining API response structure...');
     const firstPageResponse = await fetch(`${baseUrl}/v1/items?limit=10`, {
@@ -31,25 +37,25 @@ export async function GET(request: NextRequest) {
 
     const firstPageData = await firstPageResponse.json();
     const sampleItems = firstPageData.items || [];
-    
+
     console.log(`📦 Sample items structure analysis:`);
     console.log(`- Total sample items: ${sampleItems.length}`);
-    
+
     // Analyze the structure of the first few items
     const structureAnalysis = sampleItems.slice(0, 3).map((item: any, index: number) => {
       const quantityFields = {};
       const allFields = Object.keys(item);
-      
+
       // Look for quantity-related fields
       const quantityKeywords = ['quantity', 'stock', 'inventory', 'count', 'amount', 'total', 'available'];
-      const potentialQuantityFields = allFields.filter(field => 
+      const potentialQuantityFields = allFields.filter(field =>
         quantityKeywords.some(keyword => field.toLowerCase().includes(keyword))
       );
-      
+
       potentialQuantityFields.forEach(field => {
         quantityFields[field] = item[field];
       });
-      
+
       return {
         itemIndex: index + 1,
         id: item.id,
@@ -68,11 +74,11 @@ export async function GET(request: NextRequest) {
     let cursor: string | undefined;
     let hasMore = true;
     let pageCount = 0;
-    
+
     while (hasMore && pageCount < 20) { // Safety limit
       pageCount++;
       const url = `${baseUrl}/v1/items?limit=100${cursor ? `&cursor=${cursor}` : ''}`;
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${boxHeroToken}`,
@@ -86,13 +92,13 @@ export async function GET(request: NextRequest) {
 
       const data = await response.json();
       const items = data.items || [];
-      
+
       allItems = allItems.concat(items);
       hasMore = data.has_more || false;
       cursor = data.cursor;
-      
+
       console.log(`📄 Page ${pageCount}: ${items.length} items, total: ${allItems.length}`);
-      
+
       // Rate limiting
       if (hasMore) {
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -103,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     // Step 3: Analyze quantity fields across all items
     console.log('📄 Step 3: Analyzing quantity fields across all items...');
-    
+
     const quantityAnalysis = {
       totalUniqueProducts: allItems.length,
       quantityFieldsFound: new Set(),
@@ -135,7 +141,7 @@ export async function GET(request: NextRequest) {
       if (item.locations && Array.isArray(item.locations)) {
         quantityAnalysis.locationAnalysis.itemsWithLocations++;
         quantityAnalysis.locationAnalysis.totalLocationEntries += item.locations.length;
-        
+
         item.locations.forEach((location: any) => {
           if (location.quantity !== undefined) {
             const qty = parseFloat(location.quantity) || 0;
@@ -177,7 +183,7 @@ export async function GET(request: NextRequest) {
 
     // Step 4: Calculate the most likely total quantity
     console.log('📄 Step 4: Calculating total inventory quantities...');
-    
+
     const totalQuantityCalculations = {
       fromLocationQuantities: quantityAnalysis.locationAnalysis.locationQuantitySum,
       fromDirectFields: quantityAnalysis.quantityCalculations,
@@ -249,7 +255,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ BoxHero quantity investigation error:', error);
-    
+
     return NextResponse.json(
       {
         success: false,

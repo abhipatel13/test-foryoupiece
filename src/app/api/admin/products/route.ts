@@ -28,13 +28,15 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const includeDeleted = searchParams.get('include_deleted') === 'true';
     const includeInactive = searchParams.get('include_inactive') === 'true';
     const statusFilter = searchParams.get('status_filter') || 'all';
+    const search = (searchParams.get('search') || '').trim();
 
     console.log('📊 Query params:', {
       limit,
       offset,
       includeDeleted,
       includeInactive,
-      statusFilter
+      statusFilter,
+      hasSearch: !!search
     });
 
     // Use Supabase service role client (bypasses RLS)
@@ -80,23 +82,24 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       // New behavior with soft deletion support
       switch (statusFilter) {
         case 'active':
-          query = query.eq('is_active', true).eq('is_deleted', false);
+          // Include rows where is_deleted is FALSE or NULL to avoid excluding legacy rows
+          query = query.eq('is_active', true).or('is_deleted.is.false,is_deleted.is.null');
           break;
         case 'inactive':
-          query = query.eq('is_active', false).eq('is_deleted', false);
+          // Include rows where is_deleted is FALSE or NULL to avoid excluding legacy rows
+          query = query.eq('is_active', false).or('is_deleted.is.false,is_deleted.is.null');
           break;
         case 'deleted':
           query = query.eq('is_deleted', true);
           break;
         case 'all':
         default:
-          // Apply legacy filters if specific status not requested
+          // For 'all', include both active and inactive, but exclude deleted unless explicitly included
           if (!includeDeleted) {
-            query = query.eq('is_deleted', false);
+            // Treat NULL as not-deleted to maintain backward compatibility
+            query = query.or('is_deleted.is.false,is_deleted.is.null');
           }
-          if (!includeInactive && statusFilter !== 'deleted') {
-            query = query.eq('is_active', true);
-          }
+          // Do NOT filter is_active for 'all'
           break;
       }
     } else {
@@ -119,12 +122,16 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
           });
         case 'all':
         default:
-          // Only filter by is_active if includeInactive is false
-          if (!includeInactive) {
-            query = query.eq('is_active', true);
-          }
+          // 'all' means all active/inactive
+          // No filter on is_active
           break;
       }
+    }
+
+    // Apply search across SKU and names if provided
+    if (search) {
+      const pattern = `%${search}%`
+      query = query.or(`sku.ilike.${pattern},name_en.ilike.${pattern},name_ja.ilike.${pattern}`)
     }
 
     const { data: products, error, count } = await query

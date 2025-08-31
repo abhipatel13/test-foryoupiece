@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * GET /api/boxhero/advanced-test
  * Advanced techniques to try to access all 1,273 items from BoxHero
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('🚀 BoxHero API Advanced Access Techniques');
-    
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
+      return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
+    }
+
+
     const boxHeroToken = process.env.BOXHERO_API_TOKEN;
     if (!boxHeroToken) {
       throw new Error('BOXHERO_API_TOKEN not found in environment variables');
@@ -15,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const baseUrl = 'https://rest.boxhero-app.com';
     const results = [];
-    
+
     // Technique 1: Try starting from different cursors/offsets
     console.log('🔍 Technique 1: Testing different starting points');
     const startingPoints = [
@@ -25,7 +30,7 @@ export async function GET(request: NextRequest) {
       '40000000', // Even higher
       '50000000'  // Much higher
     ];
-    
+
     for (const startCursor of startingPoints) {
       try {
         const url = `${baseUrl}/v1/items?limit=100${startCursor ? `&cursor=${startCursor}` : ''}`;
@@ -35,7 +40,7 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           results.push({
@@ -61,7 +66,7 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -74,7 +79,7 @@ export async function GET(request: NextRequest) {
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         results.push({
@@ -106,7 +111,7 @@ export async function GET(request: NextRequest) {
       'updated_after=2024-01-01',
       'modified_since=2023-01-01'
     ];
-    
+
     for (const dateFilter of dateFilters) {
       try {
         const response = await fetch(`${baseUrl}/v1/items?limit=100&${dateFilter}`, {
@@ -115,7 +120,7 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           results.push({
@@ -139,7 +144,7 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -153,7 +158,7 @@ export async function GET(request: NextRequest) {
       'order_by=id',
       'order_by=name'
     ];
-    
+
     for (const sortOrder of sortOrders) {
       try {
         const response = await fetch(`${baseUrl}/v1/items?limit=100&${sortOrder}`, {
@@ -162,7 +167,7 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           results.push({
@@ -188,7 +193,7 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -202,7 +207,7 @@ export async function GET(request: NextRequest) {
       '/v1/quota',
       '/v1/info'
     ];
-    
+
     for (const endpoint of infoEndpoints) {
       try {
         const response = await fetch(`${baseUrl}${endpoint}`, {
@@ -211,7 +216,7 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           results.push({
@@ -237,7 +242,7 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -269,7 +274,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ BoxHero advanced testing error:', error);
-    
+
     return NextResponse.json(
       {
         success: false,

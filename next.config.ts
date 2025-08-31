@@ -53,6 +53,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'foryoupiece.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'd3l9wd8kivvlqy.cloudfront.net',
+      },
     ],
     // PERFORMANCE OPTIMIZATION: Multiple formats for better compression and extended cache TTL
     formats: ['image/avif', 'image/webp'], // AVIF for better compression, WebP fallback

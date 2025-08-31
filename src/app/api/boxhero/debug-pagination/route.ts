@@ -1,25 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * GET /api/boxhero/debug-pagination
  * Deep dive investigation into BoxHero API pagination to find missing items
  */
-export async function GET(request: NextRequest) {
+export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
+  try {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
+      return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
+    }
+
     console.log('🔍 BoxHero API Deep Pagination Investigation');
-    
+
     const boxHeroToken = process.env.BOXHERO_API_TOKEN;
     if (!boxHeroToken) {
       throw new Error('BOXHERO_API_TOKEN not found in environment variables');
     }
 
     const baseUrl = 'https://rest.boxhero-app.com';
-    
+
     // Test 1: Try different limit values to see if we can get more items
     console.log('📊 Test 1: Testing different limit values');
     const limitTests = [50, 100, 200, 500, 1000];
     const limitResults = [];
-    
+
     for (const limit of limitTests) {
       try {
         const response = await fetch(`${baseUrl}/v1/items?limit=${limit}`, {
@@ -28,7 +34,7 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           limitResults.push({
@@ -52,7 +58,7 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       // Rate limiting
       await new Promise(resolve => setTimeout(resolve, 200));
     }
@@ -64,13 +70,13 @@ export async function GET(request: NextRequest) {
     let hasMore = true;
     let pageCount = 0;
     const paginationLog = [];
-    
+
     while (hasMore && pageCount < 100) { // Increased safety limit
       pageCount++;
       const url = `${baseUrl}/v1/items?limit=100${cursor ? `&cursor=${cursor}` : ''}`;
-      
+
       console.log(`📄 Page ${pageCount}: ${url}`);
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${boxHeroToken}`,
@@ -84,7 +90,7 @@ export async function GET(request: NextRequest) {
 
       const data = await response.json();
       const items = data.items || [];
-      
+
       paginationLog.push({
         page: pageCount,
         itemsReceived: items.length,
@@ -94,13 +100,13 @@ export async function GET(request: NextRequest) {
         firstItemId: items[0]?.id,
         lastItemId: items[items.length - 1]?.id
       });
-      
+
       allItems = allItems.concat(items);
       hasMore = data.has_more || false;
       cursor = data.cursor;
-      
+
       console.log(`📄 Page ${pageCount}: ${items.length} items, total: ${allItems.length}, has_more: ${hasMore}`);
-      
+
       // Rate limiting
       if (hasMore) {
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -110,7 +116,7 @@ export async function GET(request: NextRequest) {
     // Test 3: Try different API endpoints
     console.log('📊 Test 3: Testing alternative API endpoints');
     const endpointTests = [];
-    
+
     const endpoints = [
       '/v1/items',
       '/v1/items/search',
@@ -118,7 +124,7 @@ export async function GET(request: NextRequest) {
       '/v1/inventory',
       '/v1/inventory/items'
     ];
-    
+
     for (const endpoint of endpoints) {
       try {
         const response = await fetch(`${baseUrl}${endpoint}?limit=10`, {
@@ -127,14 +133,14 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         endpointTests.push({
           endpoint,
           status: response.status,
           statusText: response.statusText,
           accessible: response.ok
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log(`✅ ${endpoint}: ${data.items?.length || 0} items available`);
@@ -147,14 +153,14 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     // Test 4: Check if there are any query parameters that might unlock more data
     console.log('📊 Test 4: Testing query parameters');
     const parameterTests = [];
-    
+
     const testParams = [
       'include_archived=true',
       'include_inactive=true',
@@ -163,7 +169,7 @@ export async function GET(request: NextRequest) {
       'archived=false',
       'active=true'
     ];
-    
+
     for (const param of testParams) {
       try {
         const response = await fetch(`${baseUrl}/v1/items?limit=10&${param}`, {
@@ -172,7 +178,7 @@ export async function GET(request: NextRequest) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           parameterTests.push({
@@ -194,7 +200,7 @@ export async function GET(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -229,7 +235,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ BoxHero pagination investigation error:', error);
-    
+
     return NextResponse.json(
       {
         success: false,

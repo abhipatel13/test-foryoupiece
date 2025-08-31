@@ -88,6 +88,21 @@ export default function AdminProductsPage() {
     return () => clearTimeout(timeoutId)
   }, [statusFilter, currentPage, searchTerm])
 
+  // Auto-refresh when realtime notifies of admin data updates
+  useEffect(() => {
+    const handler = () => {
+      loadProducts()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('fyp:admin:data-updated', handler as EventListener)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('fyp:admin:data-updated', handler as EventListener)
+      }
+    }
+  }, [])
+
   const loadProducts = async () => {
     try {
       setLoading(true)

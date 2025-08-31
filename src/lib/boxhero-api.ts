@@ -65,9 +65,15 @@ export class BoxHeroApi {
     options: RequestInit = {}
   ): Promise<BoxHeroApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
+    // Always resolve token at call time to avoid build-time/env timing issues
+    const runtimeToken = this.apiToken || process.env.BOXHERO_API_TOKEN;
+    if (!runtimeToken) {
+      throw new BoxHeroApiError('BOXHERO_API_TOKEN is not configured', 500, 'config_error');
+    }
+
     const headers = {
-      'Authorization': `Bearer ${this.apiToken}`,
+      'Authorization': `Bearer ${runtimeToken}`,
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       ...options.headers,
@@ -75,14 +81,18 @@ export class BoxHeroApi {
 
     try {
       console.log(`🔗 BoxHero API Request: ${url}`);
-      
+
       const response = await fetch(url, {
         ...options,
         headers,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        // Try to capture JSON error; fall back to text
+        let errorData: any = {};
+        try { errorData = await response.json(); } catch {
+          try { errorData = { message: await response.text() }; } catch { errorData = {}; }
+        }
         throw new BoxHeroApiError(
           errorData.title || `HTTP ${response.status}: ${response.statusText}`,
           response.status,
@@ -93,7 +103,7 @@ export class BoxHeroApi {
 
       const data = await response.json();
       console.log(`✅ BoxHero API Response: ${JSON.stringify(data).substring(0, 200)}...`);
-      
+
       return data;
     } catch (error) {
       console.error('❌ BoxHero API Error:', error);

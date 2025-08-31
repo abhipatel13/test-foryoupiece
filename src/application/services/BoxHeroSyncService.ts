@@ -223,15 +223,27 @@ export class BoxHeroSyncService {
           console.log(`✅ Found BoxHero item for: ${mapping.name}`);
 
           console.log(`🔄 Processing ${mapping.action} for: ${mapping.name} (addNew: ${options.addNew}, updateExisting: ${options.updateExisting})`);
-          if (mapping.action === 'create' && options.addNew !== false) {
-            console.log(`✅ Creating product: ${mapping.name}`);
-            await this.createProductFromBoxHero(boxHeroItem, mapping, report);
-          } else if (mapping.action === 'update' && options.updateExisting !== false) {
-            console.log(`🔄 Updating product: ${mapping.name}`);
-            await this.updateProductFromBoxHero(boxHeroItem, mapping, report);
-          } else {
-            report.itemsSkipped++;
-            console.log(`⏭️ Skipped ${mapping.name} (${mapping.action} disabled or conditions not met)`);
+
+          try {
+            if (mapping.action === 'create' && options.addNew !== false) {
+              console.log(`✅ Creating product: ${mapping.name}`);
+              await this.createProductFromBoxHero(boxHeroItem, mapping, report);
+            } else if (mapping.action === 'update' && options.updateExisting !== false) {
+              console.log(`🔄 Updating product: ${mapping.name}`);
+              await this.updateProductFromBoxHero(boxHeroItem, mapping, report);
+            } else {
+              report.itemsSkipped++;
+              console.log(`⏭️ Skipped ${mapping.name} (${mapping.action} disabled or conditions not met)`);
+            }
+          } catch (productError) {
+            // Individual product processing errors are already handled in the methods above
+            // This is a fallback in case of unexpected errors
+            console.error(`❌ Unexpected error processing ${mapping.name}:`, productError);
+            report.errors.push({
+              item: mapping.name,
+              error: 'Unexpected processing error',
+              details: productError instanceof Error ? productError.message : String(productError)
+            });
           }
         } catch (error) {
           report.errors.push({
@@ -318,9 +330,19 @@ export class BoxHeroSyncService {
   ): Promise<void> {
     try {
       console.log(`🏗️ Creating product in database: ${boxHeroItem.name}`);
-      // Calculate total stock across all locations
-      const totalStock = boxHeroItem.quantities.reduce(
-        (sum, location) => sum + location.quantity,
+
+      // Validate required fields before proceeding
+      if (!boxHeroItem.name || boxHeroItem.name.trim() === '') {
+        throw new Error(`BoxHero item ${boxHeroItem.id} has empty or null name`);
+      }
+
+      // Calculate total stock across all locations with validation
+      const totalStock = (Array.isArray(boxHeroItem.quantities) ? boxHeroItem.quantities : []).reduce(
+        (sum, location) => {
+          const qty = Number((location as any)?.quantity)
+          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0
+          return sum + safeQty
+        },
         0
       );
 
@@ -329,27 +351,32 @@ export class BoxHeroSyncService {
       const brandAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Brand');
       const subCategoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Sub-category');
 
-      // Use USD price directly from BoxHero
-      const usdPrice = parseFloat(boxHeroItem.price || '0');
+      // Use USD price directly from BoxHero with validation
+      const parsedPrice = Number((boxHeroItem as any).price)
+      const usdPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
 
       // Map category from BoxHero attributes
       const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
 
-      // Create product entity
+      // Ensure names are valid (required for database NOT NULL constraints)
+      const safeName = boxHeroItem.name.trim();
+      const safeDescription = `${brandAttr?.value || ''} ${safeName}`.trim();
+
+      // Create product entity with correct field names
       const product = Product.create({
-        name_en: boxHeroItem.name,
-        name_ja: boxHeroItem.name, // Use same name for now, can be updated later
-        description_en: `${brandAttr?.value || ''} ${boxHeroItem.name}`.trim(),
-        description_ja: `${brandAttr?.value || ''} ${boxHeroItem.name}`.trim(),
+        name_en: safeName,
+        name_ja: safeName, // Use same name for now, can be updated later (required by DB)
+        description_en: safeDescription,
+        description_ja: safeDescription,
         sku: mapping.sku,
         price: usdPrice,
-        currency: 'USD',
+        // Removed invalid 'currency' field - not part of ProductProps
         stock_quantity: totalStock,
         low_stock_threshold: 5, // Default threshold
         is_active: true,
         is_featured: false,
         category_id: categoryId, // Mapped from BoxHero category
-        images: boxHeroItem.photo_url ? [boxHeroItem.photo_url] : [],
+        // image_urls intentionally excluded for BoxHero-created products. Images must be uploaded manually via admin.
         tags: [
           categoryAttr?.value?.toString() || '',
           subCategoryAttr?.value?.toString() || '',
@@ -366,21 +393,31 @@ export class BoxHeroSyncService {
       });
 
       const result = await this.productRepository.create(product);
-      
+
       if (result.success) {
         mapping.forYouPieceId = result.data.id;
         report.itemsCreated++;
-        console.log(`✅ Created product: ${boxHeroItem.name} (Stock: ${totalStock})`);
+        console.log(`✅ Created product: ${safeName} (Stock: ${totalStock})`);
       } else {
-        throw result.error;
+        console.error(`❌ Failed to create product ${safeName}:`, result.error);
+        report.errors.push({
+          item: safeName,
+          error: 'Database creation failed',
+          details: result.error
+        });
+        // Don't throw here - continue processing other products
+        return;
       }
     } catch (error) {
+      const itemName = boxHeroItem.name || `BoxHero ID: ${boxHeroItem.id}`;
+      console.error(`❌ Error creating product ${itemName}:`, error);
       report.errors.push({
-        item: boxHeroItem.name,
+        item: itemName,
         error: 'Failed to create product',
-        details: error
+        details: error instanceof Error ? error.message : String(error)
       });
-      throw error;
+      // Don't throw here - continue processing other products
+      return;
     }
   }
 
@@ -405,14 +442,19 @@ export class BoxHeroSyncService {
 
       const existingProduct = existingResult.data;
 
-      // Calculate total stock across all locations
-      const totalStock = boxHeroItem.quantities.reduce(
-        (sum, location) => sum + location.quantity,
+      // Calculate total stock across all locations with validation
+      const totalStock = (Array.isArray(boxHeroItem.quantities) ? boxHeroItem.quantities : []).reduce(
+        (sum, location) => {
+          const qty = Number((location as any)?.quantity)
+          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0
+          return sum + safeQty
+        },
         0
       );
 
       // Extract price from BoxHero (ensure it's a valid number)
-      const usdPrice = parseFloat(boxHeroItem.price || '0');
+      const parsedPrice = Number((boxHeroItem as any).price)
+      const usdPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
 
       // Map category from BoxHero attributes
       const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
