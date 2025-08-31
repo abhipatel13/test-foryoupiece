@@ -282,6 +282,20 @@ async function generateEmailContent(emailType: string, order: OrderData) {
 }
 
 async function sendEmailViaResend(apiKey: string, emailContent: any) {
+  // Normalize recipients with production safety for overrides
+  const isProd = (Deno.env.get('VERCEL_ENV') === 'production') || (Deno.env.get('NODE_ENV') === 'production')
+  const forceTo = Deno.env.get('RESEND_OVERRIDE_ALL_TO')
+  const overrideEnabled = (Deno.env.get('RESEND_OVERRIDE_ENABLED') || '').toLowerCase() === 'true'
+  const devOverride = Deno.env.get('DEV_EMAIL_OVERRIDE') || 'akito12350@gmail.com'
+
+  let recipients = Array.isArray(emailContent.to) ? emailContent.to : [emailContent.to]
+  if (forceTo && (!isProd || overrideEnabled)) {
+    recipients = [forceTo]
+    try { console.log('📧 Email override active (edge email-worker)', { env: Deno.env.get('NODE_ENV'), enabled: overrideEnabled }) } catch {}
+  } else if (!isProd && devOverride) {
+    recipients = [devOverride]
+  }
+
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -290,7 +304,7 @@ async function sendEmailViaResend(apiKey: string, emailContent: any) {
     },
     body: JSON.stringify({
       from: 'Foryoupiece <no-reply@foryoupiece.com>',
-      to: emailContent.to,
+      to: recipients,
       subject: emailContent.subject,
       html: emailContent.html,
     }),

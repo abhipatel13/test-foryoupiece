@@ -724,6 +724,9 @@ ${items}
       orderNumber: order.order_number
     });
 
+    // Add timeout guard to Telegram call to avoid serverless timeouts
+    const tgController = new AbortController();
+    const tgTimeout = setTimeout(() => tgController.abort(), 12000);
     const response = await fetch(`https://api.telegram.org/bot${stockBotToken}/sendMessage`, {
       method: 'POST',
       headers: {
@@ -733,8 +736,9 @@ ${items}
         chat_id: stockGroupId,
         message_thread_id: parseInt(stockThreadId),
         text: orderConfirmationMessage
-      })
-    });
+      }),
+      signal: tgController.signal,
+    }).finally(() => clearTimeout(tgTimeout));
 
     if (response.ok) {
       const result = await response.json();

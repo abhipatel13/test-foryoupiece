@@ -5,9 +5,11 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "functions": {
-    "src/app/api/**/*.ts": {
-      "maxDuration": 30
-    }
+    "src/app/api/orders/create/route.ts": { "maxDuration": 45 },
+    "src/app/api/homepage-data/route.ts": { "maxDuration": 45 },
+    "src/app/api/recommendations/route.ts": { "maxDuration": 45 },
+    "src/app/api/analytics/queue-purchase/route.ts": { "maxDuration": 45 },
+    "src/app/api/**/*.ts": { "maxDuration": 30 }
   },
   "env": {
     "NODE_ENV": "production"

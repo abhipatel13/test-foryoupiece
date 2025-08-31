@@ -41,15 +41,22 @@ export async function sendEmailViaResend(params: SendEmailParams): Promise<{ id?
   // Normalize recipients
   let recipients = Array.isArray(params.to) ? params.to : [params.to]
 
-  // Global override (any environment)
-  if (FORCE_TO) {
+  // Production-safe override behavior
+  const isProd = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+  const overrideEnabled = (process.env.RESEND_OVERRIDE_ENABLED || '').toLowerCase() === 'true'
+
+  if (FORCE_TO && (!isProd || overrideEnabled)) {
+    // Apply global override only in non-production or when explicitly enabled
     recipients = [FORCE_TO]
-  } else {
-    // In non-production (consider Vercel Preview & local dev), route to dev/test address
-    const isProd = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
-    if (!isProd && DEV_EMAIL_OVERRIDE) {
-      recipients = [DEV_EMAIL_OVERRIDE]
-    }
+    try {
+      console.log('📧 Email override active', {
+        env: process.env.NODE_ENV,
+        enabled: overrideEnabled,
+      })
+    } catch {}
+  } else if (!isProd && DEV_EMAIL_OVERRIDE) {
+    // In non-production (Vercel Preview & local dev), route to dev/test address
+    recipients = [DEV_EMAIL_OVERRIDE]
   }
 
   const payload: any = {

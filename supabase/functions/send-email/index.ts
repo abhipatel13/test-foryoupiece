@@ -41,8 +41,19 @@ serve(async (req) => {
       emailType: body.emailType
     })
 
-    // Normalize recipients
-    const recipients = Array.isArray(body.to) ? body.to : [body.to]
+    // Normalize recipients with production safety for overrides
+    const isProd = (Deno.env.get('VERCEL_ENV') === 'production') || (Deno.env.get('NODE_ENV') === 'production')
+    const forceTo = Deno.env.get('RESEND_OVERRIDE_ALL_TO')
+    const overrideEnabled = (Deno.env.get('RESEND_OVERRIDE_ENABLED') || '').toLowerCase() === 'true'
+    const devOverride = Deno.env.get('DEV_EMAIL_OVERRIDE') || 'akito12350@gmail.com'
+
+    let recipients = Array.isArray(body.to) ? body.to : [body.to]
+    if (forceTo && (!isProd || overrideEnabled)) {
+      recipients = [forceTo]
+      try { console.log('📧 Email override active (edge send-email)', { env: Deno.env.get('NODE_ENV'), enabled: overrideEnabled }) } catch {}
+    } else if (!isProd && devOverride) {
+      recipients = [devOverride]
+    }
 
     const emailPayload = {
       from: 'Foryoupiece <no-reply@foryoupiece.com>',

@@ -80,7 +80,7 @@ export default async function middleware(request: NextRequest) {
   // Build CSP header value (nonce-based, no 'unsafe-inline' or 'unsafe-eval' in prod)
   const cspValue = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live ${isDev ? "'unsafe-eval'" : ''}`.trim(),
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live ${isDev ? "'unsafe-eval'" : ''}`.trim(),
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
@@ -91,6 +91,7 @@ export default async function middleware(request: NextRequest) {
     "base-uri 'self'",
     "form-action 'self' https://www.facebook.com",
     "frame-ancestors 'none'",
+    "report-uri /api/security/csp-report",
     "upgrade-insecure-requests"
   ].join('; ')
 

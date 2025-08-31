@@ -106,6 +106,9 @@ export async function POST(req: NextRequest) {
 
     const bodyOut = { data: [event], pixel_id: PIXEL_ID }
 
+    // Add timeout guard to external CAPIG call
+    const capigController = new AbortController()
+    const capigTimeout = setTimeout(() => capigController.abort(), 12_000)
     const capigRes = await fetch(CAPIG_URL, {
       method: 'POST',
       headers: {
@@ -113,8 +116,9 @@ export async function POST(req: NextRequest) {
         'Identifier': CAPIG_ID,
         'API-Key': CAPIG_KEY,
       },
-      body: JSON.stringify(bodyOut)
-    })
+      body: JSON.stringify(bodyOut),
+      signal: capigController.signal,
+    }).finally(() => clearTimeout(capigTimeout))
 
     const capigRespBody = await capigRes.json().catch(async () => ({ text: await capigRes.text() }))
     console.log('🔁 CAPIG direct response', { status: capigRes.status, ok: capigRes.ok, body: capigRespBody })

@@ -245,9 +245,25 @@ function generateEmailContent(emailType: string, order: OrderData) {
 
 async function sendEmailViaResend(emailContent: any) {
   const resendApiKey = process.env.RESEND_API_KEY
-  
+
   if (!resendApiKey) {
     throw new Error('RESEND_API_KEY not configured')
+  }
+
+  // Normalize recipients with production safety for overrides
+  const isProd = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+  const forceTo = process.env.RESEND_OVERRIDE_ALL_TO
+  const overrideEnabled = (process.env.RESEND_OVERRIDE_ENABLED || '').toLowerCase() === 'true'
+  const devOverride = process.env.DEV_EMAIL_OVERRIDE || 'akito12350@gmail.com'
+
+  let recipients = Array.isArray(emailContent.to) ? emailContent.to : [emailContent.to]
+  if (forceTo && (!isProd || overrideEnabled)) {
+    recipients = [forceTo]
+    try {
+      console.log('📧 Email override active (queue processor)', { env: process.env.NODE_ENV, enabled: overrideEnabled })
+    } catch {}
+  } else if (!isProd && devOverride) {
+    recipients = [devOverride]
   }
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -258,7 +274,7 @@ async function sendEmailViaResend(emailContent: any) {
     },
     body: JSON.stringify({
       from: 'Foryoupiece <no-reply@foryoupiece.com>',
-      to: emailContent.to,
+      to: recipients,
       subject: emailContent.subject,
       html: emailContent.html,
     }),
