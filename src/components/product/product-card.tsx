@@ -252,6 +252,9 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
                 {(product.points_rate ?? 1)}%
               </span>
               <span>back in points</span>
+              {(product.points_rate ?? 1) > 1 && (
+                <span className="ml-1 text-[10px] text-blue-600 font-medium whitespace-nowrap">Point Deals</span>
+              )}
             </div>
           </div>
 

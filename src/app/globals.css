@@ -1264,6 +1264,43 @@ input, textarea, select {
   }
 
   /* Focus styles for accessibility */
+
+/* DEALS CAROUSEL: Enforce exactly 2 cards per viewport only on mobile/tablet */
+@media (max-width: 1023px) {
+  .deals-carousel {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+  .deals-carousel > * {
+    box-sizing: border-box;
+  }
+
+@media (max-width: 374px) {
+  .deals-carousel > * {
+    width: calc(50% - 0.375rem) !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+@media (min-width: 375px) and (max-width: 639px) {
+  .deals-carousel > * {
+    width: calc(50% - 0.5rem) !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+/* Up to tablet breakpoint keep 2-up to ensure larger cards for deals */
+@media (min-width: 640px) and (max-width: 767px) {
+  .deals-carousel > * {
+    width: calc(50% - 0.667rem) !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
   .product-carousel:focus-visible {
     outline: 2px solid hsl(var(--primary));
     outline-offset: 2px;

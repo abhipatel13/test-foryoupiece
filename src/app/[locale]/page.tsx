@@ -65,7 +65,7 @@ export default function HomePage() {
     isLoading: homepageLoading,
     error: homepageError
   } = useHomepageData({
-    dealsLimit: 5,
+    dealsLimit: 10,
     recentlyAddedLimit: 5,
     includeTrending: false,
     enabled: USE_OPTIMIZED_API
@@ -467,7 +467,7 @@ export default function HomePage() {
             <div className="mobile-section-title">
               <Percent className="mobile-section-icon text-primary flex-shrink-0" />
               <h2 className="section-heading">Deals and Discounts</h2>
-              <Badge className="mobile-section-badge bg-primary/10 text-primary border-primary/20 ml-2">Up to 20% OFF</Badge>
+              <Badge className="mobile-section-badge bg-primary/10 text-primary border-primary/20 ml-2">Up to 30% off</Badge>
             </div>
             <Link
               href="/en/products?deals=true"
@@ -491,7 +491,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="product-carousel" key={`deals-products-${firefoxRefreshKey}`}>
+            <div className="product-carousel deals-carousel" key={`deals-products-${firefoxRefreshKey}`}>
               {dealsProducts.map((product) => (
                 <div key={product.id} className="hover-lift modern-product-card">
                   <ProductCard product={product} locale="en" />

@@ -760,6 +760,20 @@ export default function CartPage() {
                   </div>
                 </div>
 
+                {/* Points Earned Summary - Mobile/Tablet */}
+                {totalPointsEarned > 0 && (
+                  <div className="lg:hidden bg-orange-50 border border-orange-200 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4" role="status" aria-live="polite">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center text-xs sm:text-sm text-orange-800">
+                        <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 text-orange-600" />
+                        <span className="font-medium">You'll earn {totalPointsEarned.toLocaleString()} points</span>
+                      </div>
+                      <span className="text-[11px] sm:text-xs text-orange-700 whitespace-nowrap">≈ ${((totalPointsEarned / 1000)).toFixed(2)} value</span>
+                    </div>
+                  </div>
+                )}
+
+
                 {/* MOBILE-OPTIMIZED CHECKOUT BUTTON - Enterprise-level sizing and design */}
                 {stockValidationResult?.canCheckout === false ? (
                   <div className="space-y-3">

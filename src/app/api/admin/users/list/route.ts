@@ -29,9 +29,13 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const search = searchParams.get('search') || '';
     const tierFilter = searchParams.get('tier') || '';
     const languageFilter = searchParams.get('language') || '';
+    const recent = searchParams.get('recent') || '';
+    const startDate = searchParams.get('start') || '';
+    const endDate = searchParams.get('end') || '';
+    const status = (searchParams.get('status') || 'all').toLowerCase();
     const offset = (page - 1) * limit;
 
-    console.log('📋 Query params:', { page, limit, search, tierFilter, languageFilter, offset });
+    console.log('📋 Query params:', { page, limit, search, tierFilter, languageFilter, recent, startDate, endDate, status, offset });
 
     // Build base query with additional fields needed for filtering
     let query = serviceClient
@@ -41,6 +45,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         first_name,
         last_name,
         email,
+        phone,
         points_balance,
         tier_level,
         total_points_earned,
@@ -51,10 +56,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         telegram_username,
         created_at,
         updated_at,
-        orders!orders_user_id_fkey(
-          total_amount,
-          payment_status
-        )
+        is_active
       `, { count: 'exact' });
 
     // Add search filter if provided
@@ -73,10 +75,87 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       query = query.eq('preferred_language', languageFilter);
     }
 
-    // Add pagination and ordering
-    const { data: users, error: usersError, count } = await query
-      .order('points_balance', { ascending: false })
+    // Add recent signup or date range filters
+    if (recent && ['7','30','90'].includes(recent)) {
+      const days = parseInt(recent, 10);
+      const since = new Date();
+      since.setDate(since.getDate() - days);
+      query = query.gte('created_at', since.toISOString());
+    } else {
+      if (startDate) {
+        query = query.gte('created_at', new Date(startDate).toISOString());
+      }
+      if (endDate) {
+        // Include the end date entire day by adding 1 day and using lt
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1);
+        query = query.lt('created_at', end.toISOString());
+      }
+    }
+
+    // Add status filter if provided
+    if (status && status !== 'all') {
+      const isActive = status === 'active';
+      query = query.eq('is_active', isActive);
+    }
+
+    // Add pagination and ordering: rank (Diamond->Bronze) then most recent signup
+    let usersRes = await query
+      .order('tier_level', { ascending: false })
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    // Fallback if is_active column doesn't exist (development schemas)
+    if (usersRes.error && usersRes.error.code === '42703') {
+      console.warn('is_active column not found on users table, retrying without selecting/filtering it');
+      // Rebuild query without is_active selection or status filter
+      query = serviceClient
+        .from('users')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          points_balance,
+          tier_level,
+          total_points_earned,
+          avatar_url,
+          total_spent,
+          total_orders,
+          preferred_language,
+          telegram_username,
+          created_at,
+          updated_at
+        `, { count: 'exact' });
+
+      if (search.trim()) {
+        const searchTerm = `%${search.trim().toLowerCase()}%`;
+        query = query.or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm},email.ilike.${searchTerm},telegram_username.ilike.${searchTerm}`);
+      }
+      if (tierFilter && tierFilter !== 'all') query = query.eq('tier_level', tierFilter);
+      if (languageFilter && languageFilter !== 'all') query = query.eq('preferred_language', languageFilter);
+      if (recent && ['7','30','90'].includes(recent)) {
+        const days = parseInt(recent, 10);
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+        query = query.gte('created_at', since.toISOString());
+      } else {
+        if (startDate) query = query.gte('created_at', new Date(startDate).toISOString());
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setDate(end.getDate() + 1);
+          query = query.lt('created_at', end.toISOString());
+        }
+      }
+
+      usersRes = await query
+        .order('tier_level', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+    }
+
+    const { data: users, error: usersError, count } = usersRes;
 
     if (usersError) {
       console.error('❌ User list query failed:', usersError);
@@ -94,13 +173,6 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       const totalPointsEarned = user.total_points_earned || 0;
       const calculatedTier = getTierFromPoints(totalPointsEarned);
 
-      // Calculate order statistics from the orders relation
-      const orders = user.orders || [];
-      const totalSpent = orders
-        .filter(order => order.payment_status === 'paid')
-        .reduce((sum, order) => sum + (order.total_amount || 0), 0);
-      const totalOrders = orders.filter(order => order.payment_status === 'paid').length;
-
       return {
         ...user,
         fullName: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email?.split('@')[0] || 'Unknown User',
@@ -109,16 +181,11 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         calculatedTier,
         storedTier: user.tier_level,
         tierMismatch: user.tier_level !== calculatedTier,
-        searchRelevance: search.trim() ? calculateSearchRelevance(user, search.trim().toLowerCase()) : 0,
-        // Add computed order statistics
-        computed_total_spent: totalSpent,
-        computed_total_orders: totalOrders,
-        // Clean up the orders field to avoid sending unnecessary data
-        orders: undefined
+        searchRelevance: search.trim() ? calculateSearchRelevance(user, search.trim().toLowerCase()) : 0
       };
     });
 
-    // Sort by search relevance if searching, otherwise keep points order
+    // Sort by search relevance if searching
     if (search.trim()) {
       formattedUsers.sort((a, b) => b.searchRelevance - a.searchRelevance);
     }
@@ -144,7 +211,11 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       filters: {
         search: search.trim(),
         tier: tierFilter,
-        language: languageFilter
+        language: languageFilter,
+        recent,
+        startDate,
+        endDate,
+        status
       },
       count: formattedUsers.length
     });

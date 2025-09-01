@@ -29,7 +29,7 @@ interface User {
   telegram_username: string | null
   avatar_url: string | null
   points_balance: number
-  tier_level: 'bronze' | 'silver' | 'gold' | 'platinum'
+  tier_level: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'
   total_spent: number
   total_orders: number
   preferred_language: string
@@ -37,6 +37,7 @@ interface User {
   metadata: any
   created_at: string
   updated_at: string
+  is_active?: boolean
 }
 
 interface UserOrder {
@@ -52,14 +53,16 @@ const tierColors = {
   bronze: 'bg-amber-100 text-amber-800 border-amber-200',
   silver: 'bg-gray-100 text-gray-800 border-gray-200',
   gold: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  platinum: 'bg-purple-100 text-purple-800 border-purple-200'
+  platinum: 'bg-purple-100 text-purple-800 border-purple-200',
+  diamond: 'bg-blue-100 text-blue-800 border-blue-200'
 }
 
 const tierIcons = {
   bronze: '🥉',
-  silver: '🥈', 
+  silver: '🥈',
   gold: '🥇',
-  platinum: '💎'
+  platinum: '💎',
+  diamond: '💠'
 }
 
 export default function UsersPage() {
@@ -76,6 +79,10 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterTier, setFilterTier] = useState<string>('all')
   const [filterLanguage, setFilterLanguage] = useState<string>('all')
+  const [filterRecent, setFilterRecent] = useState<string>('all') // '7' | '30' | '90' | 'all'
+  const [filterStatus, setFilterStatus] = useState<string>('all') // 'active' | 'inactive' | 'all'
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -100,6 +107,10 @@ export default function UsersPage() {
     const searchParam = searchParams.get('search')
     const tierParam = searchParams.get('tier')
     const languageParam = searchParams.get('language')
+    const recentParam = searchParams.get('recent')
+    const statusParam = searchParams.get('status')
+    const startParam = searchParams.get('start')
+    const endParam = searchParams.get('end')
 
     if (pageParam) {
       setCurrentPage(parseInt(pageParam) || 1)
@@ -113,6 +124,18 @@ export default function UsersPage() {
     if (languageParam) {
       setFilterLanguage(languageParam)
     }
+    if (recentParam) {
+      setFilterRecent(recentParam)
+    }
+    if (statusParam) {
+      setFilterStatus(statusParam)
+    }
+    if (startParam) {
+      setStartDate(startParam)
+    }
+    if (endParam) {
+      setEndDate(endParam)
+    }
   }, [searchParams])
 
   // Fetch users when filters or page changes
@@ -122,24 +145,47 @@ export default function UsersPage() {
     }, searchTerm ? 300 : 0) // 300ms debounce for search, immediate for other changes
 
     return () => clearTimeout(timeoutId)
-  }, [currentPage, searchTerm, filterTier, filterLanguage])
+  }, [currentPage, searchTerm, filterTier, filterLanguage, filterRecent, filterStatus, startDate, endDate])
 
-  // Reset to first page when filters change (except for initial load)
+  // Reset to first page when filters change and always reflect filters in URL
   useEffect(() => {
+    const nextPage = 1
     if (currentPage !== 1) {
       setCurrentPage(1)
-      updateURL(1, searchTerm, filterTier, filterLanguage)
     }
-  }, [searchTerm, filterTier, filterLanguage])
+    updateURL(
+      nextPage,
+      searchTerm,
+      filterTier,
+      filterLanguage,
+      filterRecent,
+      filterStatus,
+      startDate,
+      endDate
+    )
+  }, [searchTerm, filterTier, filterLanguage, filterRecent, filterStatus, startDate, endDate])
 
   // Update URL with current filter and pagination state
-  const updateURL = (page: number, search: string, tier: string, language: string) => {
+  const updateURL = (
+    page: number,
+    search: string,
+    tier: string,
+    language: string,
+    recent: string,
+    status: string,
+    start: string,
+    end: string,
+  ) => {
     const params = new URLSearchParams()
 
     if (page > 1) params.set('page', page.toString())
     if (search.trim()) params.set('search', search.trim())
     if (tier !== 'all') params.set('tier', tier)
     if (language !== 'all') params.set('language', language)
+    if (recent && recent !== 'all') params.set('recent', recent)
+    if (status && status !== 'all') params.set('status', status)
+    if (start) params.set('start', start)
+    if (end) params.set('end', end)
 
     const newURL = params.toString() ? `?${params.toString()}` : ''
     router.replace(newURL, { scroll: false })
@@ -155,15 +201,13 @@ export default function UsersPage() {
         limit: itemsPerPage.toString()
       })
 
-      if (searchTerm.trim()) {
-        params.set('search', searchTerm.trim())
-      }
-      if (filterTier !== 'all') {
-        params.set('tier', filterTier)
-      }
-      if (filterLanguage !== 'all') {
-        params.set('language', filterLanguage)
-      }
+      if (searchTerm.trim()) params.set('search', searchTerm.trim())
+      if (filterTier !== 'all') params.set('tier', filterTier)
+      if (filterLanguage !== 'all') params.set('language', filterLanguage)
+      if (filterRecent !== 'all') params.set('recent', filterRecent)
+      if (filterStatus !== 'all') params.set('status', filterStatus)
+      if (startDate) params.set('start', startDate)
+      if (endDate) params.set('end', endDate)
 
       const response = await fetch(`/api/admin/users/list?${params.toString()}`)
       const data = await response.json()
@@ -243,7 +287,7 @@ export default function UsersPage() {
   // Pagination handlers
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-    updateURL(page, searchTerm, filterTier, filterLanguage)
+    updateURL(page, searchTerm, filterTier, filterLanguage, filterRecent, filterStatus, startDate, endDate)
     // Scroll to top when page changes
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -332,39 +376,90 @@ export default function UsersPage() {
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by email, name, or telegram username..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-10"
-              />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Search by email, name, or telegram username..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={filterTier} onValueChange={handleTierFilterChange}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Filter by tier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tiers</SelectItem>
+                  <SelectItem value="bronze">Bronze</SelectItem>
+                  <SelectItem value="silver">Silver</SelectItem>
+                  <SelectItem value="gold">Gold</SelectItem>
+                  <SelectItem value="platinum">Platinum</SelectItem>
+                  <SelectItem value="diamond">Diamond</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterLanguage} onValueChange={handleLanguageFilterChange}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Filter by language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Languages</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="ja">Japanese</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterRecent} onValueChange={setFilterRecent}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Recent sign-ups" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="User status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={filterTier} onValueChange={handleTierFilterChange}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Filter by tier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Tiers</SelectItem>
-                <SelectItem value="bronze">Bronze</SelectItem>
-                <SelectItem value="silver">Silver</SelectItem>
-                <SelectItem value="gold">Gold</SelectItem>
-                <SelectItem value="platinum">Platinum</SelectItem>
-                <SelectItem value="diamond">Diamond</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterLanguage} onValueChange={handleLanguageFilterChange}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Filter by language" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Languages</SelectItem>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="ja">Japanese</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <Label className="whitespace-nowrap text-gray-600">Start date</Label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="whitespace-nowrap text-gray-600">End date</Label>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm('')
+                    setFilterTier('all')
+                    setFilterLanguage('all')
+                    setFilterRecent('all')
+                    setFilterStatus('all')
+                    setStartDate('')
+                    setEndDate('')
+                  }}
+                >
+                  Reset filters
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
