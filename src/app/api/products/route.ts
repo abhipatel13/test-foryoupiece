@@ -128,10 +128,11 @@ export async function GET(request: NextRequest) {
       return q.order('created_at', { ascending: false })
     }
 
-    // DEALS view: keep existing behavior (deals are in-stock only already)
+    // DEALS view: Include products with (discount) OR (enhanced points > 1.0)
     if (deals) {
-      let { data: products, error } = await applyOrdering(query)
-        .range(0, limit * 4 - 1) // fetch extra to filter client-side
+      // Pre-filter at DB level to promotions to avoid missing older discounted items
+      const promoQuery = query.or('compare_at_price.gt.0,points_rate.gt.1.0')
+      let { data: products, error } = await promoQuery.limit(1000)
 
       if (error) {
         console.error('🎯 DEALS API: Database error:', error)
@@ -141,16 +142,17 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Filter products that have price discounts (compare_at_price > price) and in stock
+      // Filter products that have (price discounts) OR (enhanced points)
       const dealsProducts = (products || []).filter(product => {
         const hasDiscount = product.compare_at_price && product.compare_at_price > product.price
+        const hasEnhancedPoints = (product.points_rate ?? 1) > 1.0
         const hasValidPrice = typeof product.price === 'number' && product.price > 0
         const hasImage = Array.isArray(product.images) && product.images.length > 0
         const inStock = product.stock_quantity > 0
-        return hasDiscount && hasValidPrice && hasImage && inStock
+        return (hasDiscount || hasEnhancedPoints) && hasValidPrice && hasImage && inStock
       })
 
-      // Sort by discount percentage (descending)
+      // Sort: prioritize discount percentage, then points rate
       dealsProducts.sort((a, b) => {
         const aDiscountPercent = a.compare_at_price && a.compare_at_price > a.price
           ? ((a.compare_at_price - a.price) / a.compare_at_price) * 100
@@ -158,24 +160,26 @@ export async function GET(request: NextRequest) {
         const bDiscountPercent = b.compare_at_price && b.compare_at_price > b.price
           ? ((b.compare_at_price - b.price) / b.compare_at_price) * 100
           : 0
-        return bDiscountPercent - aDiscountPercent
+        if (bDiscountPercent !== aDiscountPercent) return bDiscountPercent - aDiscountPercent
+        const aPoints = (a.points_rate ?? 1)
+        const bPoints = (b.points_rate ?? 1)
+        return bPoints - aPoints
       })
 
-      const paged = dealsProducts.slice(offset, offset + limit)
-
+      // For deals view ('See all'), return the complete list of qualifying products
       return NextResponse.json({
         success: true,
-        data: paged,
+        data: dealsProducts,
         pagination: {
           total: dealsProducts.length,
-          limit,
-          offset,
-          page: Math.floor(offset / limit) + 1,
-          totalPages: Math.ceil(dealsProducts.length / limit),
-          hasMore: dealsProducts.length > offset + paged.length,
-          hasPrevious: offset > 0,
-          startItem: offset + 1,
-          endItem: Math.min(offset + paged.length, dealsProducts.length),
+          limit: dealsProducts.length,
+          offset: 0,
+          page: 1,
+          totalPages: 1,
+          hasMore: false,
+          hasPrevious: false,
+          startItem: 1,
+          endItem: dealsProducts.length,
         },
       })
     }

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     // Execute all queries in parallel for better performance
     const [dealsResult, recentlyAddedResult, trendingResult] = await Promise.all([
-      // 1. Get deals products with database filtering (much more efficient)
+      // 1. Get promotional products (discount OR enhanced points) with DB filtering
       supabase
         .from('products')
         .select(`
@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
         `)
         .eq('is_active', true)
         .eq('is_deleted', false) // SECURITY FIX: Exclude soft-deleted products
-        .not('compare_at_price', 'is', null)
-        .gt('compare_at_price', 0)
-        .order('compare_at_price', { ascending: false }) // Highest discounts first
+        // OR: (compare_at_price > 0) OR (points_rate > 1.0) — precise discount check done client-side
+        .or('compare_at_price.gt.0,points_rate.gt.1.0')
+        .order('compare_at_price', { ascending: false, nullsLast: true }) // Highest discounts first when present
         .limit(dealsLimit * 2), // Get extra to account for stock filtering
 
       // 2. Get recently added products
@@ -79,25 +79,37 @@ export async function GET(request: NextRequest) {
     // Process deals products
     let dealsProducts = dealsResult.data || []
     
-    // Filter deals products that actually have discounts and calculate discount percentage
+    // Filter promotions: include products with (discount) OR (enhanced points)
     dealsProducts = dealsProducts
       .filter(product => {
         const hasDiscount = product.compare_at_price && product.compare_at_price > product.price
+        const hasEnhancedPoints = (product.points_rate ?? 1) > 1.0
         const hasValidPrice = typeof product.price === 'number' && product.price > 0
         const hasImage = Array.isArray(product.images) && product.images.length > 0
         const inStock = product.stock_quantity > 0
-        return hasDiscount && hasValidPrice && hasImage && inStock
+        return (hasDiscount || hasEnhancedPoints) && hasValidPrice && hasImage && inStock
       })
       .map(product => ({
         ...product,
-        discountPercentage: Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
+        discountPercentage: product.compare_at_price && product.compare_at_price > product.price
+          ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
+          : 0
       }))
-      .sort((a, b) => b.discountPercentage - a.discountPercentage) // Sort by discount percentage
+      .sort((a, b) => {
+        // Primary by discount percentage desc, secondary by points_rate desc
+        if (b.discountPercentage !== a.discountPercentage) return b.discountPercentage - a.discountPercentage
+        const aPoints = (a.points_rate ?? 1)
+        const bPoints = (b.points_rate ?? 1)
+        return bPoints - aPoints
+      })
       .slice(0, dealsLimit) // Limit to requested amount
 
-    // Apply stock priority sorting while preserving discount order
+    // Apply stock priority sorting while preserving promotion order
     const sortedDealsProducts = sortProductsByStockPriority(dealsProducts, (a, b) => {
-      return b.discountPercentage - a.discountPercentage
+      if (b.discountPercentage !== a.discountPercentage) return b.discountPercentage - a.discountPercentage
+      const aPoints = (a.points_rate ?? 1)
+      const bPoints = (b.points_rate ?? 1)
+      return bPoints - aPoints
     })
 
     // Process recently added products

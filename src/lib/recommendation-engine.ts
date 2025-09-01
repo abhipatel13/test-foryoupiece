@@ -154,35 +154,41 @@ export function getEnhancedDealsProducts(products: Product[], limit: number = 6)
     .map(product => {
       const discountPercentage = getDiscountPercentage(product) || 0;
       const hasDiscount = discountPercentage > 0;
+      const pointsRate = (product as any).points_rate ?? 1;
+      const hasEnhancedPoints = pointsRate > 1.0;
 
-      // For now, only use price discounts since points_rate field doesn't exist in database
-      // TODO: Add enhanced points support when points_rate field is added to products table
-      const dealScore = hasDiscount ? discountPercentage : 0;
+      // Deal score prioritizes discount then enhanced points
+      const dealScore = hasDiscount ? (discountPercentage + pointsRate - 1) : (hasEnhancedPoints ? (pointsRate - 1) : 0);
 
       return {
         ...product,
         discountPercentage,
         hasDiscount,
+        hasEnhancedPoints,
+        points_rate: pointsRate,
         dealScore
       };
     })
-    .filter(product => product.hasDiscount) // Only include products with price discounts for now
+    // Include products that have discount OR enhanced points
+    .filter(product => product.hasDiscount || product.hasEnhancedPoints)
     .sort((a, b) => {
-      // Primary sort by discount percentage (descending)
-      return b.discountPercentage - a.discountPercentage;
+      // Primary by discount percentage, then by points rate
+      if (b.discountPercentage !== a.discountPercentage) return b.discountPercentage - a.discountPercentage;
+      return (b.points_rate ?? 1) - (a.points_rate ?? 1);
     })
     .slice(0, limit);
 
-  console.log(`🎯 Enhanced Deals: Found ${dealsProducts.length} products with discounts`);
+  console.log(`🎯 Enhanced Deals: Found ${dealsProducts.length} promotional products`);
 
   if (dealsProducts.length > 0) {
-    console.log(`🎯 Enhanced Deals: Top deal - ${dealsProducts[0].name_en} with ${dealsProducts[0].discountPercentage.toFixed(1)}% off`);
+    const top = dealsProducts[0];
+    console.log(`🎯 Enhanced Deals: Top promo - ${top.name_en} (${top.discountPercentage?.toFixed?.(1) || 0}% off, ${top.points_rate ?? 1}x points)`);
   }
 
-  // Apply global stock-priority sorting while preserving deal ranking
+  // Apply global stock-priority sorting while preserving promo ranking
   return sortProductsByStockPriority(dealsProducts, (a, b) => {
-    // Secondary sort by discount percentage (descending)
-    return b.discountPercentage - a.discountPercentage;
+    if (b.discountPercentage !== a.discountPercentage) return b.discountPercentage - a.discountPercentage;
+    return (b.points_rate ?? 1) - (a.points_rate ?? 1);
   });
 }
 

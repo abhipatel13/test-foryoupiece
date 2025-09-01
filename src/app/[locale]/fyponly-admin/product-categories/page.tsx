@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import SalesProductsTab from '@/components/admin/SalesProductsTab'
 import BestSellersTab from '@/components/admin/BestSellersTab'
+import RecommendationsTab from '@/components/admin/RecommendationsTab'
 
 export default function ProductCategoriesPage() {
   const [activeTab, setActiveTab] = useState('sales')
@@ -101,7 +102,7 @@ export default function ProductCategoriesPage() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="sales" className="flex items-center gap-2">
                 <Percent className="h-4 w-4" />
                 Sales & Discounts
@@ -120,18 +121,26 @@ export default function ProductCategoriesPage() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="recommendations" className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Recommendations
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="sales" className="mt-6">
-              <SalesProductsTab 
+              <SalesProductsTab
                 onCountChange={setSalesCount}
               />
             </TabsContent>
 
             <TabsContent value="best-sellers" className="mt-6">
-              <BestSellersTab 
+              <BestSellersTab
                 onCountChange={setBestSellersCount}
               />
+            </TabsContent>
+
+            <TabsContent value="recommendations" className="mt-6">
+              <RecommendationsTab />
             </TabsContent>
           </Tabs>
         </CardContent>
