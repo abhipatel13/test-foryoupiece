@@ -77,9 +77,9 @@ export async function POST(req: NextRequest) {
       },
     }
 
-    if (TEST_CODE) event.test_event_code = TEST_CODE
-
-    const bodyOut = { data: [event], pixel_id: PIXEL_ID }
+    // Attach test_event_code at the top level (as required by Meta/Stape for Test Events visibility)
+    const bodyOut: any = { data: [event], pixel_id: PIXEL_ID }
+    if (TEST_CODE) bodyOut.test_event_code = TEST_CODE
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 12_000)

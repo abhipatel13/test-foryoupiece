@@ -103,9 +103,9 @@ export async function POST(req: NextRequest) {
         content_type: 'product'
       }
     }
-    if (TEST_CODE) event.test_event_code = TEST_CODE
-
-    const bodyOut = { data: [event], pixel_id: PIXEL_ID }
+    // Attach test_event_code at the top level for Test Events tool recognition
+    const bodyOut: any = { data: [event], pixel_id: PIXEL_ID }
+    if (TEST_CODE) bodyOut.test_event_code = TEST_CODE
 
     // Add timeout guard to external CAPIG call
     const capigController = new AbortController()
