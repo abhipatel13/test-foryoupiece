@@ -14,20 +14,29 @@ function todayDateString(): string {
   return `${y}-${m}-${d}`
 }
 
-export async function generateDailyRecommendations(refreshType: 'manual' | 'scheduled' | 'conditional' = 'manual') {
+export async function generateDailyRecommendations(
+  refreshType: 'manual' | 'scheduled' | 'conditional' = 'manual',
+  categoryId?: string
+) {
   const t0 = Date.now()
   const supabase = createServiceRoleClient()
-  const limit = 20
+  const limit = 25
 
   const end = new Date()
   const start30 = new Date(); start30.setDate(end.getDate() - 30)
   const start7 = new Date(); start7.setDate(end.getDate() - 7)
   const dateStr = todayDateString()
 
-  const { data: products, error: prodErr } = await supabase
+  let prodQuery = supabase
     .from('products')
-    .select('id, sku, name_en, price, compare_at_price, points_rate, tags, stock_quantity, is_active, is_best_seller, best_seller_position')
+    .select('id, sku, name_en, price, compare_at_price, points_rate, tags, stock_quantity, is_active, is_best_seller, best_seller_position, category_id')
     .eq('is_active', true)
+
+  if (categoryId) {
+    prodQuery = prodQuery.eq('category_id', categoryId)
+  }
+
+  const { data: products, error: prodErr } = await prodQuery
   if (prodErr) throw new Error(prodErr.message)
 
   const productIds = (products || []).map(p => p.id)
@@ -42,13 +51,15 @@ export async function generateDailyRecommendations(refreshType: 'manual' | 'sche
     })
     ;(sales30||[]).forEach((r:any)=>sales30Map.set(r.product_id, r))
   } catch {}
+  let sales7Raw: any[] = []
   try {
     const { data: sales7 } = await supabase.rpc('get_sales_analytics', {
       start_date: start7.toISOString(),
       end_date: end.toISOString(),
       min_sales_threshold: 0,
     })
-    ;(sales7||[]).forEach((r:any)=>sales7Map.set(r.product_id, r))
+    sales7Raw = sales7 || []
+    sales7Raw.forEach((r:any)=>sales7Map.set(r.product_id, r))
   } catch {}
 
   const { data: searchClickRows } = await supabase
@@ -164,7 +175,7 @@ export async function generateDailyRecommendations(refreshType: 'manual' | 'sche
     const views = Number(viewsMap.get(p.id)||0)
     const convRate = views>0 ? orders/views : 0
     const convScore = normalize(convRate, 0, 0.2)
-    const recentTrendScore = normalize(recentUnits, 0, Math.max(1, ...(sales7||[]).map((r:any)=>Number(r.total_units_sold||0))))
+    const recentTrendScore = normalize(recentUnits, 0, Math.max(1, ...sales7Raw.map((r:any)=>Number(r.total_units_sold||0))))
     const score = 0.35*unitsScore + 0.2*revenueScore + 0.15*freqScore + 0.15*searchScore + 0.1*convScore + 0.05*recentTrendScore
     const reasons: string[] = []
     if (unitsScore>0.7) reasons.push('High units sold')
@@ -180,10 +191,41 @@ export async function generateDailyRecommendations(refreshType: 'manual' | 'sche
   const bestFinal = bestCandidates.slice(0, limit).map((c,idx)=>({ date: dateStr, type: 'best_sellers' as const, product_id: c.product_id, rank: idx+1, score: Number(c.score.toFixed(4)), reason: c.reasons }))
 
   const payload = [...dealsFinal, ...bestFinal]
-  const { error: upsertErr } = await supabase.from('product_recommendations').upsert(payload, { onConflict: 'date,type,product_id' })
-  if (upsertErr) throw new Error(upsertErr.message)
 
-  await supabase.from('product_recommendation_runs').insert({ type: 'both', algorithm_version: 'v1', products_count: payload.length, execution_time_ms: Date.now()-t0, notes: `refresh_type=${refreshType}` })
+  // Upsert recommendations with robust error handling
+  try {
+    const { error: upsertErr } = await supabase
+      .from('product_recommendations')
+      .upsert(payload, { onConflict: 'date,type,product_id' })
+    if (upsertErr) {
+      const msg = (upsertErr.message || '').toLowerCase()
+      const code: any = (upsertErr as any).code
+      const isMissing = code === '42P01' || (msg.includes('relation') && msg.includes('does not exist')) || msg.trim() === ''
+      if (isMissing) {
+        // Table missing or error not descriptive (likely missing migrations): behave gracefully
+        return { date: dateStr, counts: { deals: 0, best_sellers: 0 }, note: 'product_recommendations table not found. Apply migrations.' }
+      }
+      throw new Error(upsertErr.message || `Upsert into product_recommendations failed${code ? ` (code: ${code})` : ''}`)
+    }
+  } catch (e: any) {
+    const raw = (e?.message as string) || ''
+    const msg = raw.toLowerCase()
+    const code: any = e?.code
+    const isMissing = code === '42P01' || (msg.includes('relation') && msg.includes('does not exist')) || msg.trim() === ''
+    if (isMissing) {
+      return { date: dateStr, counts: { deals: 0, best_sellers: 0 }, note: 'product_recommendations table not found. Apply migrations.' }
+    }
+    throw new Error(raw || `Recommendation upsert failed${code ? ` (code: ${code})` : ''}`)
+  }
+
+  // Insert run record non-blocking
+  try {
+    await supabase
+      .from('product_recommendation_runs')
+      .insert({ type: 'both', algorithm_version: 'v1', products_count: payload.length, execution_time_ms: Date.now()-t0, notes: `refresh_type=${refreshType}` })
+  } catch (e: any) {
+    // Swallow errors here; log could be added if a logger exists
+  }
 
   return { date: dateStr, counts: { deals: dealsFinal.length, best_sellers: bestFinal.length } }
 }

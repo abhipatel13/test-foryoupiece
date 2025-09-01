@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RefreshCw, Target, Percent, Star } from 'lucide-react'
 import { toast } from 'sonner'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+interface CategoryOption { name: string; slug: string }
 
 interface RecommendedProduct {
   date: string
@@ -32,15 +35,48 @@ export default function RecommendationsTab() {
   const [deals, setDeals] = useState<RecommendedProduct[]>([])
   const [best, setBest] = useState<RecommendedProduct[]>([])
 
-  const loadRecommendations = async () => {
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>('')
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/boxhero/categories', { cache: 'no-store' })
+      const json = await res.json()
+      if (!json?.success) throw new Error(json?.error || 'Failed to load categories')
+      const opts: CategoryOption[] = (json.categories || []).map((c: any) => ({ name: c.name || c.name_en, slug: c.slug }))
+      setCategories(opts)
+    } catch (e: any) {
+      console.error(e)
+      toast.error('Failed to load categories')
+      setCategories([])
+    }
+  }
+
+  const loadRecommendations = async (opts?: { forceGenerate?: boolean }) => {
     try {
       setIsLoading(true)
-      const res = await fetch('/api/admin/product-categories/recommendations', { cache: 'no-store' })
+      const params = new URLSearchParams()
+      if (selectedCategorySlug && selectedCategorySlug !== 'all') params.set('category_slug', selectedCategorySlug)
+      const query = params.toString()
+
+      // Optionally force generation before fetch to always attempt fresh results
+      if (opts?.forceGenerate) {
+        const body: any = { refresh_type: 'conditional' }
+        if (selectedCategorySlug && selectedCategorySlug !== 'all') body.category_slug = selectedCategorySlug
+        await fetch('/api/admin/product-categories/recommendations/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).catch(()=>{})
+      }
+
+      const res = await fetch(`/api/admin/product-categories/recommendations${query ? `?${query}` : ''}` , { cache: 'no-store' })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || 'Failed to fetch recommendations')
       setDeals(json.data.deals || [])
       setBest(json.data.best || [])
       setDate(json.date)
+      if (json.last_updated_iso) {
+        setLastUpdated(new Date(json.last_updated_iso))
+      }
     } catch (e: any) {
       console.error(e)
       toast.error('Failed to load recommendations')
@@ -52,14 +88,22 @@ export default function RecommendationsTab() {
   const generateNow = async () => {
     try {
       setIsGenerating(true)
+      const body: any = { refresh_type: 'manual' }
+      if (selectedCategorySlug && selectedCategorySlug !== 'all') body.category_slug = selectedCategorySlug
       const res = await fetch('/api/admin/product-categories/recommendations/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_type: 'manual' })
+        body: JSON.stringify(body)
       })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || 'Generation failed')
-      toast.success('Recommendations generated')
+      const dealsCount = json?.counts?.deals ?? null
+      const bestCount = json?.counts?.best_sellers ?? null
+      if (Number.isFinite(dealsCount) && Number.isFinite(bestCount)) {
+        toast.success(`Generated ${dealsCount} deals, ${bestCount} best sellers`)
+      } else {
+        toast.success('Recommendations generated')
+      }
       await loadRecommendations()
     } catch (e: any) {
       console.error(e)
@@ -70,13 +114,20 @@ export default function RecommendationsTab() {
   }
 
   useEffect(() => {
-    loadRecommendations()
+    fetchCategories()
   }, [])
+
+  useEffect(() => {
+    loadRecommendations()
+  }, [selectedCategorySlug])
+
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const headerNote = useMemo(() => {
     if (!date) return null
-    return `Generated for ${date}`
-  }, [date])
+    const timePart = lastUpdated ? ` • Last updated: ${new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' }).format(lastUpdated)}` : ''
+    return `Generated for ${date}${selectedCategorySlug ? ' • Filtered by category' : ''}${timePart}`
+  }, [date, selectedCategorySlug, lastUpdated])
 
   const Section = ({ title, icon, items }: { title: string; icon: any; items: RecommendedProduct[] }) => (
     <Card>
@@ -92,7 +143,7 @@ export default function RecommendationsTab() {
           <div className="text-sm text-muted-foreground">No recommendations yet. Click Generate to create today's list.</div>
         ) : (
           <div className="space-y-3">
-            {items.slice(0, 20).map((item) => (
+            {items.slice(0, 25).map((item) => (
               <div key={`${item.type}-${item.product.id}`} className="flex items-start justify-between border rounded-lg p-3 hover:bg-gray-50 transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -130,7 +181,23 @@ export default function RecommendationsTab() {
           {headerNote && <p className="text-sm text-muted-foreground">{headerNote}</p>}
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={loadRecommendations} variant="outline" size="sm" disabled={isLoading}>
+          <div className="flex items-center gap-2">
+            <Select value={selectedCategorySlug || 'all'} onValueChange={setSelectedCategorySlug}>
+              <SelectTrigger className="min-w-[240px]">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Filter by category</SelectLabel>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.slug} value={c.slug}>{c.name}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => loadRecommendations({ forceGenerate: true })} variant="outline" size="sm" disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-1" /> Refresh
           </Button>
           <Button onClick={generateNow} size="sm" disabled={isGenerating}>
@@ -146,4 +213,3 @@ export default function RecommendationsTab() {
     </div>
   )
 }
-
