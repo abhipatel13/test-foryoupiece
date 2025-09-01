@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
     if (!/\/events$/.test(CAPIG_URL)) CAPIG_URL = `${CAPIG_URL}/events`
     const CAPIG_ID = process.env.STAPE_CAPIG_IDENTIFIER
     const CAPIG_KEY = process.env.STAPE_CAPIG_API_KEY
-    const PIXEL_ID = process.env.META_PIXEL_ID
+    // Fallback to NEXT_PUBLIC id when META_PIXEL_ID is not set in server envs
+    const PIXEL_ID = process.env.META_PIXEL_ID || process.env.NEXT_PUBLIC_META_PIXEL_ID
     const TEST_CODE = process.env.META_TEST_EVENT_CODE
 
     if (!CAPIG_ID || !CAPIG_KEY || !PIXEL_ID) {

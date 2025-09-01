@@ -372,10 +372,28 @@ export const useCartStore = create<CartStore>()(
               contents: [{ id: String(content_id), quantity: item.quantity, item_price: item.price }]
             } as const
 
+            // Use a stable eventID for dedup when CAPI also sends AddToCart
+            const eventID = `atc_${String(content_id)}_${Date.now()}`
             // @ts-ignore
-            window.fbq('track', 'AddToCart', params)
+            window.fbq('track', 'AddToCart', params, { eventID })
+            // Also send CAPI AddToCart to Stape for better coverage
+            try {
+              fetch('/api/analytics/queue-add-to-cart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  consent: true,
+                  eventId: eventID,
+                  sku: content_id,
+                  name: content_name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  currency,
+                })
+              }).catch(() => {})
+            } catch {}
             if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
-              console.log('Meta Pixel AddToCart fired', params)
+              console.log('Meta Pixel AddToCart fired', { ...params, eventID })
             }
           } else if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
             console.log('Meta Pixel AddToCart skipped (no consent or fbq missing)')
