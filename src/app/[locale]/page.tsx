@@ -288,7 +288,7 @@ export default function HomePage() {
             {/* Mobile-Optimized Branding & Value Proposition */}
             <div className="text-center lg:text-left max-w-full lg:max-w-none">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-foreground mb-2 sm:mb-3 lg:mb-4 leading-tight">
-                Premium Quality Products
+                <span lang="km">ទំនិញក្នុងស្រុកជប៉ុន គុណភាពទ្វេដង</span>
               </h1>
               <p className="text-sm sm:text-base lg:text-lg text-muted-foreground leading-relaxed">
                 Authentic quality • Fast shipping • Trusted by 10,000+ customers
