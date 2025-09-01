@@ -89,9 +89,12 @@ export async function POST(req: NextRequest) {
     if (emHash) user_data.em = [emHash]
     if (phHash) user_data.ph = [phHash]
 
+    // Prefer order.created_at for event_time for better attribution
+    const createdAtSec = order.created_at ? Math.floor(new Date(order.created_at).getTime() / 1000) : Math.floor(Date.now() / 1000)
+
     const event: any = {
       event_name: 'Purchase',
-      event_time: Math.floor(Date.now() / 1000),
+      event_time: createdAtSec,
       event_id: String(order.id),
       action_source: 'website',
       event_source_url: `${getBaseUrl()}/thank-you`,
@@ -100,7 +103,9 @@ export async function POST(req: NextRequest) {
         currency: order.currency || 'USD',
         value: Number(order.total_amount || 0),
         contents,
-        content_type: 'product'
+        content_ids: contents.map((c: any) => c.id),
+        content_type: 'product',
+        num_items: Array.isArray(order.order_items) ? order.order_items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0) : undefined,
       }
     }
     // Attach test_event_code at the top level for Test Events tool recognition
@@ -122,13 +127,17 @@ export async function POST(req: NextRequest) {
     }).finally(() => clearTimeout(capigTimeout))
 
     const capigRespBody = await capigRes.json().catch(async () => ({ text: await capigRes.text() }))
-    console.log('🔁 CAPIG direct response', { status: capigRes.status, ok: capigRes.ok, body: capigRespBody })
+    const eventsReceived = (capigRespBody && (capigRespBody.events_received ?? capigRespBody.eventsReceived)) ?? null
+    const messages = (capigRespBody && (capigRespBody.messages || capigRespBody.data?.messages)) || []
+    console.log('🔁 CAPIG direct response', { status: capigRes.status, ok: capigRes.ok, eventsReceived, messages, body: capigRespBody })
 
-    if (!capigRes.ok) {
-      return NextResponse.json({ success: false, error: capigRespBody?.error || `HTTP ${capigRes.status}` }, { status: 500 })
+    const success = !!capigRes.ok && (eventsReceived === null || eventsReceived > 0)
+    if (!success) {
+      // Still respond 200 to avoid blocking UX, but surface issue to logs and response payload
+      return NextResponse.json({ success, via: 'capig-direct', events_received: eventsReceived, messages })
     }
 
-    return NextResponse.json({ success: true, via: 'capig-direct' })
+    return NextResponse.json({ success: true, via: 'capig-direct', events_received: eventsReceived, messages })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Unknown error' }, { status: 500 })
   }

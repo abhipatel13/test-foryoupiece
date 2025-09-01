@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     const contents = [
       { id: String(sku || name || 'unknown'), quantity: Number(quantity || 1), item_price: Number(price || 0) },
     ]
+    const content_ids = contents.map(c => c.id)
 
     const user_data: any = {
       client_ip_address: ip,
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
         currency,
         value: Number(price || 0) * Number(quantity || 1),
         contents,
+        content_ids,
         content_type: 'product',
       },
     }
@@ -95,16 +97,14 @@ export async function POST(req: NextRequest) {
     }).finally(() => clearTimeout(timeout))
 
     const respBody = await res.json().catch(async () => ({ text: await res.text() }))
-    console.log('🔁 CAPIG AddToCart response', { status: res.status, ok: res.ok, body: respBody })
+    // Extract Graph API-like stats if available
+    const eventsReceived = (respBody && (respBody.events_received ?? respBody.eventsReceived)) ?? null
+    const messages = (respBody && (respBody.messages || respBody.data?.messages)) || []
+    console.log('🔁 CAPIG AddToCart response', { status: res.status, ok: res.ok, eventsReceived, messages, body: respBody })
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { success: false, error: respBody?.error || `HTTP ${res.status}` },
-        { status: 500 },
-      )
-    }
-
-    return NextResponse.json({ success: true, via: 'capig-direct' })
+    // Treat OK+0 received as soft failure (still return 200 to avoid UX impact but flag success=false)
+    const success = !!res.ok && (eventsReceived === null || eventsReceived > 0)
+    return NextResponse.json({ success, via: 'capig-direct', events_received: eventsReceived, messages })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Unknown error' }, { status: 500 })
   }
