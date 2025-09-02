@@ -145,9 +145,9 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             )}
           </Link>
 
-          {/* ENHANCED: Professional Badge Positioning - Better Z-index and Spacing */}
+          {/* ENHANCED: Professional Badge Positioning - Moved to right to avoid overlap with rank badges */}
           {discountPercentage && (
-            <div className="absolute top-3 left-3 z-20">
+            <div className="absolute top-3 right-3 z-20">
               <Badge className="bg-red-500 text-white text-xs font-bold shadow-lg px-2.5 py-1.5 rounded-md border border-red-600">
                 -{discountPercentage}% OFF
               </Badge>
@@ -215,11 +215,16 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
         <div className="flex-1 flex flex-col p-3 sm:p-4 justify-between min-h-0">
 
           {/* Brand - Consistent Typography */}
-          {product.brand && (
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1 truncate">
-              {product.brand}
-            </p>
-          )}
+          {/* Reserve space for brand to stabilize card height */}
+          <div className="h-4 mb-1">
+            {product.brand ? (
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium truncate">
+                {product.brand}
+              </p>
+            ) : (
+              <span className="invisible text-xs">placeholder</span>
+            )}
+          </div>
 
           {/* ENHANCED: Product Title - Better Mobile Text Handling */}
           <Link href={`/en/products/${product.sku}`} onClick={handleProductClick}>
@@ -228,8 +233,8 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </h3>
           </Link>
 
-          {/* ENHANCED: Price Section - Better Mobile Formatting */}
-          <div className="mb-3">
+          {/* ENHANCED: Price Section - Better Mobile Formatting with fixed height to align cards */}
+          <div className="mb-3 h-[4.25rem] sm:h-[4.5rem]">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-base sm:text-lg font-bold text-gray-900">
                 {formatPrice(product.price)}
@@ -258,21 +263,19 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </div>
           </div>
 
-          {/* ENHANCED: Stock Status - Better Spacing and Typography */}
-          <div className="text-xs font-medium mb-4">
+          {/* ENHANCED: Stock Status - Fixed height for alignment */}
+          <div className="text-xs font-medium mb-4 min-h-[1.25rem] flex items-center">
             {product.stock_quantity === 1 && (
-              <span className="text-red-600 font-semibold">Only 1 left</span>
+              <span className="text-red-600 font-semibold truncate">Only 1 left</span>
             )}
             {product.stock_quantity === 2 && (
-              <span className="text-orange-600 font-semibold">Only 2 left</span>
+              <span className="text-orange-600 font-semibold truncate">Only 2 left</span>
             )}
             {product.stock_quantity > 2 && (
-              <span className="text-green-600 font-semibold">Fast delivery</span>
+              <span className="text-green-600 font-semibold truncate">Fast delivery</span>
             )}
             {product.stock_quantity <= 0 && (
-              <div className="space-y-1">
-                <span className="text-blue-600 font-semibold block">Available for preorder</span>
-              </div>
+              <span className="text-blue-600 font-semibold truncate">Available for preorder</span>
             )}
           </div>
 

@@ -368,7 +368,7 @@ export default function CartPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-8">
           {/* Left Side - Cart Items and Key Actions (3/4 width on desktop) */}
-          <div className="lg:col-span-3 space-y-2 sm:space-y-4 lg:space-y-6">
+          <div className="lg:col-span-3 space-y-2 sm:space-y-3 lg:space-y-4">
             {/* Cart Items Section - Mobile Optimized Layout */}
             <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-visible lg:overflow-hidden">
               {/* Clean Header - Mobile Optimized */}
@@ -664,27 +664,23 @@ export default function CartPage() {
             </div>
 
             {/* Mobile-Only: Coupon and Points Section - Moved BEFORE Order Summary */}
-            <div className="lg:hidden space-y-2 sm:space-y-4">
-              {/* Mobile Coupon Input */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
-                <CouponInput
-                  orderTotal={finalTotal}
-                  appliedCoupon={appliedCoupon || undefined}
-                  onCouponApplied={applyCoupon}
-                  onCouponRemoved={removeCoupon}
-                />
-              </div>
+            <div className="lg:hidden space-y-2 sm:space-y-3">
+              {/* Mobile Coupon Input (use component's own Card to avoid double wrappers) */}
+              <CouponInput
+                orderTotal={finalTotal}
+                appliedCoupon={appliedCoupon || undefined}
+                onCouponApplied={applyCoupon}
+                onCouponRemoved={removeCoupon}
+              />
 
-              {/* Mobile Points Redemption */}
+              {/* Mobile Points Redemption (avoid nested card to reduce vertical padding) */}
               {profile && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
-                  <PointsRedemption
-                    userPointsBalance={profile.points_balance || 0}
-                    onPointsChange={(points) => {
-                      // Points are automatically updated in the cart store
-                    }}
-                  />
-                </div>
+                <PointsRedemption
+                  userPointsBalance={profile.points_balance || 0}
+                  onPointsChange={(points) => {
+                    // Points are automatically updated in the cart store
+                  }}
+                />
               )}
             </div>
 
@@ -852,7 +848,7 @@ export default function CartPage() {
                 <h2 className="text-lg font-semibold text-gray-900">Additional Options</h2>
               </div>
 
-              <div className="p-4 sm:p-5 space-y-4">
+              <div className="p-3 sm:p-4 space-y-3">
                 {/* Simplified Shipping Info */}
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center">

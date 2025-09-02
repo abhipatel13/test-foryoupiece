@@ -125,15 +125,15 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
   }
 
   return (
-    <Card className="border-gray-200 py-0 sm:py-4 lg:py-6 gap-0.5 sm:gap-3 lg:gap-6">
-      <CardHeader className="pb-0.5 sm:pb-2 lg:pb-6 px-3 sm:px-6 lg:px-6">
+    <Card className="border-gray-200 !py-2 !gap-2 sm:!py-3 sm:!gap-3 lg:!py-4 lg:!gap-4">
+      <CardHeader className="pb-0.5 sm:pb-2 lg:pb-3 px-3 sm:px-4 lg:px-5">
         <CardTitle className="flex items-center space-x-2 text-sm">
           <Star className="h-4 w-4 text-orange-500" />
           <span>Redeem Loyalty Points</span>
         </CardTitle>
 
         {/* Compact Points Balance Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-1 sm:p-2 lg:p-3 mt-1">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-1 sm:p-1.5 lg:p-2 mt-1">
           {/* Mobile condensed summary */}
           <div className="sm:hidden text-[12px] text-blue-900 font-medium">
             Available: {userPointsBalance.toLocaleString()} pts • Max {formatPrice(pointsToDollars(userPointsBalance))}
@@ -157,7 +157,7 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
           </div>
         </div>
       </CardHeader>
-      <CardContent className="px-4 sm:px-6 space-y-1 sm:space-y-2 lg:space-y-3">
+      <CardContent className="!px-3 sm:!px-4 space-y-1.5 sm:space-y-2 lg:space-y-3">
         {/* Current Discount Display - Compact */}
         {pointsToRedeem > 0 && isValid && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-1 sm:p-2 lg:p-2.5">

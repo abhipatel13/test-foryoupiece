@@ -106,9 +106,9 @@ export function CouponInput({
   }
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="space-y-4">
+    <Card className="border-gray-200 !py-2 !gap-2 sm:!py-3 sm:!gap-3 lg:!py-4 lg:!gap-4">
+      <CardContent className="!px-3 !py-2 sm:!px-4 sm:!py-3">
+        <div className="space-y-2 sm:space-y-3">
           <div className="flex items-center gap-2">
             <Tag className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Coupon Code</span>
@@ -116,8 +116,8 @@ export function CouponInput({
 
           {appliedCoupon ? (
             // Applied coupon display
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-md">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2 sm:p-3 bg-green-50 border border-green-200 rounded-md">
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
                   <div>
@@ -147,7 +147,7 @@ export function CouponInput({
             </div>
           ) : (
             // Coupon input form
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1">
                   <Input
@@ -158,14 +158,15 @@ export function CouponInput({
                     }}
                     onKeyPress={handleKeyPress}
                     placeholder="Enter coupon code"
-                    className="font-mono"
+                    className="font-mono !h-8 sm:!h-9 !px-2 sm:!px-3"
                     disabled={disabled || isValidating}
                   />
                 </div>
                 <Button
                   onClick={handleApplyCoupon}
                   disabled={disabled || isValidating || !couponCode.trim()}
-                  size="default"
+                  size="sm"
+                  className="min-h-[32px] h-8 sm:h-9"
                 >
                   {isValidating ? (
                     <>
@@ -179,7 +180,7 @@ export function CouponInput({
               </div>
 
               {validationError && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-center gap-2 p-2 sm:p-3 bg-red-50 border border-red-200 rounded-md">
                   <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
                   <p className="text-sm text-red-700">{validationError}</p>
                 </div>

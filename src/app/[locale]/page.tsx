@@ -392,13 +392,13 @@ export default function HomePage() {
           </div>
 
           {bestSellerLoading ? (
-            <div className="product-carousel">
-              {[...Array(8)].map((_, i) => (
+            <div className="product-grid">
+              {[...Array(6)].map((_, i) => (
                 <div key={i} className="modern-product-card p-4 animate-pulse loading-shimmer">
-                  <div className="aspect-square bg-secondary rounded-lg mb-3"></div>
-                  <div className="h-4 bg-secondary rounded mb-2"></div>
-                  <div className="h-3 bg-secondary rounded mb-2"></div>
-                  <div className="h-4 bg-secondary rounded w-20"></div>
+                  <div className="aspect-square bg-secondary rounded-lg mb-2 sm:mb-3"></div>
+                  <div className="h-3 sm:h-4 bg-secondary rounded mb-1 sm:mb-2"></div>
+                  <div className="h-2 sm:h-3 bg-secondary rounded mb-1 sm:mb-2"></div>
+                  <div className="h-3 sm:h-4 bg-secondary rounded w-16 sm:w-20"></div>
                 </div>
               ))}
             </div>
@@ -411,9 +411,9 @@ export default function HomePage() {
               <p className="text-muted-foreground">No best sellers available at the moment</p>
             </div>
           ) : (
-            <div className="product-carousel">
+            <div className="product-grid">
               {bestSellerData.map((product) => (
-                <div key={product.id} className="relative hover-lift">
+                <div key={product.id} className="relative h-full flex">
                   {/* Minimalist Best Seller Ranking */}
                   <div className="absolute top-3 left-3 z-10">
                     <Badge className={`text-xs font-medium shadow-sm ${
@@ -433,7 +433,7 @@ export default function HomePage() {
                     product.best_seller_position <= 3
                       ? 'ring-1 ring-foreground/10'
                       : ''
-                  } rounded-lg transition-all duration-200 hover:ring-1 hover:ring-foreground/20 modern-product-card`}>
+                  } rounded-lg transition-all duration-200 hover:ring-1 hover:ring-foreground/20 w-full flex flex-col`}>
                     <ProductCard
                       product={{
                         id: product.id,
