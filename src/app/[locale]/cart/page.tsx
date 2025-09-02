@@ -399,7 +399,7 @@ export default function CartPage() {
                     >
                       <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${isValidatingStock ? 'animate-spin' : ''}`} />
                       <span className="hidden sm:inline">{isValidatingStock ? 'Checking...' : 'Check Stock'}</span>
-                      <span className="sm:hidden text-xs">{isValidatingStock ? 'Check...' : 'Stock'}</span>
+                      <span className="sm:hidden text-xs">{isValidatingStock ? 'Check...' : 'Refresh'}</span>
                     </Button>
                     <Button
                       variant="ghost"
