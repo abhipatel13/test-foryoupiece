@@ -9,7 +9,8 @@ import { handleGenericError } from '@/lib/security/error-sanitizer';
  */
 export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
-    console.log('📊 Fetching REAL-TIME admin dashboard statistics...');
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) console.log('📊 Fetching REAL-TIME admin dashboard statistics...');
 
     // Use service role client to bypass RLS
     const supabase = createServiceRoleClient();
@@ -30,30 +31,30 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     };
 
     // Get total orders
-    console.log('📦 Fetching total orders...');
+    if (isDev) console.log('📦 Fetching total orders...');
     const { count: totalOrders, error: ordersError } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true });
 
     if (ordersError) {
-      console.error('❌ Error fetching total orders:', ordersError);
+      if (isDev) console.error('❌ Error fetching total orders:', ordersError);
     }
 
     // Get total revenue from verified orders
-    console.log('💰 Fetching total revenue...');
+    if (isDev) console.log('💰 Fetching total revenue...');
     const { data: revenueData, error: revenueError } = await supabase
       .from('orders')
       .select('total_amount')
       .eq('payment_status', 'verified');
 
     if (revenueError) {
-      console.error('❌ Error fetching revenue data:', revenueError);
+      if (isDev) console.error('❌ Error fetching revenue data:', revenueError);
     }
 
     const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
     // Get total products
-    console.log('📦 Fetching total products (all active/inactive, excluding deleted)...');
+    if (isDev) console.log('📦 Fetching total products (all active/inactive, excluding deleted)...');
     // Count all products excluding soft-deleted ones if column exists
     let totalProducts = 0
     let productsError: any = null
@@ -68,32 +69,67 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     }
 
     if (productsError) {
-      console.error('❌ Error fetching total products:', productsError);
+      if (isDev) console.error('❌ Error fetching total products:', productsError);
     }
 
-    // Get total users
-    console.log('👥 Fetching total users...');
-    const { count: totalUsers, error: usersError } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true });
+    // Get total users from Auth (includes Google OAuth, email/password, Telegram)
+    if (isDev) console.log('👥 Fetching total users from Auth (all providers)...');
+    let totalUsersAll = 0;
+    try {
+      const adminApi = (supabase as any)?.auth?.admin;
+      if (adminApi?.listUsers) {
+        const perPage = 1000; // high page size to avoid many requests
+        let page = 1;
+        let fetched = 0;
+        // Loop through pages until fewer than perPage users are returned (or safety cap)
+        while (true) {
+          const { data, error } = await adminApi.listUsers({ page, perPage });
+          if (error) {
+            if (isDev) console.error('❌ Error from auth.admin.listUsers:', error);
+            break;
+          }
+          const usersArr = (data?.users as any[]) || [];
+          fetched += usersArr.length;
+          if (usersArr.length < perPage) break; // last page reached
+          page += 1;
+          if (page > 50) { // safety guard to prevent runaway loops
+            if (isDev) console.warn('⚠️ listUsers pagination safety cap reached (50 pages).');
+            break;
+          }
+        }
+        totalUsersAll = fetched;
+      } else {
+        if (isDev) console.warn('⚠️ auth.admin.listUsers not available; falling back to profiles count');
+      }
+    } catch (e) {
+      if (isDev) console.error('❌ Exception while counting auth users:', e);
+    }
 
-    if (usersError) {
-      console.error('❌ Error fetching total users:', usersError);
+    // Fallback: if auth count failed or returned 0, use profiles table count
+    if (!totalUsersAll || Number.isNaN(totalUsersAll)) {
+      if (isDev) console.log('↩️ Falling back to profiles table count from public.users...');
+      const { count: profilesCount, error: usersError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true });
+      if (usersError) {
+        if (isDev) console.error('❌ Error fetching total users from profiles (fallback):', usersError);
+      }
+      totalUsersAll = profilesCount || 0;
     }
 
     // Get pending orders
-    console.log('⏳ Fetching pending orders...');
+    if (isDev) console.log('⏳ Fetching pending orders...');
     const { count: pendingOrders, error: pendingError } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('payment_status', 'pending');
 
     if (pendingError) {
-      console.error('❌ Error fetching pending orders:', pendingError);
+      if (isDev) console.error('❌ Error fetching pending orders:', pendingError);
     }
 
     // Get low stock products
-    console.log('⚠️ Fetching low stock products...');
+    if (isDev) console.log('⚠️ Fetching low stock products...');
     const { count: lowStockProducts, error: lowStockError } = await supabase
       .from('products')
       .select('*', { count: 'exact', head: true })
@@ -101,11 +137,11 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       .or('stock_status.eq.low_stock,stock_status.eq.out_of_stock');
 
     if (lowStockError) {
-      console.error('❌ Error fetching low stock products:', lowStockError);
+      if (isDev) console.error('❌ Error fetching low stock products:', lowStockError);
     }
 
     // Get BoxHero sync information from MANUAL SYNC REPORTS ONLY (NO AUTO-CALCULATION)
-    console.log('📊 Fetching BoxHero sync info from manual sync reports ONLY...');
+    if (isDev) console.log('📊 Fetching BoxHero sync info from manual sync reports ONLY...');
     let boxHeroSync = null;
     try {
       // Try to get from sync_reports table first (enhanced reporting)
@@ -145,7 +181,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
           .single();
 
         if (!syncError && syncStatus) {
-          console.log('✅ Using BoxHero sync metrics from basic sync log (fallback):', {
+          if (isDev) console.log('✅ Using BoxHero sync metrics from basic sync log (fallback):', {
             totalItemsProcessed: syncStatus.total_items_processed || 0,
             lastSync: syncStatus.created_at,
             syncStatus: syncStatus.status
@@ -160,7 +196,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
           };
         } else {
           // No sync logs exist - show placeholder until first manual sync
-          console.log('⚠️ No BoxHero sync logs found - showing placeholder until first manual sync');
+          if (isDev) console.log('⚠️ No BoxHero sync logs found - showing placeholder until first manual sync');
           boxHeroSync = {
             uniqueProducts: 0,
             totalQuantity: 0,
@@ -171,7 +207,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         }
       }
     } catch (error) {
-      console.error('❌ Error fetching BoxHero sync info from manual sync logs:', error);
+      if (isDev) console.error('❌ Error fetching BoxHero sync info from manual sync logs:', error);
       // Don't fail the entire dashboard if sync logs are unavailable
       boxHeroSync = {
         uniqueProducts: 0,
@@ -183,7 +219,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     }
 
     // Get recent orders with user information
-    console.log('📋 Fetching recent orders...');
+    if (isDev) console.log('📋 Fetching recent orders...');
     const { data: recentOrders, error: recentOrdersError } = await supabase
       .from('orders')
       .select(`
@@ -203,11 +239,11 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       .limit(5);
 
     if (recentOrdersError) {
-      console.error('❌ Error fetching recent orders:', recentOrdersError);
+      if (isDev) console.error('❌ Error fetching recent orders:', recentOrdersError);
     }
 
     // Get top products (featured products as a proxy for top products)
-    console.log('🏆 Fetching top products...');
+    if (isDev) console.log('🏆 Fetching top products...');
     const { data: topProducts, error: topProductsError } = await supabase
       .from('products')
       .select('id, name_en, price, images, stock_quantity')
@@ -216,14 +252,14 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       .limit(5);
 
     if (topProductsError) {
-      console.error('❌ Error fetching top products:', topProductsError);
+      if (isDev) console.error('❌ Error fetching top products:', topProductsError);
     }
 
     const stats = {
       totalOrders: totalOrders || 0,
       totalRevenue: totalRevenue || 0,
       totalProducts: totalProducts || 0,
-      totalUsers: totalUsers || 0,
+      totalUsers: totalUsersAll || 0,
       pendingOrders: pendingOrders || 0,
       lowStockProducts: lowStockProducts || 0,
       recentOrders: recentOrders || [],
@@ -231,7 +267,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       boxHeroSync: boxHeroSync
     };
 
-    console.log('✅ REAL-TIME Dashboard stats compiled:', {
+    if (isDev) console.log('✅ REAL-TIME Dashboard stats compiled:', {
       totalOrders: stats.totalOrders,
       totalRevenue: stats.totalRevenue,
       totalProducts: stats.totalProducts,

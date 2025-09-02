@@ -1,3 +1,4 @@
 {
-    "zencoder.mcpServers": {}
+    "zencoder.mcpServers": {},
+    "chatgpt.openOnStartup": true
 }

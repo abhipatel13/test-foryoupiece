@@ -9,7 +9,8 @@ import { getTierFromPoints } from '@/lib/utils';
  */
 export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
-    console.log('📋 Admin user list request received');
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) console.log('📋 Admin user list request received');
 
     // Use service role client for admin operations (authentication handled by middleware)
     const serviceClient = createServiceRoleClient();
@@ -35,7 +36,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const status = (searchParams.get('status') || 'all').toLowerCase();
     const offset = (page - 1) * limit;
 
-    console.log('📋 Query params:', { page, limit, search, tierFilter, languageFilter, recent, startDate, endDate, status, offset });
+    if (isDev) console.log('📋 Query params:', { page, limit, search, tierFilter, languageFilter, recent, startDate, endDate, status, offset });
 
     // Build base query with additional fields needed for filtering
     let query = serviceClient
@@ -158,14 +159,46 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const { data: users, error: usersError, count } = usersRes;
 
     if (usersError) {
-      console.error('❌ User list query failed:', usersError);
+      if (isDev) console.error('❌ User list query failed:', usersError);
       return NextResponse.json({
         success: false,
-        error: 'Failed to fetch users: ' + usersError.message
+        error: 'Failed to fetch users'
       }, { status: 500 });
     }
 
-    console.log(`✅ Retrieved ${users.length} users (${count} total)`);
+    if (isDev) console.log(`✅ Retrieved ${users.length} users (${count} total from profiles)`);
+
+    // When no filters are applied, compute total users from Auth (all providers)
+    const isUnfilteredRequest = !search.trim() && (!tierFilter || tierFilter === 'all') && (!languageFilter || languageFilter === 'all') && (!recent || recent === 'all') && !startDate && !endDate && (status === 'all');
+
+    let authTotalUsers: number | null = null;
+    if (isUnfilteredRequest) {
+      try {
+        const adminApi = (serviceClient as any)?.auth?.admin;
+        if (adminApi?.listUsers) {
+          const perPage = 1000;
+          let pageIdx = 1;
+          let fetched = 0;
+          while (true) {
+            const { data, error } = await adminApi.listUsers({ page: pageIdx, perPage });
+            if (error) {
+              console.error('❌ Error from auth.admin.listUsers (users/list):', error);
+              break;
+            }
+            const arr = (data?.users as any[]) || [];
+            fetched += arr.length;
+            if (arr.length < perPage) break;
+            pageIdx += 1;
+            if (pageIdx > 50) { console.warn('⚠️ listUsers pagination safety cap reached (users/list)'); break; }
+          }
+          authTotalUsers = fetched;
+        }
+      } catch (e) {
+        console.error('❌ Exception while counting auth users (users/list):', e);
+      }
+    }
+
+    const totalUsersFinal = (isUnfilteredRequest && authTotalUsers && !Number.isNaN(authTotalUsers)) ? authTotalUsers : (count || 0);
 
     // Format users with additional computed fields
     const formattedUsers = users.map(user => {
@@ -190,8 +223,8 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       formattedUsers.sort((a, b) => b.searchRelevance - a.searchRelevance);
     }
 
-    // Calculate pagination info
-    const totalPages = Math.ceil((count || 0) / limit);
+    // Calculate pagination info (use final total for pages when unfiltered)
+    const totalPages = Math.ceil((totalUsersFinal) / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
@@ -201,12 +234,12 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       pagination: {
         currentPage: page,
         totalPages,
-        totalUsers: count || 0,
+        totalUsers: totalUsersFinal,
         usersPerPage: limit,
         hasNextPage,
         hasPrevPage,
         startIndex: offset + 1,
-        endIndex: Math.min(offset + limit, count || 0)
+        endIndex: Math.min(offset + limit, totalUsersFinal)
       },
       filters: {
         search: search.trim(),
