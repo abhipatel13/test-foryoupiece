@@ -101,6 +101,14 @@ export function useSSRSafeAuth() {
     }
   }, [isClient, isHydrated])
 
+  // Ensure global sign-out flag is reset when hook mounts (safety)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).signOutInProgress = false
+    }
+  }, [])
+
+
   // Session expiration detection and automatic sign-out
   const handleSessionExpiration = useCallback(async () => {
     if (!isClient) return
@@ -188,13 +196,6 @@ export function useSSRSafeAuth() {
         window.location.replace('/en/auth/login')
       }
     }
-
-  // Ensure global sign-out flag is reset when hook mounts (safety)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).signOutInProgress = false
-    }
-  }, [])
 
   }, [supabase.auth, clearUser, clearCartOnLogout, isClient, user?.id])
 
