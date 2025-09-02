@@ -495,8 +495,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
       async (event: AuthChangeEvent, session: SupabaseSession | null) => {
         console.log('🔄 Auth state change:', event)
 
-        // Ignore initial session event to avoid duplicating initialization work
+        // Properly handle INITIAL_SESSION to immediately hydrate UI after OAuth redirects
         if (event === 'INITIAL_SESSION') {
+          if (session?.user) {
+            const sameUser = currentUserRef.current?.id === session.user.id
+            if (sameUser) {
+              console.log('⏭️ Skipping duplicate INITIAL_SESSION handling for same user')
+            } else {
+              console.log('👤 INITIAL_SESSION - setting user:', { id: session.user.id, email: session.user.email })
+              setUser(session.user)
+              setUserId(session.user.id)
+
+              try {
+                createSession(session.user.id)
+              } catch (e) {
+                console.warn('⚠️ Failed to create client session state (INITIAL_SESSION):', e)
+              }
+
+              await loadUserProfile(session.user.id)
+            }
+
+            // Broadcast initial session to other tabs in case they're open
+            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+          }
+          setStoreLoading(false)
           return
         }
 
