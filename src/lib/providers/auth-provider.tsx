@@ -289,8 +289,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('👤 AuthProvider: Updating user state from cross-tab sign in')
       setUser(payload.user)
       setUserId(payload.user.id)
+      // Ensure cart loads even if setUserId no-ops due to same user on reload
+      const prevCartUserId = cartStore.userId
+      if (prevCartUserId === payload.user.id) {
+        forceLoadCartForUser(payload.user.id).catch(err => console.warn('⚠️ Cross-tab: forceLoadCartForUser failed:', err))
+      }
       loadUserProfile(payload.user.id)
-      // Avoid immediate duplicate cart load; setUserId triggers loadCartFromDatabase
     }
   }, [setUser, setUserId, handleCrossTabSignOut, forceLoadCartForUser])
 
@@ -447,10 +451,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Load profile and cart in parallel for better performance
           console.log('📋 Loading user data in parallel for:', session.user.id)
           try {
+            // If cart store already has same userId (rehydrated on reload), setUserId will no-op.
+            // In that case explicitly force-load the cart to fix the reload issue.
+            const prevCartUserId = cartStore.userId
             await Promise.all([
               loadUserProfile(session.user.id),
-              // Cart loading is already triggered by setUserId, so we don't need to explicitly load it
-              Promise.resolve()
+              prevCartUserId === session.user.id
+                ? forceLoadCartForUser(session.user.id)
+                : Promise.resolve()
             ])
           } catch (error) {
             console.error('❌ Parallel data loading failed:', error)

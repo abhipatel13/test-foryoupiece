@@ -303,9 +303,13 @@ const cartQueries = {
     const { data, error } = await supabase
       .from('cart_items')
       .select(`
-        *,
-        product:products(*),
-        variant:product_variants(*)
+        id,
+        user_id,
+        product_id,
+        variant_id,
+        quantity,
+        product:products(id, name_en, price, compare_at_price, images, sku, stock_quantity, points_rate),
+        variant:product_variants(id)
       `)
       .eq('user_id', userId)
     

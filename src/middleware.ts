@@ -15,7 +15,7 @@ function getSecureCookieOptions(originalOptions: any = {}) {
     ...originalOptions,
     httpOnly: originalOptions.httpOnly !== false, // Default to httpOnly unless explicitly disabled
     secure: isProduction, // Only secure in production (HTTPS)
-    sameSite: originalOptions.sameSite || (isProduction ? 'strict' : 'lax'),
+    sameSite: originalOptions.sameSite || 'lax', // Use Lax to ensure OAuth/Telegram redirects work reliably
     path: originalOptions.path || '/',
     // Add session timeout for auth cookies
     maxAge: originalOptions.maxAge || (originalOptions.name?.includes('auth') ? 8 * 60 * 60 : undefined) // 8 hours for auth cookies
@@ -123,7 +123,16 @@ export default async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (supabaseUrl && supabaseAnonKey) {
+  // Determine whether this path requires session validation (to avoid unnecessary Supabase calls)
+  const pathname = request.nextUrl.pathname
+  const protectedPaths = ['/en/account', '/en/profile', '/en/checkout', '/en/orders', '/fyponly-admin', '/en/fyponly-admin', '/en/admin']
+  const authPaths = ['/en/auth/login', '/en/auth/register']
+  const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path))
+  const isAuthPath = authPaths.some(path => pathname.startsWith(path))
+  const isApiRoute = pathname.startsWith('/api')
+  const shouldValidateSession = !isApiRoute && (isProtectedPath || isAuthPath)
+
+  if (supabaseUrl && supabaseAnonKey && shouldValidateSession) {
     const supabase = createServerClient(
       supabaseUrl,
       supabaseAnonKey,
@@ -185,12 +194,6 @@ export default async function middleware(request: NextRequest) {
     const { data: { user }, error } = await supabase.auth.getUser()
     const sessionValidation = await validateSessionSecurity(supabase, request)
 
-    // Protected routes that require authentication
-    const protectedPaths = ['/en/account', '/en/profile', '/en/checkout', '/en/orders']
-    const isProtectedPath = protectedPaths.some(path =>
-      request.nextUrl.pathname.startsWith(path)
-    )
-
     // Enhanced redirect logic with session validation
     if (isProtectedPath && (error || !user || !sessionValidation.valid)) {
       const redirectUrl = request.nextUrl.clone()
@@ -216,12 +219,6 @@ export default async function middleware(request: NextRequest) {
       return res
     }
 
-    // Auth pages that should redirect if already authenticated
-    const authPaths = ['/en/auth/login', '/en/auth/register']
-    const isAuthPath = authPaths.some(path =>
-      request.nextUrl.pathname.startsWith(path)
-    )
-
     // Redirect to home if accessing auth pages while authenticated (with valid session)
     if (isAuthPath && user && !error && sessionValidation.valid) {
       const redirectUrl = request.nextUrl.clone()
@@ -236,17 +233,14 @@ export default async function middleware(request: NextRequest) {
       return res
     }
 
-    // Add security headers to response (CSP set above)
-    supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
-    supabaseResponse.headers.set('X-Frame-Options', 'DENY')
-    supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
-    supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-
     // Add session validation timestamp for client-side monitoring
     if (user && sessionValidation.valid) {
       supabaseResponse.headers.set('X-Session-Valid', 'true')
       supabaseResponse.headers.set('X-Session-Validated-At', Date.now().toString())
     }
+  } else {
+    // Skip Supabase validation for non-protected, non-auth, and API routes to improve performance
+    try { supabaseResponse.headers.set('X-Session-Validation', 'skipped') } catch {}
   }
 
 
