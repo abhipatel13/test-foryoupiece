@@ -145,27 +145,23 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             )}
           </Link>
 
-          {/* ENHANCED: Professional Badge Positioning - Moved to right to avoid overlap with rank badges */}
-          {discountPercentage && (
-            <div className="absolute top-3 right-3 z-20">
-              <Badge className="bg-red-500 text-white text-xs font-bold shadow-lg px-2.5 py-1.5 rounded-md border border-red-600">
+          {/* Badges container: stacked to avoid any overlap across viewports */}
+          <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2 pointer-events-none">
+            {discountPercentage && (
+              <Badge className="bg-red-500 text-white text-xs font-bold shadow-lg px-2.5 py-1.5 rounded-md border border-red-600 pointer-events-auto">
                 -{discountPercentage}% OFF
               </Badge>
-            </div>
-          )}
-
-          {/* ENHANCED: Stock Indicators - Better positioning to avoid overlap */}
-          {(product.stock_quantity === 1 || product.stock_quantity === 2) && (
-            <div className={`absolute top-3 z-20 ${discountPercentage ? 'right-3' : 'right-3'}`}>
-              <Badge className={`text-xs font-medium shadow-lg px-2.5 py-1.5 rounded-md border ${
+            )}
+            {(product.stock_quantity === 1 || product.stock_quantity === 2) && (
+              <Badge className={`text-xs font-medium shadow-lg px-2.5 py-1.5 rounded-md border pointer-events-auto ${
                 product.stock_quantity === 1
                   ? 'bg-red-50 text-red-800 border-red-200'
                   : 'bg-orange-50 text-orange-800 border-orange-200'
               }`}>
                 {product.stock_quantity === 1 ? '1 left' : 'Few left'}
               </Badge>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Enhanced Wishlist Button - Mobile & Desktop Optimized - REPOSITIONED TO BOTTOM-RIGHT */}
           <Button
@@ -233,8 +229,8 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </h3>
           </Link>
 
-          {/* ENHANCED: Price Section - Better Mobile Formatting with fixed height to align cards */}
-          <div className="mb-3 h-[4.25rem] sm:h-[4.5rem]">
+          {/* ENHANCED: Price Section - fixed height for uniform cards; larger on mobile to avoid overlap */}
+          <div className="mb-3 h-[5.25rem] sm:h-[4.5rem]">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-base sm:text-lg font-bold text-gray-900">
                 {formatPrice(product.price)}
@@ -252,13 +248,13 @@ export function ProductCard({ product, locale = 'en' }: ProductCardProps) {
             </div>
 
             {/* Points Display - Smaller, Muted Text */}
-            <div className="flex items-center gap-1 text-xs text-gray-500">
+            <div className="flex items-center gap-1 text-xs text-gray-500 flex-wrap leading-snug">
               <span className="text-orange-600 font-medium">
                 {(product.points_rate ?? 1)}%
               </span>
               <span>back in points</span>
               {(product.points_rate ?? 1) > 1 && (
-                <span className="ml-1 text-[10px] text-blue-600 font-medium whitespace-nowrap">Point Deals</span>
+                <span className="ml-1 text-[10px] text-blue-600 font-medium whitespace-normal sm:whitespace-nowrap">Point Deals</span>
               )}
             </div>
           </div>
