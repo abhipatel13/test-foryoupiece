@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { BoxHeroSyncService } from '@/lib/boxhero-sync';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
@@ -95,6 +96,10 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
       // Invalidate frontend caches after successful sync
       try {
+        // Tag-based revalidation for server caches
+        revalidateTag('products')
+        revalidateTag('categories')
+        revalidateTag('inventory')
         // Derive base URL dynamically from incoming request to support dev ports (e.g., 3001)
         const requestOrigin = request.headers.get('origin') || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}`
         // 1) Signal React Query clients (userland) to refetch relevant keys

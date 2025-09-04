@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { EnhancedSyncService } from '@/lib/enhanced-sync-service'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
@@ -37,6 +38,15 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       duration: syncReport.duration,
       changes: syncReport.metrics.changes
     })
+
+    // Tag-based revalidation for server caches
+    try {
+      revalidateTag('products')
+      revalidateTag('categories')
+      revalidateTag('inventory')
+    } catch (e) {
+      console.warn('⚠️ Tag revalidation failed:', e)
+    }
 
     return NextResponse.json({
       success: true,

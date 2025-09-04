@@ -1,17 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { unstable_cache as cache } from 'next/cache'
 import { createAnonymousClient } from '@/lib/supabase/server'
 import { RecommendationEngine } from '@/lib/recommendation-engine'
 import { sortProductsByStockPriority } from '@/lib/utils'
 
+// Route-level caching for public (non-personalized) requests
+export const revalidate = 300
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '6')
-    const userId = searchParams.get('user_id')
+
+    // Core params
+    const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '6', 10), 50))
+    const userId = searchParams.get('user_id') || undefined
     const includeDiscounts = searchParams.get('include_discounts') === 'true'
     const excludePurchased = searchParams.get('exclude_purchased') !== 'false' // Default true
     const context = (searchParams.get('context') as 'cart' | 'general') || 'general'
     const diversify = searchParams.get('diversify') === 'true'
+
+    // Optional DB-level filters (do not change existing behavior unless explicitly provided)
+    const inStockOnly = searchParams.get('in_stock_only') === 'true'
+    const discountOnly = searchParams.get('discount_only') === 'true' // stronger filter than include_discounts
+    const stockStatus = searchParams.get('stock_status') || undefined // in_stock|low_stock|out_of_stock|preorder
+    const brand = searchParams.get('brand') || undefined // comma-separated supported
+    const categoryId = searchParams.get('category_id') || undefined
+    const categorySlug = searchParams.get('category_slug') || undefined
+
+    // Cursor-based pagination (keyset by created_at)
+    const cursor = searchParams.get('cursor') || undefined
+    const decodeCursor = (c?: string) => {
+      if (!c) return null
+      try {
+        const [ts, id] = Buffer.from(c, 'base64').toString('utf8').split('|')
+        return { created_at: ts, id }
+      } catch { return null }
+    }
+    const encodeCursor = (ts: string, id: string) => Buffer.from(`${ts}|${id}`).toString('base64')
+    const cursorObj = decodeCursor(cursor)
 
     // Optional cart context: accept comma-separated IDs or JSON array
     let cartItems: string[] = []
@@ -46,54 +72,124 @@ export async function GET(request: NextRequest) {
       excludePurchased,
       context,
       diversify,
+      inStockOnly,
+      discountOnly,
+      stockStatus,
+      brand,
+      categoryId,
+      categorySlug,
       cartItemsCount: cartItems.length,
-      excludeIdsCount: excludeIds.length
+      excludeIdsCount: excludeIds.length,
+      cursorPresent: !!cursor
     })
 
-    // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
+    // SECURITY: Use anonymous client so RLS applies
     const supabase = createAnonymousClient()
 
-    // Fetch all active products with category information
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select(`
-        id,
-        sku,
-        name_en,
-        name_ja,
-        description_en,
-        description_ja,
-        price,
-        compare_at_price,
-        stock_quantity,
-        stock_status,
-        is_featured,
-        brand,
-        images,
-        created_at,
-        tags,
-        points_rate,
-        category:categories(
-          id,
-          name_en,
-          name_ja,
-          slug
-        )
-      `)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
+    // Build products base query with narrow projection
+    // Note: we fetch a candidate pool larger than the final limit to allow personalization to rank items
+    const candidatePool = Math.min(Math.max(limit * 4, 40), 200)
 
-    if (productsError) {
-      console.error('❌ Error fetching products:', productsError)
-      return NextResponse.json({
-        success: false,
-        error: 'Failed to fetch products',
-        data: []
-      }, { status: 500 })
+    // Resolve category by slug if provided
+    let resolvedCategoryId: string | undefined = categoryId
+    if (!resolvedCategoryId && categorySlug) {
+      const { data: cat } = await supabase
+        .from('categories')
+        .select('id, slug')
+        .eq('slug', categorySlug)
+        .single()
+      resolvedCategoryId = cat?.id
     }
 
+    let queryBuilder = () => {
+      let q = supabase
+        .from('products')
+        .select(`
+          id,
+          sku,
+          name_en,
+          name_ja,
+          description_en,
+          description_ja,
+          price,
+          compare_at_price,
+          stock_quantity,
+          stock_status,
+          is_featured,
+          brand,
+          images,
+          created_at,
+          tags,
+          points_rate,
+          category:categories(
+            id,
+            name_en,
+            name_ja,
+            slug
+          )
+        `)
+        .eq('is_active', true)
+        .eq('is_deleted', false)
+
+      // DB-level filters
+      if (inStockOnly) {
+        q = q.gt('stock_quantity', 0)
+      } else if (stockStatus) {
+        q = q.eq('stock_status', stockStatus)
+      }
+      if (discountOnly) {
+        // broader promo filter (discount or enhanced points)
+        q = q.or('compare_at_price.gt.0,points_rate.gt.1.0')
+      }
+      if (resolvedCategoryId) {
+        q = q.eq('category_id', resolvedCategoryId)
+      }
+      if (brand) {
+        const brands = brand.split(',').map(b => b.trim()).filter(Boolean)
+        if (brands.length === 1) q = q.eq('brand', brands[0])
+        else if (brands.length > 1) q = q.in('brand', brands)
+      }
+      if (excludeIds.length > 0) {
+        const excludeSet = Array.from(new Set([...(excludeIds || []), ...(cartItems || [])]))
+        q = q.not('id', 'in', `(${excludeSet.map(id => `'${id}'`).join(',')})`)
+      }
+
+      // Keyset pagination (created_at DESC)
+      q = q.order('created_at', { ascending: false })
+      if (cursorObj?.created_at) {
+        q = q.lt('created_at', cursorObj.created_at)
+      }
+
+      // Finally limit candidate pool
+      return q.limit(candidatePool)
+    }
+
+    // Cache non-personalized queries aggressively with tags
+    const cacheKey = [
+      'recommendations-candidates',
+      resolvedCategoryId || 'all',
+      brand || 'any',
+      stockStatus || (inStockOnly ? 'in_stock' : 'any'),
+      discountOnly ? 'promo' : 'any',
+      candidatePool,
+      cursorObj?.created_at || 'start'
+    ]
+
+    const tags = ['products']
+
+    const fetchCandidates = async () => {
+      const { data, error } = await queryBuilder()
+      if (error) throw error
+      return data || []
+    }
+
+    const products = (!userId && cartItems.length === 0)
+      ? await cache(fetchCandidates, cacheKey, { tags })()
+      : await fetchCandidates()
+
+
     // Transform products to match the expected interface
-    const transformedProducts = products?.map(product => ({
+    const transformedProducts = (products || []).map(product => ({
       id: product.id,
       sku: product.sku,
       name_en: product.name_en,
@@ -111,16 +207,16 @@ export async function GET(request: NextRequest) {
       tags: product.tags || [],
       points_rate: product.points_rate,
       category: product.category ? {
-        id: product.category.id,
-        name_en: product.category.name_en,
-        name_ja: product.category.name_ja,
-        slug: product.category.slug
+        id: (product as any).category.id,
+        name_en: (product as any).category.name_en,
+        name_ja: (product as any).category.name_ja,
+        slug: (product as any).category.slug
       } : null
-    })) || []
+    }))
 
-    console.log(`📦 Fetched ${transformedProducts.length} products for recommendations`)
+    console.log(`📦 Fetched ${transformedProducts.length} candidate products`)
 
-    // Get personalized recommendations
+    // Get personalized recommendations from candidate set
     const recommendations = await RecommendationEngine.getEnhancedPersonalizedRecommendations(
       transformedProducts,
       {
@@ -139,41 +235,65 @@ export async function GET(request: NextRequest) {
 
     // Apply global stock-priority sorting while preserving recommendation algorithm order
     const sortedRecommendations = sortProductsByStockPriority(recommendations, (a, b) => {
-      // Preserve the original recommendation order as secondary sort
-      // (recommendations are already sorted by relevance/algorithm)
-      return 0
+      return 0 // preserve algorithm order
     })
+
+    // Compute next cursor based on the last candidate (for subsequent pages)
+    let next_cursor: string | null = null
+    if (products && products.length > 0) {
+      const last = products[products.length - 1]
+      if (last?.created_at && last?.id) {
+        next_cursor = encodeCursor(last.created_at as any, last.id as any)
+      }
+    }
 
     // Log recommendation context for debugging
     if (userId) {
       try {
         const { UserBehaviorService } = await import('@/lib/services/user-behavior-service')
         const behaviorService = new UserBehaviorService()
-        const context = await behaviorService.getRecommendationContext(userId)
+        const ctx = await behaviorService.getRecommendationContext(userId)
 
         console.log('📊 Recommendation Context:', {
-          hasHistory: context.hasHistory,
-          totalPurchases: context.totalPurchases,
-          favoriteCategories: context.favoriteCategories,
-          favoriteBrands: context.favoriteBrands,
-          averageOrderValue: context.averageOrderValue,
-          lastPurchaseDate: context.lastPurchaseDate
+          hasHistory: ctx.hasHistory,
+          totalPurchases: ctx.totalPurchases,
+          favoriteCategories: ctx.favoriteCategories,
+          favoriteBrands: ctx.favoriteBrands,
+          averageOrderValue: ctx.averageOrderValue,
+          lastPurchaseDate: ctx.lastPurchaseDate
         })
       } catch (contextError) {
         console.warn('⚠️ Could not fetch recommendation context:', contextError)
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: sortedRecommendations,
       meta: {
         total: sortedRecommendations.length,
         limit,
         hasUserHistory: !!userId,
-        algorithm: userId ? 'personalized' : 'random'
+        algorithm: userId ? 'personalized' : 'random',
+        next_cursor,
+        filtersApplied: {
+          inStockOnly,
+          discountOnly,
+          stockStatus: stockStatus || null,
+          brand: brand || null,
+          categoryId: resolvedCategoryId || null
+        }
       }
     })
+
+    // Caching strategy: cache only when not personalized
+    if (!userId && cartItems.length === 0) {
+      response.headers.set('Cache-Control', 's-maxage=300, stale-while-revalidate')
+    } else {
+      response.headers.set('Cache-Control', 'no-store')
+    }
+
+    return response
 
   } catch (error) {
     console.error('❌ Error in recommendations API:', error)
