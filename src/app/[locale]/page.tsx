@@ -584,8 +584,8 @@ export default function HomePage() {
               href="/en/products?deals=true"
               className="mobile-view-all-link"
             >
-              <span className="hidden sm:inline">View All Deals</span>
-              <span className="sm:hidden">View All</span>
+              <span className="hidden sm:inline">See More</span>
+              <span className="sm:hidden">See More</span>
               <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
@@ -604,7 +604,7 @@ export default function HomePage() {
           ) : (
             <div className="product-carousel deals-carousel" key={`deals-products-${firefoxRefreshKey}`}>
               {dealsProducts.map((product) => (
-                <div key={product.id} className="hover-lift modern-product-card">
+                <div key={product.id} className="hover-lift h-full">
                   <ProductCard product={product} locale="en" />
                 </div>
               ))}

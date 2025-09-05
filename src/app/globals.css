@@ -1081,14 +1081,19 @@ input, textarea, select {
   /* ENHANCED: Mobile-First Product Grid Layout - Enterprise Level */
   .product-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); /* Mobile: 2 products per row */
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* Mobile: 2 products per row */
     gap: 0.5rem; /* 8px - tighter mobile spacing to maximize card width */
     min-height: 0; /* Prevent grid overflow */
     width: 100%;
     max-width: 100%; /* Prevent horizontal overflow */
-    align-items: stretch; /* Ensure equal height cards */
-    grid-auto-rows: minmax(360px, auto); /* Fixed minimum height for consistency */
+    align-items: stretch; /* Uniform card heights across all breakpoints */
+    grid-auto-rows: auto; /* Natural row height; equalized per-row via stretch */
     overflow-x: hidden; /* Prevent horizontal scroll */
+  }
+
+  /* Desktop/tablet: keep equal-height behavior */
+  @media (min-width: 768px) {
+    .product-grid { align-items: stretch; }
   }
 
   /* ENHANCED: Ensure all product cards have identical dimensions */
@@ -1096,20 +1101,20 @@ input, textarea, select {
     display: flex;
     flex-direction: column;
     height: 100%;
-    min-height: 360px; /* Fixed minimum height */
+    min-height: 0; /* Allow compact cards; prevent forced tall items */
   }
 
   /* ENHANCED: Mobile-First Responsive Grid - Enterprise Level */
   @media (max-width: 340px) {
     .product-grid {
       gap: 0.25rem; /* 4px - ultra-minimal spacing for maximum card width */
-      grid-auto-rows: minmax(340px, auto); /* Slightly smaller for ultra-small screens */
+      grid-auto-rows: auto; /* Natural height for ultra-small screens */
       padding: 0; /* Remove any padding that might cause overflow */
       margin: 0; /* Remove any margin that might cause overflow */
     }
 
     .product-grid > * {
-      min-height: 340px;
+      min-height: 0;
       max-width: 100%; /* Ensure cards don't exceed container */
     }
   }
@@ -1118,24 +1123,24 @@ input, textarea, select {
   @media (min-width: 341px) and (max-width: 374px) {
     .product-grid {
       gap: 0.375rem; /* 6px - tight spacing to maximize card width */
-      grid-auto-rows: minmax(400px, auto); /* Increased height for better content fit */
-      grid-template-columns: repeat(2, 1fr); /* Ensure 2 columns */
+      grid-auto-rows: auto; /* Allow content-driven height for small screens */
+      grid-template-columns: repeat(2, minmax(0, 1fr)); /* Ensure 2 columns */
       padding: 0; /* Remove padding to maximize available width */
     }
 
     .product-grid > * {
-      min-height: 400px; /* Increased to accommodate content properly */
+      min-height: 0; /* Compact: remove forced tall cards */
     }
   }
 
   @media (min-width: 375px) and (max-width: 414px) {
     .product-grid {
       gap: 0.625rem; /* 10px - optimized spacing for better card width */
-      grid-auto-rows: minmax(370px, auto); /* Optimal for 375px-414px */
+      grid-auto-rows: auto; /* Natural height for 375px-414px */
     }
 
     .product-grid > * {
-      min-height: 370px;
+      min-height: 0;
     }
   }
 
@@ -1149,14 +1154,14 @@ input, textarea, select {
   /* Tablet: 2-3 products per row with better spacing */
   @media (min-width: 640px) {
     .product-grid {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 1.25rem; /* 20px - better tablet spacing */
     }
   }
 
   @media (min-width: 768px) {
     .product-grid {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1.25rem; /* 20px - tablet spacing */
     }
   }
@@ -1164,14 +1169,14 @@ input, textarea, select {
   /* Desktop: 4-5 products per row with optimized spacing */
   @media (min-width: 1024px) {
     .product-grid {
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 1.5rem; /* 24px - improved desktop spacing */
     }
   }
 
   @media (min-width: 1280px) {
     .product-grid {
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 1.5rem; /* 24px - consistent large desktop spacing */
     }
   }
@@ -1179,12 +1184,93 @@ input, textarea, select {
   /* Ultra-wide: maintain 5 columns max for readability */
   @media (min-width: 1536px) {
     .product-grid {
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 2rem; /* 32px - premium ultra-wide spacing */
     }
   }
 
   /* HORIZONTAL SCROLLING PRODUCT CAROUSEL - Mobile-First */
+  /* CONSISTENT HEIGHTS IN HORIZONTAL CAROUSELS */
+  .product-carousel {
+    align-items: stretch; /* Make all items equal height across the row */
+  }
+  .product-carousel > * {
+    display: flex;            /* Allow child card to stretch */
+    align-items: stretch;     /* Stretch inner card vertically */
+  }
+  /* Deals carousel specific: ensure cards fill item height */
+  .deals-carousel .modern-product-card {
+    height: 100%;
+  }
+  /* Prevent points row from wrapping to a second line on narrow mobile */
+  .deals-carousel .points-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 306px-specific hardening for Deals cards */
+  /* Lock total card height at 306px viewport to eliminate 6px variance */
+  @media (max-width: 306px) {
+    .deals-carousel .modern-product-card {
+      height: 468px !important;
+    }
+  }
+  /* Ensure wrapper items also lock to a consistent height at 306px */
+  @media (max-width: 306px) {
+    .deals-carousel > * {
+      height: 468px !important;
+    }
+    .deals-carousel .modern-product-card {
+      height: 100% !important;
+    }
+  }
+  /* Increase specificity and lock min/max to avoid rounding inconsistencies on first item */
+  @media (max-width: 306px) {
+    .deals-carousel > * {
+      min-height: 468px !important;
+      max-height: 468px !important;
+    }
+    .deals-carousel > * .modern-product-card {
+      min-height: 468px !important;
+      max-height: 468px !important;
+    }
+  }
+
+  @media (max-width: 306px) {
+    /* Stabilize content height so CTA aligns across cards */
+    .deals-carousel .deals-card-content {
+      min-height: 260px !important;
+    }
+    /* Normalize price/savings block height and line metrics */
+    .deals-carousel .deals-price-block {
+      min-height: 72px !important;
+      line-height: 1.2 !important;
+    }
+    /* Ensure promo text never wraps into two lines at 306px */
+    .deals-carousel .points-line {
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+  }
+
+  /* Target direct children with hover-lift to ensure first card locks height at 306px */
+  @media (max-width: 306px) {
+    .deals-carousel > .hover-lift {
+      height: 468px !important;
+      min-height: 468px !important;
+      max-height: 468px !important;
+    }
+    .deals-carousel > .hover-lift .modern-product-card {
+      height: 100% !important;
+      min-height: 468px !important;
+      max-height: 468px !important;
+    }
+  }
+
+
+
   .product-carousel {
     display: flex;
     gap: 0.75rem; /* 12px - mobile spacing */
@@ -1197,6 +1283,7 @@ input, textarea, select {
     padding-bottom: 4px; /* Space for focus outline */
     width: 100%;
     min-height: 0;
+    align-items: stretch; /* Ensure equal heights across cards */
   }
 
   /* Hide scrollbar for webkit browsers */
@@ -1211,6 +1298,8 @@ input, textarea, select {
     min-width: 160px; /* Minimum card width */
     max-width: 280px; /* Maximum card width */
     scroll-snap-align: start;
+    height: 100%; /* Stretch item to match tallest card */
+    display: flex; /* Allow inner card to fill */
   }
 
   /* Responsive carousel card sizing */
@@ -1831,7 +1920,7 @@ input, textarea, select {
   @media (min-width: 341px) and (max-width: 374px) {
     .modern-product-card {
       /* Ensure adequate content spacing for narrow cards */
-      min-height: 400px; /* Match grid row height */
+      min-height: 0; /* Compact: let content dictate height */
     }
 
     .modern-product-card .flex-1 {
@@ -1851,7 +1940,7 @@ input, textarea, select {
   /* ENHANCED: Ultra-small screens (320px-340px) - Maximum space utilization */
   @media (max-width: 340px) {
     .modern-product-card {
-      min-height: 340px; /* Match grid row height */
+      min-height: 0; /* Compact for ultra-small phones */
     }
 
     .modern-product-card .flex-1 {
@@ -2199,6 +2288,7 @@ input, textarea, select {
     text-decoration: none;
     flex-shrink: 0;
     min-height: 44px; /* Touch target */
+    min-width: 104px; /* Standardize button width across sections */
     justify-content: center;
     background-color: transparent;
   }
