@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import { ProductCard } from '@/components/product/product-card'
 import { slugify } from '@/lib/utils'
 
+import { sortProductsByStockPriority } from '@/lib/utils'
+
 interface Product {
   id: string
   sku: string
@@ -75,7 +77,7 @@ function BrandProductsInner() {
           console.error('Failed to fetch brand products', error)
           setProducts([])
         } else {
-          setProducts(data as Product[])
+          setProducts(sortProductsByStockPriority(data as Product[]))
         }
       } finally {
         setLoading(false)

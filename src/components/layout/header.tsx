@@ -34,7 +34,8 @@ import {
   Globe,
   TrendingUp,
   Percent,
-  Clock
+  Clock,
+  Tag
 } from 'lucide-react'
 
 export function Header() {
@@ -166,6 +167,15 @@ export function Header() {
                 <span>New</span>
               </Link>
               <Link
+                href="/#brands-section"
+                onClick={(e) => { e.preventDefault(); navigateToSection('brands-section', '/#brands-section') }}
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+              >
+                <Tag className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>Brand</span>
+              </Link>
+
+              <Link
                 href="/#recommended-section"
                 onClick={(e) => { e.preventDefault(); navigateToSection('recommended-section', '/#recommended-section') }}
                 className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
@@ -246,6 +256,15 @@ export function Header() {
                       <Heart className="h-5 w-5 text-primary" />
                       For You
                     </Link>
+                    <Link
+                      href="/#brands-section"
+                      onClick={(e) => { e.preventDefault(); navigateToSection('brands-section', '/#brands-section') }}
+                      className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 rounded-lg hover:bg-secondary touch-manipulation"
+                    >
+                      <Tag className="h-5 w-5 text-primary" />
+                      Brand
+                    </Link>
+
                     <button
                       onClick={handleScrollToCategories}
                       className="text-base font-medium transition-colors hover:text-primary py-3 px-2 flex items-center gap-3 text-left rounded-lg hover:bg-secondary touch-manipulation"
