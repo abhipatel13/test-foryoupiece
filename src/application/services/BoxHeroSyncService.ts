@@ -348,7 +348,10 @@ export class BoxHeroSyncService {
 
       // Extract category from attributes
       const categoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Category');
-      const brandAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Brand');
+      const brandAttr = boxHeroItem.attrs?.find(attr => {
+        const key = (attr.name || '').toString().trim().toLowerCase();
+        return key === 'brand' || key === 'manufacturer' || key === 'maker';
+      });
       const subCategoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Sub-category');
 
       // Use USD price directly from BoxHero with validation
@@ -376,6 +379,7 @@ export class BoxHeroSyncService {
         is_active: true,
         is_featured: false,
         category_id: categoryId, // Mapped from BoxHero category
+        brand: brandAttr?.value?.toString() || undefined,
         // image_urls intentionally excluded for BoxHero-created products. Images must be uploaded manually via admin.
         tags: [
           categoryAttr?.value?.toString() || '',
@@ -459,6 +463,12 @@ export class BoxHeroSyncService {
       // Map category from BoxHero attributes
       const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
 
+      // Extract brand (case-sensitive 'Brand' attribute)
+      const brandAttr = boxHeroItem.attrs?.find(attr => {
+        const key = (attr.name || '').toString().trim().toLowerCase();
+        return key === 'brand' || key === 'manufacturer' || key === 'maker';
+      });
+
       // Update product with new data (preserving bulk-updated descriptions and images)
       const updatedProduct = Product.fromPersistence({
         ...existingProduct.toPlainObject(),
@@ -468,6 +478,7 @@ export class BoxHeroSyncService {
         name_en: boxHeroItem.name, // Update product names from BoxHero
         name_ja: boxHeroItem.name, // Default to same name, can be manually updated later
         category_id: categoryId, // Update category from BoxHero attributes
+        brand: existingProduct.brand || (brandAttr?.value?.toString() || undefined),
         updated_at: new Date().toISOString(),
         metadata: {
           ...existingProduct.metadata,
