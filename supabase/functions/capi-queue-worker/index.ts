@@ -53,7 +53,7 @@ serve(async (req) => {
   const CAPIG_URL = Deno.env.get('STAPE_CAPIG_URL') || 'https://capig.foryoupiece.com/events'
   const CAPIG_ID = Deno.env.get('STAPE_CAPIG_IDENTIFIER')
   const CAPIG_KEY = Deno.env.get('STAPE_CAPIG_API_KEY')
-  const PIXEL_ID = Deno.env.get('META_PIXEL_ID')
+  const PIXEL_ID = Deno.env.get('META_PIXEL_ID') || Deno.env.get('NEXT_PUBLIC_META_PIXEL_ID')
   const TEST_CODE = Deno.env.get('META_TEST_EVENT_CODE')
 
   if (!CAPIG_ID || !CAPIG_KEY || !PIXEL_ID) {
@@ -124,9 +124,9 @@ serve(async (req) => {
             content_type: 'product'
           }
         }
-        if (TEST_CODE) event.test_event_code = TEST_CODE
-
-        const body = { data: [event], pixel_id: PIXEL_ID }
+        const body: any = { data: [event], pixel_id: PIXEL_ID }
+        if (TEST_CODE) body.test_event_code = TEST_CODE
+        try { console.log('🧪 CAPI Worker debug', { pixelId: PIXEL_ID, capigUrl: CAPIG_URL, event: event.event_name, eventId: event.event_id }); } catch {}
 
         const res = await fetch(CAPIG_URL, {
           method: 'POST',

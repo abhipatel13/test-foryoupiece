@@ -389,6 +389,7 @@ export const useCartStore = create<CartStore>()(
                   price: item.price,
                   quantity: item.quantity,
                   currency,
+                  sourceUrl: typeof window !== 'undefined' ? window.location.href : undefined,
                 })
               }).catch(() => {})
             } catch {}

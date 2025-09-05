@@ -83,6 +83,9 @@ export async function POST(req: NextRequest) {
     const bodyOut: any = { data: [event], pixel_id: PIXEL_ID }
     if (TEST_CODE) bodyOut.test_event_code = TEST_CODE
 
+    // Debug Pixel/endpoint consistency
+    try { console.log('🧪 CAPI AddToCart debug', { pixelId: PIXEL_ID, capigUrl: CAPIG_URL, hasFbp: !!fbp, hasFbc: !!fbc, eventId: event.event_id }); } catch {}
+
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 12_000)
     const res = await fetch(CAPIG_URL, {
