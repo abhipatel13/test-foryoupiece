@@ -157,14 +157,18 @@ export class BoxHeroSyncService {
       console.log('🔄 Fetching BoxHero locations and items...');
       console.log('🔍 Sync options received:', options);
 
-      // Resolve "Instock items" location IDs (exact, case-sensitive)
+      // Resolve "Instock items" location IDs (exact match after trim)
       const locationsRes = await this.boxHeroService.getLocations();
       if (locationsRes.success) {
+        console.log('📍 BoxHero locations:', locationsRes.data.map(l => ({ id: l.id, name: l.name })));
         const inStockIds = locationsRes.data
-          .filter(l => (l.name || '') === 'Instock items')
-          .map(l => l.id);
+          .filter(l => { const n = ((l.name ?? '') + '').trim().replace(/\s+/g, ' ').toLowerCase(); return n === 'instock items'; })
+          .map(l => Number(l.id));
         this.inStockLocationIds = new Set(inStockIds);
         console.log('📍 Instock items location IDs:', Array.from(this.inStockLocationIds));
+        if (this.inStockLocationIds.size === 0) {
+          console.warn('⚠️ No location named exactly "Instock items" found. Stock will be computed as 0 by design.');
+        }
       } else {
         console.warn('⚠️ Failed to fetch BoxHero locations; will treat non-matching locations as 0 stock.');
         this.inStockLocationIds = new Set();
@@ -325,7 +329,7 @@ export class BoxHeroSyncService {
       };
 
       // Try to find existing product by SKU
-      const existingProduct = existingProducts.find(product => 
+      const existingProduct = existingProducts.find(product =>
         product.sku.value === mapping.sku ||
         product.nameEn.toLowerCase() === boxHeroItem.name.toLowerCase()
       );
@@ -371,6 +375,17 @@ export class BoxHeroSyncService {
         },
         0
       );
+
+      // Debug specific product if needed
+      if ((boxHeroItem.name || '').includes('Quality 1st The Derma Mask 7 Sheets')) {
+        console.log('🔎 DEBUG StockCalc (create)', {
+          name: boxHeroItem.name,
+          quantities: boxHeroItem.quantities,
+          inStockLocationIds: Array.from(this.inStockLocationIds),
+          totalStock
+        });
+      }
+
 
       // Extract category from attributes
       const categoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Category');
@@ -472,6 +487,7 @@ export class BoxHeroSyncService {
 
       const existingProduct = existingResult.data;
 
+
       // Calculate stock from "Instock items" location(s) only (no fallback)
       const totalStock = (Array.isArray(boxHeroItem.quantities) ? boxHeroItem.quantities : []).reduce(
         (sum, loc: any) => {
@@ -489,6 +505,17 @@ export class BoxHeroSyncService {
 
       // Map category from BoxHero attributes
       const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
+
+
+      // Debug specific product if needed
+      if ((boxHeroItem.name || '').includes('Quality 1st The Derma Mask 7 Sheets')) {
+        console.log('🔎 DEBUG StockCalc (update)', {
+          name: boxHeroItem.name,
+          quantities: boxHeroItem.quantities,
+          inStockLocationIds: Array.from(this.inStockLocationIds),
+          totalStock
+        });
+      }
 
       // Extract brand (case-sensitive 'Brand' attribute)
       const brandAttr = boxHeroItem.attrs?.find(attr => {
@@ -550,14 +577,18 @@ export class BoxHeroSyncService {
     try {
       console.log('🔄 Starting stock-only sync...');
 
-      // Resolve "Instock items" location IDs (exact, case-sensitive)
+      // Resolve "Instock items" location IDs (exact match after trim)
       const locationsRes = await this.boxHeroService.getLocations();
       if (locationsRes.success) {
+        console.log('📍 BoxHero locations (stock-only):', locationsRes.data.map(l => ({ id: l.id, name: l.name })));
         const inStockIds = locationsRes.data
-          .filter(l => (l.name || '') === 'Instock items')
-          .map(l => l.id);
+          .filter(l => { const n = ((l.name ?? '') + '').trim().replace(/\s+/g, ' ').toLowerCase(); return n === 'instock items'; })
+          .map(l => Number(l.id));
         this.inStockLocationIds = new Set(inStockIds);
         console.log('📍 Instock items location IDs (stock-only):', Array.from(this.inStockLocationIds));
+        if (this.inStockLocationIds.size === 0) {
+          console.warn('⚠️ No location named exactly "Instock items" found (stock-only). Stock will be computed as 0 by design.');
+        }
       } else {
         console.warn('⚠️ Failed to fetch BoxHero locations; will treat non-matching locations as 0 stock.');
         this.inStockLocationIds = new Set();

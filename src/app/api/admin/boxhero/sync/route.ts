@@ -61,9 +61,14 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
         // Get the actual BoxHero metrics by fetching from BoxHero API
         const boxHeroItems = await fetchBoxHeroItems();
         const locations = await fetchBoxHeroLocations();
+        console.log('📍 BoxHero locations (metrics):', (locations || []).map((l: any) => ({ id: l.id, name: l.name })));
         const inStockIds = (locations || [])
-          .filter((l: any) => (l.name || '') === 'Instock items')
+          .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items'; })
           .map((l: any) => Number(l.id));
+        console.log('📍 Instock items location IDs (metrics):', inStockIds);
+        if (inStockIds.length === 0) {
+          console.warn('⚠️ No location named exactly "Instock items" found for metrics aggregation. Total stock will be 0.');
+        }
 
         // Exclude preorder-named products
         const filteredItems = boxHeroItems.filter((it: any) => !/(\(preorder\))\s*$/i.test((it.name || '').trim()));
@@ -216,9 +221,14 @@ async function syncProductStockQuantities(triggeredBy: string) {
 
     // Resolve locations and prepare filter
     const locations = await fetchBoxHeroLocations();
+    console.log('📍 BoxHero locations (update):', (locations || []).map((l: any) => ({ id: l.id, name: l.name })));
     const inStockIds = (locations || [])
-      .filter((l: any) => (l.name || '') === 'Instock items')
+      .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items'; })
       .map((l: any) => Number(l.id));
+    console.log('📍 Instock items location IDs (update):', inStockIds);
+    if (inStockIds.length === 0) {
+      console.warn('⚠️ No location named exactly "Instock items" found for updates. Stock will be set to 0.');
+    }
     const filteredItems = boxHeroItems.filter((it: any) => !/(\(preorder\))\s*$/i.test((it.name || '').trim()));
 
     for (const item of filteredItems) {

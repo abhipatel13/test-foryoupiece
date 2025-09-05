@@ -82,9 +82,14 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
     // Resolve locations and prepare filters
     const locations = await fetchBoxHeroLocations()
+    console.log('\ud83d\udccd BoxHero locations (products):', (locations || []).map((l: any) => ({ id: l.id, name: l.name })))
     const inStockIds = (locations || [])
-      .filter((l: any) => (l.name || '') === 'Instock items')
+      .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items'; })
       .map((l: any) => Number(l.id))
+    console.log('\ud83d\udccd Instock items location IDs (products):', inStockIds)
+    if (inStockIds.length === 0) {
+      console.warn('\u26a0\ufe0f No location named exactly "Instock items" found for product updates. Stock will be set to 0.')
+    }
 
     // Exclude preorder-named products
     const itemsToProcess = boxHeroItems.filter((it: any) => !/(\(preorder\))\s*$/i.test((it.name || '').trim()))
