@@ -122,8 +122,14 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // Try all common header casings used by Stape CAPIG proxies
         'Identifier': CAPIG_ID,
         'API-Key': CAPIG_KEY,
+        'X-Identifier': CAPIG_ID,
+        'X-Api-Key': CAPIG_KEY,
+        'x-identifier': CAPIG_ID,
+        'x-api-key': CAPIG_KEY,
+        'Accept': 'application/json',
       },
       body: JSON.stringify(bodyOut),
       signal: capigController.signal,

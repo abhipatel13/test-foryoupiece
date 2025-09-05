@@ -132,8 +132,16 @@ export default async function RootLayout({
                   }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
 
                   fbq('init', PIXEL_ID);
-                  fbq('track', 'PageView');
-                  if (DEBUG) console.log('Meta Pixel initialized', { PIXEL_ID });
+                  var PV_ID = 'pv_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+                  fbq('track', 'PageView', {}, { eventID: PV_ID });
+                  try {
+                    fetch('/api/analytics/pageview', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ eventId: PV_ID, sourceUrl: (typeof location !== 'undefined' ? location.href : undefined), consent: true })
+                    }).catch(function(){});
+                  } catch(_e) {}
+                  if (DEBUG) console.log('Meta Pixel initialized', { PIXEL_ID, PV_ID });
                 } catch (err) {
                   try { console.error('Meta Pixel init error', err); } catch (_e) {}
                 }
