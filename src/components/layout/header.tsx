@@ -47,6 +47,25 @@ export function Header() {
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
 
+  // Desktop-only floating tooltip state for nav icons
+  const [hoverTip, setHoverTip] = useState<{ label: string; x: number; y: number; visible: boolean }>({ label: '', x: 0, y: 0, visible: false })
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)') // lg breakpoint
+    const update = () => setIsDesktop(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
+  const showNavTooltip = (e: React.MouseEvent<HTMLElement>, label: string) => {
+    if (!isDesktop) return
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setHoverTip({ label, x: rect.left + rect.width / 2, y: rect.bottom + 8, visible: true })
+  }
+  const hideNavTooltip = () => setHoverTip((t) => ({ ...t, visible: false }))
+
   // Use SSR-safe cart store for reactive cart count
   const { getItemCount, isLoading: cartLoading, isHydrated: cartHydrated } = useSSRSafeCartStore()
 
@@ -108,10 +127,10 @@ export function Header() {
 
 
       {/* Mobile-First Responsive Header - Ultra Compact */}
-      <header className="fixed top-0 z-50 w-full modern-header overflow-x-hidden">
+      <header className="fixed top-0 z-[20000] w-full modern-header overflow-x-hidden">
         {/* Main Header Bar - Ultra Compact Mobile Design */}
         <div className="desktop-container">
-          <div className="flex h-12 sm:h-14 lg:h-14 xl:h-16 items-center justify-between min-w-0 gap-1 sm:gap-2 lg:gap-4">
+          <div className="flex h-12 sm:h-14 lg:h-14 xl:h-16 items-center justify-between min-w-0 gap-1 sm:gap-2 lg:gap-2 xl:gap-3">
             {/* Logo - Ultra Compact Mobile */}
             <Link href="/" className="flex items-center space-x-1 sm:space-x-2 lg:space-x-1.5 text-foreground hover:text-primary transition-colors flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded-lg p-0.5 sm:p-1" aria-label="Foryoupiece Home">
               <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-1.5">
@@ -135,7 +154,7 @@ export function Header() {
 
             {/* Enterprise Search Bar - Desktop Optimized */}
             <EnhancedSearch
-              className="hidden lg:flex flex-1 max-w-3xl mx-3 lg:mx-8 xl:mx-10 min-w-0"
+              className="hidden lg:flex flex-1 min-w-0 w-full lg:basis-[clamp(800px,60vw,1200px)] xl:basis-[clamp(1000px,62vw,1400px)] 2xl:basis-[clamp(1200px,64vw,1600px)] mx-2 lg:mx-4 xl:mx-6"
               placeholder="Search for products, brands, categories..."
               showCategoryFilter={true}
             />
@@ -145,43 +164,58 @@ export function Header() {
               <Link
                 href="/#trending-section"
                 onClick={(e) => { e.preventDefault(); navigateToSection('trending-section', '/#trending-section') }}
-                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+                onMouseEnter={(e) => showNavTooltip(e, 'Trending')}
+                onMouseLeave={hideNavTooltip}
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-1.5 px-1 xl:px-2.5 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group relative overflow-visible"
               >
                 <TrendingUp className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>Trending</span>
+                <span className="sr-only">Trending</span>
+                <span aria-hidden="true" className="hidden">Trending</span>
               </Link>
               <Link
                 href="/#deals-section"
                 onClick={(e) => { e.preventDefault(); navigateToSection('deals-section', '/#deals-section') }}
-                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+                onMouseEnter={(e) => showNavTooltip(e, 'Deals')}
+                onMouseLeave={hideNavTooltip}
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-1.5 px-1 xl:px-2.5 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group relative overflow-visible"
               >
                 <Percent className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>Deals</span>
+                <span className="sr-only">Deals</span>
+                <span aria-hidden="true" className="hidden">Deals</span>
               </Link>
               <Link
                 href="/#recently-added-section"
                 onClick={(e) => { e.preventDefault(); navigateToSection('recently-added-section', '/#recently-added-section') }}
-                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+                onMouseEnter={(e) => showNavTooltip(e, 'New')}
+                onMouseLeave={hideNavTooltip}
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-1.5 px-1 xl:px-2.5 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group relative overflow-visible"
               >
                 <Clock className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>New</span>
+                <span className="sr-only">New</span>
+                <span aria-hidden="true" className="hidden">New</span>
               </Link>
               <Link
                 href="/#brands-section"
                 onClick={(e) => { e.preventDefault(); navigateToSection('brands-section', '/#brands-section') }}
-                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+                onMouseEnter={(e) => showNavTooltip(e, 'Brand')}
+                onMouseLeave={hideNavTooltip}
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-1.5 px-1 xl:px-2.5 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group relative overflow-visible"
               >
                 <Tag className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>Brand</span>
+                <span className="sr-only">Brand</span>
+                <span aria-hidden="true" className="hidden">Brand</span>
               </Link>
 
               <Link
                 href="/#recommended-section"
                 onClick={(e) => { e.preventDefault(); navigateToSection('recommended-section', '/#recommended-section') }}
-                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-2 px-2 xl:px-3 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group"
+                onMouseEnter={(e) => showNavTooltip(e, 'For You')}
+                onMouseLeave={hideNavTooltip}
+                className="text-xs xl:text-sm font-semibold text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 py-1.5 px-1 xl:px-2.5 rounded-md flex items-center gap-1 whitespace-nowrap min-h-[44px] touch-manipulation group relative overflow-visible"
               >
                 <Heart className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>For You</span>
+                <span className="sr-only">For You</span>
+                <span aria-hidden="true" className="hidden">For You</span>
               </Link>
             </nav>
 
@@ -304,19 +338,19 @@ export function Header() {
             </Sheet>
 
             {/* Language Switcher - Enhanced */}
-            <div className="hidden xl:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground hover:bg-accent/30 transition-all duration-200 flex-shrink-0 px-3 py-2 rounded-lg">
+            <div className="hidden xl:flex items-center text-muted-foreground text-sm cursor-pointer hover:text-foreground hover:bg-accent/30 transition-all duration-200 flex-shrink-0 px-2 py-1.5 rounded-lg">
               <Globe className="h-4 w-4 mr-2" />
-              <span className="font-semibold">EN</span>
+              <span className="font-semibold hidden 2xl:inline">EN</span>
               <ChevronDown className="h-3 w-3 ml-2" />
             </div>
 
             {/* Notifications moved into Account dropdown per spec - bell hidden */}
 
             {/* Account & Lists - Simple and Fast */}
-            <SimpleAccountDropdown className="flex-shrink-0 min-w-0" />
+            <SimpleAccountDropdown className="flex-shrink-0 min-w-0 max-w-[88px] overflow-hidden xl:max-w-none" />
 
             {/* Ultra Compact Cart - Maximum Visibility on Small Screens */}
-            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-1 sm:px-2 lg:px-4 py-1 sm:py-2 rounded-lg flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[60px] sm:min-w-[80px]" aria-label="View shopping cart">
+            <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-1 sm:px-2 lg:px-3 py-1 sm:py-2 rounded-lg flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[52px] sm:min-w-[64px]" aria-label="View shopping cart">
               <div className="relative mr-1 sm:mr-2">
                 <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 group-hover:scale-105 transition-transform duration-200" aria-hidden="true" />
                 {/* Ultra compact cart badge */}
@@ -327,9 +361,10 @@ export function Header() {
                   >
                     {cartItemCount > 99 ? '99+' : cartItemCount}
                   </Badge>
+
                 )}
               </div>
-              <div className="text-right min-w-0 hidden sm:block">
+              <div className="text-right min-w-0 hidden">
                 <div className="text-xs sm:text-sm text-muted-foreground font-medium">Cart</div>
                 <div className="font-bold text-sm sm:text-base lg:text-lg group-hover:text-primary transition-colors duration-200">
                   {isCartLoading ? (
@@ -356,6 +391,18 @@ export function Header() {
 
 
 
+      {/* Desktop-only floating tooltip (fixed, above all content) */}
+      {isDesktop && hoverTip.visible && (
+        <div
+          className="hidden lg:block pointer-events-none fixed z-[2147483647] px-2 py-1 text-[11px] rounded-md bg-black/90 text-white shadow-lg"
+          style={{ left: hoverTip.x, top: hoverTip.y, transform: 'translateX(-50%)' }}
+          aria-hidden="true"
+        >
+          {hoverTip.label}
+        </div>
+      )}
+
+
       {/* Mobile Search Modal */}
       <Dialog open={showMobileSearch} onOpenChange={setShowMobileSearch}>
         <DialogContent className="top-[5%] translate-y-0 max-w-full h-auto max-h-[90vh] sm:max-w-lg sm:h-auto sm:top-[50%] sm:translate-y-[-50%] md:top-[20%] md:h-auto p-2 sm:p-6">
@@ -366,6 +413,7 @@ export function Header() {
             <EnhancedSearch
               className="w-full"
               placeholder="Search for products..."
+
               showCategoryFilter={true}
               autoFocus
               onSearch={(query, category) => {

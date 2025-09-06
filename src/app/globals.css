@@ -620,6 +620,21 @@ input, textarea, select {
       align-items: center; /* ensure children are vertically centered */
     }
 
+    /* Expand clickable area and improve cursor behavior on desktop */
+    .modern-search-bar {
+      cursor: text;
+      padding-left: 0.375rem; /* 6px */
+      padding-right: 0.375rem; /* 6px */
+    }
+
+    .modern-search-bar button,
+    .modern-search-bar [role="button"],
+    .modern-search-bar [data-slot="button"],
+    .modern-search-bar [data-slot="dropdown-menu-trigger"] {
+      cursor: pointer;
+    }
+
+
     /* Enforce consistent heights for all direct children */
     .modern-search-bar > [data-slot="button"],
     .modern-search-bar > [data-slot="dropdown-menu-trigger"],
@@ -2825,4 +2840,20 @@ input, textarea, select {
   }
 
 
+}
+
+
+/* Header-only container width overrides to allow a substantially wider desktop search bar while preserving overall site container widths */
+@media (min-width: 1024px) {
+  header.modern-header .desktop-container { max-width: 1360px; }
+}
+@media (min-width: 1280px) {
+  header.modern-header .desktop-container { max-width: 1520px; }
+}
+@media (min-width: 1536px) {
+  header.modern-header .desktop-container { max-width: 1720px; }
+}
+
+@media (min-width: 1024px) {
+  header.modern-header .desktop-container { padding-left: 8px; padding-right: 8px; }
 }

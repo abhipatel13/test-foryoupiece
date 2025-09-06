@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, CreditCard, Heart, Gift, Truck, Shield, Star, RefreshCw, AlertTriangle } from 'lucide-react'
+import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, CreditCard, Heart, Truck, Shield, Star, RefreshCw, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { PointsRedemption } from '@/components/cart/points-redemption'
 import { CouponInput } from '@/components/cart/coupon-input'
@@ -502,12 +502,6 @@ export default function CartPage() {
                               </div>
                             )}
 
-                            {/* Gift Option - Subtle */}
-                            <div className="flex items-center space-x-1.5 text-xs text-gray-500">
-                              <Checkbox className="cart-checkbox" />
-                              <Gift className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                              <span>This is a gift</span>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -885,17 +879,6 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {/* Gift Option - Enhanced UX */}
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                  <Checkbox id="gift-option" aria-describedby="gift-description" className="cart-checkbox" />
-                  <Gift className="h-4 w-4 text-gray-500" />
-                  <label htmlFor="gift-option" className="text-sm text-gray-700 cursor-pointer flex-1">
-                    <span className="font-medium">This order contains a gift</span>
-                    <span id="gift-description" className="block text-xs text-gray-500 mt-0.5">
-                      Gift wrapping and message options will be available at checkout
-                    </span>
-                  </label>
-                </div>
 
                 {/* Desktop-Only: Coupon Input - Hidden on mobile, moved to main flow */}
                 <div className="hidden lg:block lg:border-t lg:border-gray-200 lg:pt-4">

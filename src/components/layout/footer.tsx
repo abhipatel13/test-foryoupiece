@@ -64,7 +64,7 @@ export function Footer() {
                 <Facebook className="h-5 w-5" />
               </Link>
               <Link
-                href="https://t.me/foryoupiece_support"
+                href="https://t.me/m/zDsQTcg4MDJl"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-secondary"

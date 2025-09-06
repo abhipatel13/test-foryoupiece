@@ -294,11 +294,9 @@ export function EnhancedSearch({
   const hasSuggestions = suggestions.length > 0
   const hasHistory = searchHistory.length > 0 && showHistory
 
-  // Show dropdown if:
-  // 1. Input is focused (isOpen) AND has content to show, OR
-  // 2. User is actively searching (query >= 2 chars) AND has suggestions/results
-  const shouldShowDropdown = (isOpen && (hasResults || hasSuggestions || hasHistory)) ||
-                             (query.length >= 2 && (hasResults || hasSuggestions))
+  // Show dropdown only when explicitly open and there is content to display
+  // This ensures clicking outside (which sets isOpen=false) always hides it
+  const shouldShowDropdown = isOpen && (hasResults || hasSuggestions || hasHistory)
 
   // DEBUG: Log dropdown visibility conditions
   console.log('🔍 Search dropdown debug:', {
@@ -317,17 +315,28 @@ export function EnhancedSearch({
   return (
     <div ref={searchRef} className={cn("relative w-full", className)}>
       <form
+        role="search"
+        aria-label="Site search"
         onSubmit={(e) => {
           e.preventDefault()
           handleSearch(query)
         }}
-        className="flex modern-search-bar overflow-hidden shadow-md w-full min-w-0 border border-border/50 hover:border-border focus-within:border-primary/50 focus-within:shadow-lg transition-all duration-300"
+        onMouseDown={(e) => {
+          const el = e.target as HTMLElement
+          const isInteractive = el.closest('button,[role="button"],[aria-haspopup="menu"]')
+          if (!isInteractive && inputRef.current) {
+            e.preventDefault()
+            inputRef.current.focus()
+          }
+        }}
+        className="flex modern-search-bar overflow-hidden shadow-md w-full min-w-0 border border-border/50 hover:border-border focus-within:border-primary/50 focus-within:shadow-lg transition-all duration-300 lg:cursor-text lg:px-1.5 relative z-30"
       >
         {/* Category Dropdown */}
         {showCategoryFilter && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                data-slot="dropdown-menu-trigger"
                 variant="ghost"
                 className="h-11 px-3 sm:px-4 lg:px-6 bg-muted/30 hover:bg-muted/50 text-foreground border-r border-border/30 rounded-none rounded-l-lg flex-shrink-0 cursor-pointer transition-all duration-200 hover:shadow-sm font-medium"
               >
@@ -354,6 +363,7 @@ export function EnhancedSearch({
 
         {/* Search Input */}
         <Input
+          data-slot="input"
           ref={inputRef}
           type="text"
           placeholder={placeholder}
@@ -412,11 +422,12 @@ export function EnhancedSearch({
             }
           }}
           onFocus={handleInputFocus}
-          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground/70 lg:placeholder:text-foreground/80 lg:placeholder:opacity-90 w-full min-w-0 text-sm lg:text-base px-4 lg:px-5 font-medium"
+          className="flex-1 h-11 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-background text-foreground placeholder:text-muted-foreground/70 lg:placeholder:text-foreground/80 lg:placeholder:opacity-90 w-full min-w-0 text-sm lg:text-base px-4 lg:px-5 font-medium caret-primary selection:bg-primary/20"
         />
 
         {/* Search Button */}
         <Button
+          data-slot="button"
           type="submit"
           disabled={isLoading}
           className="h-11 px-4 lg:px-5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-none rounded-r-lg flex-shrink-0 cursor-pointer transition-all duration-200 hover:shadow-md font-semibold"

@@ -102,7 +102,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-        <div className="hidden sm:block">
+        <div className="hidden">
           <div className="h-4 w-24 bg-muted animate-pulse rounded mb-1" />
           <div className="h-3 w-20 bg-muted animate-pulse rounded" />
         </div>
@@ -129,7 +129,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <Skeleton className="h-8 w-8 rounded-full" />
-        <div className="hidden sm:block">
+        <div className="hidden">
           <Skeleton className="h-4 w-24 mb-1" />
           <Skeleton className="h-3 w-20" />
         </div>
@@ -166,7 +166,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
           </AvatarFallback>
         </Avatar>
         
-        <div className="hidden sm:block text-left min-w-0">
+        <div className="hidden text-left min-w-0">
           <div className="text-sm font-medium truncate">
             Hello, {userDisplayData.name.split(' ')[0]}
           </div>

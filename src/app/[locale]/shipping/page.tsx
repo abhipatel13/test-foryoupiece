@@ -99,7 +99,7 @@ export default function ShippingInfoPage() {
     {
       name: 'Telegram',
       icon: Send,
-      url: 'https://t.me/foryoupiece_support',
+      url: 'https://t.me/m/zDsQTcg4MDJl',
       description: 'Direct messaging for shipping questions and order updates',
       color: 'bg-blue-500 text-white hover:bg-blue-600',
       badge: 'Direct',

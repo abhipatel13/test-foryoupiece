@@ -48,7 +48,7 @@ export default function HelpCenterPage() {
     {
       name: 'Telegram',
       icon: Send,
-      url: 'https://t.me/foryoupiece_support',
+      url: 'https://t.me/m/zDsQTcg4MDJl',
       description: 'Get instant support and real-time assistance from our team',
       color: 'bg-blue-500 text-white hover:bg-blue-600',
       badge: 'Live Support'
