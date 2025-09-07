@@ -10,11 +10,40 @@ import { callOpenRouter, type LLMMessage } from '@/lib/llm/openrouter'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 // --- Config ---
-const BOT_TOKEN = (process.env.TELEGRAM_QUERIESBOT_TOKEN || process.env.TELEGRAM_QUERIES_BOT_TOKEN || '').trim()
-const ADMIN_GROUP_ID = (process.env.ADMIN_GROUP_ID || '').trim()
-const ADMIN_THREAD_ID = (process.env.ADMIN_THREAD_ID || '').trim()
-const TEAM_GROUP_ID = (process.env.TEAM_GROUP_ID || '').trim()
-const TEAM_THREAD_ID = (process.env.TEAM_THREAD_ID || '').trim()
+// Bot token precedence (accept multiple env names to avoid misconfiguration):
+// 1) TELEGRAM_STAFF_HELPER_BOT_TOKEN (preferred)
+// 2) TELEGRAM_QUERIESBOT_TOKEN / TELEGRAM_QUERIES_BOT_TOKEN (legacy)
+// 3) TELEGRAM_BOT_TOKEN (fallback if a single bot is used)
+const BOT_TOKEN = (
+  process.env.TELEGRAM_STAFF_HELPER_BOT_TOKEN ||
+  process.env.TELEGRAM_QUERIESBOT_TOKEN ||
+  process.env.TELEGRAM_QUERIES_BOT_TOKEN ||
+  process.env.TELEGRAM_BOT_TOKEN ||
+  ''
+).trim()
+
+// Allowed threads (support STAFF_HELPER_* overrides). Thread IDs default to 1519/1521 per spec.
+const ADMIN_GROUP_ID = (
+  process.env.STAFF_HELPER_ADMIN_GROUP_ID ||
+  process.env.ADMIN_GROUP_ID ||
+  ''
+).trim()
+const ADMIN_THREAD_ID = (
+  process.env.STAFF_HELPER_ADMIN_THREAD_ID ||
+  process.env.ADMIN_THREAD_ID ||
+  '1519'
+).trim()
+const TEAM_GROUP_ID = (
+  process.env.STAFF_HELPER_TEAM_GROUP_ID ||
+  process.env.TEAM_GROUP_ID ||
+  ''
+).trim()
+const TEAM_THREAD_ID = (
+  process.env.STAFF_HELPER_TEAM_THREAD_ID ||
+  process.env.TEAM_THREAD_ID ||
+  '1521'
+).trim()
+
 const WEBHOOK_SECRET = (process.env.TELEGRAM_WEBHOOK_SECRET || 'foryoupiece-webhook-secret').trim()
 const OPENROUTER_ENABLED = !!process.env.OPENROUTER_API_KEY
 
@@ -189,8 +218,189 @@ function pickFields(p: any) {
     brand: p.brand,
     tags: p.tags,
     category: p.category?.name_en,
+    category_slug: p.category?.slug,
+    description: (p.short_description_en || p.description_en || '').slice(0, 140)
   }
 }
+
+// Enhanced search that can also fetch suggestions
+async function searchApi(baseUrl: string, q: string, opts?: { limit?: number, includeSuggestions?: boolean, category?: string }) {
+  const url = new URL('/api/search', baseUrl)
+  url.searchParams.set('q', q)
+  url.searchParams.set('limit', String(opts?.limit ?? 20))
+  if (opts?.includeSuggestions) url.searchParams.set('include_suggestions', 'true')
+  if (opts?.category) url.searchParams.set('category', opts.category)
+  const resp = await fetch(url.toString(), { method: 'GET' })
+  if (!resp.ok) return { products: [] as any[], suggestions: [] as any[] }
+  const json: any = await resp.json().catch(() => ({}))
+  return {
+    products: (json?.data?.products || []) as any[],
+    suggestions: (json?.data?.suggestions || []) as any[]
+  }
+}
+
+function dedupeByIdSku(items: any[]) {
+  const seen = new Set<string>()
+  const out: any[] = []
+  for (const p of items) {
+    const key = String(p.id || '') + '|' + String(p.sku || '')
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(p)
+  }
+  return out
+}
+// --- Lightweight relevance scoring / re-ranking ---
+function buildQueryTokens(q: string) {
+  const norm = q.toLowerCase()
+    .replace(/\bbotonist\b/g, 'botanist')
+    .replace(/sham+poo/g, 'shampoo')
+    .replace(/condit+ioner/g, 'conditioner')
+  return norm.split(/[^a-z0-9]+/).filter(Boolean).slice(0, 8)
+}
+
+const BRAND_PRIORITY = ['botanist','tsubaki','shiseido','senka','nivea','curel','melano','kose','kosé','naturie','orbis','kao','dove']
+
+function relevanceScore(p: any, q: string, catHint?: string) {
+  const hay = `${String(p.name||'')} ${String(p.brand||'')} ${(p.tags||[]).join(' ')} ${String(p.category||'')}`.toLowerCase()
+  const toks = buildQueryTokens(q)
+  let score = 0
+  for (const t of toks) {
+    if (hay.includes(t)) score += 2
+  }
+  // brand boost
+  const hayBrand = hay
+  for (const b of BRAND_PRIORITY) {
+    if (hayBrand.includes(b)) score += 1
+  }
+  // category alignment boost / penalty
+  if (catHint && p.category_slug === catHint) score += 3
+  if (catHint === 'skincare') {
+    const badCats = new Set(['home','food-beverage'])
+    if (badCats.has(String(p.category_slug||''))) score -= 4
+  }
+  // slight discount boost if compare_at_price > price
+  if (Number(p.compare_at_price) > Number(p.price)) score += 1
+  return score
+}
+
+
+function detectCategorySlug(text: string): string | undefined {
+  const t = text.toLowerCase()
+  // quick fuzzy hints
+  if (/(sham|condit)/.test(t)) return 'hair'
+
+  const pairs: Array<[string[], string]> = [
+    [["dry skin","moisturizer","serum","mask","acne","cleanser","toner","cream","moist","hydrate"], 'skincare'],
+    [["hair","shampoo","conditioner","treatment","mask","oil"], 'hair'],
+    [["body wash","soap","deodorant","body","lotion"], 'bath-body'],
+    [["mouth","oral","tooth","dental","mouthwash","toothpaste"], 'health-personal-care'],
+    [["makeup","lip","mascara","foundation","concealer","blush","eyeliner"], 'makeup'],
+    [["home","cleaner","mold","kitchen","bathroom"], 'home']
+  ]
+  for (const [keys, slug] of pairs) {
+    if (keys.some(k => t.includes(k))) return slug
+  }
+  return undefined
+}
+
+async function fetchRecommendations(baseUrl: string, opts?: { categorySlug?: string, limit?: number }) {
+  const url = new URL('/api/recommendations', baseUrl)
+  url.searchParams.set('limit', String(opts?.limit ?? 3))
+  url.searchParams.set('in_stock_only', 'true')
+  url.searchParams.set('diversify', 'true')
+  url.searchParams.set('include_discounts', 'true')
+  if (opts?.categorySlug) url.searchParams.set('category_slug', opts.categorySlug)
+  const resp = await fetch(url.toString(), { method: 'GET' })
+  if (!resp.ok) return [] as any[]
+  const json: any = await resp.json().catch(() => ({}))
+  return (json?.data || []) as any[]
+}
+
+async function fuzzyCollectCandidates(baseUrl: string, q: string) {
+  // 1) primary search
+  const primary = await searchApi(baseUrl, q, { limit: 50 })
+  let products = primary.products
+  if (products?.length) return dedupeByIdSku(products)
+
+  // 2) suggestions-assisted retries
+  const withSug = await searchApi(baseUrl, q, { limit: 10, includeSuggestions: true })
+  const suggestionTexts = (withSug.suggestions || []).map((s: any) => String(s.suggestion_text || '')).filter(Boolean)
+  for (const s of suggestionTexts.slice(0, 5)) {
+    const r = await searchApi(baseUrl, s, { limit: 30 })
+    products = [...products, ...(r.products || [])]
+    if (products.length >= 3) break
+  }
+  if (products.length) return dedupeByIdSku(products)
+
+  // 3) token partials (simple fuzzy fallback)
+  const tokens = q.split(/\s+/).filter(w => w.length >= 3).slice(0, 4)
+  for (const t of tokens) {
+    const r = await searchApi(baseUrl, t, { limit: 20 })
+    products = [...products, ...(r.products || [])]
+    if (products.length >= 3) break
+  }
+  return dedupeByIdSku(products)
+}
+
+function formatProductLine(p: any, base: string) {
+  const price = `$${Number(p.price || 0).toFixed(2)}`
+  const was = (p.compare_at_price && p.compare_at_price > p.price) ? ` (was $${Number(p.compare_at_price).toFixed(2)})` : ''
+  const stock = `Stock: ${Number(p.stock_quantity || 0)}`
+  const link = productLink(base, p.sku, p.id)
+  const desc = p.description ? ` — ${p.description}` : ''
+  return `• ${p.name} — ${price}${was} — ${stock} — ${link}${desc ? `\n   ${desc}` : ''}`
+}
+
+async function buildProactiveProductReply(baseUrl: string, userText: string): Promise<string | null> {
+  const candidates = await fuzzyCollectCandidates(baseUrl, userText)
+  const catHint = detectCategorySlug(userText)
+  let mapped = candidates.map(pickFields)
+
+  if (catHint) {
+    const kw = ['skin','face','serum','lotion','cream','moist','hydrate','mask','toner','cleanser','cleansing','face wash','hyaluronic','ceramide']
+    const reg = new RegExp(kw.join('|'), 'i')
+    mapped = mapped.filter(p => p.category_slug === catHint || (catHint === 'skincare' && reg.test(`${p.name} ${(p.tags||[]).join(' ')}`)))
+    // Final guard for skincare to avoid off-topic cleaners
+    if (catHint === 'skincare') {
+      const strongReg = /(serum|lotion|cream|moist|hydrate|mask|toner|cleanser|cleansing|face wash)/i
+      mapped = mapped.filter(p => p.category_slug === 'skincare' || strongReg.test(`${p.name} ${(p.tags||[]).join(' ')}`))
+    }
+  }
+
+  if (mapped.length >= 1) {
+    // Prefer in-stock first, then lower price
+    const sorted = [...mapped].sort((a, b) => {
+      const rb = relevanceScore(b, userText, catHint)
+      const ra = relevanceScore(a, userText, catHint)
+      if (rb !== ra) return rb - ra
+      const aIn = Number(a.stock_quantity) > 0 ? 1 : 0
+      const bIn = Number(b.stock_quantity) > 0 ? 1 : 0
+      if (bIn !== aIn) return bIn - aIn
+      return Number(a.price) - Number(b.price)
+    })
+    const top3 = sorted.slice(0, 3)
+    const lines = top3.map(p => formatProductLine(p, baseUrl))
+    const preface = mapped.length > 1
+      ? `I found a few options — would any of these work?`
+      : `Here’s a good match — would this work for you?`
+    return `${preface}\n${lines.join('\n')}\nData checked: ${nowJST()}`
+  }
+
+  // Category-based fallback recommendations
+  const cat = detectCategorySlug(userText)
+  const recs = await fetchRecommendations(baseUrl, { categorySlug: cat, limit: 3 })
+  if (recs?.length) {
+    const lines = recs.slice(0, 3).map((p: any) => formatProductLine(pickFields(p), baseUrl))
+    const pre = cat
+      ? `I couldn’t find an exact match. I found these related ${cat.replace('-', ' ')} picks — does this help?`
+      : `I couldn’t find an exact match. I found these related picks — does this help?`
+    return `${pre}\n${lines.join('\n')}\nData checked: ${nowJST()}`
+  }
+
+  return null
+}
+
 
 // --- LLM helper (use OpenRouter for all intents when enabled) ---
 async function buildLLMReply(params: {
@@ -222,7 +432,7 @@ async function buildLLMReply(params: {
     'You are ForYouPiece Staff Helper Bot. Answer in concise, professional English.',
     'Follow business rules: No taxes. $1.50 fixed shipping; free shipping for 4+ items.',
     'If product context is provided, use it. Prefer in-stock items; mention savings if compare_at_price > price.',
-    'When uncertain, ask a short clarifying question instead of hallucinating.',
+    'When uncertain, do not ask clarifying questions. Propose up to 3 concrete product suggestions with price, stock, and direct links, using tentative phrasing like "Would this work for you?".',
   ].join(' ')
 
   const messages: LLMMessage[] = [
@@ -367,6 +577,20 @@ export async function handleStaffHelperUpdate(args: {
     return { handled: true }
   }
 
+  // Proactive product suggestions for most user queries (runs before LLM)
+  if (intent !== 'order_confirmation') {
+    try {
+      const proactive = await buildProactiveProductReply(baseUrl, text)
+      if (proactive) {
+        await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: proactive })
+        await pushMemoryAsync(chatId, threadId, 'assistant', proactive)
+        return { handled: true }
+      }
+    } catch (e: any) {
+      console.error('[StaffHelper] proactive suggestion path failed', { message: e?.message })
+    }
+  }
+
   // Use OpenRouter for intelligent responses for all other intents when enabled
   if (OPENROUTER_ENABLED) {
     try {
@@ -407,16 +631,27 @@ export async function handleStaffHelperUpdate(args: {
     }
 
     if (mapped.length > 1) {
-      const candidates = mapped.slice(0, 5)
-      const lines = candidates.map((p, i) => `${i + 1}) ${p.name} — $${p.price.toFixed(2)} — Stock: ${p.stock_quantity}`)
-      reply = `I found multiple matches. Please choose (1-${candidates.length}):\n${lines.join('\n')}\nData checked: ${nowJST()}`
+      const catHint2 = detectCategorySlug(text)
+      const sorted = [...mapped].sort((a, b) => {
+        const rb = relevanceScore(b, text, catHint2)
+        const ra = relevanceScore(a, text, catHint2)
+        if (rb !== ra) return rb - ra
+        const aIn = Number(a.stock_quantity) > 0 ? 1 : 0
+        const bIn = Number(b.stock_quantity) > 0 ? 1 : 0
+        if (bIn !== aIn) return bIn - aIn
+        return Number(a.price) - Number(b.price)
+      })
+      const top = sorted.slice(0, 3)
+      const lines = top.map(p => formatProductLine(p, siteBase))
+      reply = `I found a few options — would any of these work?\n${lines.join('\n')}\nData checked: ${nowJST()}`
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
       await pushMemoryAsync(chatId, threadId, 'assistant', reply)
       return { handled: true }
     }
 
     const p = mapped[0]
-    reply = `${p.name} | Price: $${p.price.toFixed(2)} | Stock: ${p.stock_quantity} | Link: ${productLink(siteBase, p.sku, p.id)}\nData checked: ${nowJST()}`
+    const line = formatProductLine(p, siteBase)
+    reply = `Here’s a good match — would this work for you?\n${line}\nData checked: ${nowJST()}`
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
     await pushMemoryAsync(chatId, threadId, 'assistant', reply)
     return { handled: true }
