@@ -57,6 +57,7 @@ export async function callOpenRouter(
     const data: any = await resp.json();
     const out = data?.choices?.[0]?.message?.content as string | undefined;
     if (!out) return { success: false, error: 'No completion' };
+    try { console.info('[OpenRouter] ok', { model: modelId, outLen: (out || '').length }); } catch {}
     return { success: true, text: out };
   } catch (e: any) {
     console.error('OpenRouter call failed', { message: e?.message });

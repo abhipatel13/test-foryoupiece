@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { handleStaffHelperUpdate, validateWebhook } from '@/lib/telegram/staff-helper'
+export const runtime = 'nodejs'
+
 
 /**
  * Staff Helper Telegram Webhook

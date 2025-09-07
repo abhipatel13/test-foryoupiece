@@ -10,12 +10,12 @@ import { callOpenRouter, type LLMMessage } from '@/lib/llm/openrouter'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 // --- Config ---
-const BOT_TOKEN = process.env.TELEGRAM_QUERIESBOT_TOKEN || process.env.TELEGRAM_QUERIES_BOT_TOKEN || ''
-const ADMIN_GROUP_ID = process.env.ADMIN_GROUP_ID || ''
-const ADMIN_THREAD_ID = process.env.ADMIN_THREAD_ID || ''
-const TEAM_GROUP_ID = process.env.TEAM_GROUP_ID || ''
-const TEAM_THREAD_ID = process.env.TEAM_THREAD_ID || ''
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'foryoupiece-webhook-secret'
+const BOT_TOKEN = (process.env.TELEGRAM_QUERIESBOT_TOKEN || process.env.TELEGRAM_QUERIES_BOT_TOKEN || '').trim()
+const ADMIN_GROUP_ID = (process.env.ADMIN_GROUP_ID || '').trim()
+const ADMIN_THREAD_ID = (process.env.ADMIN_THREAD_ID || '').trim()
+const TEAM_GROUP_ID = (process.env.TEAM_GROUP_ID || '').trim()
+const TEAM_THREAD_ID = (process.env.TEAM_THREAD_ID || '').trim()
+const WEBHOOK_SECRET = (process.env.TELEGRAM_WEBHOOK_SECRET || 'foryoupiece-webhook-secret').trim()
 const OPENROUTER_ENABLED = !!process.env.OPENROUTER_API_KEY
 
 // Catalog base: allow override; otherwise derive per-request from host
@@ -107,8 +107,20 @@ function getMemory(chatId: number, threadId?: number) {
 
 // --- Telegram helpers ---
 export function validateWebhook(headers: Headers, bodyText: string) {
-  const token = headers.get('x-telegram-bot-api-secret-token')
-  return !WEBHOOK_SECRET || token === WEBHOOK_SECRET
+  const token = (headers.get('x-telegram-bot-api-secret-token') || '').trim()
+  const isProd = process.env.NODE_ENV === 'production'
+  const devAlt = process.env.DEV_TELEGRAM_WEBHOOK_SECRET || 'foryoupiece-secure-webhook-2025'
+  const ok = (!WEBHOOK_SECRET) || token === WEBHOOK_SECRET || (!isProd && token === devAlt)
+  if (!ok) {
+    try {
+      console.error('[StaffHelper] webhook unauthorized', {
+        providedLen: String(token || '').length,
+        expectedLen: String(WEBHOOK_SECRET || '').length,
+        envHasSecret: Boolean(WEBHOOK_SECRET),
+      })
+    } catch {}
+  }
+  return ok
 }
 
 export async function sendTelegramMessage(params: {
@@ -117,18 +129,27 @@ export async function sendTelegramMessage(params: {
   text: string,
   parse_mode?: 'HTML' | 'Markdown' | 'MarkdownV2'
 }) {
-  if (!BOT_TOKEN) return { ok: false, error: 'No bot token' }
-  const url = `${TELEGRAM_API}${BOT_TOKEN}/sendMessage`
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params)
-  })
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '')
-    return { ok: false, error: `HTTP ${resp.status}`, detail: txt.slice(0, 200) }
+  if (!BOT_TOKEN) {
+    console.error('[StaffHelper] sendTelegramMessage: missing BOT_TOKEN')
+    return { ok: false, error: 'No bot token' }
   }
-  return { ok: true }
+  const url = `${TELEGRAM_API}${BOT_TOKEN}/sendMessage`
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    })
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '')
+      console.error('[StaffHelper] Telegram send failed', { status: resp.status, detail: txt?.slice(0, 200) })
+      return { ok: false, error: `HTTP ${resp.status}`, detail: txt.slice(0, 200) }
+    }
+    return { ok: true }
+  } catch (e: any) {
+    console.error('[StaffHelper] Telegram send error', { message: e?.message })
+    return { ok: false, error: e?.message || 'fetch error' }
+  }
 }
 
 // --- Intent classification ---
@@ -169,6 +190,51 @@ function pickFields(p: any) {
     tags: p.tags,
     category: p.category?.name_en,
   }
+}
+
+// --- LLM helper (use OpenRouter for all intents when enabled) ---
+async function buildLLMReply(params: {
+  intent: string,
+  text: string,
+  chatId: number,
+  threadId?: number,
+  baseUrl: string,
+}): Promise<string | null> {
+  if (!OPENROUTER_ENABLED) return null
+  const { intent, text, chatId, threadId, baseUrl } = params
+
+  const mem = await getMemoryAsync(chatId, threadId)
+
+  // For product-related intents, fetch compact product context (top 5)
+  let productContext = ''
+  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation') {
+    try {
+      const { products } = await catalogSearch(baseUrl, text, 20)
+      const mapped = products.map(pickFields).slice(0, 5)
+      if (mapped.length) {
+        const items = mapped.map((p, i) => `${i + 1}) ${p.name} — $${p.price.toFixed(2)}${p.compare_at_price && p.compare_at_price > p.price ? ` (was $${p.compare_at_price.toFixed(2)})` : ''} — Stock: ${p.stock_quantity} — SKU: ${p.sku}`).join('\n')
+        productContext = `\nProduct candidates (top ${mapped.length}):\n${items}`
+      }
+    } catch {}
+  }
+
+  const system = [
+    'You are ForYouPiece Staff Helper Bot. Answer in concise, professional English.',
+    'Follow business rules: No taxes. $1.50 fixed shipping; free shipping for 4+ items.',
+    'If product context is provided, use it. Prefer in-stock items; mention savings if compare_at_price > price.',
+    'When uncertain, ask a short clarifying question instead of hallucinating.',
+  ].join(' ')
+
+  const messages: LLMMessage[] = [
+    { role: 'system', content: system + (productContext ? `\n${productContext}` : '') },
+    ...mem.map(t => ({ role: t.role, content: t.text })) as LLMMessage[],
+    { role: 'user', content: text },
+  ]
+
+  const llm = await callOpenRouter(messages, { max_tokens: 400 })
+  if (!llm.success) return null
+  const out = (llm.text || '').trim()
+  return out ? out.slice(0, 1800) : null
 }
 
 function productLink(base: string, sku?: string, id?: string) {
@@ -246,6 +312,7 @@ function extractOrderFields(text: string) {
 }
 
 // --- Core handler ---
+
 export async function handleStaffHelperUpdate(args: {
   body: any,
   requestUrl: string,
@@ -268,7 +335,15 @@ export async function handleStaffHelperUpdate(args: {
   ) || (
     String(chatId) === TEAM_GROUP_ID && String(threadId) === TEAM_THREAD_ID
   )
-  if (!allowed) return { handled: false, reason: 'Not in allowed thread' }
+  if (!allowed) {
+    try {
+      console.error('[StaffHelper] not allowed thread', {
+        chatId: String(chatId), threadId: String(threadId),
+        ADMIN_GROUP_ID, ADMIN_THREAD_ID, TEAM_GROUP_ID, TEAM_THREAD_ID
+      })
+    } catch {}
+    return { handled: false, reason: 'Not in allowed thread' }
+  }
 
   if (!text || !text.trim()) return { handled: true }
 
@@ -292,6 +367,20 @@ export async function handleStaffHelperUpdate(args: {
     return { handled: true }
   }
 
+  // Use OpenRouter for intelligent responses for all other intents when enabled
+  if (OPENROUTER_ENABLED) {
+    try {
+      const ai = await buildLLMReply({ intent, text, chatId, threadId, baseUrl })
+      if (ai) {
+        await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: ai })
+        await pushMemoryAsync(chatId, threadId, 'assistant', ai)
+        return { handled: true }
+      }
+    } catch (e: any) {
+      console.error('[StaffHelper] OpenRouter path failed; falling back', { message: e?.message })
+    }
+  }
+
   if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation') {
     // Use search q as-is; handle ambiguity
     const { products } = await catalogSearch(baseUrl, text, 50)
@@ -305,6 +394,8 @@ export async function handleStaffHelperUpdate(args: {
 
     // For recommendation: sort by current price asc (consider discounts already in price)
     if (intent === 'recommendation') {
+
+
       const top = [...mapped]
         .sort((a, b) => a.price - b.price)
         .slice(0, 3)
