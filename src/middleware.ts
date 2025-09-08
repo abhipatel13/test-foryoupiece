@@ -80,7 +80,7 @@ export default async function middleware(request: NextRequest) {
   // Build CSP header value (nonce-based, no 'unsafe-inline' or 'unsafe-eval' in prod)
   const cspValue = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live ${isDev ? "'unsafe-eval'" : ''}`.trim(),
+    `script-src 'self' 'nonce-${nonce}' blob: https://accounts.google.com https://apis.google.com https://connect.facebook.net https://static.xx.fbcdn.net https://telegram.org https://vercel.live ${isDev ? "'unsafe-eval'" : ''}`.trim(),
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
@@ -112,7 +112,7 @@ export default async function middleware(request: NextRequest) {
   })
   supabaseResponse.headers.set('Content-Security-Policy', cspValue)
   supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
-  supabaseResponse.headers.set('X-Frame-Options', 'DENY')
+  supabaseResponse.headers.set('X-Frame-Options', 'SAMEORIGIN')
   supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
   supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
@@ -292,7 +292,7 @@ export default async function middleware(request: NextRequest) {
   // Ensure CSP and core security headers are present on intl response
   intlResponse.headers.set('Content-Security-Policy', cspValue)
   intlResponse.headers.set('X-Content-Type-Options', 'nosniff')
-  intlResponse.headers.set('X-Frame-Options', 'DENY')
+  intlResponse.headers.set('X-Frame-Options', 'SAMEORIGIN')
   intlResponse.headers.set('X-XSS-Protection', '1; mode=block')
   intlResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 

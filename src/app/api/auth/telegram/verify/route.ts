@@ -216,6 +216,26 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     // Create synthetic email for Telegram users
     const syntheticEmail = `tg_${authData.id}@telegram.foryoupiece.local`
 
+
+    // Fast-path: if a valid session already exists for this Telegram user, skip session creation
+    try {
+      const { data: currentUserData } = await supabaseSSR.auth.getUser()
+      const currentUser = currentUserData?.user
+      const tgIdNum = parseInt(authData.id)
+      const isSameTelegramUser = !!(
+        currentUser?.email === syntheticEmail ||
+        (currentUser?.user_metadata && (currentUser.user_metadata as any).telegram_id === tgIdNum)
+      )
+
+      if (currentUser && isSameTelegramUser) {
+        console.log('⏩ Existing session detected for Telegram user; skipping session creation')
+        const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
+        return NextResponse.redirect(redirectUrl)
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed fast-path session check (non-fatal). Proceeding with normal flow.', e)
+    }
+
     // TEMPORARILY DISABLED: New user redirect to broken deep-link flow
     // The widget flow is sophisticated enough to handle new users
     // try {
@@ -732,59 +752,70 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
 
     const sessionUserId = sessionData.session.user.id
 
-    // 4) Create profile on first login; update thereafter to avoid firing BEFORE INSERT trigger
-    //    that creates a welcome-bonus transaction. Using UPSERT caused the INSERT part of
-    //    ON CONFLICT to run its BEFORE INSERT trigger on every login, duplicating history.
-    let isNewProfile = false
-    const { data: existingProfile } = await supabaseAdmin
+    // 4) Create profile on first login; on subsequent logins, only update if something changed
+    console.time('profile-sync')
+    const { data: existingProfile } = await (supabaseAdmin as any)
       .from('users')
-      .select('id')
+      .select('id, telegram_id, telegram_username, email, first_name, last_name, avatar_url, preferred_language')
       .eq('id', sessionUserId)
       .maybeSingle?.() || { data: null }
 
-    isNewProfile = !existingProfile
+    const desiredProfile = {
+      id: sessionUserId,
+      telegram_id: parseInt(authData.id),
+      telegram_username: authData.username ?? null,
+      email: syntheticEmail,
+      first_name: authData.first_name ?? null,
+      last_name: authData.last_name ?? null,
+      avatar_url: authData.photo_url ?? null,
+      preferred_language: 'en' as const,
+    }
 
-    if (isNewProfile) {
+    if (!existingProfile) {
       // Insert new profile (the DB trigger award_welcome_bonus will add the single welcome transaction)
-      const insertPayload: any = {
-        id: sessionUserId,
-        telegram_id: parseInt(authData.id),
-        telegram_username: authData.username,
-        email: syntheticEmail,
-        first_name: authData.first_name,
-        last_name: authData.last_name,
-        avatar_url: authData.photo_url,
-        preferred_language: 'en',
-      }
-
       const { error: insertError } = await (supabaseAdmin as any)
         .from('users')
-        .insert(insertPayload)
+        .insert(desiredProfile)
 
       if (insertError) {
         console.error('❌ Failed to insert user profile (non-fatal):', insertError)
         // Continue anyway — session is established
       }
     } else {
-      // Update existing profile without INSERT to prevent welcome-bonus trigger
-      const { error: updateError } = await (supabaseAdmin as any)
-        .from('users')
-        .update({
-          telegram_id: parseInt(authData.id),
-          telegram_username: authData.username,
-          email: syntheticEmail,
-          first_name: authData.first_name,
-          last_name: authData.last_name,
-          avatar_url: authData.photo_url,
-          preferred_language: 'en',
-        })
-        .eq('id', sessionUserId)
+      // Shallow diff to avoid unnecessary writes on every login
+      const needsUpdate = (
+        existingProfile.telegram_id !== desiredProfile.telegram_id ||
+        existingProfile.telegram_username !== desiredProfile.telegram_username ||
+        existingProfile.email !== desiredProfile.email ||
+        existingProfile.first_name !== desiredProfile.first_name ||
+        existingProfile.last_name !== desiredProfile.last_name ||
+        existingProfile.avatar_url !== desiredProfile.avatar_url ||
+        existingProfile.preferred_language !== desiredProfile.preferred_language
+      )
 
-      if (updateError) {
-        console.error('❌ Failed to update user profile (non-fatal):', updateError)
-        // Continue anyway — session is established
+      if (needsUpdate) {
+        const { error: updateError } = await (supabaseAdmin as any)
+          .from('users')
+          .update({
+            telegram_id: desiredProfile.telegram_id,
+            telegram_username: desiredProfile.telegram_username,
+            email: desiredProfile.email,
+            first_name: desiredProfile.first_name,
+            last_name: desiredProfile.last_name,
+            avatar_url: desiredProfile.avatar_url,
+            preferred_language: desiredProfile.preferred_language,
+          })
+          .eq('id', sessionUserId)
+
+        if (updateError) {
+          console.error('❌ Failed to update user profile (non-fatal):', updateError)
+          // Continue anyway — session is established
+        }
+      } else {
+        console.log('ℹ️ Profile unchanged; skipping update')
       }
     }
+    console.timeEnd('profile-sync')
 
     const processingTime = Date.now() - startTime
     console.log('✅ Telegram login successful for user:', sessionUserId.substring(0, 8) + '...', `(${processingTime}ms)`)
