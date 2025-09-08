@@ -172,12 +172,19 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
   const handleSignOut = useCallback(async () => {
     try {
       await signOut()
-      setIsOpen(false)
-      router.push('/en')
     } catch (error) {
       console.error('Sign out error:', error)
+    } finally {
+      try { setIsOpen(false) } catch {}
+      try {
+        if (typeof window !== 'undefined') {
+          try { localStorage.clear() } catch {}
+          try { sessionStorage.clear() } catch {}
+          window.location.replace('/en')
+        }
+      } catch {}
     }
-  }, [signOut, router])
+  }, [signOut])
 
   // Show sign in link if not authenticated
   if (!isAuthenticated) {

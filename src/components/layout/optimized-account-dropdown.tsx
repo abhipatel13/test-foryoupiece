@@ -60,20 +60,24 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
 
       // Set global sign-out flag immediately
       if (typeof window !== 'undefined') {
-        (window as any).signOutInProgress = true
+        ;(window as any).signOutInProgress = true
       }
 
       // Broadcast auth change to other tabs immediately
       broadcast('AUTH_STATE_CHANGE', { user: null })
 
-      // Call sign out function (this will handle redirect)
+      // Call sign out function
       await signOut()
     } catch (error) {
       console.error('❌ Sign out error:', error)
-      // Force redirect even on error
-      if (typeof window !== 'undefined') {
-        window.location.replace('/en/auth/login')
-      }
+    } finally {
+      try {
+        if (typeof window !== 'undefined') {
+          try { localStorage.clear() } catch {}
+          try { sessionStorage.clear() } catch {}
+          window.location.replace('/en')
+        }
+      } catch {}
     }
   }, [signOut, broadcast])
 

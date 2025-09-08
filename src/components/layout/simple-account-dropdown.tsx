@@ -140,12 +140,21 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const handleSignOut = useCallback(async () => {
     try {
       await signOut()
-      setIsOpen(false)
-      router.push('/en')
     } catch (error) {
       console.error('Sign out error:', error)
+    } finally {
+      try {
+        setIsOpen(false)
+      } catch {}
+      try {
+        if (typeof window !== 'undefined') {
+          try { localStorage.clear() } catch {}
+          try { sessionStorage.clear() } catch {}
+          window.location.replace('/en')
+        }
+      } catch {}
     }
-  }, [signOut, router])
+  }, [signOut])
 
   // Only show loading skeleton during session hydration, not profile loading
   // This allows the dropdown to be clickable even when profile is still loading

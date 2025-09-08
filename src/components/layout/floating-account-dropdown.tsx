@@ -9,6 +9,8 @@ import { ChevronDown, User, Package, Heart, Settings, LogOut, AlertCircle } from
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
+import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
+
 
 interface FloatingAccountDropdownProps {
   className?: string
@@ -27,6 +29,8 @@ export function FloatingAccountDropdown({ className = '' }: FloatingAccountDropd
   const [userDisplayData, setUserDisplayData] = useState<UserDisplayData | null>(null)
   const [profileError, setProfileError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const { signOut } = useSSRSafeAuth()
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -80,7 +84,7 @@ export function FloatingAccountDropdown({ className = '' }: FloatingAccountDropd
         setProfileError(false)
 
         const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-        
+
         if (authError || !authUser) {
           setUser(null)
           setUserDisplayData(null)
@@ -141,18 +145,23 @@ export function FloatingAccountDropdown({ className = '' }: FloatingAccountDropd
     loadUserData()
   }, [])
 
-  // Handle sign out with improved error handling
+  // Handle sign out with hard reload + storage clear
   const handleSignOut = useCallback(async () => {
     try {
-      setIsOpen(false) // Close dropdown immediately
-      await supabase.auth.signOut()
-      router.push('/en')
-      router.refresh()
+      await signOut()
     } catch (error) {
-      console.error('Error signing out:', error instanceof Error ? error.message : 'Unknown error')
-      // Could add toast notification here for user feedback
+      console.error('Sign out error:', error)
+    } finally {
+      try { setIsOpen(false) } catch {}
+      try {
+        if (typeof window !== 'undefined') {
+          try { localStorage.clear() } catch {}
+          try { sessionStorage.clear() } catch {}
+          window.location.replace('/en')
+        }
+      } catch {}
     }
-  }, [supabase.auth, router])
+  }, [signOut])
 
   // Close dropdown when clicking menu items
   const handleMenuItemClick = useCallback(() => {

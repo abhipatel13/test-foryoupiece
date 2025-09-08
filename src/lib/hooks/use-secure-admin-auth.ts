@@ -191,9 +191,6 @@ export function useSecureAdminAuth() {
 
       console.log('🚪 Admin logout successful')
       toast.success('Logged out successfully')
-
-      // Redirect to login page
-      router.push('/en/admin')
     } catch (error) {
       console.error('❌ Logout error:', error)
       // Still clear local state even if server request fails
@@ -204,9 +201,16 @@ export function useSecureAdminAuth() {
         loading: false,
         error: null
       })
-      router.push('/en/admin')
+    } finally {
+      try {
+        if (typeof window !== 'undefined') {
+          try { localStorage.clear() } catch {}
+          try { sessionStorage.clear() } catch {}
+          window.location.replace('/en')
+        }
+      } catch {}
     }
-  }, [router])
+  }, [])
 
   /**
    * Get authorization header for API requests
