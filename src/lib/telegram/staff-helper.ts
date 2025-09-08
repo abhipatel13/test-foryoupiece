@@ -183,7 +183,7 @@ export async function sendTelegramMessage(params: {
 
 // --- Intent classification ---
 function classifyIntent(text: string):
-  | 'greeting' | 'order_confirmation' | 'stock' | 'price' | 'description' | 'recommendation' | 'math' | 'definition' | 'other' {
+  | 'greeting' | 'order_confirmation' | 'stock' | 'price' | 'description' | 'recommendation' | 'product_search' | 'math' | 'definition' | 'other' {
   const t = text.toLowerCase().trim()
 
   // Greetings
@@ -205,6 +205,13 @@ function classifyIntent(text: string):
   if (/(price|cost|how much)/.test(t)) return 'price'
   if (/(describe|description|details)/.test(t)) return 'description'
   if (/(cheapest|recommend|best|top|under \$|under \¥|under usd|under jpy)/.test(t)) return 'recommendation'
+
+  // Generic product search heuristic: short textual queries (1–4 words) or brand/category hints
+  const wordCount = t.split(/\s+/).filter(Boolean).length
+  const looksLikeProduct = /\b(refill|shampoo|conditioner|lotion|serum|mask|cream|oil|toner|kabi|yolu|honey|botanist|tsubaki|melano|nivea|naturie|curel|senka|shiseido|kose|orbis|kao|dove)\b/i.test(text)
+    || (wordCount <= 4 && /[a-z]/i.test(text) && !/[?!.]/.test(text))
+  if (looksLikeProduct) return 'product_search'
+
   if (/^[\d\s\.+\-*/()%x=]+$/.test(t)) return 'math'
   if (/what is|define|meaning of/.test(t)) return 'definition'
   return 'other'
@@ -432,7 +439,7 @@ async function buildLLMReply(params: {
 
   // For product-related intents, fetch compact product context (top 5)
   let productContext = ''
-  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation') {
+  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation' || intent === 'product_search') {
     try {
       const { products } = await catalogSearch(baseUrl, text, 20)
       const mapped = products.map(pickFields).slice(0, 5)
@@ -479,11 +486,17 @@ function nowJST() {
 
 // --- Order Confirmation Template ---
 const ORDER_TEMPLATE_HEADER = `🎀✨ ORDER CONFIRMATION ✨🎀`
+/**
+ * Render the Order Confirmation message in the exact required template.
+ * - Falls back to default Important Notes block when not provided
+ * - Leaves pricing placeholders as "$" if unknown
+ */
+
 
 function renderOrderConfirmation(fields: {
   name?: string; phone?: string; address?: string; items?: string[]; deliveryFee?: string; total?: string; deposit?: string; due?: string; notes?: string;
 }) {
-  const items = (fields.items && fields.items.length) ? fields.items.join('\n') : 'Item name x Qty = Price'
+  const items = (fields.items && fields.items.length) ? fields.items.join('\n') : 'Item name x Qty = $Price'
   const notes = fields.notes || `🔒 Final Sale   : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted.\n🚚 Delivery     : We will notify you once your items are ready for delivery.`
   return [
     `${ORDER_TEMPLATE_HEADER}`,
@@ -502,7 +515,7 @@ function renderOrderConfirmation(fields: {
     `• Deposit: ${fields.deposit || '$'}`,
     `• Amount Due: ${fields.due || '$'}`,
     '',
-    '📌 Important Notes',
+    '📌 Important Notes  ',
     notes,
     '',
     '🙏 Thank you for your purchase! 🤍'
@@ -529,6 +542,11 @@ function extractOrderFields(text: string) {
     phone: get('phone'),
     address: get('address'),
     deliveryFee: get('delivery fee'),
+/**
+ * Build the Order Confirmation using OpenRouter and thread memory, then
+ * strictly enforce the exact template (items arithmetic, totals, notes).
+ */
+
     total: get('total'),
     deposit: get('deposit'),
     due: get('amount due'),
@@ -544,8 +562,12 @@ async function buildOrderConfirmationAI(params: { text: string, chatId: number, 
 
   const system = [
     'You are ForYouPiece Staff Helper Bot. Extract customer and order information from the user message and recent conversation.',
-    'Fill the Order Confirmation in the exact structure below. Keep English, concise, and business-appropriate.',
-    'Perform simple arithmetic on quantities if present (e.g., "16 x 3" -> 48). Do NOT invent prices. If unknown, leave the placeholder "$".',
+    'Use the EXACT emoji and formatting structure shown below. Do not add or omit any characters. Preserve spacing and newlines exactly. Include two spaces after "📌 Important Notes" line.',
+    'For each item, format strictly as: "Item name x Qty = $Price". Perform simple arithmetic on quantities if present (e.g., "16 x 3" -> 48). Do NOT invent prices. If unknown, leave the placeholder "$".',
+    'Important Notes content MUST be exactly:',
+    '🔒 Final Sale   : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted. ',
+    '🚚 Delivery     : We will notify you once your items are ready for delivery.',
+    '' ,
     'Return ONLY the filled template, nothing else.',
     '',
     `${ORDER_TEMPLATE_HEADER}`,
@@ -564,7 +586,7 @@ async function buildOrderConfirmationAI(params: { text: string, chatId: number, 
     '• Deposit: {deposit}',
     '• Amount Due: {due}',
     '',
-    '📌 Important Notes',
+    '📌 Important Notes  ',
     '{notes}',
     '',
     '🙏 Thank you for your purchase! 🤍',
@@ -574,6 +596,14 @@ async function buildOrderConfirmationAI(params: { text: string, chatId: number, 
     'Fill the template using data from the following message. Leave placeholders for unknown values. Items should be one per line when possible.',
     'User message:',
     text,
+/**
+ * Post-process AI output to enforce exact order confirmation template.
+ * - Ensures two spaces after "📌 Important Notes"
+ * - Normalizes items as "Name x Qty = $Price" computing arithmetic
+ * - Prefers original Delivery Fee/Deposit from the user's text for accuracy
+ * - Computes Total and Amount Due when possible
+ */
+
   ].join('\n')
 
   const messages: LLMMessage[] = [
@@ -585,7 +615,74 @@ async function buildOrderConfirmationAI(params: { text: string, chatId: number, 
   const llm = await callOpenRouter(messages, { max_tokens: 700 })
   if (!llm.success) return null
   const out = (llm.text || '').trim()
-  return out ? out.slice(0, 1800) : null
+  const fixed = enforceOrderTemplate(out, text)
+  return fixed ? fixed.slice(0, 1800) : null
+}
+
+
+// Post-process AI output to strictly enforce required formatting and compute simple totals
+function enforceOrderTemplate(aiOut: string, originalText: string): string {
+  let out = aiOut
+
+  // Ensure exact header for Important Notes (two spaces at end)
+  out = out.replace(/^📌 Important Notes\s*$/m, '📌 Important Notes  ')
+
+  // Extract items from originalText if pattern `{name} {unit} x {qty}` exists
+  const itemMatches: Array<{ name: string; unit: number; qty: number }> = []
+  const re = /(.*?)(\d+(?:\.\d{1,2})?)\s*x\s*(\d+)/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(originalText)) !== null) {
+    const rawName = m[1].trim().replace(/^items?\s*[:\-]?\s*/i, '').replace(/[,:]$/,'').trim()
+    const unit = parseFloat(m[2])
+    const qty = parseInt(m[3], 10)
+    if (rawName && isFinite(unit) && isFinite(qty) && qty > 0) {
+      // Heuristic: if name ends with the unit number (e.g., "Kabi Killer 16"), strip trailing unit from name
+      const name = rawName.replace(new RegExp(`\\b${unit.toString().replace('.', '\\.')}$`), '').trim()
+      itemMatches.push({ name: name || rawName, unit, qty })
+    }
+  }
+
+  // If we found computable items, replace Items block with normalized lines
+  if (itemMatches.length) {
+    const itemLines = itemMatches.map(it => `${it.name} x ${it.qty} = $${(it.unit * it.qty).toFixed(2)}`)
+    out = out.replace(/(\n🛒 Items\n)([\s\S]*?)(\n\n|\n💸 Pricing Summary)/, (_all, p1, _mid, p3) => `${p1}${itemLines.join('\n')}${p3}`)
+
+    // Compute totals if fee/deposit present
+    const itemsTotal = itemMatches.reduce((s, it) => s + it.unit * it.qty, 0)
+    // Delivery fee: prefer original text; fallback to AI output
+    const feeFromOrig = originalText.match(/delivery\s*fee\s*:\s*\$?(\d+(?:\.\d{1,2})?)/i)
+    const feeFromOut = out.match(/•\s*Delivery Fee:\s*\$?(\d+(?:\.\d{1,2})?)/)
+    const fee = feeFromOrig ? parseFloat(feeFromOrig[1]) : (feeFromOut ? parseFloat(feeFromOut[1]) : undefined)
+    if (typeof fee === 'number' && isFinite(fee)) {
+      const total = (itemsTotal + fee)
+      out = out.replace(/•\s*Total amount:\s*\$.*/ , `• Total amount: $${total.toFixed(2)}`)
+      // Also normalize the Delivery Fee line to the parsed value
+      out = out.replace(/•\s*Delivery Fee:\s*\$.*/, `• Delivery Fee: $${fee.toFixed(2)}`)
+    }
+    // Deposit → Amount Due (prefer original)
+    const depFromOrig = originalText.match(/deposit\s*:\s*\$?(\d+(?:\.\d{1,2})?)/i)
+    const depFromOut = out.match(/•\s*Deposit:\s*\$?(\d+(?:\.\d{1,2})?)/)
+    const dep = depFromOrig ? parseFloat(depFromOrig[1]) : (depFromOut ? parseFloat(depFromOut[1]) : undefined)
+    const totalLine = out.match(/•\s*Total amount:\s*\$(\d+(?:\.\d{1,2})?)/)
+    const totalVal = totalLine ? parseFloat(totalLine[1]) : undefined
+    if (typeof dep === 'number' && isFinite(dep)) {
+      out = out.replace(/•\s*Deposit:\s*\$.*/, `• Deposit: $${dep.toFixed(2)}`)
+    }
+    if (typeof dep === 'number' && isFinite(dep) && typeof totalVal === 'number' && isFinite(totalVal)) {
+      const due = Math.max(0, totalVal - dep)
+      out = out.replace(/•\s*Amount Due:\s*\$.*/, `• Amount Due: $${due.toFixed(2)}`)
+    }
+
+  } else {
+    // Even if AI left items blank, still enforce the exact placeholder form
+    out = out.replace(/(\n🛒 Items\n)([\s\S]*?)(\n\n|\n💸 Pricing Summary)/, (_all, p1, _mid, p3) => `${p1}Item name x Qty = $Price${p3}`)
+  }
+
+  // Enforce exact Important Notes content
+  const notesFixed = `🔒 Final Sale   : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted. \n🚚 Delivery     : We will notify you once your items are ready for delivery.`
+  out = out.replace(/(\n📌 Important Notes\s{2}\n)([\s\S]*?)(\n\n|$)/, (_all, p1, _mid, p3) => `${p1}${notesFixed}${p3}`)
+
+  return out
 }
 
 
@@ -645,6 +742,7 @@ export async function handleStaffHelperUpdate(args: {
       oc = renderOrderConfirmation(fields)
     }
     reply = oc
+    try { console.log('[StaffHelper][OrderConfirmation] reply:\n' + String(reply).slice(0, 1200)) } catch {}
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
     await pushMemoryAsync(chatId, threadId, 'assistant', '[order_confirmation_sent]')
     return { handled: true }
@@ -660,7 +758,7 @@ export async function handleStaffHelperUpdate(args: {
   }
 
   // Proactive product suggestions only for product-related intents (before LLM)
-  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation') {
+  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation' || intent === 'product_search') {
     try {
       const proactive = await buildProactiveProductReply(baseUrl, text)
       if (proactive) {
@@ -687,7 +785,7 @@ export async function handleStaffHelperUpdate(args: {
     }
   }
 
-  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation') {
+  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation' || intent === 'product_search') {
     // Use search q as-is; handle ambiguity
     const { products } = await catalogSearch(baseUrl, text, 50)
     const mapped = products.map(pickFields)
@@ -700,8 +798,6 @@ export async function handleStaffHelperUpdate(args: {
 
     // For recommendation: sort by current price asc (consider discounts already in price)
     if (intent === 'recommendation') {
-
-
       const top = [...mapped]
         .sort((a, b) => a.price - b.price)
         .slice(0, 3)
