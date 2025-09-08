@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware'
 import { cartQueries } from '@/lib/supabase/queries'
 import { pointsToDollars, calculateOrderPoints } from '@/lib/utils'
 import { AppliedCoupon } from '@/types/coupon'
-import { shippingService, type ShippingCalculationResult } from '@/lib/services/shipping-service'
+import type { ShippingCalculationResult } from '@/lib/services/shipping-service'
 
 import { tabSyncUtils } from '@/lib/utils/multi-tab-sync'
 
@@ -943,17 +943,23 @@ export const useCartStore = create<CartStore>()(
 
       // Enhanced shipping functions
       calculateShipping: async () => {
-        const { items, userId, appliedCoupon } = get()
+        const { items, appliedCoupon } = get()
         const itemCount = items.reduce((count, item) => count + item.quantity, 0)
 
         try {
-          const shippingResult = await shippingService.calculateShipping({
-            itemCount,
-            userId: userId || undefined,
-            appliedCouponCode: appliedCoupon?.code
+          const resp = await fetch('/api/shipping/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            body: JSON.stringify({ itemCount, appliedCouponCode: appliedCoupon?.code })
           })
-
-          set({ shippingCalculation: shippingResult })
+          const json = await resp.json().catch(() => null)
+          const result: ShippingCalculationResult | null = json?.data ?? null
+          if (result) {
+            set({ shippingCalculation: result })
+            return
+          }
+          throw new Error('No result')
         } catch (error) {
           console.error('Error calculating shipping:', error)
           // Fallback to basic calculation

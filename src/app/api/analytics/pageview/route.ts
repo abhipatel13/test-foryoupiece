@@ -35,8 +35,10 @@ export async function POST(req: NextRequest) {
     const PIXEL_ID = process.env.META_PIXEL_ID || process.env.NEXT_PUBLIC_META_PIXEL_ID
     const TEST_CODE = process.env.META_TEST_EVENT_CODE
 
-    if (!CAPIG_ID || !CAPIG_KEY || !PIXEL_ID) {
-      return NextResponse.json({ success: false, error: 'CAPIG not configured' }, { status: 500 })
+    // If CAPIG is not configured or explicitly disabled, no-op with 200 to avoid noisy failures
+    const CAPIG_ENABLED = process.env.NEXT_PUBLIC_ENABLE_CAPI !== 'false'
+    if (!CAPIG_ENABLED || !CAPIG_ID || !CAPIG_KEY || !PIXEL_ID) {
+      return NextResponse.json({ success: false, via: 'disabled', reason: 'CAPIG not configured or disabled' }, { status: 200 })
     }
 
     const user_data: any = { client_ip_address: ip, client_user_agent: ua }
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
     try { console.log('🧪 CAPI PageView debug', { pixelId: PIXEL_ID, capigUrl: CAPIG_URL, hasFbp: !!fbp, hasFbc: !!fbc, eventId: event.event_id }) } catch {}
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 12_000)
+    const timeout = setTimeout(() => controller.abort(), 3_000)
     const res = await fetch(CAPIG_URL, {
       method: 'POST',
       headers: {
@@ -84,7 +86,8 @@ export async function POST(req: NextRequest) {
     const success = !!res.ok && (eventsReceived === null || eventsReceived > 0)
     return NextResponse.json({ success, via: 'capig-direct', events_received: eventsReceived, messages })
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e?.message || 'Unknown error' }, { status: 500 })
+    // Return 200 with error payload to avoid failing client-side analytics calls
+    return NextResponse.json({ success: false, via: 'capig-direct', error: e?.message || 'Unknown error' }, { status: 200 })
   }
 }
 

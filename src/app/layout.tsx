@@ -52,6 +52,13 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://oauth.telegram.org" />
+        <link rel="dns-prefetch" href="https://oauth.telegram.org" />
+        <link rel="preconnect" href="https://xhfmyghtcugcocchzgja.supabase.co" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://xhfmyghtcugcocchzgja.supabase.co" />
+      </head>
+
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Script
           id="chunk-error-handler"

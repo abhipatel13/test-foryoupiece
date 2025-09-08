@@ -33,14 +33,38 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
 
   const [authSigningIn, setAuthSigningIn] = useState(false)
 
-  // Read cross-page sign-in flag set by Telegram widget and others
+  // Read cross-page sign-in flag set by Telegram widget and others (with TTL)
   useEffect(() => {
+    const FLAG_KEY = 'AUTH_SIGNIN_IN_PROGRESS'
+    const TTL_MS = 3 * 60 * 1000 // 3 minutes safety
+
+    const isFlagValid = (raw: string | null) => {
+      if (!raw) return false
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed.ts === 'number') {
+          const fresh = Date.now() - parsed.ts < TTL_MS
+          if (!fresh) localStorage.removeItem(FLAG_KEY)
+          return fresh
+        }
+        // Legacy value handling: treat as invalid to avoid pre-click confusion
+        return false
+      } catch {
+        // Non-JSON legacy value
+        if (raw === '1') {
+          // Treat as invalid to prevent stale banner
+          localStorage.removeItem(FLAG_KEY)
+        }
+        return false
+      }
+    }
+
     try {
-      const flag = typeof window !== 'undefined' && localStorage.getItem('AUTH_SIGNIN_IN_PROGRESS') === '1'
-      setAuthSigningIn(!!flag)
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(FLAG_KEY) : null
+      setAuthSigningIn(isFlagValid(raw))
       const onStorage = (e: StorageEvent) => {
-        if (e.key === 'AUTH_SIGNIN_IN_PROGRESS') {
-          setAuthSigningIn(e.newValue === '1')
+        if (e.key === FLAG_KEY) {
+          setAuthSigningIn(isFlagValid(e.newValue))
         }
       }
       window.addEventListener('storage', onStorage)

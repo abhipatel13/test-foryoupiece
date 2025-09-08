@@ -25,7 +25,10 @@ function TelegramLoginWidget() {
   const [isPolling, setIsPolling] = useState(false)
   const [isInitiated, setIsInitiated] = useState(false)
   const beginSignIn = () => {
-    try { localStorage.setItem('AUTH_SIGNIN_IN_PROGRESS', '1') } catch {}
+    try {
+      const payload = { ts: Date.now(), v: 1 }
+      localStorage.setItem('AUTH_SIGNIN_IN_PROGRESS', JSON.stringify(payload))
+    } catch {}
     setIsInitiated(true)
   }
 
