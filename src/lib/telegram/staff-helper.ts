@@ -245,7 +245,11 @@ function classifyIntent(text: string):
   if (/(in stock|stock|available)/.test(t)) return 'stock'
   if (/(price|cost|how much)/.test(t)) return 'price'
   if (/(describe|description|details)/.test(t)) return 'description'
-  if (/(cheapest|recommend|best|top|under \$|under \¥|under usd|under jpy)/.test(t)) return 'recommendation'
+
+  // Price-threshold phrasing (route to recommendations so catalog path runs)
+  if (detectPriceThreshold(t)) return 'recommendation'
+  if (/(cheapest|recommend|best|top|under\s*(?:\$|usd|us\$|dollars)?)/.test(t)) return 'recommendation'
+  if (/(above|over|more than|less than|below)/.test(t) && /(\$|usd|us\$|dollars)/.test(t)) return 'recommendation'
 
   // Generic product search heuristic: short textual queries (1–4 words) or brand/category hints
   const wordCount = t.split(/\s+/).filter(Boolean).length
@@ -348,6 +352,49 @@ function relevanceScore(p: any, q: string, catHint?: string) {
 }
 
 
+// --- Price threshold detection & filtering helpers ---
+interface PriceThreshold { dir: 'max' | 'min'; amount: number }
+
+function detectPriceThreshold(text: string): PriceThreshold | null {
+  const t = (text || '').toLowerCase()
+
+  const maxPats = [
+    /(below|under|less\s*than)\s*(?:\$|usd|us\$|dollars)?\s*(\d+(?:\.\d{1,2})?)/i,
+    /(?:\$|usd|us\$)\s*(\d+(?:\.\d{1,2})?)\s*(?:or\s*less|and\s*under)/i,
+    /(\d+(?:\.\d{1,2})?)\s*(?:usd|dollars)\s*(?:or\s*less|and\s*under)/i,
+  ]
+  for (const r of maxPats) {
+    const m = r.exec(t)
+    if (m) {
+      const amt = parseFloat(m[m.length - 1])
+      if (isFinite(amt)) return { dir: 'max', amount: amt }
+    }
+  }
+
+  const minPats = [
+    /(above|over|more\s*than)\s*(?:\$|usd|us\$|dollars)?\s*(\d+(?:\.\d{1,2})?)/i,
+    /(?:\$|usd|us\$)\s*(\d+(?:\.\d{1,2})?)\s*(?:or\s*more|and\s*above)/i,
+    /(\d+(?:\.\d{1,2})?)\s*(?:usd|dollars)\s*(?:or\s*more|and\s*above)/i,
+  ]
+  for (const r of minPats) {
+    const m = r.exec(t)
+    if (m) {
+      const amt = parseFloat(m[m.length - 1])
+      if (isFinite(amt)) return { dir: 'min', amount: amt }
+    }
+  }
+
+  return null
+}
+
+function applyBudgetFilter<T extends { price: number }>(items: T[], text: string): T[] {
+  const thr = detectPriceThreshold(text)
+  if (!thr) return items
+  if (thr.dir === 'max') return items.filter(p => Number(p.price) <= thr.amount)
+  return items.filter(p => Number(p.price) >= thr.amount)
+}
+
+
 function detectCategorySlug(text: string): string | undefined {
   const t = text.toLowerCase()
   // quick fuzzy hints
@@ -419,6 +466,7 @@ async function buildProactiveProductReply(baseUrl: string, userText: string): Pr
   const candidates = await fuzzyCollectCandidates(baseUrl, userText)
   const catHint = detectCategorySlug(userText)
   let mapped = candidates.map(pickFields)
+  mapped = applyBudgetFilter(mapped, userText)
 
   if (catHint) {
     const kw = ['skin','face','serum','lotion','cream','moist','hydrate','mask','toner','cleanser','cleansing','face wash','hyaluronic','ceramide']
@@ -448,6 +496,49 @@ async function buildProactiveProductReply(baseUrl: string, userText: string): Pr
       ? `I found a few options — would any of these work?`
       : `Here’s a good match — would this work for you?`
     return `${preface}\n${lines.join('\n')}\nData checked: ${nowJST()}`
+  }
+
+  // Threshold-aware fallback when nothing matched after filtering
+  const thr = detectPriceThreshold(userText)
+  if (thr) {
+    const catHint2 = detectCategorySlug(userText)
+    const recList = await fetchRecommendations(baseUrl, { categorySlug: catHint2, limit: 50 })
+    let alts = (recList || []).map((p: any) => pickFields(p))
+    if (!alts.length) {
+      // Final guard: try a broad search without price words
+      const stripped = userText.replace(/(below|under|less than|above|over|more than|usd|us\$|dollars|\$|\d+(?:\.\d{1,2})?)/gi, ' ').replace(/\s+/g,' ').trim()
+      const { products } = await catalogSearch(baseUrl, stripped || 'popular', 50)
+      alts = products.map(pickFields)
+    }
+    // Prefer closest options around the threshold
+    if (thr.dir === 'max') {
+      const within = alts.filter(p => Number(p.price) <= thr.amount + 1e-6)
+      if (within.length) {
+        // Show the priciest options that are still within budget (closest to the cap)
+        alts = within.sort((a,b)=>Number(b.price)-Number(a.price))
+      } else {
+        // No items within budget; show the cheapest options just above the cap
+        const above = alts.filter(p => Number(p.price) > thr.amount)
+        alts = above.sort((a,b)=>Number(a.price)-Number(b.price))
+      }
+    } else {
+      const within = alts.filter(p => Number(p.price) >= thr.amount - 1e-6)
+      if (within.length) {
+        // Show the cheapest options that are at/above the floor
+        alts = within.sort((a,b)=>Number(a.price)-Number(b.price))
+      } else {
+        // No items above the floor; show the most expensive ones just below
+        const below = alts.filter(p => Number(p.price) < thr.amount)
+        alts = below.sort((a,b)=>Number(b.price)-Number(a.price))
+      }
+    }
+    const top3 = alts.slice(0,3)
+    if (top3.length) {
+      const lines = top3.map(p => formatProductLine(p, baseUrl))
+      const label = thr.dir === 'max' ? `under $${thr.amount.toFixed(2)}` : `over $${thr.amount.toFixed(2)}`
+      const pre = `I couldn’t find items ${label}. Here are the closest options:`
+      return `${pre}\n${lines.join('\n')}\nData checked: ${nowJST()}`
+    }
   }
 
   // Category-based fallback recommendations
@@ -483,7 +574,9 @@ async function buildLLMReply(params: {
   if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation' || intent === 'product_search') {
     try {
       const { products } = await catalogSearch(baseUrl, text, 20)
-      const mapped = products.map(pickFields).slice(0, 5)
+      let mapped = products.map(pickFields)
+      mapped = applyBudgetFilter(mapped, text)
+      mapped = mapped.slice(0, 5)
       if (mapped.length) {
         const items = mapped.map((p, i) => `${i + 1}) ${p.name} — $${p.price.toFixed(2)}${p.compare_at_price && p.compare_at_price > p.price ? ` (was $${p.compare_at_price.toFixed(2)})` : ''} — Stock: ${p.stock_quantity} — SKU: ${p.sku}`).join('\n')
         productContext = `\nProduct candidates (top ${mapped.length}):\n${items}`
@@ -870,7 +963,8 @@ export async function handleStaffHelperUpdate(args: {
   if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation' || intent === 'product_search') {
     // Use search q as-is; handle ambiguity
     const { products } = await catalogSearch(baseUrl, text, 50)
-    const mapped = products.map(pickFields)
+    let mapped = products.map(pickFields)
+    mapped = applyBudgetFilter(mapped, text)
 
     if (!mapped.length) {
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: `I couldn’t find matching products. Try a clearer name or SKU.\nData checked: ${nowJST()}` })
