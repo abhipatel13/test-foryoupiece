@@ -183,9 +183,24 @@ export async function sendTelegramMessage(params: {
 
 // --- Intent classification ---
 function classifyIntent(text: string):
-  | 'order_confirmation' | 'stock' | 'price' | 'description' | 'recommendation' | 'math' | 'definition' | 'other' {
+  | 'greeting' | 'order_confirmation' | 'stock' | 'price' | 'description' | 'recommendation' | 'math' | 'definition' | 'other' {
   const t = text.toLowerCase().trim()
-  if (t.includes('order confirmation') || t.startsWith('add this to the order confirmation')) return 'order_confirmation'
+
+  // Greetings
+  if (/(^|\b)(hi|hello|hey|yo|good\s+morning|good\s+afternoon|good\s+evening)(\b|!|\.)/.test(t)) return 'greeting'
+
+  // Order confirmation: explicit phrasing or presence of multiple structured fields
+  if (t.includes('order confirmation') || (t.includes('order') && t.includes('confirmation'))) return 'order_confirmation'
+  const fieldPatterns = [
+    /name\s*:/i,
+    /(phone|phone number|tel)\s*:/i,
+    /address\s*:/i,
+    /(items?|order details?)\s*:/i,
+    /(delivery fee|total|amount due|deposit)\s*:/i,
+  ]
+  const fieldCount = fieldPatterns.reduce((c, r) => c + (r.test(text) ? 1 : 0), 0)
+  if (fieldCount >= 2) return 'order_confirmation'
+
   if (/(in stock|stock|available)/.test(t)) return 'stock'
   if (/(price|cost|how much)/.test(t)) return 'price'
   if (/(describe|description|details)/.test(t)) return 'description'
@@ -521,6 +536,59 @@ function extractOrderFields(text: string) {
   }
 }
 
+// Use OpenRouter to fill the order confirmation template intelligently
+async function buildOrderConfirmationAI(params: { text: string, chatId: number, threadId?: number }): Promise<string | null> {
+  if (!OPENROUTER_ENABLED) return null
+  const { text, chatId, threadId } = params
+  const mem = await getMemoryAsync(chatId, threadId)
+
+  const system = [
+    'You are ForYouPiece Staff Helper Bot. Extract customer and order information from the user message and recent conversation.',
+    'Fill the Order Confirmation in the exact structure below. Keep English, concise, and business-appropriate.',
+    'Perform simple arithmetic on quantities if present (e.g., "16 x 3" -> 48). Do NOT invent prices. If unknown, leave the placeholder "$".',
+    'Return ONLY the filled template, nothing else.',
+    '',
+    `${ORDER_TEMPLATE_HEADER}`,
+    '',
+    '👤 Customer Info',
+    'Name: {name}',
+    'Phone number: {phone}',
+    'Address: {address}',
+    '',
+    '🛒 Items',
+    '{items}',
+    '',
+    '💸 Pricing Summary',
+    '• Delivery Fee: {deliveryFee}',
+    '• Total amount: {total}',
+    '• Deposit: {deposit}',
+    '• Amount Due: {due}',
+    '',
+    '📌 Important Notes',
+    '{notes}',
+    '',
+    '🙏 Thank you for your purchase! 🤍',
+  ].join('\n')
+
+  const user = [
+    'Fill the template using data from the following message. Leave placeholders for unknown values. Items should be one per line when possible.',
+    'User message:',
+    text,
+  ].join('\n')
+
+  const messages: LLMMessage[] = [
+    { role: 'system', content: system },
+    ...mem.map(t => ({ role: t.role, content: t.text })) as LLMMessage[],
+    { role: 'user', content: user },
+  ]
+
+  const llm = await callOpenRouter(messages, { max_tokens: 700 })
+  if (!llm.success) return null
+  const out = (llm.text || '').trim()
+  return out ? out.slice(0, 1800) : null
+}
+
+
 // --- Core handler ---
 
 export async function handleStaffHelperUpdate(args: {
@@ -570,15 +638,29 @@ export async function handleStaffHelperUpdate(args: {
   let reply = ''
 
   if (intent === 'order_confirmation') {
-    const fields = extractOrderFields(text)
-    reply = renderOrderConfirmation(fields)
+    // Try AI formatter first; fall back to heuristic template
+    let oc = await buildOrderConfirmationAI({ text, chatId, threadId })
+    if (!oc) {
+      const fields = extractOrderFields(text)
+      oc = renderOrderConfirmation(fields)
+    }
+    reply = oc
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
     await pushMemoryAsync(chatId, threadId, 'assistant', '[order_confirmation_sent]')
     return { handled: true }
   }
 
-  // Proactive product suggestions for most user queries (runs before LLM)
-  if (intent !== 'order_confirmation') {
+
+  // Friendly greeting handling
+  if (intent === 'greeting') {
+    reply = 'Hi! What would you like to know?'
+    await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+    await pushMemoryAsync(chatId, threadId, 'assistant', reply)
+    return { handled: true }
+  }
+
+  // Proactive product suggestions only for product-related intents (before LLM)
+  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation') {
     try {
       const proactive = await buildProactiveProductReply(baseUrl, text)
       if (proactive) {
