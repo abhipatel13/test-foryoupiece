@@ -456,10 +456,58 @@ async function fuzzyCollectCandidates(baseUrl: string, q: string) {
 function formatProductLine(p: any, base: string) {
   const price = `$${Number(p.price || 0).toFixed(2)}`
   const was = (p.compare_at_price && p.compare_at_price > p.price) ? ` (was $${Number(p.compare_at_price).toFixed(2)})` : ''
-  const stock = `Stock: ${Number(p.stock_quantity || 0)}`
+  const stock = `Stock: ${Math.max(0, Number(p.stock_quantity || 0))}`
   const link = productLink(base, p.sku, p.id)
-  const desc = p.description ? ` — ${p.description}` : ''
-  return `• ${p.name} — ${price}${was} — ${stock} — ${link}${desc ? `\n   ${desc}` : ''}`
+  const name = String(p.name || '').trim() || String(p.name_en || '').trim() || '[Unnamed]'
+  return `• ${name} — ${price}${was} — ${stock} — ${link}`
+}
+
+
+// Validate that every bullet line contains Name, $Price, Stock, and a link
+function hasCompleteProductBullets(text: string): boolean {
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.startsWith('• '))
+  if (!lines.length) return false
+  return lines.every(l => /\$\d/.test(l) && /Stock:\s*\d+/.test(l) && /(https?:\/\/)/.test(l))
+}
+
+// If LLM output is missing required fields, reconstruct from live search to enforce format
+async function enforceProductResponseFormat(baseUrl: string, userText: string, llmOut: string | null): Promise<string | null> {
+  if (llmOut && hasCompleteProductBullets(llmOut)) return llmOut
+  // Rebuild using our deterministic formatter
+  const candidates = await fuzzyCollectCandidates(baseUrl, userText)
+
+  let mapped = candidates.map(pickFields)
+  mapped = applyBudgetFilter(mapped, userText)
+  // Diagnostics: integrity of mapped products
+  try {
+    const total = mapped.length
+    const missing = {
+      name: mapped.filter(p => !p.name).length,
+      price: mapped.filter(p => typeof p.price !== 'number' || isNaN(p.price)).length,
+      stock: mapped.filter(p => typeof p.stock_quantity !== 'number' || isNaN(p.stock_quantity)).length,
+      link: mapped.filter(p => !(productLink(baseUrl, p.sku, p.id))).length,
+    }
+    pushUpdateLog({ allowed: true, intent: 'pipeline', reason: `mapped_integrity total=${total} missing=${JSON.stringify(missing)}` })
+  } catch {}
+
+  const catHint = detectCategorySlug(userText)
+  const sorted = [...mapped].sort((a, b) => {
+    const rb = relevanceScore(b, userText, catHint)
+    const ra = relevanceScore(a, userText, catHint)
+    if (rb !== ra) return rb - ra
+    const aIn = Number(a.stock_quantity) > 0 ? 1 : 0
+    const bIn = Number(b.stock_quantity) > 0 ? 1 : 0
+    if (bIn !== aIn) return bIn - aIn
+    return Number(a.price) - Number(b.price)
+  })
+  const top3 = sorted.slice(0, 3)
+  if (!top3.length) return llmOut // give up; return original
+  const lines = top3.map(p => formatProductLine(p, baseUrl))
+  const pre = top3.length > 1 ? 'I found a few options — would any of these work?' : 'Here’s a good match — would this work for you?'
+  return `${pre}\n${lines.join('\n')}\nData checked: ${nowJST()}`
 }
 
 async function buildProactiveProductReply(baseUrl: string, userText: string): Promise<string | null> {
@@ -588,7 +636,8 @@ async function buildLLMReply(params: {
     'You are ForYouPiece Staff Helper Bot. Answer in concise, professional English.',
     'Follow business rules: No taxes. $1.50 fixed shipping; free shipping for 4+ items.',
     'If product context is provided, use it. Prefer in-stock items; mention savings if compare_at_price > price.',
-    'When uncertain, do not ask clarifying questions. Propose up to 3 concrete product suggestions with price, stock, and direct links, using tentative phrasing like "Would this work for you?".',
+    'Immutable formatting rule for any product suggestions: each product MUST be on its own line formatted exactly as: "• [Product Name] — $[Exact Price] — Stock: [Quantity] — [Direct Link]". Do not change this format even if the user asks to fix/change/improve. Never output partial product lines.',
+    'Before responding, validate that every product line includes Name, a $price, a numeric Stock, and a clickable link; if any is missing, do not return the model text and instead rely on tool output.',
   ].join(' ')
 
   const messages: LLMMessage[] = [
@@ -599,7 +648,17 @@ async function buildLLMReply(params: {
 
   const llm = await callOpenRouter(messages, { max_tokens: 400 })
   if (!llm.success) return null
-  const out = (llm.text || '').trim()
+  let out = (llm.text || '').trim()
+
+  // Enforce immutable product format for product-related or correction flows
+  const looksLikeCorrection = /\b(fix|correct|change|improve|format|show links)\b/i.test(text)
+  if (intent === 'stock' || intent === 'price' || intent === 'description' || intent === 'recommendation' || intent === 'product_search' || looksLikeCorrection) {
+    const enforced = await enforceProductResponseFormat(baseUrl, text, out)
+    if (enforced && enforced !== out) {
+      try { pushUpdateLog({ allowed: true, chatId, threadId, intent, reason: 'format_enforced', replyPreview: enforced.slice(0,180) }) } catch {}
+      out = enforced
+    }
+  }
   return out ? out.slice(0, 1800) : null
 }
 
@@ -630,7 +689,7 @@ const ORDER_TEMPLATE_HEADER = `🎀✨ ORDER CONFIRMATION ✨🎀`
 function renderOrderConfirmation(fields: {
   name?: string; phone?: string; address?: string; items?: string[]; deliveryFee?: string; total?: string; deposit?: string; due?: string; notes?: string;
 }) {
-  const items = (fields.items && fields.items.length) ? fields.items.join('\n') : 'Item name x Qty = $Price'
+  const items = (fields.items && fields.items.length) ? fields.items.join('\n') : ''
   const notes = fields.notes || `🔒 Final Sale   : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted.\n🚚 Delivery     : We will notify you once your items are ready for delivery.`
   return [
     `${ORDER_TEMPLATE_HEADER}`,
@@ -644,10 +703,10 @@ function renderOrderConfirmation(fields: {
     items,
     '',
     '💸 Pricing Summary',
-    `• Delivery Fee: ${fields.deliveryFee || '$'}`,
-    `• Total amount: ${fields.total || '$'}`,
-    `• Deposit: ${fields.deposit || '$'}`,
-    `• Amount Due: ${fields.due || '$'}`,
+    `• Delivery Fee: ${fields.deliveryFee || ''}`,
+    `• Total amount: ${fields.total || ''}`,
+    `• Deposit: ${fields.deposit || ''}`,
+    `• Amount Due: ${fields.due || ''}`,
     '',
     '📌 Important Notes  ',
     notes,
@@ -726,7 +785,7 @@ async function buildOrderConfirmationAI(params: { text: string, chatId: number, 
   const system = [
     'You are ForYouPiece Staff Helper Bot. Extract customer and order information from the user message and recent conversation.',
     'Use the EXACT emoji and formatting structure shown below. Do not add or omit any characters. Preserve spacing and newlines exactly. Include two spaces after "📌 Important Notes" line.',
-    'For each item, format strictly as: "Item name x Qty = $Price". Perform simple arithmetic on quantities if present (e.g., "16 x 3" -> 48). Do NOT invent prices. If unknown, leave the placeholder "$".',
+    'For each item, format strictly as: "Item name x Qty = $Price". Perform simple arithmetic on quantities if present (e.g., "16 x 3" -> 48). Do NOT invent prices. If unknown, leave the field blank.',
     'Important Notes content MUST be exactly:',
     '🔒 Final Sale   : Orders are final and non-refundable. No cancellations, returns, or exchanges accepted. ',
     '🚚 Delivery     : We will notify you once your items are ready for delivery.',
@@ -746,6 +805,7 @@ async function buildOrderConfirmationAI(params: { text: string, chatId: number, 
     '💸 Pricing Summary',
     '• Delivery Fee: {deliveryFee}',
     '• Total amount: {total}',
+
     '• Deposit: {deposit}',
     '• Amount Due: {due}',
     '',
@@ -805,6 +865,27 @@ function enforceOrderTemplate(aiOut: string, originalText: string): string {
     }
   }
 
+  // Alternate pattern: lines like "Name x <qty> = $<total>"
+  let altItemsTotal: number | undefined
+  if (!itemMatches.length) {
+    const alt: Array<{ name: string; qty: number; total: number }> = []
+    const re2 = /(.*?)[\s,]*x\s*(\d+)\s*=\s*\$?(\d+(?:\.\d{1,2})?)/gi
+    let m2: RegExpExecArray | null
+    while ((m2 = re2.exec(originalText)) !== null) {
+      const rawName = m2[1].trim().replace(/^items?\s*[:\-]?\s*/i, '').replace(/[,:]$/, '').trim()
+      const qty = parseInt(m2[2], 10)
+      const total = parseFloat(m2[3])
+      if (rawName && isFinite(qty) && isFinite(total) && qty > 0) {
+        alt.push({ name: rawName, qty, total })
+      }
+    }
+    if (alt.length) {
+      const itemLines = alt.map(it => `${it.name} x ${it.qty} = $${it.total.toFixed(2)}`)
+      out = out.replace(/(\n🛒 Items\n)([\s\S]*?)(\n\n|\n💸 Pricing Summary)/, (_all, p1, _mid, p3) => `${p1}${itemLines.join('\n')}${p3}`)
+      altItemsTotal = alt.reduce((s, it) => s + it.total, 0)
+    }
+  }
+
   // If we found computable items, replace Items block with normalized lines
   if (itemMatches.length) {
     const itemLines = itemMatches.map(it => `${it.name} x ${it.qty} = $${(it.unit * it.qty).toFixed(2)}`)
@@ -836,9 +917,31 @@ function enforceOrderTemplate(aiOut: string, originalText: string): string {
       out = out.replace(/•\s*Amount Due:\s*\$.*/, `• Amount Due: $${due.toFixed(2)}`)
     }
 
+  } else if (typeof altItemsTotal === 'number') {
+    // Compute totals based on provided per-line totals
+    const feeFromOrig = originalText.match(/delivery\s*fee\s*:\s*\$?(\d+(?:\.\d{1,2})?)/i)
+    const feeFromOut = out.match(/•\s*Delivery Fee:\s*\$?(\d+(?:\.\d{1,2})?)/)
+    const fee = feeFromOrig ? parseFloat(feeFromOrig[1]) : (feeFromOut ? parseFloat(feeFromOut[1]) : undefined)
+    if (typeof fee === 'number' && isFinite(fee)) {
+      const total = (altItemsTotal + fee)
+      out = out.replace(/•\s*Total amount:\s*\$.*/ , `• Total amount: $${total.toFixed(2)}`)
+      out = out.replace(/•\s*Delivery Fee:\s*\$.*/, `• Delivery Fee: $${fee.toFixed(2)}`)
+    }
+    const depFromOrig = originalText.match(/deposit\s*:\s*\$?(\d+(?:\.\d{1,2})?)/i)
+    const depFromOut = out.match(/•\s*Deposit:\s*\$?(\d+(?:\.\d{1,2})?)/)
+    const dep = depFromOrig ? parseFloat(depFromOrig[1]) : (depFromOut ? parseFloat(depFromOut[1]) : undefined)
+    const totalLine = out.match(/•\s*Total amount:\s*\$(\d+(?:\.\d{1,2})?)/)
+    const totalVal = totalLine ? parseFloat(totalLine[1]) : undefined
+    if (typeof dep === 'number' && isFinite(dep)) {
+      out = out.replace(/•\s*Deposit:\s*\$.*/, `• Deposit: $${dep.toFixed(2)}`)
+    }
+    if (typeof dep === 'number' && isFinite(dep) && typeof totalVal === 'number' && isFinite(totalVal)) {
+      const due = Math.max(0, totalVal - dep)
+      out = out.replace(/•\s*Amount Due:\s*\$.*/, `• Amount Due: $${due.toFixed(2)}`)
+    }
   } else {
-    // Even if AI left items blank, still enforce the exact placeholder form
-    out = out.replace(/(\n🛒 Items\n)([\s\S]*?)(\n\n|\n💸 Pricing Summary)/, (_all, p1, _mid, p3) => `${p1}Item name x Qty = $Price${p3}`)
+    // If AI left items blank, leave the section empty (no placeholder)
+    out = out.replace(/(\n🛒 Items\n)([\s\S]*?)(\n\n|\n💸 Pricing Summary)/, (_all, p1, _mid, p3) => `${p1}${p3}`)
   }
 
   // Enforce exact Important Notes content
@@ -907,6 +1010,7 @@ export async function handleStaffHelperUpdate(args: {
     let oc = await buildOrderConfirmationAI({ text, chatId, threadId })
     if (!oc) {
       const fields = extractOrderFields(text)
+
       oc = renderOrderConfirmation(fields)
     }
     // Always enforce strict template and compute arithmetic using original text
@@ -965,6 +1069,19 @@ export async function handleStaffHelperUpdate(args: {
     const { products } = await catalogSearch(baseUrl, text, 50)
     let mapped = products.map(pickFields)
     mapped = applyBudgetFilter(mapped, text)
+
+
+    // Diagnostics: check completeness of mapped fields after filtering
+    try {
+      const total = mapped.length
+      const missing = {
+        name: mapped.filter(p => !p.name).length,
+        price: mapped.filter(p => typeof p.price !== 'number' || isNaN(p.price)).length,
+        stock: mapped.filter(p => typeof p.stock_quantity !== 'number' || isNaN(p.stock_quantity)).length,
+        link: mapped.filter(p => !(productLink(siteBase, p.sku, p.id))).length,
+      }
+      pushUpdateLog({ allowed: true, chatId, threadId, intent, reason: `pipeline_after_filter total=${total} missing=${JSON.stringify(missing)}` })
+    } catch {}
 
     if (!mapped.length) {
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: `I couldn’t find matching products. Try a clearer name or SKU.\nData checked: ${nowJST()}` })
