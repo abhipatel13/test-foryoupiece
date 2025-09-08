@@ -4,6 +4,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { createServerClient } from '@supabase/ssr'
 import { Database } from '@/lib/supabase/database.types'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+export const runtime = 'nodejs'
+
+
 
 /**
  * Telegram Login Widget Verification Endpoint

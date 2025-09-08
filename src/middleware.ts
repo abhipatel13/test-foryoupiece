@@ -116,6 +116,17 @@ export default async function middleware(request: NextRequest) {
   supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
   supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
+  // Critical: Prevent caching of authentication API responses across all layers (browser, CDN, proxy)
+  try {
+    const p = request.nextUrl.pathname
+    if (p.startsWith('/api/auth/')) {
+      supabaseResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+      supabaseResponse.headers.set('Pragma', 'no-cache')
+      supabaseResponse.headers.set('Expires', '0')
+      supabaseResponse.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+    }
+  } catch {}
+
   // Preserve all Supabase-issued cookies (with enhanced security options)
   const pendingCookies: { name: string; value: string; options?: any }[] = []
 

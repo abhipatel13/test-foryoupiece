@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+export const runtime = 'nodejs'
+
+
 
 /**
  * Telegram Deep-Link Login Nonce Generator
- * 
+ *
  * This endpoint generates a unique nonce for deep-link based Telegram login.
  * Used as a fallback when the Telegram Login Widget fails due to third-party cookie restrictions.
- * 
+ *
  * Flow:
  * 1. Frontend requests a nonce
  * 2. User clicks deep-link to Telegram bot with nonce
@@ -30,7 +36,7 @@ const nonceStore = new Map<string, {
 setInterval(() => {
   const now = Date.now()
   const expiredTime = 10 * 60 * 1000 // 10 minutes
-  
+
   for (const [nonce, data] of nonceStore.entries()) {
     if (now - data.created > expiredTime) {
       nonceStore.delete(nonce)
@@ -50,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Generate secure nonce
     const nonce = randomBytes(16).toString('hex')
-    
+
     // Store nonce with timestamp
     nonceStore.set(nonce, {
       created: Date.now(),

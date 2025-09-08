@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { isTokenBlacklisted } from '@/lib/security/session-manager'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+export const runtime = 'nodejs'
+
+
 /**
  * Enhanced Session Validation API
  * Provides comprehensive session validation with security checks
@@ -9,10 +15,10 @@ import { isTokenBlacklisted } from '@/lib/security/session-manager'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     // Get current session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
+
     if (sessionError || !session) {
       return NextResponse.json({
         valid: false,
@@ -141,7 +147,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { session }, error } = await supabase.auth.getSession()
-    
+
     if (error || !session) {
       return NextResponse.json({ valid: false, reason: 'no_session' }, { status: 401 })
     }
@@ -149,13 +155,13 @@ export async function GET(request: NextRequest) {
     // Simple age check
     const sessionAge = Date.now() - new Date(session.created_at || session.issued_at || 0).getTime()
     const maxAge = 8 * 60 * 60 * 1000 // 8 hours
-    
+
     if (sessionAge > maxAge) {
       return NextResponse.json({ valid: false, reason: 'session_expired' }, { status: 401 })
     }
 
-    return NextResponse.json({ 
-      valid: true, 
+    return NextResponse.json({
+      valid: true,
       sessionAge: Math.round(sessionAge / (60 * 1000)) + 'min',
       remainingTime: Math.round((maxAge - sessionAge) / (60 * 1000)) + 'min'
     })

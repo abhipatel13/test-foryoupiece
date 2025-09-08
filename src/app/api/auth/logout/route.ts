@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { enhancedLogout } from '@/lib/security/session-manager'
-import { 
-  handleAuthenticationError, 
-  handleGenericError 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+export const runtime = 'nodejs'
+
+
+import {
+  handleAuthenticationError,
+  handleGenericError
 } from '@/lib/security/error-sanitizer'
 
 /**
@@ -35,7 +41,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Enhanced logout failed:', logoutResult.error)
       return handleAuthenticationError(
         new Error(logoutResult.error || 'Logout failed'),
-        { 
+        {
           operation: 'enhanced_logout',
           userId: user.id,
           endpoint: '/api/auth/logout'

@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { createHash } from 'crypto'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+export const runtime = 'nodejs'
+
+
 
 /**
  * Telegram Deep-Link Login Polling Endpoint
- * 
+ *
  * This endpoint allows the frontend to poll for nonce verification status.
  * When a nonce is verified by the Telegram bot, this endpoint creates a Supabase session.
  */
@@ -44,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
 
     const nonceData = nonceStore.get(nonce)
-    
+
     if (!nonceData) {
       return NextResponse.json({
         success: false,
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
     // Check if nonce has expired (10 minutes)
     const now = Date.now()
     const expiredTime = 10 * 60 * 1000
-    
+
     if (now - nonceData.created > expiredTime) {
       nonceStore.delete(nonce)
       return NextResponse.json({
