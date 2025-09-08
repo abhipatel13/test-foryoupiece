@@ -46,10 +46,25 @@ export function MetaPageviewTracker() {
   useEffect(() => {
     try {
       if (hasMarketingConsent() && typeof window !== 'undefined' && typeof (window as any).fbq === 'function') {
-        ;(window as any).fbq('track', 'PageView')
+        var PV_ID = 'pv_' + Date.now() + '_' + Math.floor(Math.random()*1e6)
+        ;(window as any).fbq('track', 'PageView', {}, { eventID: PV_ID })
+        // Throttle server-side PageView to at most one per 20s
+        try {
+          var last = 0
+          try { last = parseInt(localStorage.getItem('fyp_pv_last') || '0', 10) } catch(_) {}
+          var now = Date.now()
+          if (!last || (now - last) > 20000) {
+            try { localStorage.setItem('fyp_pv_last', String(now)) } catch(_) {}
+            fetch('/api/analytics/pageview', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ eventId: PV_ID, sourceUrl: (typeof location !== 'undefined' ? location.href : undefined), consent: true })
+            }).catch(function(){})
+          }
+        } catch {}
         if (process.env.NEXT_PUBLIC_DEBUG_ANALYTICS === 'true') {
           // eslint-disable-next-line no-console
-          console.log('Meta Pixel SPA PageView fired on route change', { pathname, search: searchParams?.toString() })
+          console.log('Meta Pixel SPA PageView fired on route change', { pathname, search: searchParams?.toString(), PV_ID })
         }
       }
     } catch {}

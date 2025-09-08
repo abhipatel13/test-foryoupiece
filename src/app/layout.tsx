@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { VercelAnalytics } from "@/components/analytics/VercelAnalytics";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,6 +52,13 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://oauth.telegram.org" />
+        <link rel="dns-prefetch" href="https://oauth.telegram.org" />
+        <link rel="preconnect" href="https://xhfmyghtcugcocchzgja.supabase.co" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://xhfmyghtcugcocchzgja.supabase.co" />
+      </head>
+
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Script
           id="chunk-error-handler"
@@ -132,8 +142,16 @@ export default async function RootLayout({
                   }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
 
                   fbq('init', PIXEL_ID);
-                  fbq('track', 'PageView');
-                  if (DEBUG) console.log('Meta Pixel initialized', { PIXEL_ID });
+                  var PV_ID = 'pv_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+                  fbq('track', 'PageView', {}, { eventID: PV_ID });
+                  try {
+                    fetch('/api/analytics/pageview', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ eventId: PV_ID, sourceUrl: (typeof location !== 'undefined' ? location.href : undefined), consent: true })
+                    }).catch(function(){});
+                  } catch(_e) {}
+                  if (DEBUG) console.log('Meta Pixel initialized', { PIXEL_ID, PV_ID });
                 } catch (err) {
                   try { console.error('Meta Pixel init error', err); } catch (_e) {}
                 }
@@ -142,6 +160,8 @@ export default async function RootLayout({
           }}
         />
         {children}
+        <VercelAnalytics />
+        <SpeedInsights />
       </body>
     </html>
   );

@@ -43,6 +43,117 @@ interface Product {
   } | null
 }
 
+
+function xmur3(str: string) {
+  let h = 1779033703 ^ str.length
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353)
+    h = (h << 13) | (h >>> 19)
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507)
+    h = Math.imul(h ^ (h >>> 13), 3266489909)
+    h ^= h >>> 16
+    return h >>> 0
+  }
+}
+
+function mulberry32(a: number) {
+  return function () {
+    let t = (a += 0x6d2b79f5)
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function seededShuffle<T>(array: T[], seed: string): T[] {
+  const rand = mulberry32(xmur3(seed)())
+  const a = [...array]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function BrandsSection() {
+  const [brands, setBrands] = useState<string[]>([])
+  const [reps, setReps] = useState<Record<string, { slug: string; image?: string }>>({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // Stable per-session seed
+        let seed = sessionStorage.getItem('brandsSeed')
+        if (!seed) {
+          seed = `${Date.now()}-${Math.random()}`
+          sessionStorage.setItem('brandsSeed', seed)
+        }
+        const res = await fetch('/api/products/brands')
+        const data = await res.json()
+        const names: string[] = data?.brands || []
+        const shuffled = seededShuffle(names, seed)
+        const firstEight = shuffled.slice(0, 8)
+        setBrands(firstEight)
+        if (firstEight.length > 0) {
+          const qs = new URLSearchParams()
+          qs.set('brands', firstEight.map(encodeURIComponent).join(','))
+          qs.set('seed', seed)
+          const r = await fetch(`/api/brands/representatives?${qs.toString()}`)
+          const repData = await r.json()
+          if (repData?.success) setReps(repData.data || {})
+        }
+      } catch (e) {
+        console.error('BrandsSection error', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    init()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="modern-product-card p-4 animate-pulse">
+            <div className="aspect-square bg-secondary rounded-xl mb-3"></div>
+            <div className="h-4 bg-secondary rounded w-24 mx-auto"></div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+      {brands.map((brand) => {
+        const rep = reps[brand]
+        const slug = rep?.slug || brand.toLowerCase().replace(/\s+/g, '-')
+        const image = rep?.image
+        return (
+          <Link key={brand} href={`/en/brands/${slug}`} className="group">
+            <div className="modern-product-card p-3 sm:p-4 text-center group-hover:scale-105 transition-all duration-300 hover:shadow-lg">
+              <div className="aspect-square rounded-xl mb-3 sm:mb-4 overflow-hidden bg-gradient-to-br from-secondary to-accent relative flex items-center justify-center">
+                {image ? (
+                  <Image src={image} alt={brand} width={160} height={160} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-300" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-2xl sm:text-3xl font-semibold">{brand.charAt(0)}</span>
+                  </div>
+                )}
+              </div>
+              <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors mb-1 text-sm sm:text-base line-clamp-2">{brand}</h3>
+            </div>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function HomePage() {
   const t = useTranslations('navigation')
   const { user } = useSSRSafeAuth()
@@ -473,8 +584,8 @@ export default function HomePage() {
               href="/en/products?deals=true"
               className="mobile-view-all-link"
             >
-              <span className="hidden sm:inline">View All Deals</span>
-              <span className="sm:hidden">View All</span>
+              <span className="hidden sm:inline">See More</span>
+              <span className="sm:hidden">See More</span>
               <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             </Link>
           </div>
@@ -493,7 +604,7 @@ export default function HomePage() {
           ) : (
             <div className="product-carousel deals-carousel" key={`deals-products-${firefoxRefreshKey}`}>
               {dealsProducts.map((product) => (
-                <div key={product.id} className="hover-lift modern-product-card">
+                <div key={product.id} className="hover-lift h-full">
                   <ProductCard product={product} locale="en" />
                 </div>
               ))}
@@ -718,6 +829,23 @@ export default function HomePage() {
             </div>
           )}
         </section>
+
+        {/* Brands Section - Appears after Categories */}
+        <section id="brands-section" className="scroll-mt-12 sm:scroll-mt-14 xl:scroll-mt-16 mb-16">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Shop by Brand</h2>
+            <p className="text-muted-foreground text-sm sm:text-base">Discover popular Japanese brands we carry</p>
+          </div>
+
+          <BrandsSection />
+
+          <div className="mt-6 flex justify-center">
+            <Link href="/en/brands" className="modern-button-primary px-6 py-3 rounded-md font-semibold">
+              Show More
+            </Link>
+          </div>
+        </section>
+
 
 
       </div>

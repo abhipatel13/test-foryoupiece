@@ -219,13 +219,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('📋 Querying user profile for userId:', userId)
       }
 
-      // Use optimized profile loading with soft timeout and background retry
-      const profilePromise = userQueries.getProfile(userId)
+      // Use optimized profile loading via lightweight bootstrap API with soft timeout and background retry
+      const profilePromise = (async () => {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 3000)
+        try {
+          const resp = await fetch('/api/profile/bootstrap', { cache: 'no-store', signal: controller.signal })
+          const json = await resp.json().catch(() => null)
+          return json?.data?.profile ?? null
+        } catch (_e) {
+          return null
+        } finally {
+          clearTimeout(timer)
+        }
+      })()
+
       const softTimeoutPromise = new Promise<null>((resolve) =>
         setTimeout(() => {
-          console.warn('⏰ Profile load exceeded 10s, continuing with background retry...')
+          console.warn('⏰ Profile load exceeded 3s, continuing with background retry...')
           resolve(null) // Soft timeout - resolve with null instead of rejecting
-        }, 10000) // Increased to 10s for better network tolerance
+        }, 3000)
       )
 
       const profile = await Promise.race([profilePromise, softTimeoutPromise])

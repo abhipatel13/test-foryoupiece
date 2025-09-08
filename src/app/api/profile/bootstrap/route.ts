@@ -1,0 +1,66 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+// Lightweight bootstrap endpoint for initial profile payload
+// Returns only essential fields for first render
+export async function GET(_req: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: userErr } = await supabase.auth.getUser()
+
+    if (userErr) {
+      // Treat missing auth session as unauthenticated (not an error)
+      return NextResponse.json({ success: true, data: { authenticated: false } }, { status: 200 })
+    }
+
+    if (!user) {
+      return NextResponse.json({ success: true, data: { authenticated: false } }, { status: 200 })
+    }
+
+    // Fetch minimal profile fields
+    const { data: profile, error: profileErr } = await supabase
+      .from('users')
+      .select(`
+        id, email, phone, first_name, last_name, avatar_url,
+        points_balance, total_points_earned, tier_level,
+        telegram_username
+      `)
+      .eq('id', user.id)
+      .single()
+
+    if (profileErr) {
+      // Do not fail hard; return an empty profile to avoid blocking UI
+      return NextResponse.json({ success: true, data: { authenticated: true, profile: null, cart_count: 0 } }, { status: 200 })
+    }
+
+    // Fetch cart count only (head request with count)
+    const { count: cartCount = 0 } = await supabase
+      .from('cart_items')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+
+    const payload = {
+      authenticated: true,
+      profile,
+      cart_count: cartCount,
+      points_summary: {
+        balance: profile?.points_balance ?? 0,
+        total_earned: profile?.total_points_earned ?? 0,
+        tier: profile?.tier_level ?? 'bronze',
+      },
+      name: profile?.first_name || profile?.telegram_username || 'User',
+      avatar: profile?.avatar_url || null,
+    }
+
+    const res = NextResponse.json({ success: true, data: payload }, { status: 200 })
+    // Make sure this is always fresh for auth flows
+    res.headers.set('Cache-Control', 'no-store')
+    return res
+  } catch (e: any) {
+    return NextResponse.json(
+      { success: false, error: e?.message || 'Bootstrap error' },
+      { status: 200 }
+    )
+  }
+}
+

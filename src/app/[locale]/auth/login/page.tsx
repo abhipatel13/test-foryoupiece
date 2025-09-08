@@ -23,6 +23,15 @@ function TelegramLoginWidget() {
   const [nonce, setNonce] = useState<string | null>(null)
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
+  const [isInitiated, setIsInitiated] = useState(false)
+  const beginSignIn = () => {
+    try {
+      const payload = { ts: Date.now(), v: 1 }
+      localStorage.setItem('AUTH_SIGNIN_IN_PROGRESS', JSON.stringify(payload))
+    } catch {}
+    setIsInitiated(true)
+  }
+
 
   useEffect(() => {
     // Load Telegram widget script
@@ -37,6 +46,10 @@ function TelegramLoginWidget() {
     const container = document.getElementById('telegram-login-widget')
     if (container) {
       container.appendChild(script)
+      // Capture clicks inside the widget to show loading immediately
+      const clickHandler = () => beginSignIn()
+      container.addEventListener('click', clickHandler, true)
+      ;(window as any).__tg_click_handler__ = clickHandler
       setIsLoaded(true)
     }
 
@@ -48,6 +61,10 @@ function TelegramLoginWidget() {
     return () => {
       clearTimeout(fallbackTimer)
       // Cleanup
+      if (container) {
+        const ch = (window as any).__tg_click_handler__
+        if (ch) container.removeEventListener('click', ch, true)
+      }
       if (container && script.parentNode) {
         container.removeChild(script)
       }
@@ -56,6 +73,8 @@ function TelegramLoginWidget() {
 
   const handleFallbackLogin = async () => {
     try {
+      beginSignIn()
+
       const response = await fetch('/api/auth/telegram/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -75,6 +94,7 @@ function TelegramLoginWidget() {
   }
 
   const startPolling = async (nonceToCheck: string) => {
+    beginSignIn()
     setIsPolling(true)
     const maxAttempts = 60 // 10 minutes
     let attempts = 0
@@ -131,6 +151,13 @@ function TelegramLoginWidget() {
       )}
 
       <div id="telegram-login-widget" className="w-full flex justify-center" />
+
+      {(isInitiated || isPolling) && (
+        <p className="text-xs text-muted-foreground text-center">
+          We are signing you in, please wait...
+        </p>
+      )}
+
 
       {showFallback && !nonce && (
         <div className="text-center space-y-2">

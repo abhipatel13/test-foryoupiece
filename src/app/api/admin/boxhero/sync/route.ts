@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { BoxHeroSyncService } from '@/lib/boxhero-sync';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
@@ -59,8 +60,31 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
         // Get the actual BoxHero metrics by fetching from BoxHero API
         const boxHeroItems = await fetchBoxHeroItems();
-        const uniqueProducts = boxHeroItems.length;
-        const totalQuantity = boxHeroItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const locations = await fetchBoxHeroLocations();
+        console.log('📍 BoxHero locations (metrics):', (locations || []).map((l: any) => ({ id: l.id, name: l.name })));
+        const inStockIds = (locations || [])
+          .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items'; })
+          .map((l: any) => Number(l.id));
+        console.log('📍 Instock items location IDs (metrics):', inStockIds);
+        if (inStockIds.length === 0) {
+          console.warn('⚠️ No location named exactly "Instock items" found for metrics aggregation. Total stock will be 0.');
+        }
+
+        // Exclude preorder-named products
+        const filteredItems = boxHeroItems.filter((it: any) => !/(\(preorder\))\s*$/i.test((it.name || '').trim()));
+        const uniqueProducts = filteredItems.length;
+
+        // Sum quantities only from "Instock items" location(s); ignore others
+        const totalQuantity = filteredItems.reduce((sum: number, it: any) => {
+          const qList = Array.isArray(it.quantities) ? it.quantities : [];
+          const itemQty = qList.reduce((s: number, loc: any) => {
+            const qty = Number(loc?.quantity);
+            const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0;
+            const locId = Number(loc?.location_id);
+            return s + (inStockIds.includes(locId) ? safeQty : 0);
+          }, 0);
+          return sum + itemQty;
+        }, 0);
 
         console.log(`📊 BoxHero metrics calculated from API: ${uniqueProducts} unique products, ${totalQuantity} total units`);
 
@@ -95,6 +119,10 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
       // Invalidate frontend caches after successful sync
       try {
+        // Tag-based revalidation for server caches
+        revalidateTag('products')
+        revalidateTag('categories')
+        revalidateTag('inventory')
         // Derive base URL dynamically from incoming request to support dev ports (e.g., 3001)
         const requestOrigin = request.headers.get('origin') || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}`
         // 1) Signal React Query clients (userland) to refetch relevant keys
@@ -191,7 +219,19 @@ async function syncProductStockQuantities(triggeredBy: string) {
     console.log('💾 Updating stock quantities in Supabase...');
     const supabase = createServiceRoleClient();
 
-    for (const item of boxHeroItems) {
+    // Resolve locations and prepare filter
+    const locations = await fetchBoxHeroLocations();
+    console.log('📍 BoxHero locations (update):', (locations || []).map((l: any) => ({ id: l.id, name: l.name })));
+    const inStockIds = (locations || [])
+      .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items'; })
+      .map((l: any) => Number(l.id));
+    console.log('📍 Instock items location IDs (update):', inStockIds);
+    if (inStockIds.length === 0) {
+      console.warn('⚠️ No location named exactly "Instock items" found for updates. Stock will be set to 0.');
+    }
+    const filteredItems = boxHeroItems.filter((it: any) => !/(\(preorder\))\s*$/i.test((it.name || '').trim()));
+
+    for (const item of filteredItems) {
       try {
         // Find product by SKU (skip deleted products)
         const { data: products, error: findError } = await supabase
@@ -216,8 +256,14 @@ async function syncProductStockQuantities(triggeredBy: string) {
         const product = products[0];
         const currentStockRaw = Number(product.stock_quantity)
         const currentStock = Number.isFinite(currentStockRaw) ? Math.max(0, Math.floor(currentStockRaw)) : 0;
-        const newStockRaw = Number((item as any).quantity)
-        const newStock = Number.isFinite(newStockRaw) ? Math.max(0, Math.floor(newStockRaw)) : 0;
+        // Calculate stock from "Instock items" location(s) only
+        const qList = Array.isArray((item as any).quantities) ? (item as any).quantities : [];
+        const newStock = qList.reduce((sum: number, loc: any) => {
+          const qty = Number(loc?.quantity);
+          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0;
+          const locId = Number(loc?.location_id);
+          return sum + (inStockIds.includes(locId) ? safeQty : 0);
+        }, 0);
 
         // Determine trending from BoxHero attrs if available
         const attrs = (item as any).attrs as Array<{ name: string; value?: any }>|undefined;
@@ -302,6 +348,8 @@ async function syncProductStockQuantities(triggeredBy: string) {
  * Fetch all items from BoxHero API with pagination
  */
 async function fetchBoxHeroItems() {
+
+
   const allItems: any[] = [];
   let cursor: string | null = null;
   let hasMore = true;
@@ -341,15 +389,39 @@ async function fetchBoxHeroItems() {
 }
 
 /**
+ * Fetch BoxHero locations (id, name)
+ */
+async function fetchBoxHeroLocations() {
+  const url = new URL('https://rest.boxhero-app.com/v1/locations');
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${BOXHERO_API_TOKEN}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    console.warn('⚠️ BoxHero locations API error:', response.status, response.statusText);
+    return [] as any[];
+  }
+
+  const data = await response.json();
+  return Array.isArray(data.items) ? data.items : [];
+}
+
+
+/**
  * GET /api/admin/boxhero/sync
  * Get sync status and history
  */
 export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
     console.log('📊 Fetching BoxHero sync status...');
-    
+
     const status = await BoxHeroSyncService.getSyncStatus();
-    
+
     return NextResponse.json({
       success: true,
       data: status,
@@ -358,9 +430,9 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
 
   } catch (error) {
     console.error('❌ Sync status API error:', error);
-    
+
     return NextResponse.json(
-      { 
+      {
         success: false,
         message: 'Failed to get sync status',
         error: error instanceof Error ? error.message : 'Unknown error',

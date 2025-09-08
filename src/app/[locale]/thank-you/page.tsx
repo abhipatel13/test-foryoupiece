@@ -751,7 +751,7 @@ function ThankYouPageContent() {
                 <span>support@foryoupiece.com</span>
               </a>
               <a
-                href="https://t.me/foryoupiece_support"
+                href="https://t.me/m/zDsQTcg4MDJl"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm transition-colors duration-200"

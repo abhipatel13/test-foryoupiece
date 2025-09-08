@@ -10,6 +10,7 @@ interface BoxHeroItem {
   name: string;
   sku: string;
   quantity: number;
+  quantities?: Array<{ location_id: number; quantity: number }>;
   price?: number;
   category?: string;
   location_id?: number;
@@ -79,7 +80,21 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
     console.log('📡 Fetching items from BoxHero API...')
     const boxHeroItems = await fetchBoxHeroItems()
 
-    if (!boxHeroItems || boxHeroItems.length === 0) {
+    // Resolve locations and prepare filters
+    const locations = await fetchBoxHeroLocations()
+    console.log('\ud83d\udccd BoxHero locations (products):', (locations || []).map((l: any) => ({ id: l.id, name: l.name })))
+    const inStockIds = (locations || [])
+      .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items'; })
+      .map((l: any) => Number(l.id))
+    console.log('\ud83d\udccd Instock items location IDs (products):', inStockIds)
+    if (inStockIds.length === 0) {
+      console.warn('\u26a0\ufe0f No location named exactly "Instock items" found for product updates. Stock will be set to 0.')
+    }
+
+    // Exclude preorder-named products
+    const itemsToProcess = boxHeroItems.filter((it: any) => !/(\(preorder\))\s*$/i.test((it.name || '').trim()))
+
+    if (!itemsToProcess || itemsToProcess.length === 0) {
       throw new Error('No items received from BoxHero API')
     }
 
@@ -89,7 +104,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
     console.log('💾 Updating stock quantities in Supabase...')
     const supabase = createServiceRoleClient()
 
-    for (const item of boxHeroItems) {
+    for (const item of itemsToProcess) {
       try {
         // Find product by SKU (skip deleted products)
         const { data: products, error: findError } = await supabase
@@ -113,7 +128,14 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
         const product = products[0]
         const currentStock = product.stock_quantity || 0
-        const newStock = item.quantity || 0
+        // Calculate stock from "Instock items" location(s) only
+        const qList = Array.isArray((item as any).quantities) ? (item as any).quantities : []
+        const newStock = qList.reduce((sum: number, loc: any) => {
+          const qty = Number(loc?.quantity)
+          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0
+          const locId = Number(loc?.location_id)
+          return sum + (inStockIds.includes(locId) ? safeQty : 0)
+        }, 0)
 
         // Only update if stock quantity has changed
         if (currentStock !== newStock) {
@@ -208,6 +230,8 @@ async function fetchBoxHeroItems(): Promise<BoxHeroItem[]> {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
+
+
     });
 
     if (!response.ok) {
@@ -251,5 +275,31 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
       { success: false, error: 'Failed to get sync status' },
       { status: 500 }
     )
+
+
   }
 })
+
+
+/**
+ * Fetch BoxHero locations (id, name)
+ */
+async function fetchBoxHeroLocations() {
+  const url = new URL('https://rest.boxhero-app.com/v1/locations');
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${BOXHERO_API_TOKEN}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    console.warn('\u26a0\ufe0f BoxHero locations API error:', response.status, response.statusText);
+    return [] as any[];
+  }
+
+  const data = await response.json();
+  return Array.isArray(data.items) ? data.items : [];
+}

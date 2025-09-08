@@ -19,6 +19,7 @@ export interface ProductProps {
   is_active?: boolean;
   status?: ProductStatus;
   weight?: number;
+  brand?: string;
   dimensions?: {
     length: number;
     width: number;
@@ -51,6 +52,7 @@ export class Product implements BaseEntity {
   private _status: ProductStatus;
   private _weight?: number;
   private _dimensions?: { length: number; width: number; height: number };
+  private _brand?: string;
   private _tags: string[];
   private _metadata: Record<string, any>;
   private _createdAt: Timestamp;
@@ -74,6 +76,7 @@ export class Product implements BaseEntity {
     this._status = props.status || PRODUCT_STATUS.ACTIVE;
     this._weight = props.weight;
     this._dimensions = props.dimensions;
+    this._brand = props.brand;
     this._tags = props.tags || [];
     this._metadata = props.metadata || {};
     this._createdAt = props.created_at;
@@ -176,6 +179,11 @@ export class Product implements BaseEntity {
   get dimensions(): { length: number; width: number; height: number } | undefined {
     return this._dimensions ? { ...this._dimensions } : undefined;
   }
+
+  get brand(): string | undefined {
+    return this._brand;
+  }
+
 
   get tags(): string[] {
     return [...this._tags];
@@ -317,6 +325,7 @@ export class Product implements BaseEntity {
       is_active: this._isActive,
       status: this._status,
       weight: this._weight,
+      brand: this._brand,
       dimensions: this._dimensions,
       tags: this._tags,
       metadata: this._metadata,
@@ -352,6 +361,7 @@ export class Product implements BaseEntity {
       is_active: this._isActive,
       // status: this._status, // Removed - column doesn't exist in database
       weight_grams: this._weight,
+      brand: this._brand,
       dimensions: this._dimensions,
       tags: this._tags,
       // Map metadata to existing BoxHero columns instead of non-existent metadata column

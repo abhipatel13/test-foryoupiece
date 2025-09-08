@@ -47,6 +47,8 @@ export interface SyncReport {
  */
 export class BoxHeroSyncService {
   private categoryMap: Map<string, string> = new Map();
+  // Only count quantities from locations explicitly named "In Stock"
+  private inStockLocationIds: Set<number> = new Set();
 
   constructor(
     private boxHeroService: BoxHeroService,
@@ -151,11 +153,29 @@ export class BoxHeroSyncService {
       console.log('📂 Initializing category mapping...');
       await this.initializeCategoryMapping();
 
-      // Step 1: Fetch all BoxHero items
-      console.log('🔄 Fetching BoxHero items...');
+      // Step 1: Resolve locations and fetch all BoxHero items
+      console.log('🔄 Fetching BoxHero locations and items...');
       console.log('🔍 Sync options received:', options);
+
+      // Resolve "Instock items" location IDs (exact match after trim)
+      const locationsRes = await this.boxHeroService.getLocations();
+      if (locationsRes.success) {
+        console.log('📍 BoxHero locations:', locationsRes.data.map(l => ({ id: l.id, name: l.name })));
+        const inStockIds = locationsRes.data
+          .filter(l => { const n = ((l.name ?? '') + '').trim().replace(/\s+/g, ' ').toLowerCase(); return n === 'instock items'; })
+          .map(l => Number(l.id));
+        this.inStockLocationIds = new Set(inStockIds);
+        console.log('📍 Instock items location IDs:', Array.from(this.inStockLocationIds));
+        if (this.inStockLocationIds.size === 0) {
+          console.warn('⚠️ No location named exactly "Instock items" found. Stock will be computed as 0 by design.');
+        }
+      } else {
+        console.warn('⚠️ Failed to fetch BoxHero locations; will treat non-matching locations as 0 stock.');
+        this.inStockLocationIds = new Set();
+      }
+
       const boxHeroItemsResult = await this.boxHeroService.getAllItems(options.locationIds);
-      
+
       if (!boxHeroItemsResult.success) {
         report.errors.push({
           item: 'BoxHero API',
@@ -165,9 +185,18 @@ export class BoxHeroSyncService {
         return { success: false, error: boxHeroItemsResult.error };
       }
 
-      const boxHeroItems = boxHeroItemsResult.data;
+      // Filter out preorder-named products: name ends with "(preorder)" (case-insensitive)
+      const rawItems = boxHeroItemsResult.data;
+      const filteredItems = rawItems.filter(it => !/(\(preorder\))\s*$/i.test((it.name || '').trim()));
+      const excludedCount = rawItems.length - filteredItems.length;
+      if (excludedCount > 0) {
+        report.itemsSkipped += excludedCount;
+        console.log(`⏭️ Excluded ${excludedCount} preorder items by name`);
+      }
+
+      const boxHeroItems = filteredItems;
       report.totalBoxHeroItems = boxHeroItems.length;
-      console.log(`📦 Found ${boxHeroItems.length} items in BoxHero`);
+      console.log(`📦 Found ${boxHeroItems.length} items in BoxHero after filtering`);
 
       // Step 2: Fetch existing ForYouPiece products
       console.log('🔄 Fetching existing products...');
@@ -300,7 +329,7 @@ export class BoxHeroSyncService {
       };
 
       // Try to find existing product by SKU
-      const existingProduct = existingProducts.find(product => 
+      const existingProduct = existingProducts.find(product =>
         product.sku.value === mapping.sku ||
         product.nameEn.toLowerCase() === boxHeroItem.name.toLowerCase()
       );
@@ -336,19 +365,34 @@ export class BoxHeroSyncService {
         throw new Error(`BoxHero item ${boxHeroItem.id} has empty or null name`);
       }
 
-      // Calculate total stock across all locations with validation
+      // Calculate stock from "Instock items" location(s) only (no fallback)
       const totalStock = (Array.isArray(boxHeroItem.quantities) ? boxHeroItem.quantities : []).reduce(
-        (sum, location) => {
-          const qty = Number((location as any)?.quantity)
-          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0
-          return sum + safeQty
+        (sum, loc: any) => {
+          const qty = Number(loc?.quantity);
+          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0;
+          const locId = Number((loc as any)?.location_id);
+          return sum + (this.inStockLocationIds.has(locId) ? safeQty : 0);
         },
         0
       );
 
+      // Debug specific product if needed
+      if ((boxHeroItem.name || '').includes('Quality 1st The Derma Mask 7 Sheets')) {
+        console.log('🔎 DEBUG StockCalc (create)', {
+          name: boxHeroItem.name,
+          quantities: boxHeroItem.quantities,
+          inStockLocationIds: Array.from(this.inStockLocationIds),
+          totalStock
+        });
+      }
+
+
       // Extract category from attributes
       const categoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Category');
-      const brandAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Brand');
+      const brandAttr = boxHeroItem.attrs?.find(attr => {
+        const key = (attr.name || '').toString().trim().toLowerCase();
+        return key === 'brand' || key === 'manufacturer' || key === 'maker';
+      });
       const subCategoryAttr = boxHeroItem.attrs?.find(attr => attr.name === 'Sub-category');
 
       // Use USD price directly from BoxHero with validation
@@ -376,6 +420,7 @@ export class BoxHeroSyncService {
         is_active: true,
         is_featured: false,
         category_id: categoryId, // Mapped from BoxHero category
+        brand: brandAttr?.value?.toString() || undefined,
         // image_urls intentionally excluded for BoxHero-created products. Images must be uploaded manually via admin.
         tags: [
           categoryAttr?.value?.toString() || '',
@@ -442,12 +487,14 @@ export class BoxHeroSyncService {
 
       const existingProduct = existingResult.data;
 
-      // Calculate total stock across all locations with validation
+
+      // Calculate stock from "Instock items" location(s) only (no fallback)
       const totalStock = (Array.isArray(boxHeroItem.quantities) ? boxHeroItem.quantities : []).reduce(
-        (sum, location) => {
-          const qty = Number((location as any)?.quantity)
-          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0
-          return sum + safeQty
+        (sum, loc: any) => {
+          const qty = Number(loc?.quantity);
+          const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0;
+          const locId = Number((loc as any)?.location_id);
+          return sum + (this.inStockLocationIds.has(locId) ? safeQty : 0);
         },
         0
       );
@@ -459,6 +506,23 @@ export class BoxHeroSyncService {
       // Map category from BoxHero attributes
       const categoryId = this.mapBoxHeroCategoryToId(boxHeroItem);
 
+
+      // Debug specific product if needed
+      if ((boxHeroItem.name || '').includes('Quality 1st The Derma Mask 7 Sheets')) {
+        console.log('🔎 DEBUG StockCalc (update)', {
+          name: boxHeroItem.name,
+          quantities: boxHeroItem.quantities,
+          inStockLocationIds: Array.from(this.inStockLocationIds),
+          totalStock
+        });
+      }
+
+      // Extract brand (case-sensitive 'Brand' attribute)
+      const brandAttr = boxHeroItem.attrs?.find(attr => {
+        const key = (attr.name || '').toString().trim().toLowerCase();
+        return key === 'brand' || key === 'manufacturer' || key === 'maker';
+      });
+
       // Update product with new data (preserving bulk-updated descriptions and images)
       const updatedProduct = Product.fromPersistence({
         ...existingProduct.toPlainObject(),
@@ -468,6 +532,7 @@ export class BoxHeroSyncService {
         name_en: boxHeroItem.name, // Update product names from BoxHero
         name_ja: boxHeroItem.name, // Default to same name, can be manually updated later
         category_id: categoryId, // Update category from BoxHero attributes
+        brand: existingProduct.brand || (brandAttr?.value?.toString() || undefined),
         updated_at: new Date().toISOString(),
         metadata: {
           ...existingProduct.metadata,
@@ -511,14 +576,32 @@ export class BoxHeroSyncService {
   async syncStockOnly(locationIds?: number[]): Promise<Result<{ updated: number; errors: string[] }>> {
     try {
       console.log('🔄 Starting stock-only sync...');
-      
+
+      // Resolve "Instock items" location IDs (exact match after trim)
+      const locationsRes = await this.boxHeroService.getLocations();
+      if (locationsRes.success) {
+        console.log('📍 BoxHero locations (stock-only):', locationsRes.data.map(l => ({ id: l.id, name: l.name })));
+        const inStockIds = locationsRes.data
+          .filter(l => { const n = ((l.name ?? '') + '').trim().replace(/\s+/g, ' ').toLowerCase(); return n === 'instock items'; })
+          .map(l => Number(l.id));
+        this.inStockLocationIds = new Set(inStockIds);
+        console.log('📍 Instock items location IDs (stock-only):', Array.from(this.inStockLocationIds));
+        if (this.inStockLocationIds.size === 0) {
+          console.warn('⚠️ No location named exactly "Instock items" found (stock-only). Stock will be computed as 0 by design.');
+        }
+      } else {
+        console.warn('⚠️ Failed to fetch BoxHero locations; will treat non-matching locations as 0 stock.');
+        this.inStockLocationIds = new Set();
+      }
+
       // Get all BoxHero items
       const boxHeroItemsResult = await this.boxHeroService.getAllItems(locationIds);
       if (!boxHeroItemsResult.success) {
         return { success: false, error: boxHeroItemsResult.error };
       }
 
-      const boxHeroItems = boxHeroItemsResult.data;
+      // Filter out preorder-named products
+      const boxHeroItems = boxHeroItemsResult.data.filter(it => !/(\(preorder\))\s*$/i.test((it.name || '').trim()));
       let updated = 0;
       const errors: string[] = [];
 
@@ -541,9 +624,14 @@ export class BoxHeroSyncService {
             continue;
           }
 
-          // Calculate total stock
-          const totalStock = boxHeroItem.quantities.reduce(
-            (sum, location) => sum + location.quantity,
+          // Calculate stock from "Instock items" location(s) only (no fallback)
+          const totalStock = (Array.isArray(boxHeroItem.quantities) ? boxHeroItem.quantities : []).reduce(
+            (sum, loc: any) => {
+              const qty = Number(loc?.quantity);
+              const safeQty = Number.isFinite(qty) ? Math.max(0, Math.floor(qty)) : 0;
+              const locId = Number((loc as any)?.location_id);
+              return sum + (this.inStockLocationIds.has(locId) ? safeQty : 0);
+            },
             0
           );
 

@@ -31,6 +31,57 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   // Use simple auth hook without complex optimizations
   const { user, profile, isAuthenticated, loading, profileLoading, signOut } = useSSRSafeAuth()
 
+  const [authSigningIn, setAuthSigningIn] = useState(false)
+
+  // Read cross-page sign-in flag set by Telegram widget and others (with TTL)
+  useEffect(() => {
+    const FLAG_KEY = 'AUTH_SIGNIN_IN_PROGRESS'
+    const TTL_MS = 3 * 60 * 1000 // 3 minutes safety
+
+    const isFlagValid = (raw: string | null) => {
+      if (!raw) return false
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed.ts === 'number') {
+          const fresh = Date.now() - parsed.ts < TTL_MS
+          if (!fresh) localStorage.removeItem(FLAG_KEY)
+          return fresh
+        }
+        // Legacy value handling: treat as invalid to avoid pre-click confusion
+        return false
+      } catch {
+        // Non-JSON legacy value
+        if (raw === '1') {
+          // Treat as invalid to prevent stale banner
+          localStorage.removeItem(FLAG_KEY)
+        }
+        return false
+      }
+    }
+
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(FLAG_KEY) : null
+      setAuthSigningIn(isFlagValid(raw))
+      const onStorage = (e: StorageEvent) => {
+        if (e.key === FLAG_KEY) {
+          setAuthSigningIn(isFlagValid(e.newValue))
+        }
+      }
+      window.addEventListener('storage', onStorage)
+      return () => window.removeEventListener('storage', onStorage)
+    } catch {}
+  }, [])
+
+  // Clear flag once authenticated
+  useEffect(() => {
+    try {
+      if (isAuthenticated) {
+        localStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS')
+        setAuthSigningIn(false)
+      }
+    } catch {}
+  }, [isAuthenticated])
+
   // Floating UI setup with proper overlay positioning
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
@@ -102,7 +153,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-        <div className="hidden sm:block">
+        <div className="hidden">
           <div className="h-4 w-24 bg-muted animate-pulse rounded mb-1" />
           <div className="h-3 w-20 bg-muted animate-pulse rounded" />
         </div>
@@ -113,6 +164,18 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
 
   // Not authenticated
   if (!isAuthenticated) {
+    if (authSigningIn) {
+      return (
+        <div className={`flex items-center space-x-2 ${className}`}>
+          <Button variant="ghost" size="sm" disabled className="text-xs">
+            <span className="relative inline-flex items-center">
+              <span className="inline-block h-3 w-3 mr-2 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              We are signing you in, please wait...
+            </span>
+          </Button>
+        </div>
+      )
+    }
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <Link href="/en/auth/login">
@@ -129,7 +192,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <Skeleton className="h-8 w-8 rounded-full" />
-        <div className="hidden sm:block">
+        <div className="hidden">
           <Skeleton className="h-4 w-24 mb-1" />
           <Skeleton className="h-3 w-20" />
         </div>
@@ -165,8 +228,8 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
             {userDisplayData.initials}
           </AvatarFallback>
         </Avatar>
-        
-        <div className="hidden sm:block text-left min-w-0">
+
+        <div className="hidden text-left min-w-0">
           <div className="text-sm font-medium truncate">
             Hello, {userDisplayData.name.split(' ')[0]}
           </div>
@@ -174,7 +237,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
             <span>Account & Lists</span>
           </div>
         </div>
-        
+
         <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </Button>
 
@@ -235,28 +298,28 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
                 <span>Your Account</span>
               </div>
             </Link>
-            
+
             <Link href="/en/orders" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Package className="h-4 w-4" />
                 <span>Your Orders</span>
               </div>
             </Link>
-            
+
             <Link href="/en/wishlist" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Heart className="h-4 w-4" />
                 <span>Your Wish List</span>
               </div>
             </Link>
-            
+
             <Link href="/en/settings" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
               </div>
             </Link>
-            
+
             <Link href="/en/profile#notifications" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Bell className="h-4 w-4" />
