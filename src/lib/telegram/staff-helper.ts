@@ -4,6 +4,7 @@
   - Catalog Q&A via internal APIs
   - Order Confirmation template fill
   - Lightweight per-thread rolling memory (ephemeral)
+  - In-memory diagnostics ring buffer (no secrets)
 */
 
 import { callOpenRouter, type LLMMessage } from '@/lib/llm/openrouter'
@@ -54,16 +55,50 @@ const TELEGRAM_API = 'https://api.telegram.org/bot'
 
 // --- Memory (ephemeral, per runtime) ---
 // Map key: `${chat_id}:${thread_id}` => turns with TTL 5 minutes
-interface Turn { role: 'user' | 'assistant'; text: string; at: number }
+export interface Turn { role: 'user' | 'assistant'; text: string; at: number }
 const memory = new Map<string, Turn[]>()
 const MEMORY_TTL_MS = 5 * 60 * 1000
 const MEMORY_MAX_TURNS = 10
+
+// --- Diagnostics ring buffer (ephemeral, no secrets) ---
+export interface UpdateLog {
+  ts: number
+  chatId?: number
+  threadId?: number
+  intent?: string
+  allowed: boolean
+  reason?: string
+  replyPreview?: string // first ~180 chars of reply text, if any
+}
+const globalAny = globalThis as any
+if (!globalAny.__STAFF_HELPER_LOGS__) globalAny.__STAFF_HELPER_LOGS__ = [] as UpdateLog[]
+const updateLogs: UpdateLog[] = globalAny.__STAFF_HELPER_LOGS__
+function pushUpdateLog(log: UpdateLog) {
+  try {
+    updateLogs.push({ ...log, ts: log.ts || Date.now() })
+    if (updateLogs.length > 50) updateLogs.splice(0, updateLogs.length - 50)
+  } catch {}
+}
+export function getRecentUpdateLogs(limit = 20): UpdateLog[] {
+  const n = Math.max(1, Math.min(50, limit))
+  return updateLogs.slice(-n)
+}
+
 // --- Persistent memory (Supabase, service role) ---
 const HAS_SERVICE_ROLE = !!process.env.SUPABASE_SERVICE_ROLE_KEY
 const MEM_TABLE = 'telegram_thread_memory'
 
 async function getServiceClientSafely() {
   try { return createServiceRoleClient() as any } catch { return null }
+}
+
+// Helper to view memory by `<chatId>:<threadId>` key
+export async function getThreadMemoryByKey(threadKey: string): Promise<Turn[]> {
+  const [chatStr, threadStr] = String(threadKey || '').split(':')
+  const chatId = Number(chatStr)
+  const threadId = threadStr ? Number(threadStr) : undefined
+  if (!isFinite(chatId)) return []
+  try { return await getMemoryAsync(chatId, threadId) } catch { return [] }
 }
 
 async function loadPersistedTurns(threadKey: string): Promise<Turn[]> {
@@ -132,6 +167,12 @@ function getMemory(chatId: number, threadId?: number) {
   const turns = (memory.get(key) || []).filter(t => Date.now() - t.at < MEMORY_TTL_MS)
   memory.set(key, turns)
   return turns
+}
+
+function logReply(chatId: number, threadId: number | undefined, intent: string | undefined, text: string | undefined) {
+  try {
+    pushUpdateLog({ allowed: true, chatId, threadId, intent, reason: 'reply', replyPreview: String(text || '').slice(0, 180) })
+  } catch {}
 }
 
 // --- Telegram helpers ---
@@ -529,12 +570,41 @@ function extractOrderFields(text: string) {
     return m ? m[1].trim() : undefined
   }
   const itemsBlock = (() => {
-    const idx = text.toLowerCase().indexOf('items')
+    const lower = text.toLowerCase()
+
+    // Case 1: Explicit template-style header "🛒 Items" followed by lines
+    const headerIdx = lower.indexOf('\n🛒 items')
+    if (headerIdx >= 0) {
+      const tailLines = text
+        .slice(headerIdx)
+        .split(/\r?\n/)
+        .slice(1, 10)
+        .map(l => l.trim())
+        .filter(Boolean)
+      if (tailLines.length) return tailLines
+    }
+
+    // Case 2: Generic "Items" header with following lines
+    const idx = lower.indexOf('items')
     if (idx >= 0) {
       const tail = text.slice(idx)
       const lines = tail.split(/\r?\n/).slice(1, 10).map(l => l.trim()).filter(Boolean)
       if (lines.length) return lines
+
+      // Case 2b: Inline format: "Items: <item1>, <item2>; ..." on the same line
+      const inline = /items?\s*:\s*(.+)/i.exec(text)
+      if (inline && inline[1]) {
+        const raw = inline[1].trim()
+        // Split by numbered list markers or commas/semicolons
+        const parts = raw
+          .split(/(?:(?:^|[\s,;])\d+\.\s*)|[,;]+/)
+          .map(s => s.trim())
+          .filter(Boolean)
+        if (parts.length) return parts
+        return [raw]
+      }
     }
+
     return undefined
   })()
   return {
@@ -703,7 +773,10 @@ export async function handleStaffHelperUpdate(args: {
   const isGroup = chat?.type === 'supergroup' || chat?.type === 'group'
 
   // Strict scope: only two threads; ignore DMs and others
-  if (!isGroup || !chatId || !threadId) return { handled: false, reason: 'Not a target group thread' }
+  if (!isGroup || !chatId || !threadId) {
+    try { pushUpdateLog({ allowed: false, chatId, threadId, reason: 'Not a target group thread' }) } catch {}
+    return { handled: false, reason: 'Not a target group thread' }
+  }
 
   const allowed = (
     String(chatId) === ADMIN_GROUP_ID && String(threadId) === ADMIN_THREAD_ID
@@ -716,6 +789,7 @@ export async function handleStaffHelperUpdate(args: {
         chatId: String(chatId), threadId: String(threadId),
         ADMIN_GROUP_ID, ADMIN_THREAD_ID, TEAM_GROUP_ID, TEAM_THREAD_ID
       })
+      pushUpdateLog({ allowed: false, chatId, threadId, reason: 'Not in allowed thread' })
     } catch {}
     return { handled: false, reason: 'Not in allowed thread' }
   }
@@ -728,6 +802,7 @@ export async function handleStaffHelperUpdate(args: {
 
   // Classify
   const intent = classifyIntent(text)
+  try { pushUpdateLog({ allowed: true, chatId, threadId, intent, reason: 'classified' }) } catch {}
 
   // Memory (user turn)
   await pushMemoryAsync(chatId, threadId, 'user', text)
@@ -741,9 +816,13 @@ export async function handleStaffHelperUpdate(args: {
       const fields = extractOrderFields(text)
       oc = renderOrderConfirmation(fields)
     }
+    // Always enforce strict template and compute arithmetic using original text
+    oc = enforceOrderTemplate(oc, text)
+
     reply = oc
     try { console.log('[StaffHelper][OrderConfirmation] reply:\n' + String(reply).slice(0, 1200)) } catch {}
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+    logReply(chatId, threadId, 'order_confirmation', reply)
     await pushMemoryAsync(chatId, threadId, 'assistant', '[order_confirmation_sent]')
     return { handled: true }
   }
@@ -753,6 +832,7 @@ export async function handleStaffHelperUpdate(args: {
   if (intent === 'greeting') {
     reply = 'Hi! What would you like to know?'
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+    logReply(chatId, threadId, intent, reply)
     await pushMemoryAsync(chatId, threadId, 'assistant', reply)
     return { handled: true }
   }
@@ -763,6 +843,7 @@ export async function handleStaffHelperUpdate(args: {
       const proactive = await buildProactiveProductReply(baseUrl, text)
       if (proactive) {
         await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: proactive })
+        logReply(chatId, threadId, intent, proactive)
         await pushMemoryAsync(chatId, threadId, 'assistant', proactive)
         return { handled: true }
       }
@@ -777,6 +858,7 @@ export async function handleStaffHelperUpdate(args: {
       const ai = await buildLLMReply({ intent, text, chatId, threadId, baseUrl })
       if (ai) {
         await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: ai })
+        logReply(chatId, threadId, intent, ai)
         await pushMemoryAsync(chatId, threadId, 'assistant', ai)
         return { handled: true }
       }
@@ -792,6 +874,7 @@ export async function handleStaffHelperUpdate(args: {
 
     if (!mapped.length) {
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: `I couldn’t find matching products. Try a clearer name or SKU.\nData checked: ${nowJST()}` })
+      logReply(chatId, threadId, intent, 'no_matches')
       await pushMemoryAsync(chatId, threadId, 'assistant', 'no_matches')
       return { handled: true }
     }
@@ -804,6 +887,7 @@ export async function handleStaffHelperUpdate(args: {
       const lines = top.map(p => `• ${p.name} — $${p.price.toFixed(2)}${p.compare_at_price && p.compare_at_price > p.price ? ` (was $${p.compare_at_price.toFixed(2)})` : ''} — Stock: ${p.stock_quantity} — ${productLink(siteBase, p.sku, p.id)}`)
       reply = `Top picks:\n${lines.join('\n')}\nData checked: ${nowJST()}`
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+      logReply(chatId, threadId, intent, reply)
       await pushMemoryAsync(chatId, threadId, 'assistant', reply)
       return { handled: true }
     }
@@ -823,6 +907,7 @@ export async function handleStaffHelperUpdate(args: {
       const lines = top.map(p => formatProductLine(p, siteBase))
       reply = `I found a few options — would any of these work?\n${lines.join('\n')}\nData checked: ${nowJST()}`
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+      logReply(chatId, threadId, intent, reply)
       await pushMemoryAsync(chatId, threadId, 'assistant', reply)
       return { handled: true }
     }
@@ -831,6 +916,7 @@ export async function handleStaffHelperUpdate(args: {
     const line = formatProductLine(p, siteBase)
     reply = `Here’s a good match — would this work for you?\n${line}\nData checked: ${nowJST()}`
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+    logReply(chatId, threadId, intent, reply)
     await pushMemoryAsync(chatId, threadId, 'assistant', reply)
     return { handled: true }
   }
@@ -843,6 +929,7 @@ export async function handleStaffHelperUpdate(args: {
       const result = Function(`return (${sanitized})`)()
       reply = `= ${result}`
       await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+      logReply(chatId, threadId, intent, reply)
       await pushMemoryAsync(chatId, threadId, 'assistant', reply)
       return { handled: true }
     } catch {
@@ -860,6 +947,7 @@ export async function handleStaffHelperUpdate(args: {
     const llm = await callOpenRouter(messages, { max_tokens: 200 })
     reply = llm.success ? (llm.text || '').slice(0, 1500) : 'Sorry, I cannot answer that.'
     await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+    logReply(chatId, threadId, intent, reply)
     await pushMemoryAsync(chatId, threadId, 'assistant', reply)
     return { handled: true }
   }
@@ -867,6 +955,7 @@ export async function handleStaffHelperUpdate(args: {
   // Out of scope or other
   reply = 'I can help with products, stock, pricing, descriptions, recommendations, the order confirmation, and basic math/logic. Please rephrase your request.'
   await sendTelegramMessage({ chat_id: chatId, message_thread_id: threadId, text: reply })
+  logReply(chatId, threadId, intent, reply)
   await pushMemoryAsync(chatId, threadId, 'assistant', reply)
   return { handled: true }
 }
