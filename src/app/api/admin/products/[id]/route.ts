@@ -366,6 +366,7 @@ export const PUT = withAdminAuth(async (
       low_stock_threshold: body.low_stock_threshold || 10,
       weight_grams: body.weight_grams || null,
       brand: body.brand || null,
+      category_id: body.category_id || null,
       is_active: body.is_active ?? true,
       is_featured: body.is_featured ?? false,
       is_preorder: body.is_preorder ?? false,

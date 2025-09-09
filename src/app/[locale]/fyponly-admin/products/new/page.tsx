@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Save, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -16,8 +17,12 @@ export default function ProductCreatePage() {
   const params = useParams()
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [categories, setCategories] = useState<{ id: string; name_en: string; slug: string }[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
 
   const [formData, setFormData] = useState({
+
+
     sku: '',
     name_en: '',
     name_ja: '',
@@ -32,6 +37,7 @@ export default function ProductCreatePage() {
     low_stock_threshold: 10,
     weight_grams: 0,
     brand: '',
+    category_id: '',
     is_active: true,
     is_featured: false,
     is_preorder: false,
@@ -47,6 +53,29 @@ export default function ProductCreatePage() {
     best_seller_position: 0,
     images: [] as string[],
   })
+
+  // Load categories for selection
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true)
+        const res = await fetch('/api/admin/categories', { cache: 'no-store' })
+        const json = await res.json()
+        if (json?.success) {
+          setCategories(json.data || [])
+        } else {
+          setCategories([])
+        }
+      } catch (e) {
+        console.error('Failed to load categories', e)
+        setCategories([])
+      } finally {
+        setCategoriesLoading(false)
+      }
+    }
+    loadCategories()
+  }, [])
+
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
@@ -68,6 +97,8 @@ export default function ProductCreatePage() {
         return
       }
       if (formData.price < 0) {
+
+
         toast.error('Price must be positive')
         return
       }
@@ -124,7 +155,8 @@ export default function ProductCreatePage() {
           <Button asChild variant="outline" size="sm">
             <Link href={`/${params.locale}/fyponly-admin/products`}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Products
+
+Back to Products
             </Link>
           </Button>
           <div>
@@ -155,6 +187,25 @@ export default function ProductCreatePage() {
                 <Input id="brand" placeholder="Enter brand name" value={formData.brand} onChange={(e) => handleInputChange('brand', e.target.value)} />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={formData.category_id || ''}
+                onValueChange={(v) => handleInputChange('category_id', v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={categoriesLoading ? 'Loading categories...' : 'Select category'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No category</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name_en}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="name_en">Product Name (English) *</Label>
               <Input id="name_en" placeholder="Enter product name in English" value={formData.name_en} onChange={(e) => handleInputChange('name_en', e.target.value)} />
@@ -172,6 +223,8 @@ export default function ProductCreatePage() {
             <CardTitle>Descriptions</CardTitle>
             <CardDescription>Product descriptions for different languages</CardDescription>
           </CardHeader>
+
+
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="short_description_en">Short Description (English)</Label>

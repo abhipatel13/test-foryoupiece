@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -56,6 +57,9 @@ export default function ProductEditPage() {
   const [saving, setSaving] = useState(false)
 
   // Form state
+  const [categories, setCategories] = useState<{ id: string; name_en: string; slug: string }[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+
   const [formData, setFormData] = useState({
     sku: '',
     name_en: '',
@@ -71,6 +75,7 @@ export default function ProductEditPage() {
     low_stock_threshold: 10,
     weight_grams: 0,
     brand: '',
+    category_id: '',
     is_active: true,
     is_featured: false,
     is_preorder: false,
@@ -95,6 +100,28 @@ export default function ProductEditPage() {
     }
   }, [params.id])
 
+  // Load categories for selection
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true)
+        const res = await fetch('/api/admin/categories', { cache: 'no-store' })
+        const json = await res.json()
+        if (json?.success) {
+          setCategories(json.data || [])
+        } else {
+          setCategories([])
+        }
+      } catch (e) {
+        console.error('Failed to load categories', e)
+        setCategories([])
+      } finally {
+        setCategoriesLoading(false)
+      }
+    }
+    loadCategories()
+  }, [])
+
   // PHASE 1 FIX: Cleanup form state when component unmounts
   useEffect(() => {
     return () => {
@@ -114,6 +141,7 @@ export default function ProductEditPage() {
         low_stock_threshold: 10,
         weight_grams: 0,
         brand: '',
+        category_id: '',
         is_active: true,
         is_featured: false,
         is_preorder: false,
@@ -187,6 +215,7 @@ export default function ProductEditPage() {
         low_stock_threshold: productData.low_stock_threshold || 10,
         weight_grams: productData.weight_grams || 0,
         brand: productData.brand || '',
+        category_id: productData.category_id || '',
         is_active: productData.is_active ?? true,
         is_featured: productData.is_featured ?? false,
         is_preorder: productData.is_preorder ?? false,
@@ -396,6 +425,7 @@ export default function ProductEditPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -428,6 +458,25 @@ export default function ProductEditPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formData.category_id || ''}
+                  onValueChange={(v) => handleInputChange('category_id', v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={categoriesLoading ? 'Loading categories...' : 'Select category'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No category</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name_en}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+
+              <div className="space-y-2">
                 <Label htmlFor="name_en">Product Name (English) *</Label>
                 <Input
                   id="name_en"
@@ -442,6 +491,8 @@ export default function ProductEditPage() {
                 <Input
                   id="name_ja"
                   placeholder="Enter product name in Japanese"
+
+
                   value={formData.name_ja}
                   onChange={(e) => handleInputChange('name_ja', e.target.value)}
                 />
