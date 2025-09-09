@@ -289,10 +289,11 @@ export default function CheckoutPage() {
       }
 
       // Prepare order items
+      // Use real SKU when available; fall back to product_id as a last resort (no synthetic "-default" IDs)
       const orderItems = items.map(item => ({
         product_id: item.id,
         variant_id: item.variant || null,
-        sku: `${item.id}-${item.variant || 'default'}`,
+        sku: item.sku || item.id, // prefer SKU; fallback to product_id
         title: item.name,
         variant_title: item.variant || null,
         quantity: item.quantity,

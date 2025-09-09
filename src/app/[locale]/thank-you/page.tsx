@@ -207,7 +207,7 @@ function ThankYouPageContent() {
 
       // Build contents mapping according to Meta spec
       const contents = order.items.map((it) => ({
-        id: (it as any).sku || `${it.id}`,
+        id: String((it as any).sku || (it as any).product_id),
         quantity: it.quantity,
         item_price: it.price,
       }))

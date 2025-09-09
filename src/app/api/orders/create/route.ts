@@ -594,11 +594,13 @@ export async function POST(request: NextRequest) {
         const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).replace(/\/$/, '')
         const enqueueUrl = `${baseUrl}/api/analytics/queue-purchase`
 
-        await fetch(enqueueUrl, {
+        fetch(enqueueUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: order.id, consent: true, client: { fbp, fbc, ip, ua } })
+          body: JSON.stringify({ orderId: order.id, consent: true, eventId: String(order.id), client: { fbp, fbc, ip, ua } })
         })
+          .then(() => console.log('📤 Meta CAPI Purchase enqueue requested (server-side)'))
+          .catch((e) => console.warn('⚠️ Meta CAPI enqueue request failed (non-fatal):', e?.message || e));
       } else {
         console.log('📉 Meta CAPI enqueue skipped (no marketing consent)')
       }

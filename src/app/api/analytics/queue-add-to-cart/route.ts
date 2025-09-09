@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Normalize and validate item fields
     const qtyNum = Math.max(1, Number(quantity ?? 1) || 1)
     const priceNum = Math.max(0, Number(price ?? 0) || 0)
-    const idStr = String(sku || name || 'unknown')
+    const idStr = String(sku || 'unknown')
 
     if (!CAPIG_ID || !CAPIG_KEY || !PIXEL_ID) {
       console.warn('⚠️ CAPIG AddToCart not configured', {

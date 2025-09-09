@@ -22,7 +22,7 @@ function normalizePhone(phone?: string | null) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { orderId, consent } = body || {}
+    const { orderId, consent, eventId } = body || {}
     if (!orderId) return NextResponse.json({ success: false, error: 'orderId required' }, { status: 400 })
 
     // Respect consent
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Load order + items minimally for payload
     const { data: order, error } = await service
       .from('orders')
-      .select('id, email, phone, currency, total_amount, created_at, order_items(title, quantity, price, total, sku)')
+      .select('id, email, phone, currency, total_amount, created_at, order_items(title, quantity, price, total, sku, product_id)')
       .eq('id', orderId)
       .single()
 
@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
 
     // Build contents with strict typing
     const contents = (order.order_items || []).map((it: any) => ({
-      id: String(it.sku || it.title),
-      quantity: Number(it.quantity || 0),
+      id: String(it.sku || it.product_id),
+      quantity: Math.max(1, Number(it.quantity || 0)),
       item_price: Number(it.price || 0)
     }))
 
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     const event: any = {
       event_name: 'Purchase',
       event_time: createdAtSec,
-      event_id: String(order.id),
+      event_id: String(eventId || order.id),
       action_source: 'website',
       event_source_url: `${(req as any)?.nextUrl?.origin || getBaseUrl()}/thank-you`,
       user_data,
