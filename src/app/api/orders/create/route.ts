@@ -590,7 +590,11 @@ export async function POST(request: NextRequest) {
         const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
         const ua = request.headers.get('user-agent') || undefined
 
-        await fetch(`/api/analytics/queue-purchase`, {
+        // Use absolute URL for server-side fetch (Node requires absolute URLs)
+        const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).replace(/\/$/, '')
+        const enqueueUrl = `${baseUrl}/api/analytics/queue-purchase`
+
+        await fetch(enqueueUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ orderId: order.id, consent: true, client: { fbp, fbc, ip, ua } })
