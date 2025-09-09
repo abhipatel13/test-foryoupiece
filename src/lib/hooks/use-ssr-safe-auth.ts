@@ -269,6 +269,13 @@ export function useSSRSafeAuth() {
       const updatedProfile = await userQueries.updateProfile(user.id, updates)
       if (updatedProfile) {
         setProfile(updatedProfile)
+        try {
+          // Clear cached profile so subsequent fetches don't overwrite newly saved fields
+          const { requestUtils } = await import('@/lib/utils/request-deduplication')
+          requestUtils.clearUserCache(user.id)
+        } catch (e) {
+          console.warn('Failed to clear cached user profile after update:', e)
+        }
       }
       return updatedProfile
     } catch (error) {

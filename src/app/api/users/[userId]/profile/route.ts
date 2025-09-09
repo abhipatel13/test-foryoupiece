@@ -71,7 +71,10 @@ export async function GET(
         preferred_language,
         created_at,
         updated_at,
-        permanent_free_shipping
+        permanent_free_shipping,
+        address_line_1,
+        address_line_2,
+        aba_bank_name
       `)
       .eq('id', userId)
       .single()

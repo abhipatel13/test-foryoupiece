@@ -23,7 +23,8 @@ export async function GET(_req: NextRequest) {
       .select(`
         id, email, phone, first_name, last_name, avatar_url,
         points_balance, total_points_earned, tier_level,
-        telegram_username
+        telegram_username,
+        address_line_1, address_line_2, aba_bank_name
       `)
       .eq('id', user.id)
       .single()
