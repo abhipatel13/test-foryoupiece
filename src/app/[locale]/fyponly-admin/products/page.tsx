@@ -38,6 +38,7 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const [totalProducts, setTotalProducts] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(30) // Show 30 products per page
@@ -77,7 +78,7 @@ export default function AdminProductsPage() {
     if (currentPage !== 1) {
       setCurrentPage(1)
     }
-  }, [statusFilter, searchTerm])
+  }, [statusFilter, sourceFilter, searchTerm])
 
   // Load products when filters or page changes
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function AdminProductsPage() {
     }, searchTerm ? 300 : 0) // 300ms debounce for search, immediate for other changes
 
     return () => clearTimeout(timeoutId)
-  }, [statusFilter, currentPage, searchTerm])
+  }, [statusFilter, sourceFilter, currentPage, searchTerm])
 
   // Auto-refresh when realtime notifies of admin data updates
   useEffect(() => {
@@ -126,6 +127,7 @@ export default function AdminProductsPage() {
         limit: itemsPerPage.toString(),
         offset: offset.toString(),
         status_filter: statusFilter,
+        source_filter: sourceFilter,
       })
 
       if (searchTerm) {
@@ -372,6 +374,16 @@ export default function AdminProductsPage() {
                 <SelectItem value="low-stock">Low Stock</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Filter by source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="boxhero">BoxHero</SelectItem>
+              </SelectContent>
+            </Select>
             <Button onClick={handleSearch} variant="outline">
               <Filter className="h-4 w-4 mr-2" />
               Apply Filters
@@ -432,6 +444,9 @@ export default function AdminProductsPage() {
                         )}
                         {product.isFeatured && (
                           <Badge variant="secondary">Featured</Badge>
+                        )}
+                        {(product as any).is_manual && (
+                          <Badge variant="outline">Manual</Badge>
                         )}
                       </div>
                       

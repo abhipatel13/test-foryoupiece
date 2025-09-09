@@ -28,6 +28,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const includeDeleted = searchParams.get('include_deleted') === 'true';
     const includeInactive = searchParams.get('include_inactive') === 'true';
     const statusFilter = searchParams.get('status_filter') || 'all';
+    const sourceFilter = searchParams.get('source_filter') || 'all';
     const search = (searchParams.get('search') || '').trim();
 
     console.log('📊 Query params:', {
@@ -36,6 +37,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       includeDeleted,
       includeInactive,
       statusFilter,
+      sourceFilter,
       hasSearch: !!search
     });
 
@@ -126,6 +128,14 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
           // No filter on is_active
           break;
       }
+    }
+
+    // Apply source filter (manual vs boxhero)
+    if (sourceFilter === 'manual') {
+      query = query.eq('is_manual', true);
+    } else if (sourceFilter === 'boxhero') {
+      // Treat all non-manual products as BoxHero-managed for filtering purposes
+      query = query.eq('is_manual', false);
     }
 
     // Apply search across SKU and names if provided
@@ -336,6 +346,7 @@ export const POST = withAdminAuth(async (
       // Trending position is deprecated: always null
       trending_position: null,
       best_seller_position: body.best_seller_position || null,
+      is_manual: true,
     };
 
     console.log('💾 Creating product in database:', {

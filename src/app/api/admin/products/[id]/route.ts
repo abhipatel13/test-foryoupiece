@@ -381,6 +381,8 @@ export const PUT = withAdminAuth(async (
       // Trending position is deprecated: always null, ordering handled in API layer
       trending_position: null,
       best_seller_position: (body.is_best_seller ?? false) ? (body.best_seller_position || null) : null,
+      // allow admin flows to update stock on manual products (DB trigger will reset to FALSE)
+      allow_manual_stock_update: true,
       updated_at: new Date().toISOString(),
     };
 
