@@ -17,17 +17,17 @@ export function Footer() {
               <Image
                 src="/favicon.jpg"
                 alt="Foryoupiece"
-                width={32}
-                height={32}
-                className="rounded-lg shadow-sm object-contain flex-shrink-0"
+                width={40}
+                height={40}
+                className="rounded-lg shadow-sm object-contain flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14"
                 priority
               />
-              <div className="relative" style={{ width: 80, height: 24 }}>
+              <div className="relative w-[128px] h-[38px] sm:w-[160px] sm:h-[48px] md:w-[180px] md:h-[54px]">
                 <Image
                   src="/logo.jpg"
                   alt="Foryoupiece"
                   fill
-                  sizes="80px"
+                  sizes="(min-width: 768px) 180px, (min-width: 640px) 160px, 128px"
                   className="object-contain flex-shrink-0"
                 />
               </div>
