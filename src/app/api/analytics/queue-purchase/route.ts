@@ -55,8 +55,12 @@ export async function POST(req: NextRequest) {
     const fbp = clientOverride.fbp || ck.get('_fbp')?.value
     const fbc = clientOverride.fbc || ck.get('_fbc')?.value
 
-    // Build contents
-    const contents = (order.order_items || []).map((it: any) => ({ id: it.sku || it.title, quantity: it.quantity, item_price: it.price }))
+    // Build contents with strict typing
+    const contents = (order.order_items || []).map((it: any) => ({
+      id: String(it.sku || it.title),
+      quantity: Number(it.quantity || 0),
+      item_price: Number(it.price || 0)
+    }))
 
     // Direct CAPIG (Stape) only
     const RAW_CAPIG = (process.env.STAPE_CAPIG_URL || 'https://capig.foryoupiece.com/events').trim()
@@ -71,7 +75,12 @@ export async function POST(req: NextRequest) {
     const TEST_CODE = process.env.META_TEST_EVENT_CODE
 
     if (!CAPIG_ID || !CAPIG_KEY || !PIXEL_ID) {
-      return NextResponse.json({ success: false, error: 'CAPIG not configured' }, { status: 500 })
+      console.warn('\u26a0\ufe0f CAPIG Purchase not configured', {
+        hasId: !!CAPIG_ID,
+        hasKey: !!CAPIG_KEY,
+        hasPixel: !!PIXEL_ID,
+      })
+      return NextResponse.json({ success: false, error: 'CAPIG not configured', via: 'capig-direct' }, { status: 200 })
     }
 
     const email = (order.email || undefined) as string | undefined
@@ -97,7 +106,7 @@ export async function POST(req: NextRequest) {
       event_time: createdAtSec,
       event_id: String(order.id),
       action_source: 'website',
-      event_source_url: `${getBaseUrl()}/thank-you`,
+      event_source_url: `${(req as any)?.nextUrl?.origin || getBaseUrl()}/thank-you`,
       user_data,
       custom_data: {
         currency: order.currency || 'USD',
@@ -112,41 +121,57 @@ export async function POST(req: NextRequest) {
     const bodyOut: any = { data: [event], pixel_id: PIXEL_ID }
     if (TEST_CODE) bodyOut.test_event_code = TEST_CODE
 
-    // Debug Pixel/endpoint consistency
-    try { console.log('🧪 CAPI Purchase debug', { pixelId: PIXEL_ID, capigUrl: CAPIG_URL, hasFbp: !!fbp, hasFbc: !!fbc, eventId: event.event_id }); } catch {}
+    // Debug Pixel/endpoint consistency + payload summary (no secrets)
+    try {
+      console.log('🧪 CAPI Purchase debug', {
+        pixelId: PIXEL_ID,
+        capigUrl: CAPIG_URL,
+        hasFbp: !!fbp,
+        hasFbc: !!fbc,
+        eventId: event.event_id,
+        payload: {
+          currency: event.custom_data?.currency,
+          value: event.custom_data?.value,
+          num_items: event.custom_data?.num_items,
+          contents_len: Array.isArray(event.custom_data?.contents) ? event.custom_data.contents.length : 0,
+          first_content: event.custom_data?.contents?.[0]
+        }
+      })
+    } catch {}
 
-    // Add timeout guard to external CAPIG call
-    const capigController = new AbortController()
-    const capigTimeout = setTimeout(() => capigController.abort(), 12_000)
-    const capigRes = await fetch(CAPIG_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Try all common header casings used by Stape CAPIG proxies
-        'Identifier': CAPIG_ID,
-        'API-Key': CAPIG_KEY,
-        'X-Identifier': CAPIG_ID,
-        'X-Api-Key': CAPIG_KEY,
-        'x-identifier': CAPIG_ID,
-        'x-api-key': CAPIG_KEY,
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(bodyOut),
-      signal: capigController.signal,
-    }).finally(() => clearTimeout(capigTimeout))
+    try {
+      // Add timeout guard to external CAPIG call
+      const capigController = new AbortController()
+      const capigTimeout = setTimeout(() => capigController.abort(), 12_000)
+      const capigRes = await fetch(CAPIG_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Try all common header casings used by Stape CAPIG proxies
+          'Identifier': CAPIG_ID,
+          'API-Key': CAPIG_KEY,
+          'X-Identifier': CAPIG_ID,
+          'X-Api-Key': CAPIG_KEY,
+          'x-identifier': CAPIG_ID,
+          'x-api-key': CAPIG_KEY,
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(bodyOut),
+        signal: capigController.signal,
+      }).finally(() => clearTimeout(capigTimeout))
 
-    const capigRespBody = await capigRes.json().catch(async () => ({ text: await capigRes.text() }))
-    const eventsReceived = (capigRespBody && (capigRespBody.events_received ?? capigRespBody.eventsReceived)) ?? null
-    const messages = (capigRespBody && (capigRespBody.messages || capigRespBody.data?.messages)) || []
-    console.log('🔁 CAPIG direct response', { status: capigRes.status, ok: capigRes.ok, eventsReceived, messages, body: capigRespBody })
+      const capigRespBody = await capigRes.json().catch(async () => ({ text: await capigRes.text() }))
+      const eventsReceived = (capigRespBody && (capigRespBody.events_received ?? capigRespBody.eventsReceived)) ?? null
+      const messages = (capigRespBody && (capigRespBody.messages || capigRespBody.data?.messages)) || []
+      console.log('🔁 CAPIG direct response', { status: capigRes.status, ok: capigRes.ok, eventsReceived, messages, body: capigRespBody })
 
-    const success = !!capigRes.ok && (eventsReceived === null || eventsReceived > 0)
-    if (!success) {
-      // Still respond 200 to avoid blocking UX, but surface issue to logs and response payload
+      const success = !!capigRes.ok && (eventsReceived === null || eventsReceived > 0)
+      // Always return 200; flag success via payload to avoid blocking UX
       return NextResponse.json({ success, via: 'capig-direct', events_received: eventsReceived, messages })
+    } catch (err: any) {
+      console.error('❌ CAPIG Purchase network/error', { message: err?.message })
+      return NextResponse.json({ success: false, via: 'capig-direct', error: err?.message || 'Network error' }, { status: 200 })
     }
-
-    return NextResponse.json({ success: true, via: 'capig-direct', events_received: eventsReceived, messages })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Unknown error' }, { status: 500 })
   }
