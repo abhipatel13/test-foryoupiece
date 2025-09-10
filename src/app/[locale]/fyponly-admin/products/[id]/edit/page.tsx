@@ -9,10 +9,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Trash2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ProductImagesDisplay } from '@/components/admin/product-images-display'
+import { ProductMediaOrder } from '@/components/admin/product-media-order'
 
 interface Product {
   id: string
@@ -45,6 +46,8 @@ interface Product {
   trending_position?: number
   best_seller_position?: number
   images: string[]
+  videos?: string[]
+  media_order?: string[]
   created_at: string
   updated_at: string
 }
@@ -55,6 +58,8 @@ export default function ProductEditPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [videoUrl, setVideoUrl] = useState('')
+
 
   // Form state
   const [categories, setCategories] = useState<{ id: string; name_en: string; slug: string }[]>([])
@@ -90,6 +95,8 @@ export default function ProductEditPage() {
     is_best_seller: false,
     best_seller_position: 0,
     images: [],
+    videos: [],
+    media_order: [],
   })
 
   // Load product data - PHASE 1 FIX: Force fresh load on page navigation
@@ -157,6 +164,8 @@ export default function ProductEditPage() {
         trending_position: 0,
         best_seller_position: 0,
         images: [],
+        videos: [],
+        media_order: [],
       })
       setProduct(null)
     }
@@ -230,6 +239,8 @@ export default function ProductEditPage() {
         is_best_seller: productData.is_best_seller ?? false,
         best_seller_position: productData.best_seller_position || 0,
         images: productData.images || [],
+        videos: productData.videos || [],
+        media_order: productData.media_order || [],
       })
     } catch (error) {
       console.error('Error loading product:', error)
@@ -388,6 +399,79 @@ export default function ProductEditPage() {
       </div>
     )
   }
+
+  // --- YouTube helpers & handlers ---
+  const extractYouTubeId = (input: string): string | null => {
+    try {
+      if (!input) return null
+      const raw = String(input).trim()
+
+      // If an iframe embed code is provided, extract its src attribute
+      if (/^<iframe[\s\S]*?>/i.test(raw) || raw.toLowerCase().includes('<iframe')) {
+        const match = raw.match(/src=["']([^"']+)["']/i)
+        if (match && match[1]) {
+          return extractYouTubeId(match[1])
+        }
+      }
+
+      // Ensure we have a full URL
+      const maybeUrl = raw.startsWith('//') ? `https:${raw}` : raw
+      const u = new URL(maybeUrl)
+      const host = u.hostname
+
+      // youtu.be short links
+      if (host.includes('youtu.be')) {
+        const id = u.pathname.replace(/^\//, '').split('/')[0]
+        return id || null
+      }
+
+      // youtube.com (includes m.youtube.com, www.youtube.com)
+      if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+        // Standard watch URL
+        if (u.pathname === '/watch') {
+          return u.searchParams.get('v')
+        }
+        // Embedded URL
+        if (u.pathname.startsWith('/embed/')) {
+          const id = u.pathname.split('/')[2]
+          return id || null
+        }
+        // Shorts URL
+        if (u.pathname.startsWith('/shorts/')) {
+          const id = u.pathname.split('/')[2] || u.pathname.replace('/shorts/', '')
+          return (id || '').split('?')[0] || null
+        }
+      }
+
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const handleAddVideo = () => {
+    const id = extractYouTubeId(videoUrl.trim())
+    if (!id) {
+      toast.error('Please enter a valid YouTube URL or iframe embed code')
+      return
+    }
+    const normalized = `https://www.youtube.com/watch?v=${id}`
+    if ((formData.videos || []).includes(normalized)) {
+      toast.message('This video is already added')
+      return
+    }
+    handleInputChange('videos', [...(formData.videos || []), normalized])
+    setProduct(prev => prev ? { ...prev, videos: [...(prev.videos || []), normalized] } : prev)
+    setVideoUrl('')
+    toast.success('Video added')
+  }
+
+  const handleRemoveVideo = (index: number) => {
+    const next = (formData.videos || []).filter((_, i) => i !== index)
+    handleInputChange('videos', next)
+    setProduct(prev => prev ? { ...prev, videos: (prev.videos || []).filter((_, i) => i !== index) } : prev)
+  }
+
 
   return (
     <div className="space-y-6">
@@ -813,6 +897,8 @@ export default function ProductEditPage() {
                 </div>
 
                 {/* Best Seller Product */}
+
+
                 <div className="space-y-4">
                   <div className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
@@ -861,6 +947,79 @@ export default function ProductEditPage() {
             />
           )}
 
+
+          {/* Product Videos (YouTube) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Product Videos (YouTube)</CardTitle>
+              <CardDescription>
+                Paste a YouTube URL and click Add. Videos appear alongside images on the product page. BoxHero sync will not touch videos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Input
+                  placeholder="YouTube URL (watch/shorts/youtu.be) or paste <iframe ...> embed code"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                />
+                <Button type="button" onClick={handleAddVideo} className="sm:w-40">Add Video</Button>
+              </div>
+
+              {(formData.videos && formData.videos.length > 0) ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {formData.videos.map((url, idx) => {
+                    const id = extractYouTubeId(url)
+                    const thumb = id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : ''
+                    return (
+                      <div key={`${url}-${idx}`} className="relative rounded-lg border overflow-hidden bg-muted">
+                        {thumb ? (
+                          <div className="aspect-video w-full overflow-hidden">
+                            <img src={thumb} alt={`YouTube video ${idx + 1}`} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="bg-black/60 rounded-full p-2">
+                                <Play className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="aspect-video w-full flex items-center justify-center text-xs text-gray-500">Invalid URL</div>
+                        )}
+                        <div className="p-2 text-xs truncate text-gray-700 bg-white/80">{url}</div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVideo(idx)}
+                          className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full p-1 shadow"
+                          aria-label="Remove video"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+
+
+                <p className="text-sm text-muted-foreground">No videos added yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+
+          {/* Media Order (Images & Videos) */}
+          {product && (
+            <ProductMediaOrder
+              images={formData.images || []}
+              videos={formData.videos || []}
+              order={(product as any).media_order || formData.media_order || []}
+              onChange={(order) => {
+                handleInputChange('media_order', order)
+                setProduct(prev => prev ? { ...(prev as any), media_order: order } : prev)
+              }}
+            />
+          )}
+
           {/* SEO */}
           <Card>
             <CardHeader>
@@ -872,6 +1031,8 @@ export default function ProductEditPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="seo_title">SEO Title</Label>
+
+
                 <Input
                   id="seo_title"
                   placeholder="SEO optimized title"

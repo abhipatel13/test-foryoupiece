@@ -2857,3 +2857,16 @@ input, textarea, select {
 @media (min-width: 1024px) {
   header.modern-header .desktop-container { padding-left: 8px; padding-right: 8px; }
 }
+
+
+/* Checkout page mobile-only spacing refinements */
+@media (max-width: 768px) {
+  /* Tighter spacing between title and subtitle in Order Summary */
+  .checkout-page .order-summary-subtitle { margin-top: 2px !important; }
+
+  /* Payment option container padding */
+  .checkout-page .payment-option { padding: 6px !important; margin-top: 4px !important; margin-bottom: 4px !important; }
+
+  /* Primary action button top margin */
+  .checkout-page .action-buttons { margin-top: 8px !important; }
+}

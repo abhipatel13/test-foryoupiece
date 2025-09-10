@@ -15,7 +15,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { SaveInfoDialog } from '@/components/checkout/save-info-dialog'
-import { CheckoutPointsDisplay } from '@/components/checkout/checkout-points-display'
 import { MapPin, Package, Truck, ShoppingBag, QrCode } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMemo } from 'react'
@@ -354,7 +353,7 @@ export default function CheckoutPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="checkout-page min-h-screen bg-gray-50">
       <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header Section - Mobile Optimized */}
         <div className="mb-2 sm:mb-6 lg:mb-8">
@@ -372,9 +371,9 @@ export default function CheckoutPage() {
             <div className="order-2 lg:order-1 lg:col-span-2 flex flex-col space-y-0.5 sm:space-y-6">
               {/* Mobile order: Payment -> Notes -> Shipping -> Points */}
               {/* Shipping Address */}
-              <Card className="order-3 lg:order-none">
-                <CardHeader className="p-2 sm:p-6 pb-1.5 sm:pb-6">
-                  <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+              <Card className="order-3 lg:order-none !py-2 sm:!py-6">
+                <CardHeader className="px-2 py-1 sm:p-6 pb-1 sm:pb-6 !gap-0.5 h-[50px] items-center">
+                  <CardTitle className="flex items-center space-x-2 text-sm sm:text-lg">
                     <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>{t('shippingAddress')}</span>
                   </CardTitle>
@@ -386,7 +385,7 @@ export default function CheckoutPage() {
                       <Input
                         id="firstName"
                         required
-                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.firstName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -400,7 +399,7 @@ export default function CheckoutPage() {
                       <Input
                         id="lastName"
                         required
-                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.lastName}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -418,7 +417,7 @@ export default function CheckoutPage() {
                         id="email"
                         type="email"
                         required
-                        className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                        className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                         value={shippingAddress.email}
                         onChange={(e) => setShippingAddress({
                           ...shippingAddress,
@@ -449,7 +448,7 @@ export default function CheckoutPage() {
                     <Input
                       id="address1"
                       required
-                      className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       value={shippingAddress.address1}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
@@ -463,7 +462,7 @@ export default function CheckoutPage() {
                     <Label htmlFor="address2" className="text-xs sm:text-sm font-medium">Address Line 2 (Optional)</Label>
                     <Input
                       id="address2"
-                      className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       value={shippingAddress.address2}
                       onChange={(e) => setShippingAddress({
                         ...shippingAddress,
@@ -478,7 +477,7 @@ export default function CheckoutPage() {
                     <Input
                       id="abaBankName"
                       required
-                      className="min-h-[40px] h-10 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
+                      className="min-h-[44px] h-11 sm:h-12 text-sm sm:text-base px-3 sm:px-4 rounded-lg border-2 border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 transition-all duration-200 bg-white hover:border-slate-300"
                       placeholder="Taravatey Than"
                       value={shippingAddress.abaBankName}
                       onChange={(e) => setShippingAddress({
@@ -491,9 +490,9 @@ export default function CheckoutPage() {
               </Card>
 
               {/* Payment Method - Mobile Responsive */}
-              <Card className="order-1 lg:order-none">
-                <CardHeader className="p-2 sm:p-6 pb-1.5 sm:pb-6">
-                  <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+              <Card className="order-1 lg:order-none !py-2 sm:!py-6">
+                <CardHeader className="px-2 py-1 sm:p-6 pb-1 sm:pb-6 !gap-0.5 h-[50px] items-center">
+                  <CardTitle className="flex items-center space-x-2 text-sm sm:text-lg">
                     <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>Payment Method</span>
                   </CardTitle>
@@ -502,7 +501,7 @@ export default function CheckoutPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-2 sm:p-6 pt-1 sm:pt-6">
-                  <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-4 border rounded-lg bg-blue-50">
+                  <div className="payment-option flex items-center space-x-2 sm:space-x-3 p-1.5 sm:p-4 border rounded-lg bg-blue-50">
                     <QrCode className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
                     <div className="py-0.5 sm:py-0">
                       <div className="font-medium text-blue-900 text-sm sm:text-base">QR Code Payment</div>
@@ -515,9 +514,9 @@ export default function CheckoutPage() {
               </Card>
 
               {/* Order Notes - Mobile Responsive */}
-              <Card className="order-2 lg:order-none">
-                <CardHeader className="p-2 sm:p-6 pb-1.5 sm:pb-6">
-                  <CardTitle className="text-base sm:text-lg">Order Notes (Optional)</CardTitle>
+              <Card className="order-2 lg:order-none !py-2 sm:!py-6">
+                <CardHeader className="px-2 py-1 sm:p-6 pb-1 sm:pb-6 !gap-0.5 h-[50px] items-center">
+                  <CardTitle className="text-sm sm:text-lg">Order Notes (Optional)</CardTitle>
                 </CardHeader>
                 <CardContent className="p-2 sm:p-6 pt-1.5 sm:pt-6">
                   <Textarea
@@ -530,32 +529,20 @@ export default function CheckoutPage() {
                 </CardContent>
               </Card>
 
-              {/* Points Redemption */}
-              {isAuthenticated && user && (
-                <div className="order-4 lg:order-none">
-                  <CheckoutPointsDisplay
-                    userId={user.id}
-                    orderTotal={finalTotalWithCouponAndPoints}
-                    onPointsChange={(points) => {
-                      // Points are automatically updated in the cart store
-                      // This callback can be used for additional UI updates if needed
-                    }}
-                  />
-                </div>
-              )}
+              {/* Points Redemption - removed from Checkout UI by request (logic remains in store/cart) */}
             </div>
 
             {/* Enhanced Order Summary - Mobile-First Responsive */}
             <div className="order-1 lg:order-2 lg:col-span-1">
-              <Card className="lg:sticky lg:top-4 shadow-lg border-2 border-gray-100">
-                <CardHeader className="pb-3 sm:pb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 rounded-t-lg">
-                  <CardTitle className="text-base sm:text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
-                      <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+              <Card className="lg:sticky lg:top-4 shadow-lg border-2 border-gray-100 !py-2 sm:!py-6">
+                <CardHeader className="px-2 sm:px-6 py-1 pb-1.5 sm:py-6 sm:pb-6 !gap-0.5 h-[100px] sm:h-auto items-center bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 rounded-t-lg">
+                  <CardTitle className="text-sm sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <div className="p-1 sm:p-2 bg-blue-100 rounded-lg">
+                      <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600" />
                     </div>
                     {t('orderSummary')}
                   </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-slate-600 mt-1 sm:mt-2">
+                  <CardDescription className="order-summary-subtitle text-[11px] sm:text-sm text-slate-600 mt-0 sm:mt-2 leading-tight">
                     Review your order details before checkout
                   </CardDescription>
                 </CardHeader>
@@ -789,7 +776,7 @@ export default function CheckoutPage() {
 
                   <Button
                     type="submit"
-                    className="group w-full min-h-[40px] h-11 sm:h-14 text-sm sm:text-base font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:border-slate-400 disabled:shadow-none"
+                    className="action-buttons group w-full min-h-[44px] h-11 sm:h-14 mt-2 sm:mt-4 text-sm sm:text-base font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-slate-600 shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:border-slate-400 disabled:shadow-none"
                     disabled={loading}
                     aria-label={loading ? 'Processing your order...' : 'Place your order'}
                   >

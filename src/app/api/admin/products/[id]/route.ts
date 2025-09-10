@@ -349,8 +349,22 @@ export const PUT = withAdminAuth(async (
 
     // Note: supabase client already created above for validation
 
+    // Optional videos field (array of YouTube URLs)
+    const sanitizedVideos = Array.isArray(body.videos)
+      ? body.videos
+          .map((u: any) => String(u || '').trim())
+          .filter((u: string) => u.length > 0)
+      : undefined;
+
+    // Optional media_order field (array of URLs from images/videos)
+    const sanitizedMediaOrder = Array.isArray(body.media_order)
+      ? body.media_order
+          .map((u: any) => String(u || '').trim())
+          .filter((u: string) => u.length > 0)
+      : undefined;
+
     // Prepare update data
-    const updateData = {
+    const updateData: Record<string, any> = {
       sku: body.sku,
       name_en: body.name_en,
       name_ja: body.name_ja || null,
@@ -386,6 +400,23 @@ export const PUT = withAdminAuth(async (
       allow_manual_stock_update: true,
       updated_at: new Date().toISOString(),
     };
+
+    // Only include videos when explicitly provided to avoid unintended overwrites
+    if (sanitizedVideos !== undefined) {
+      updateData.videos = sanitizedVideos;
+    }
+
+    // Only include media_order when explicitly provided, filter to known media when possible
+    if (sanitizedMediaOrder !== undefined) {
+      const allowed = new Set<string>([
+        ...((Array.isArray(body.videos) ? body.videos : []) as any[]).map((u) => String(u || '').trim()),
+        ...((Array.isArray(body.images) ? body.images : []) as any[]).map((u) => String(u || '').trim()),
+      ])
+      const filtered = allowed.size > 0
+        ? sanitizedMediaOrder.filter((u: string) => allowed.has(u))
+        : sanitizedMediaOrder
+      updateData.media_order = filtered
+    }
 
     // Check if SKU is unique (excluding current product)
     const { data: existingProduct, error: checkError } = await supabase

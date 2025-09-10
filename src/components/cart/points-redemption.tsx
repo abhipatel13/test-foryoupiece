@@ -126,7 +126,7 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
 
   return (
     <Card className="border-gray-200 !py-2 !gap-2 sm:!py-3 sm:!gap-3 lg:!py-4 lg:!gap-4">
-      <CardHeader className="pb-0.5 sm:pb-2 lg:pb-3 px-3 sm:px-4 lg:px-5">
+      <CardHeader className="pb-0.5 sm:pb-2 lg:pb-3 px-3 sm:px-4 lg:px-5 h-[100px] sm:h-auto items-center">
         <CardTitle className="flex items-center space-x-2 text-sm">
           <Star className="h-4 w-4 text-orange-500" />
           <span>Redeem Loyalty Points</span>
@@ -157,7 +157,7 @@ export function PointsRedemption({ userPointsBalance, onPointsChange }: PointsRe
           </div>
         </div>
       </CardHeader>
-      <CardContent className="!px-3 sm:!px-4 space-y-1.5 sm:space-y-2 lg:space-y-3">
+      <CardContent className="!px-3 sm:!px-4 space-y-1.5 sm:space-y-2 lg:space-y-3 h-[140px] sm:h-auto overflow-y-auto">
         {/* Current Discount Display - Compact */}
         {pointsToRedeem > 0 && isValid && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-1 sm:p-2 lg:p-2.5">

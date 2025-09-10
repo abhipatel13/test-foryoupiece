@@ -31,6 +31,7 @@ import {
   Check,
   AlertCircle,
   Star,
+  Play,
   ZoomIn
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -48,6 +49,8 @@ interface Product {
   compare_at_price: number | null
   points_rate: number | null
   images: string[]
+  videos?: string[]
+  media_order?: string[]
   brand: string | null
   stock_quantity: number
   stock_status: string
@@ -67,7 +70,7 @@ export default function ProductDetailPage() {
   const { addItem } = useSSRSafeCartStore()
   const { trackProductView, isReady } = useBehaviorTracking()
   const { toggleWishlist, isInWishlist } = useWishlist()
-  
+
   const [product, setProduct] = useState<Product | null>(null)
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,14 +85,14 @@ export default function ProductDetailPage() {
       try {
         setLoading(true)
         const sku = params.sku as string
-        
+
         if (!sku) {
           setError('Product SKU not found')
           return
         }
 
         const productData = await productQueries.getProductBySku(sku)
-        
+
         if (!productData) {
           setError('Product not found')
           return
@@ -167,9 +170,72 @@ export default function ProductDetailPage() {
   }
 
   // Calculate discount percentage
-  const discountPercentage = product?.compare_at_price && product.compare_at_price > product.price
+  const discountPercentage = (product?.compare_at_price && product.compare_at_price > product.price)
     ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
     : null
+
+  // Mixed media with custom order when available
+  const extractYouTubeId = (input: string): string | null => {
+    try {
+      if (!input) return null
+      const raw = String(input).trim()
+
+      // Handle iframe embed code by extracting src attribute
+      if (/^<iframe[\s\S]*?>/i.test(raw) || raw.toLowerCase().includes('<iframe')) {
+        const match = raw.match(/src=["']([^"']+)["']/i)
+        if (match && match[1]) {
+          return extractYouTubeId(match[1])
+        }
+      }
+
+      const maybeUrl = raw.startsWith('//') ? `https:${raw}` : raw
+      const u = new URL(maybeUrl)
+      const host = u.hostname
+
+      if (host.includes('youtu.be')) {
+        const id = u.pathname.replace(/^\//, '').split('/')[0]
+        return id || null
+      }
+
+      if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+        if (u.pathname === '/watch') return u.searchParams.get('v')
+        if (u.pathname.startsWith('/embed/')) return u.pathname.split('/')[2] || null
+        if (u.pathname.startsWith('/shorts/')) {
+          const id = u.pathname.split('/')[2] || u.pathname.replace('/shorts/', '')
+          return (id || '').split('?')[0] || null
+        }
+      }
+
+      return null
+    } catch {
+      return null
+    }
+  }
+  const mediaItems = product ? (() => {
+    const videos = product.videos || []
+    const images = product.images || []
+    const ordered: Array<{ kind: 'image' | 'video'; url: string; id?: string }> = []
+    const seen = new Set<string>()
+
+    if (product.media_order && product.media_order.length > 0) {
+      for (const url of product.media_order) {
+        if (videos.includes(url)) {
+          ordered.push({ kind: 'video', url, id: extractYouTubeId(url) || undefined })
+          seen.add(url)
+        } else if (images.includes(url)) {
+          ordered.push({ kind: 'image', url })
+          seen.add(url)
+        }
+      }
+    }
+
+    // Backward-compat fallback: videos first, then images (for any not yet seen)
+    for (const url of videos) if (!seen.has(url)) ordered.push({ kind: 'video', url, id: extractYouTubeId(url) || undefined })
+    for (const url of images) if (!seen.has(url)) ordered.push({ kind: 'image', url })
+
+    return ordered
+  })() : []
+
 
   if (loading) {
     return (
@@ -178,7 +244,7 @@ export default function ProductDetailPage() {
           <div className="animate-pulse">
             {/* Breadcrumb skeleton */}
             <div className="h-4 bg-muted rounded w-64 mb-8"></div>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {/* Image skeleton */}
               <div className="space-y-4">
@@ -189,7 +255,7 @@ export default function ProductDetailPage() {
                   ))}
                 </div>
               </div>
-              
+
               {/* Product info skeleton */}
               <div className="space-y-6">
                 <div className="h-8 bg-muted rounded w-3/4"></div>
@@ -274,25 +340,35 @@ export default function ProductDetailPage() {
           <div className="space-y-4 lg:space-y-3 xl:space-y-4">
             {/* Main Image with Navigation - Compact Desktop */}
             <div className="relative aspect-square bg-white rounded-2xl lg:rounded-xl overflow-hidden border-2 border-gray-100 group shadow-lg hover:shadow-xl transition-all duration-300">
-              {product.images.length > 0 ? (
+              {mediaItems.length > 0 ? (
                 <>
-                  <Image
-                    src={product.images[selectedImageIndex]}
-                    alt={product.name_en}
-                    width={600}
-                    height={600}
-                    className={`w-full h-full object-contain p-4 sm:p-8 transition-transform duration-300 ${
-                      isImageZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'
-                    }`}
-                    onClick={() => setIsImageZoomed(!isImageZoomed)}
-                  />
+                  {mediaItems[selectedImageIndex].kind === 'image' ? (
+                    <Image
+                      src={mediaItems[selectedImageIndex].url}
+                      alt={product.name_en}
+                      width={600}
+                      height={600}
+                      className={`w-full h-full object-contain p-4 sm:p-8 transition-transform duration-300 ${
+                        isImageZoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'
+                      }`}
+                      onClick={() => setIsImageZoomed(!isImageZoomed)}
+                    />
+                  ) : (
+                    <iframe
+                      src={`https://www.youtube.com/embed/${mediaItems[selectedImageIndex].id ?? ''}?rel=0&modestbranding=1&playsinline=1`}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      title={product.name_en}
+                    />
+                  )}
 
                   {/* Image Navigation Arrows - Enhanced for Mobile */}
-                  {product.images.length > 1 && (
+                  {mediaItems.length > 1 && (
                     <>
                       <button
                         onClick={() => setSelectedImageIndex(
-                          selectedImageIndex === 0 ? product.images.length - 1 : selectedImageIndex - 1
+                          selectedImageIndex === 0 ? mediaItems.length - 1 : selectedImageIndex - 1
                         )}
                         className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 sm:p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110"
                       >
@@ -300,7 +376,7 @@ export default function ProductDetailPage() {
                       </button>
                       <button
                         onClick={() => setSelectedImageIndex(
-                          selectedImageIndex === product.images.length - 1 ? 0 : selectedImageIndex + 1
+                          selectedImageIndex === mediaItems.length - 1 ? 0 : selectedImageIndex + 1
                         )}
                         className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 sm:p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110"
                       >
@@ -315,9 +391,9 @@ export default function ProductDetailPage() {
                   </div>
 
                   {/* Image Counter - Enhanced */}
-                  {product.images.length > 1 && (
+                  {mediaItems.length > 1 && (
                     <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-black/80 text-white px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium">
-                      {selectedImageIndex + 1} / {product.images.length}
+                      {selectedImageIndex + 1} / {mediaItems.length}
                     </div>
                   )}
                 </>
@@ -329,9 +405,9 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Enhanced Thumbnail Images - Mobile Optimized */}
-            {product.images.length > 1 && (
+            {mediaItems.length > 1 && (
               <div className="flex space-x-2 sm:space-x-3 overflow-x-auto pb-2 scrollbar-hide">
-                {product.images.map((image, index) => (
+                {mediaItems.map((item, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImageIndex(index)}
@@ -341,13 +417,28 @@ export default function ProductDetailPage() {
                         : 'border-gray-200 hover:border-gray-400 hover:shadow-md'
                     }`}
                   >
-                    <Image
-                      src={image}
-                      alt={`${product.name_en} ${index + 1}`}
-                      width={96}
-                      height={96}
-                      className="w-full h-full object-contain p-1 sm:p-2"
-                    />
+                    {item.kind === 'image' ? (
+                      <Image
+                        src={item.url}
+                        alt={`${product.name_en} ${index + 1}`}
+                        width={96}
+                        height={96}
+                        className="w-full h-full object-contain p-1 sm:p-2"
+                      />
+                    ) : (
+                      <div className="relative w-full h-full">
+                        <img
+                          src={item.id ? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg` : ''}
+                          alt={`${product.name_en} video ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="bg-black/70 rounded-full p-1.5">
+                            <Play className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
