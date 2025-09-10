@@ -44,6 +44,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const currentUserRef = useRef<ReturnType<typeof useSSRSafeUserStore>['user']>(null)
   const profileLoadInFlightRef = useRef<string | null>(null)
 
+  // Track profile load failures to trigger automatic recovery if stuck
+  const profileFailWindowRef = useRef<{ count: number; windowStart: number; lastUserId: string }>({ count: 0, windowStart: 0, lastUserId: '' })
+
   // Throttle repeated cross-tab cart reloads
   const lastCrossTabCartReloadRef = useRef(0)
 
@@ -119,6 +122,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
         'foryoupiece-cart',
         'session_validated_at'
       ]
+
+      // Hard reset authentication when profile cannot be recovered
+      const forceResetAuth = useCallback(async (reason: string) => {
+        try {
+          console.warn('🧹 Forcing authentication reset due to:', reason)
+          signOutInProgressRef.current = true
+          ;(window as any).signOutInProgress = true
+          try { await supabaseRef.current?.auth.signOut() } catch (e) { console.warn('⚠️ Supabase signOut during force reset:', e) }
+          try { await fetch('/api/auth/logout', { method: 'POST' }) } catch {}
+          try { await clearCartOnLogout() } catch {}
+          clearUser()
+          resetClientCache()
+          try { localStorage.clear() } catch {}
+          try { sessionStorage.clear() } catch {}
+        } finally {
+          signOutInProgressRef.current = false
+          if (typeof window !== 'undefined') {
+            const url = '/en/auth/login?reset=1&reason=' + encodeURIComponent(reason)
+            window.location.replace(url)
+          } else {
+            router.push('/en/auth/login?reset=1')
+          }
+        }
+      }, [clearUser, clearCartOnLogout, router])
 
       authKeys.forEach(key => {
         try {
@@ -219,12 +246,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('📋 Querying user profile for userId:', userId)
       }
 
+      // Proactively ensure a profile exists before fetching it (handles new users across all providers)
+      try {
+        const attempts = [3000, 4000, 6000] // SEA networks can be slow
+        for (let i = 0; i < attempts.length; i++) {
+          try {
+            const controller = new AbortController()
+            const t = setTimeout(() => controller.abort(), attempts[i])
+            const resp = await fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+            clearTimeout(t)
+            if (resp.ok) break
+          } catch (e) {
+            if (i === attempts.length - 1) throw e
+          }
+          // backoff before retry
+          await new Promise(r => setTimeout(r, 200 + i * 200))
+        }
+      } catch (e) {
+        console.warn('⚠️ ensure-profile prefetch failed (non-fatal):', e)
+      }
+
       // Use optimized profile loading via lightweight bootstrap API with soft timeout and background retry
       const profilePromise = (async () => {
         const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 3000)
+        const timer = setTimeout(() => controller.abort(), 6000)
         try {
-          const resp = await fetch('/api/profile/bootstrap', { cache: 'no-store', signal: controller.signal })
+          const resp = await fetch('/api/profile/bootstrap', {
+            cache: 'no-store',
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+          })
           const json = await resp.json().catch(() => null)
           return json?.data?.profile ?? null
         } catch (_e) {
@@ -236,9 +287,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const softTimeoutPromise = new Promise<null>((resolve) =>
         setTimeout(() => {
-          console.warn('⏰ Profile load exceeded 3s, continuing with background retry...')
+          console.warn('⏰ Profile load exceeded 5-6s, continuing with background retry...')
           resolve(null) // Soft timeout - resolve with null instead of rejecting
-        }, 3000)
+        }, 6000)
       )
 
       const profile = await Promise.race([profilePromise, softTimeoutPromise])
@@ -254,9 +305,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setProfile(profile)
         profileLoadTimestampRef.current = Date.now()
       } else {
-        // Handle soft timeout case - schedule background retry
+        // Handle soft timeout case - schedule background retry and track failures for auto-recovery
         if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
           console.log('⚠️ Profile load timed out or no profile found, scheduling background retry...')
+        }
+
+        // Update failure window (1 minute window, 3+ misses triggers reset)
+        const now = Date.now()
+        const win = profileFailWindowRef.current
+        if (win.lastUserId !== userId || now - win.windowStart > 60000) {
+          profileFailWindowRef.current = { count: 1, windowStart: now, lastUserId: userId }
+        } else {
+          win.count += 1
+        }
+
+        // If repeated failures, force a clean sign-out so user can re-authenticate
+        if (profileFailWindowRef.current.count >= 3) {
+          await forceResetAuth('profile_bootstrap_failed')
+          return
         }
 
         // Schedule background retry with exponential backoff
@@ -269,9 +335,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
               }
               setProfile(retryProfile)
               profileLoadTimestampRef.current = Date.now()
+              // success: reset failure window
+              profileFailWindowRef.current = { count: 0, windowStart: Date.now(), lastUserId: userId }
+            } else {
+              // escalate count and possibly force reset
+              const now2 = Date.now()
+              const win2 = profileFailWindowRef.current
+              if (win2.lastUserId !== userId || now2 - win2.windowStart > 60000) {
+                profileFailWindowRef.current = { count: 1, windowStart: now2, lastUserId: userId }
+              } else {
+                win2.count += 1
+              }
+              if (profileFailWindowRef.current.count >= 3) {
+                await forceResetAuth('profile_retry_failed')
+              }
             }
           } catch (retryError) {
             console.warn('⚠️ Background profile retry failed:', retryError)
+            if (profileFailWindowRef.current.count >= 3) {
+              await forceResetAuth('profile_retry_exception')
+            }
           }
         }, 2000) // 2 second retry delay
       }
@@ -587,6 +670,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 createSession(session.user.id)
               } catch (e) {
                 console.warn('⚠️ Failed to create client session state:', e)
+              }
+
+              // Proactively ensure a users row exists for new accounts (covers Google/Telegram/email)
+              try {
+                const controller = new AbortController()
+                const t = setTimeout(() => controller.abort(), 2000)
+                await fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+                clearTimeout(t)
+              } catch (e) {
+                console.warn('⚠️ ensure-profile POST failed (non-fatal):', e)
               }
 
               await loadUserProfile(session.user.id)

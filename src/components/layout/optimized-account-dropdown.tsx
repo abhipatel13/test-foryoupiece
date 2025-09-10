@@ -144,16 +144,19 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
     )
   }
 
-  // Show error state
+  // Show error state with recovery action
   if (profileError) {
     return (
-      <div className={`flex items-center text-red-500 text-sm px-1 sm:px-2 lg:px-3 py-2 rounded-lg flex-shrink-0 min-w-0 ${className}`}>
-        <div className="text-right mr-1 sm:mr-2 min-w-0">
-          <div className="text-xs hidden sm:block">Error</div>
-          <div className="font-medium flex items-center truncate text-xs sm:text-sm">
-            <span>Profile Error</span>
+      <div className={`flex items-center text-sm px-1 sm:px-2 lg:px-3 py-2 rounded-lg flex-shrink-0 min-w-0 ${className}`}>
+        <div className="text-right mr-2 min-w-0">
+          <div className="text-xs text-red-500 hidden sm:block">Profile Error</div>
+          <div className="font-medium flex items-center truncate text-xs sm:text-sm text-red-600">
+            <span>Account issue</span>
           </div>
         </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSignOut}>
+          Reset Authentication
+        </Button>
       </div>
     )
   }

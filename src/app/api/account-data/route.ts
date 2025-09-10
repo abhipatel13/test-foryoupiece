@@ -10,10 +10,10 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({
         success: false,
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute all queries in parallel for better performance
-    const [profileResult, ordersResult, pointsResult] = await Promise.all([
+    let [profileResult, ordersResult, pointsResult] = await Promise.all([
       // 1. Get user profile
       serviceClient
         .from('users')
@@ -65,6 +65,59 @@ export async function GET(request: NextRequest) {
         .eq('id', user.id)
         .single()
     ])
+
+    // If profile missing (PGRST116), ensure profile and retry selects once
+    if (profileResult.error && (profileResult.error as any).code === 'PGRST116') {
+      try {
+        const minimal = {
+          id: user.id,
+          email: user.email ?? null,
+          first_name: (user.user_metadata as any)?.first_name ?? null,
+          last_name: (user.user_metadata as any)?.last_name ?? null,
+          telegram_username: (user.user_metadata as any)?.telegram_username ?? null,
+          preferred_language: 'en' as const
+        }
+        await serviceClient.from('users').upsert(minimal, { onConflict: 'id' })
+        const [p2, , pts2] = await Promise.all([
+          serviceClient
+            .from('users')
+            .select(`
+              id, email, phone, first_name, last_name, avatar_url,
+              points_balance, total_points_earned, tier_level, total_spent, total_orders,
+              preferred_language, created_at, updated_at
+            `)
+            .eq('id', user.id)
+            .single(),
+          Promise.resolve(ordersResult),
+          serviceClient
+            .from('users')
+            .select('points_balance, total_points_earned, tier_level, total_spent')
+            .eq('id', user.id)
+            .single()
+        ])
+        profileResult = p2
+        pointsResult = pts2
+      } catch (e) {
+        console.warn('ensure-profile (account-data) upsert failed (non-fatal):', e)
+      }
+    }
+    // Secondary guard: if still PGRST116 (e.g., duplicates), collapse to most recent row
+    if (profileResult.error && (profileResult.error as any).code === 'PGRST116') {
+      try {
+        const collapse = await serviceClient
+          .from('users')
+          .select(`id, email, phone, first_name, last_name, avatar_url, points_balance, total_points_earned, tier_level, total_spent, total_orders, preferred_language, created_at, updated_at`)
+          .eq('id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (collapse.data && collapse.data[0]) {
+          profileResult = { data: collapse.data[0], error: null, count: 1, status: 200, statusText: 'OK' } as any
+        }
+      } catch (e) {
+        console.warn('account-data collapse fallback failed:', e)
+      }
+    }
+
 
     // Handle errors
     if (profileResult.error) {
@@ -154,7 +207,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Account Data API Error:', error)
-    
+
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch account data',
