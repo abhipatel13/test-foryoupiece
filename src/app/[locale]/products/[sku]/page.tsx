@@ -377,7 +377,7 @@ export default function ProductDetailPage() {
                       return (
                         <iframe
                           key={videoId}
-                          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`}
+                          src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`}
                           className="w-full h-full"
                           loading="lazy"
                           referrerPolicy="strict-origin-when-cross-origin"
