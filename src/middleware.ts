@@ -298,7 +298,10 @@ export default async function middleware(request: NextRequest) {
   }
 
   // Apply internationalization middleware for all other paths
-  const intlResponse = intlMiddleware(request)
+  // IMPORTANT: Pass the forwardedHeaders (with x-nonce) so Next can attach the nonce
+  // to all inline scripts generated for this response.
+  const requestWithNonce = new NextRequest(request.url, { headers: forwardedHeaders })
+  const intlResponse = intlMiddleware(requestWithNonce)
 
   // Ensure CSP and core security headers are present on intl response
   intlResponse.headers.set('Content-Security-Policy', cspValue)
