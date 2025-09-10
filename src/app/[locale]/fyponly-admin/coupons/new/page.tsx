@@ -105,8 +105,17 @@ export default function NewCouponPage() {
     }
   }
 
-  const formatDateForInput = (date: Date) => {
-    return date.toISOString().slice(0, 16)
+  // JST helpers: ensure UI uses Japan Standard Time (UTC+9)
+  const toJstInputValue = (date: Date) => {
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    // Convert system local -> UTC -> JST
+    const utcTime = date.getTime() + date.getTimezoneOffset() * 60000
+    const jst = new Date(utcTime + 9 * 60 * 60000)
+    return `${jst.getFullYear()}-${pad(jst.getMonth() + 1)}-${pad(jst.getDate())}T${pad(jst.getHours())}:${pad(jst.getMinutes())}`
+  }
+  const fromJstInputValue = (value: string) => {
+    // Interpret the input as JST explicitly
+    return new Date(`${value}:00+09:00`)
   }
 
   return (
@@ -340,15 +349,16 @@ export default function NewCouponPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">All dates/times are interpreted in JST (UTC+9).</p>
               <div className="space-y-2">
                 <Label htmlFor="startsAt">Start Date & Time</Label>
                 <Input
                   id="startsAt"
                   type="datetime-local"
-                  value={formatDateForInput(formData.startsAt)}
+                  value={toJstInputValue(formData.startsAt)}
                   onChange={(e) => setFormData({ 
                     ...formData, 
-                    startsAt: new Date(e.target.value) 
+                    startsAt: fromJstInputValue(e.target.value)
                   })}
                 />
               </div>
@@ -368,10 +378,10 @@ export default function NewCouponPage() {
                   <Input
                     id="expiresAt"
                     type="datetime-local"
-                    value={formData.expiresAt ? formatDateForInput(formData.expiresAt) : ''}
+                    value={formData.expiresAt ? toJstInputValue(formData.expiresAt) : ''}
                     onChange={(e) => setFormData({ 
                       ...formData, 
-                      expiresAt: e.target.value ? new Date(e.target.value) : undefined 
+                      expiresAt: e.target.value ? fromJstInputValue(e.target.value) : undefined
                     })}
                   />
                 </div>

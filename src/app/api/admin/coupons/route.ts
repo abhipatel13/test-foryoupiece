@@ -265,14 +265,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Failed to delete coupon:', error)
     
-    // Handle specific errors
-    if (error.message.includes('has been used')) {
-      return NextResponse.json({
-        success: false,
-        error: 'Cannot delete coupon that has been used. Consider deactivating it instead.'
-      }, { status: 409 })
-    }
-
+    // Surface error details to admin without blocking used-coupon deletion
     return NextResponse.json({
       success: false,
       error: error.message || 'Failed to delete coupon'

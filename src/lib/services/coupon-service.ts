@@ -326,17 +326,7 @@ export class CouponService {
         throw new Error('Service client not available')
       }
 
-      // Check if coupon has been used
-      const { data: usageData } = await serviceClient
-        .from('coupon_usage')
-        .select('id')
-        .eq('coupon_id', id)
-        .limit(1)
-
-      if (usageData && usageData.length > 0) {
-        throw new Error('Cannot delete coupon that has been used. Consider deactivating it instead.')
-      }
-
+      // Delete coupon regardless of prior usage (usage records will cascade-delete)
       const { error } = await serviceClient
         .from('coupons')
         .delete()

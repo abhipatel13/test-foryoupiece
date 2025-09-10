@@ -249,7 +249,8 @@ export default function AdminCouponsPage() {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Asia/Tokyo'
     }).format(new Date(date))
   }
 
