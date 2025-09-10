@@ -995,6 +995,7 @@ export const useCartStore = create<CartStore>()(
           const validationItems = items.map(item => ({
             id: item.id,
             variant: item.variant,
+            sku: item.sku,
             quantity: item.quantity
           }))
 

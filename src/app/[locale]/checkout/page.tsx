@@ -206,6 +206,7 @@ export default function CheckoutPage() {
       const validationItems = items.map(item => ({
         id: item.id,
         variant: item.variant,
+        sku: item.sku,
         quantity: item.quantity
       }))
 
@@ -226,11 +227,15 @@ export default function CheckoutPage() {
           return
         }
       } else {
-        console.warn('Stock validation failed, proceeding with caution')
+        setLoading(false)
+        toast.error('Unable to validate stock right now. Please try again in a moment.')
+        return
       }
     } catch (error) {
       console.error('Stock validation error:', error)
-      // Continue with checkout but log the error
+      setLoading(false)
+      toast.error('Unable to validate stock right now. Please try again in a moment.')
+      return
     }
     setLoading(false)
 

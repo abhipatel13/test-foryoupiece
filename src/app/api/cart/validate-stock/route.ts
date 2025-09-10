@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 export interface CartStockValidationItem {
   id: string
   variant?: string
+  sku?: string
   quantity: number
 }
 
@@ -67,11 +68,27 @@ export async function POST(request: NextRequest) {
     const productStockMap = new Map(
       products.map(product => [product.id, product])
     )
+    // Optionally resolve variant-level stock by SKU when provided
+    const skus = items.map(i => i.sku).filter(Boolean) as string[]
+    let variantBySku = new Map<string, { sku: string; stock_quantity: number; product_id: string }>()
+    if (skus.length > 0) {
+      const { data: variants, error: variantError } = await supabase
+        .from('product_variants')
+        .select('sku, stock_quantity, product_id')
+        .in('sku', skus)
+
+      if (variantError) {
+        console.warn('⚠️ Error fetching variant stock, falling back to product-level:', variantError)
+      } else if (variants && Array.isArray(variants)) {
+        variantBySku = new Map(variants.map(v => [v.sku, v]))
+      }
+    }
+
 
     // Validate each cart item
     for (const item of items) {
       const product = productStockMap.get(item.id)
-      
+
       if (!product) {
         results.push({
           id: item.id,
@@ -87,7 +104,8 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      const currentStock = product.stock_quantity || 0
+      const variant = item.sku ? variantBySku.get(item.sku) : undefined
+      const currentStock = variant ? (variant.stock_quantity || 0) : (product.stock_quantity || 0)
       const requestedQuantity = item.quantity
       const isAvailable = currentStock >= requestedQuantity
       const maxAvailable = Math.max(0, currentStock)
@@ -101,14 +119,14 @@ export async function POST(request: NextRequest) {
         hasOutOfStock = true
       } else if (requestedQuantity > currentStock) {
         status = 'insufficient_stock'
-        message = currentStock === 1 
-          ? 'Only 1 left in stock' 
+        message = currentStock === 1
+          ? 'Only 1 left in stock'
           : `Only ${currentStock} left in stock`
         hasInsufficientStock = true
       } else if (currentStock <= 5) {
         status = 'low_stock'
-        message = currentStock === 1 
-          ? 'Only 1 left in stock' 
+        message = currentStock === 1
+          ? 'Only 1 left in stock'
           : `Only ${currentStock} left in stock`
       } else {
         status = 'in_stock'
@@ -142,8 +160,8 @@ export async function POST(request: NextRequest) {
       hasOutOfStock,
       hasInsufficientStock,
       canProceedToCheckout,
-      message: canProceedToCheckout 
-        ? 'All items are available' 
+      message: canProceedToCheckout
+        ? 'All items are available'
         : 'Some items have stock issues'
     })
 
@@ -199,13 +217,13 @@ export async function GET(request: NextRequest) {
       message = 'Out of stock'
     } else if (quantity > currentStock) {
       status = 'insufficient_stock'
-      message = currentStock === 1 
-        ? 'Only 1 left in stock' 
+      message = currentStock === 1
+        ? 'Only 1 left in stock'
         : `Only ${currentStock} left in stock`
     } else if (currentStock <= 5) {
       status = 'low_stock'
-      message = currentStock === 1 
-        ? 'Only 1 left in stock' 
+      message = currentStock === 1
+        ? 'Only 1 left in stock'
         : `Only ${currentStock} left in stock`
     } else {
       status = 'in_stock'

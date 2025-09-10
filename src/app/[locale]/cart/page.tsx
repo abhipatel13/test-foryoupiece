@@ -139,6 +139,14 @@ export default function CartPage() {
       controller.abort()
     }
   }, [items.length, user?.id])
+  // Always validate stock once when the cart page is visited
+  useEffect(() => {
+    if (items.length > 0) {
+      performStockValidation()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   // Real-time stock validation
   const performStockValidation = async () => {
@@ -156,6 +164,7 @@ export default function CartPage() {
       if (result.hasIssues) {
         toast.warning('Some items in your cart have stock issues. Please review before checkout.')
       }
+
     } catch (error) {
       console.error('Stock validation failed:', error)
       toast.error('Failed to validate stock. Please refresh the page.')
@@ -201,6 +210,7 @@ export default function CartPage() {
       const success = await updateQuantity(itemId, newQuantity, variant)
       if (success) {
         toast.success('Cart updated')
+        await performStockValidation()
       } else {
         // Find the item to get stock info for better error message
         const item = items.find(i => i.id === itemId && i.variant === variant)
@@ -253,6 +263,40 @@ export default function CartPage() {
   const finalTotal = getFinalTotal()
   const itemCount = getItemCount() // Number of unique items
   const totalQuantity = getTotalQuantity() // Total quantity of all items
+
+  // Reduce a single item to its available quantity
+  const handleReduceToAvailable = async (item: any) => {
+    const max = item.stockQuantity || 0
+    if (max <= 0) return
+    const ok = await updateQuantity(item.id, max, item.variant)
+    if (ok) {
+      toast.success(`Updated to ${max}`)
+      await performStockValidation()
+    } else {
+      toast.error('Failed to update quantity')
+    }
+  }
+
+  // Fix all stock issues at once with user confirmation
+  const handleFixAllStockIssues = async () => {
+    const confirm = window.confirm('Update your cart to the maximum available quantities and remove out-of-stock items?')
+    if (!confirm) return
+
+    // Process sequentially to keep UI + DB in sync
+    for (const it of items) {
+      if (it.stockStatus === 'out_of_stock') {
+        await removeItem(it.id, it.variant)
+      } else if (it.stockStatus === 'insufficient_stock') {
+        const max = it.stockQuantity || 0
+        if (max > 0 && max < it.quantity) {
+          await updateQuantity(it.id, max, it.variant)
+        }
+      }
+    }
+    await performStockValidation()
+    toast.success('Cart updated to available quantities')
+  }
+
   const totalPointsEarned = getTotalPointsEarned()
   const couponDiscount = getCouponDiscount()
   const pointsDiscount = getPointsDiscount()
@@ -419,7 +463,7 @@ export default function CartPage() {
               {/* Improved Cart Items Layout - Optimized Mobile Spacing */}
               <div className="divide-y divide-gray-100">
                 {items.map((item) => (
-                  <div key={generateCartItemKey(item.id, item.variant)} className="p-2 sm:p-3 lg:p-6 hover:bg-gray-50 transition-all duration-200">
+                  <div key={generateCartItemKey(item.id, item.variant)} className={`p-2 sm:p-3 lg:p-6 hover:bg-gray-50 transition-all duration-200 ${ (item.stockStatus === 'out_of_stock' || item.stockStatus === 'insufficient_stock') ? 'border border-red-300 rounded-lg' : '' }`}>
                     <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-3">
                       {/* Left Section: Checkbox and Image */}
                       <div className="flex items-start space-x-2 sm:contents">
@@ -450,6 +494,27 @@ export default function CartPage() {
                             </h3>
 
                             {/* Stock Status - Dynamic Design */}
+
+                              {/* Stock mismatch guidance + quick actions */}
+                              {item.stockStatus === 'insufficient_stock' && typeof item.stockQuantity === 'number' && item.stockQuantity < item.quantity && (
+                                <div className="mt-1 text-xs text-red-700 flex items-center gap-2">
+                                  <span>
+                                    You have {item.quantity} in cart, but only {item.stockQuantity} are available. Please reduce quantity.
+                                  </span>
+                                  <button
+                                    onClick={() => handleReduceToAvailable(item)}
+                                    className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-0.5 rounded"
+                                  >
+                                    Reduce to {item.stockQuantity}
+                                  </button>
+                                </div>
+                              )}
+                              {item.stockStatus === 'out_of_stock' && (
+                                <div className="mt-1 text-xs text-red-700">
+                                  This item is no longer available. Please remove it.
+                                </div>
+                              )}
+
                             <div className="flex items-center space-x-1.5">
                               {(() => {
                                 const status = item.stockStatus || 'in_stock'
@@ -765,7 +830,7 @@ export default function CartPage() {
 
 
                 {/* MOBILE-OPTIMIZED CHECKOUT BUTTON - Enterprise-level sizing and design */}
-                {stockValidationResult?.canCheckout === false ? (
+                {(stockValidationResult?.canCheckout === false || stockValidationResult === null) ? (
                   <div className="space-y-3">
                     <Button
                       disabled
@@ -775,10 +840,10 @@ export default function CartPage() {
                         <AlertTriangle className="h-4 w-4 text-gray-400" strokeWidth={1.5} />
                         <div className="flex flex-col items-center">
                           <span className="font-semibold text-gray-400 leading-tight text-sm sm:text-base">
-                            Cannot Proceed to Checkout
+                            {stockValidationResult === null ? 'Checking stock...' : 'Cannot Proceed to Checkout'}
                           </span>
                           <span className="text-xs sm:text-sm lg:text-base text-gray-400 mt-0.5">
-                            Please resolve stock issues
+                            {stockValidationResult === null ? 'Please wait while we verify current stock.' : 'Please resolve stock issues'}
                           </span>
                         </div>
                       </div>
@@ -789,12 +854,20 @@ export default function CartPage() {
                         <div className="text-sm sm:text-base text-orange-800">
                           <p className="font-semibold mb-1">Stock Issues Detected</p>
                           <p className="leading-relaxed">Some items in your cart are out of stock or have insufficient quantity. Please update your cart or remove unavailable items to continue.</p>
-                          <button
-                            onClick={performStockValidation}
-                            className="mt-2 text-orange-700 hover:text-orange-800 font-medium underline focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded"
-                          >
-                            Check stock again
-                          </button>
+                          <div className="mt-2 flex items-center gap-3">
+                            <button
+                              onClick={performStockValidation}
+                              className="text-orange-700 hover:text-orange-800 font-medium underline focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded"
+                            >
+                              Check stock again
+                            </button>
+                            <button
+                              onClick={handleFixAllStockIssues}
+                              className="text-orange-700 hover:text-orange-800 font-medium underline focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 rounded"
+                            >
+                              Update cart automatically
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
