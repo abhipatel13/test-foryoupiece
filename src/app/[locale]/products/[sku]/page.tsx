@@ -10,7 +10,7 @@ import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { useBehaviorTracking } from '@/lib/hooks/use-behavior-tracking'
 import { useWishlist } from '@/lib/hooks/use-wishlist'
 import { productQueries } from '@/lib/supabase/queries'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, slugify } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -354,13 +354,39 @@ export default function ProductDetailPage() {
                       onClick={() => setIsImageZoomed(!isImageZoomed)}
                     />
                   ) : (
-                    <iframe
-                      src={`https://www.youtube.com/embed/${mediaItems[selectedImageIndex].id ?? ''}?rel=0&modestbranding=1&playsinline=1`}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      title={product.name_en}
-                    />
+                    (() => {
+                      const current = mediaItems[selectedImageIndex]
+                      const videoId = current.id || extractYouTubeId(current.url) || ''
+                      if (!videoId) {
+                        // Fallback: show clickable thumbnail if ID could not be parsed
+                        const thumb = `https://i.ytimg.com/vi/${(current.url || '').split('v=')[1] || ''}/hqdefault.jpg`
+                        return (
+                          <a
+                            href={current.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full h-full flex items-center justify-center bg-black/5"
+                            aria-label="Open video on YouTube"
+                          >
+                            {thumb ? (<img src={thumb} alt={product.name_en} className="w-full h-full object-cover" />) : (
+                              <span className="text-gray-500">Watch on YouTube</span>
+                            )}
+                          </a>
+                        )
+                      }
+                      return (
+                        <iframe
+                          key={videoId}
+                          src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`}
+                          className="w-full h-full"
+                          loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          title={product.name_en}
+                        />
+                      )
+                    })()
                   )}
 
                   {/* Image Navigation Arrows - Enhanced for Mobile */}
@@ -451,7 +477,7 @@ export default function ProductDetailPage() {
             {product.brand && (
               <div>
                 <Link
-                  href={`/products?brand=${product.brand}`}
+                  href={`/en/brands/${slugify(product.brand)}`}
                   className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition-colors duration-200 cursor-pointer hover:underline"
                 >
                   Visit the {product.brand} Store
