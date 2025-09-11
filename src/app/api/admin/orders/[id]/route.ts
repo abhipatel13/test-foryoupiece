@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
+
+// Explicitly disable shared caching for admin order APIs (defense-in-depth)
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, private',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Vary': 'Cookie, Authorization, Accept-Encoding',
+} as const;
+
 import {
   handleDatabaseError,
   handleGenericError
@@ -23,18 +32,18 @@ export const GET = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: 'Order ID is required'
-      }, { status: 400 });
+      }, { status: 400, headers: noStoreHeaders });
     }
 
     // Use service role client to bypass RLS
     const supabase = createServiceRoleClient();
-    
+
     if (!supabase) {
       console.error('❌ Failed to create service role client');
       return NextResponse.json({
         success: false,
         error: 'Service configuration error'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     console.log('🔧 Service role client created successfully');
@@ -85,7 +94,7 @@ export const GET = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: 'Order not found'
-      }, { status: 404 });
+      }, { status: 404, headers: noStoreHeaders });
     }
 
     console.log('✅ Order details fetched successfully:', order.order_number);
@@ -163,14 +172,14 @@ export const GET = withAdminAuth(async (
     return NextResponse.json({
       success: true,
       order: transformedOrder
-    });
+    }, { headers: noStoreHeaders });
 
   } catch (error) {
     console.error('❌ Admin Order Details API error:', error);
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
-    }, { status: 500 });
+    }, { status: 500, headers: noStoreHeaders });
   }
 });
 
@@ -186,7 +195,7 @@ export const PATCH = withAdminAuth(async (
   try {
     const orderId = params.id;
     console.log('📝 Admin Order Update API called for ID:', orderId);
-    
+
     const body = await request.json();
     const { status, statusType, notes } = body;
 
@@ -194,27 +203,27 @@ export const PATCH = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: 'Order ID is required'
-      }, { status: 400 });
+      }, { status: 400, headers: noStoreHeaders });
     }
 
     if (!status || !statusType) {
       return NextResponse.json({
         success: false,
         error: 'Missing required fields: status, statusType'
-      }, { status: 400 });
+      }, { status: 400, headers: noStoreHeaders });
     }
 
     console.log('📝 Updating order:', { orderId, status, statusType, notes });
 
     // Use service role client to bypass RLS
     const supabase = createServiceRoleClient();
-    
+
     if (!supabase) {
       console.error('❌ Failed to create service role client');
       return NextResponse.json({
         success: false,
         error: 'Service configuration error'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Get current order to preserve other status field
@@ -229,7 +238,7 @@ export const PATCH = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: fetchError.message
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Use Telegram-aware RPC function to safely update order status
@@ -250,7 +259,7 @@ export const PATCH = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: rpcError.message
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     if (!rpcResult) {
@@ -258,7 +267,7 @@ export const PATCH = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: 'Failed to update order status'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Update admin notes separately if provided (this doesn't trigger the problematic trigger)
@@ -286,7 +295,7 @@ export const PATCH = withAdminAuth(async (
       return NextResponse.json({
         success: false,
         error: error.message
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     console.log('✅ Order updated successfully:', data);
@@ -336,7 +345,7 @@ export const PATCH = withAdminAuth(async (
             return NextResponse.json({
               success: true,
               order: data
-            });
+            }, { headers: noStoreHeaders });
           }
 
           // Send email notification
@@ -364,13 +373,13 @@ export const PATCH = withAdminAuth(async (
     return NextResponse.json({
       success: true,
       order: data
-    });
+    }, { headers: noStoreHeaders });
 
   } catch (error) {
     console.error('❌ Admin Order Update API error:', error);
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
-    }, { status: 500 });
+    }, { status: 500, headers: noStoreHeaders });
   }
 });

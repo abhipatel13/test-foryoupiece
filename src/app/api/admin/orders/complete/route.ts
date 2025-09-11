@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
+// Explicitly disable shared caching for admin order APIs (defense-in-depth)
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, private',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Vary': 'Cookie, Authorization, Accept-Encoding',
+} as const;
+
+
 /**
  * Complete Order API - Streamlined single-click completion
  * POST /api/admin/orders/complete
@@ -17,7 +26,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       return NextResponse.json({
         success: false,
         error: 'Missing order ID'
-      }, { status: 400 });
+      }, { status: 400, headers: noStoreHeaders });
     }
 
     console.log('📦 Completing order:', orderId);
@@ -30,7 +39,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       return NextResponse.json({
         success: false,
         error: 'Service unavailable'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Get current order details
@@ -45,7 +54,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       return NextResponse.json({
         success: false,
         error: 'Order not found'
-      }, { status: 404 });
+      }, { status: 404, headers: noStoreHeaders });
     }
 
     console.log('📦 Current order status:', {
@@ -87,7 +96,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       return NextResponse.json({
         success: false,
         error: `Failed to complete order: ${error.message}`
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     console.log('✅ Order completed successfully:', updatedOrder?.id || orderId);
@@ -211,13 +220,13 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
     return NextResponse.json({
       success: true,
       order: updatedOrder
-    });
+    }, { headers: noStoreHeaders });
 
   } catch (error) {
     console.error('❌ Order completion API error:', error);
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
-    }, { status: 500 });
+    }, { status: 500, headers: noStoreHeaders });
   }
 });

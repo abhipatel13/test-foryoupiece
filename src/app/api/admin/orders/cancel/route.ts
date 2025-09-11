@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
+// Explicitly disable shared caching for admin order APIs (defense-in-depth)
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, private',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Vary': 'Cookie, Authorization, Accept-Encoding',
+} as const;
+
+
 /**
  * Cancel Order API - Cancel order and refund points
  * POST /api/admin/orders/cancel
@@ -17,7 +26,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: 'Missing order ID'
-      }, { status: 400 });
+      }, { status: 400, headers: noStoreHeaders });
     }
 
     console.log('📦 Cancelling order:', orderId);
@@ -30,7 +39,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: 'Service unavailable'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Get current order details
@@ -45,7 +54,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: 'Order not found'
-      }, { status: 404 });
+      }, { status: 404, headers: noStoreHeaders });
     }
 
     console.log('📦 Order to cancel:', {
@@ -68,7 +77,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: rpcError.message
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     if (!rpcResult) {
@@ -76,7 +85,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: 'Failed to cancel order'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Fetch the updated order data
@@ -91,7 +100,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: fetchError.message
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Get order items to restore stock
@@ -105,7 +114,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         error: 'Failed to fetch order items'
-      }, { status: 500 });
+      }, { status: 500, headers: noStoreHeaders });
     }
 
     // Restore stock for each item
@@ -228,13 +237,13 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
         title: item.title,
         quantityRestored: item.quantity
       })) || []
-    });
+    }, { headers: noStoreHeaders });
 
   } catch (error) {
     console.error('❌ Order cancellation API error:', error);
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
-    }, { status: 500 });
+    }, { status: 500, headers: noStoreHeaders });
   }
 });
