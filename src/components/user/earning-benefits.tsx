@@ -56,7 +56,7 @@ const EarningBenefitsComponent = function EarningBenefits({
     <div className="space-y-6">
       {/* Earning Points Card - Enhanced Design */}
       <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg">
-        <CardHeader className="pb-4 sm:pb-6">
+        <CardHeader className="pb-4 sm:pb-6 h-[70px] sm:h-auto">
           <CardTitle className="flex items-center gap-4 text-green-700">
             <div className="p-3 bg-green-100 rounded-xl shadow-sm">
               <Target className="h-6 w-6 sm:h-7 sm:w-7 text-green-600" />
@@ -89,7 +89,7 @@ const EarningBenefitsComponent = function EarningBenefits({
 
       {/* Current Tier Benefits Card - Enhanced Design */}
       <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg">
-        <CardHeader className="pb-4 sm:pb-6">
+        <CardHeader className="pb-4 sm:pb-6 h-[170px] sm:h-auto">
           <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-4 text-purple-700">
               <div className="p-3 bg-purple-100 rounded-xl shadow-sm">

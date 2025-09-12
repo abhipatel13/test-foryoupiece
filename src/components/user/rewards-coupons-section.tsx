@@ -286,7 +286,7 @@ export function RewardsCouponsSection({ userId, userProfile }: RewardsCouponsPro
 
   return (
     <Card className="mt-2">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 h-[150px] sm:h-auto">
         <CardTitle className="flex items-center space-x-2">
           <Gift className="h-5 w-5 text-purple-500" />
           <span>Rewards & Coupons</span>

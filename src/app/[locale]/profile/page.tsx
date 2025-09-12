@@ -608,7 +608,7 @@ export default function ProfilePage() {
 
             {/* Recent Orders */}
             <Card role="region" aria-labelledby="orders-title">
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-4 h-[80px] sm:h-auto">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle id="orders-title" className="text-lg">Recent Orders</CardTitle>
@@ -694,7 +694,7 @@ export default function ProfilePage() {
 
             {/* Account Security */}
             <Card role="region" aria-label="Account Security">
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-4 h-[120px] sm:h-auto">
                 <CardTitle className="text-lg flex items-center">
                   <Shield className="h-5 w-5 mr-2" />
                   Account Security

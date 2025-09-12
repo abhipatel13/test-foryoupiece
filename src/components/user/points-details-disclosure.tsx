@@ -55,7 +55,7 @@ export function PointsDetailsDisclosure({
   return (
     <Card className="border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-slate-50 shadow-lg">
       <CardHeader
-        className="cursor-pointer hover:bg-gray-100 transition-colors p-4 sm:p-6 min-h-[80px]"
+        className="cursor-pointer hover:bg-gray-100 transition-colors p-4 sm:p-6 min-h-[80px] h-[250px] sm:h-auto"
         onClick={() => setIsOpen(!isOpen)}
       >
         <CardTitle className="flex items-center justify-between text-gray-700">

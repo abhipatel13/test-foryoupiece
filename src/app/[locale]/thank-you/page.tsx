@@ -302,7 +302,7 @@ function ThankYouPageContent() {
         {/* QR Payment Instructions - Priority Section */}
         <div className="mb-4 sm:mb-6 lg:mb-8">
           <Card className="border border-slate-200 shadow-sm bg-slate-50 py-4 sm:py-6 gap-4 sm:gap-6">
-            <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1">
+            <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1 h-[170px] sm:h-auto">
               <CardTitle className="flex items-center space-x-2 text-lg font-semibold text-slate-900">
                 <QrCode className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
                 <span>Payment Instructions</span>
@@ -391,7 +391,7 @@ function ThankYouPageContent() {
           <div className="space-y-4 sm:space-y-6">
             {/* Order Summary */}
             <Card className="border border-slate-200 shadow-sm py-4 sm:py-6 gap-4 sm:gap-6">
-              <CardHeader className="pb-2 sm:pb-4">
+              <CardHeader className="pb-2 sm:pb-4 h-[50px] sm:h-auto">
                 <CardTitle className="flex items-center space-x-2 text-base sm:text-lg font-semibold text-slate-900">
                   <Package className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Order Summary</span>
@@ -485,7 +485,7 @@ function ThankYouPageContent() {
 
             {/* Pricing Breakdown */}
             <Card className="border border-slate-200 shadow-sm py-4 sm:py-6 gap-4 sm:gap-6">
-              <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1">
+              <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1 h-[120px] sm:h-auto">
                 <CardTitle className="flex items-center space-x-2 text-base sm:text-lg font-semibold text-slate-900">
                   <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" strokeWidth={1.5} />
                   <span>Pricing Breakdown</span>
@@ -657,7 +657,7 @@ function ThankYouPageContent() {
 
             {/* Order Status */}
             <Card className="py-4 sm:py-6 gap-4 sm:gap-6">
-              <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1">
+              <CardHeader className="px-4 sm:px-6 pb-2 sm:pb-3 gap-1 h-[40px] sm:h-auto">
                 <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
                   <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span>What Happens Next?</span>
