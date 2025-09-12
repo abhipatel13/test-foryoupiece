@@ -61,6 +61,18 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
     const lastMessageMap = new Map<string, any>()
     const unreadCountMap = new Map<string, number>()
 
+    // Helper to safely derive message text from various possible fields
+    const deriveMessageText = (n: any): string => {
+      return (
+        n?.message ||
+        n?.metadata?.text ||
+        n?.metadata?.telegram_text ||
+        n?.metadata?.message_text ||
+        n?.metadata?.raw?.message?.text ||
+        ''
+      )
+    }
+
     // Process notifications to find last message and unread count per user
     for (const n of notis || []) {
       const uid = n.user_id
@@ -70,7 +82,7 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
         lastMessageMap.set(uid, {
           id: n.id,
           title: n.title,
-          message: n.message,
+          message: deriveMessageText(n),
           created_at: n.created_at,
           metadata: n.metadata,
         })

@@ -80,6 +80,18 @@ export default function CustomerCommunicationPage() {
 
   const fullName = (u: AdminUser) => [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email.split('@')[0]
 
+  // Helper to reliably extract message text
+  const getNotificationText = useCallback((n: any): string => {
+    return (
+      n?.message ||
+      n?.metadata?.text ||
+      n?.metadata?.telegram_text ||
+      n?.metadata?.message_text ||
+      n?.metadata?.raw?.message?.text ||
+      ''
+    )
+  }, [])
+
   // Manual refresh functions
   const refreshConversations = useCallback(async () => {
     if (refreshing) return
@@ -274,6 +286,20 @@ export default function CustomerCommunicationPage() {
       setRecentOrdersLoading(false)
     }
   }, [])
+  // Mark messages as read for a user and clear badge locally
+  const markReadForUser = useCallback(async (userId: string) => {
+    try {
+      await fetch('/api/admin/communications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      })
+    } catch {}
+    // Optimistically clear badge for this user
+    setRecentUsers(prev => prev.map(e => e.user.id === userId ? { ...e, unreadCount: 0 } : e))
+  }, [])
+
+
 
 
 
@@ -296,7 +322,8 @@ export default function CustomerCommunicationPage() {
   // Load history + recent orders when user is selected
   useEffect(() => {
     if (selectedUser?.id) {
-      loadHistory(selectedUser.id)
+      // Load messages, then mark all incoming as read for this user
+      loadHistory(selectedUser.id).then(() => markReadForUser(selectedUser.id))
       loadRecentOrders(selectedUser.id)
     }
   }, [selectedUser?.id]) // Only run when selectedUser.id changes
@@ -353,6 +380,14 @@ export default function CustomerCommunicationPage() {
                   const days = (Date.now() - new Date(o.created_at).getTime()) / (1000*60*60*24)
                   return days <= RECENT_ORDER_DAYS
                 })
+                const previewMsg = (
+                  entry?.lastMessage?.message ||
+                  entry?.lastMessage?.metadata?.text ||
+                  entry?.lastMessage?.metadata?.telegram_text ||
+                  entry?.lastMessage?.metadata?.message_text ||
+                  entry?.lastMessage?.metadata?.raw?.message?.text ||
+                  ''
+                )
 
                 return (
                   <button
@@ -375,7 +410,7 @@ export default function CustomerCommunicationPage() {
                       <Badge className={isIncoming ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}>
                         {isIncoming ? 'Incoming' : 'Outgoing'}
                       </Badge>
-                      <div className="text-xs text-gray-600 truncate">{entry.lastMessage.message}</div>
+                      <div className="text-xs text-gray-600 truncate">{previewMsg}</div>
                     </div>
                     {entry.unreadCount > 0 && (
                       <div className="mt-1">
@@ -449,7 +484,7 @@ export default function CustomerCommunicationPage() {
                               <div className="text-xs text-gray-500">{new Date(n.created_at).toLocaleString()}</div>
                             </div>
                             <div className="font-medium mt-1">{n.title}</div>
-                            <div className="whitespace-pre-wrap mt-0.5">{n.message}</div>
+                            <div className="whitespace-pre-wrap mt-0.5">{getNotificationText(n)}</div>
                             {/* Delivery status (basic): use metadata.status if present */}
                             {n?.metadata?.status && (
                               <div className="text-[10px] text-gray-500 mt-1">Status: {n.metadata.status}</div>
