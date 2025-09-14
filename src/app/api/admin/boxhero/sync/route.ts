@@ -1,3 +1,7 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { BoxHeroSyncService } from '@/lib/boxhero-sync';
@@ -125,11 +129,11 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
         revalidateTag('inventory')
         // Derive base URL dynamically from incoming request to support dev ports (e.g., 3001)
         const requestOrigin = request.headers.get('origin') || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}`
-        // 1) Signal React Query clients (userland) to refetch relevant keys
-        fetch(`${requestOrigin}/api/cache/invalidate`, {
+        // 1) Signal admin cache invalidation endpoint to record analytics and force client refresh
+        fetch(`${requestOrigin}/api/admin/cache/invalidate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keys: ['products','categories','inventory','admin-dashboard-stats'], reason: 'boxhero_sync_completed' })
+          body: JSON.stringify({ cacheTypes: ['products','categories','analytics','dashboard'], reason: 'boxhero_sync_completed', forceRefresh: true })
         }).catch(() => {})
         // 2) Signal admin-specific cache invalidation to record analytics and force client refresh
         fetch(`${requestOrigin}/api/admin/cache/invalidate`, {

@@ -112,7 +112,7 @@ export default function AdminCouponsPage() {
         sortDirection: 'desc'
       })
 
-      const response = await fetch(`/api/admin/coupons?${params}`)
+      const response = await fetch(`/api/admin/coupons?${params}`, { cache: 'no-store' })
       const data = await response.json()
 
       if (data.success) {
@@ -132,7 +132,7 @@ export default function AdminCouponsPage() {
   const loadStatistics = useCallback(async () => {
     try {
       setStatisticsLoading(true)
-      const response = await fetch('/api/admin/coupons/statistics')
+      const response = await fetch('/api/admin/coupons/statistics', { cache: 'no-store' })
       const data = await response.json()
 
       if (data.success) {
@@ -149,7 +149,8 @@ export default function AdminCouponsPage() {
     try {
       setDeletingId(id)
       const response = await fetch(`/api/admin/coupons?id=${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        cache: 'no-store'
       })
       const data = await response.json()
 

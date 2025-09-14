@@ -1,4 +1,9 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag, revalidatePath } from 'next/cache'
 import { couponService } from '@/lib/services/coupon-service'
 import { CouponFormData, CouponListRequest } from '@/types/coupon'
 
@@ -45,22 +50,32 @@ export async function GET(request: NextRequest) {
 
     const result = await couponService.listCoupons(listRequest)
 
-    return NextResponse.json({
-      success: true,
-      data: result.coupons,
-      pagination: {
-        page: result.page,
-        limit,
-        total: result.total,
-        totalPages: result.totalPages
-      }
-    })
+    {
+      const response = NextResponse.json({
+        success: true,
+        data: result.coupons,
+        pagination: {
+          page: result.page,
+          limit,
+          total: result.total,
+          totalPages: result.totalPages
+        }
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   } catch (error: any) {
     console.error('❌ Failed to list coupons:', error)
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Failed to list coupons'
-    }, { status: 500 })
+    {
+      const response = NextResponse.json({
+        success: false,
+        error: error.message || 'Failed to list coupons'
+      }, { status: 500 })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   }
 }
 
@@ -128,13 +143,24 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Coupon created successfully:', coupon.id)
 
-    return NextResponse.json({
-      success: true,
-      data: coupon
-    })
+    {
+      // Revalidate caches affected by coupon changes
+      try {
+        revalidateTag('coupons')
+        revalidatePath('/en/fyponly-admin/coupons')
+      } catch {}
+
+      const response = NextResponse.json({
+        success: true,
+        data: coupon
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   } catch (error: any) {
     console.error('❌ Failed to create coupon:', error)
-    
+
     // Handle specific errors
     if (error.message.includes('already exists')) {
       return NextResponse.json({
@@ -205,13 +231,24 @@ export async function PUT(request: NextRequest) {
 
     console.log('✅ Coupon updated successfully:', coupon.id)
 
-    return NextResponse.json({
-      success: true,
-      data: coupon
-    })
+    {
+      // Revalidate caches affected by coupon changes
+      try {
+        revalidateTag('coupons')
+        revalidatePath('/en/fyponly-admin/coupons')
+      } catch {}
+
+      const response = NextResponse.json({
+        success: true,
+        data: coupon
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   } catch (error: any) {
     console.error('❌ Failed to update coupon:', error)
-    
+
     // Handle specific errors
     if (error.message.includes('already exists')) {
       return NextResponse.json({
@@ -258,13 +295,24 @@ export async function DELETE(request: NextRequest) {
 
     console.log('✅ Coupon deleted successfully:', id)
 
-    return NextResponse.json({
-      success: true,
-      message: 'Coupon deleted successfully'
-    })
+    {
+      // Revalidate caches affected by coupon deletion
+      try {
+        revalidateTag('coupons')
+        revalidatePath('/en/fyponly-admin/coupons')
+      } catch {}
+
+      const response = NextResponse.json({
+        success: true,
+        message: 'Coupon deleted successfully'
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   } catch (error: any) {
     console.error('❌ Failed to delete coupon:', error)
-    
+
     // Surface error details to admin without blocking used-coupon deletion
     return NextResponse.json({
       success: false,

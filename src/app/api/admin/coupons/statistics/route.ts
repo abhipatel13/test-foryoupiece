@@ -1,3 +1,7 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { couponService } from '@/lib/services/coupon-service'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
@@ -14,15 +18,25 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
 
     console.log('✅ Coupon statistics retrieved successfully')
 
-    return NextResponse.json({
-      success: true,
-      data: statistics
-    })
+    {
+      const response = NextResponse.json({
+        success: true,
+        data: statistics
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   } catch (error: any) {
     console.error('❌ Failed to get coupon statistics:', error)
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Failed to get coupon statistics'
-    }, { status: 500 })
+    {
+      const response = NextResponse.json({
+        success: false,
+        error: error.message || 'Failed to get coupon statistics'
+      }, { status: 500 })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   }
 });

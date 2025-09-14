@@ -1,4 +1,9 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag, revalidatePath } from 'next/cache'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
@@ -26,7 +31,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       dashboard: async () => {
         // Invalidate dashboard stats cache
         console.log('📊 Invalidating dashboard cache...')
-        
+
         // Log cache invalidation
         await supabase.rpc('log_cache_invalidation', {
           p_cache_key: 'dashboard_stats',
@@ -40,7 +45,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
 
       products: async () => {
         console.log('📦 Invalidating products cache...')
-        
+
         // Get product count for metrics
         const { count } = await supabase
           .from('products')
@@ -59,7 +64,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
 
       categories: async () => {
         console.log('📂 Invalidating categories cache...')
-        
+
         // Get category count for metrics
         const { count } = await supabase
           .from('categories')
@@ -73,7 +78,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
               method: 'GET',
               headers: { 'Cache-Control': 'no-cache' }
             })
-            
+
             if (!response.ok) {
               console.warn('⚠️ Failed to refresh category images')
             }
@@ -95,7 +100,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
 
       images: async () => {
         console.log('🖼️ Invalidating images cache...')
-        
+
         // Force refresh category images
         try {
           const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -103,7 +108,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
             method: 'GET',
             headers: { 'Cache-Control': 'no-cache' }
           })
-          
+
           let imageCount = 0
           if (response.ok) {
             const data = await response.json()
@@ -126,7 +131,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
 
       analytics: async () => {
         console.log('📈 Invalidating analytics cache...')
-        
+
         // Log cache invalidation
         await supabase.rpc('log_cache_invalidation', {
           p_cache_key: 'analytics_*',
@@ -140,7 +145,7 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
     }
 
     // Process cache invalidations
-    const typesToProcess = cacheTypes.includes('all') 
+    const typesToProcess = cacheTypes.includes('all')
       ? Object.keys(cacheStrategies)
       : cacheTypes.filter((type: string) => type in cacheStrategies)
 
@@ -180,32 +185,51 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       results: invalidationResults
     })
 
-    return NextResponse.json({
-      success: true,
-      message: 'Cache invalidation completed',
-      data: {
-        invalidationResults,
-        summary: {
-          typesProcessed: typesToProcess.length,
-          totalRecordsAffected: invalidationResults.reduce((sum, r) => sum + (r.records || 0), 0),
-          duration,
-          errors: invalidationResults.filter(r => r.status === 'error').length
-        },
-        timestamp: new Date().toISOString()
-      }
-    })
+    {
+      // Revalidate Next.js caches/tags affected by selected types
+      try {
+        const set = new Set(typesToProcess)
+        if (set.has('products')) revalidateTag('products')
+        if (set.has('categories')) revalidateTag('categories')
+        if (set.has('analytics')) revalidateTag('analytics')
+        if (set.has('dashboard')) revalidatePath('/en/fyponly-admin')
+      } catch {}
+
+      const response = NextResponse.json({
+        success: true,
+        message: 'Cache invalidation completed',
+        data: {
+          invalidationResults,
+          summary: {
+            typesProcessed: typesToProcess.length,
+            totalRecordsAffected: invalidationResults.reduce((sum, r) => sum + (r.records || 0), 0),
+            duration,
+            errors: invalidationResults.filter(r => r.status === 'error').length
+          },
+          timestamp: new Date().toISOString()
+        }
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
 
   } catch (error) {
     console.error('❌ Cache invalidation failed:', error)
 
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Cache invalidation failed',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+    {
+      const response = NextResponse.json(
+        {
+          success: false,
+          message: 'Cache invalidation failed',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 500 }
+      )
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   }
 })
 
@@ -253,29 +277,39 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       summary.byTrigger[log.triggered_by] = (summary.byTrigger[log.triggered_by] || 0) + 1
     })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        invalidationLogs: invalidationLogs || [],
-        summary,
-        meta: {
-          limit,
-          days,
-          cacheType: cacheType || 'all'
+    {
+      const response = NextResponse.json({
+        success: true,
+        data: {
+          invalidationLogs: invalidationLogs || [],
+          summary,
+          meta: {
+            limit,
+            days,
+            cacheType: cacheType || 'all'
+          }
         }
-      }
-    })
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
 
   } catch (error) {
     console.error('❌ Failed to get cache invalidation data:', error)
 
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to get cache invalidation data',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+    {
+      const response = NextResponse.json(
+        {
+          success: false,
+          message: 'Failed to get cache invalidation data',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 500 }
+      )
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
   }
 })

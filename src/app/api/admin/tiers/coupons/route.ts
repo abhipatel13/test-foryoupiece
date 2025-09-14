@@ -1,4 +1,9 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag, revalidatePath } from 'next/cache';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
@@ -14,13 +19,13 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
 
     const url = new URL(request.url);
     const searchParams = url.searchParams;
-    
+
     // Filter parameters
     const tierFilter = searchParams.get('tier') || '';
     const statusFilter = searchParams.get('status') || 'active';
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
-    
+
     console.log('📊 Query params:', { tierFilter, statusFilter, startDate, endDate });
 
     const serviceClient = createServiceRoleClient();
@@ -82,23 +87,23 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     // Process coupons data with analytics
     const processedCoupons = (coupons || []).map(coupon => {
       const usageTracking = coupon.tier_coupon_usage_tracking || [];
-      
+
       // Filter by date range if provided
       let filteredUsage = usageTracking;
       if (startDate) {
-        filteredUsage = filteredUsage.filter(usage => 
+        filteredUsage = filteredUsage.filter(usage =>
           new Date(usage.used_at) >= new Date(startDate)
         );
       }
       if (endDate) {
-        filteredUsage = filteredUsage.filter(usage => 
+        filteredUsage = filteredUsage.filter(usage =>
           new Date(usage.used_at) <= new Date(endDate)
         );
       }
 
       // Filter by tier if provided
       if (tierFilter && tierFilter !== 'all') {
-        filteredUsage = filteredUsage.filter(usage => 
+        filteredUsage = filteredUsage.filter(usage =>
           usage.user_tier_at_usage === tierFilter
         );
       }
@@ -120,10 +125,10 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       }, {} as Record<string, { count: number; totalDiscount: number; totalOrderValue: number }>);
 
       const totalUsage = filteredUsage.length;
-      const totalDiscount = filteredUsage.reduce((sum, usage) => 
+      const totalDiscount = filteredUsage.reduce((sum, usage) =>
         sum + parseFloat(usage.discount_amount.toString()), 0
       );
-      const totalOrderValue = filteredUsage.reduce((sum, usage) => 
+      const totalOrderValue = filteredUsage.reduce((sum, usage) =>
         sum + parseFloat(usage.order_total.toString()), 0
       );
 
@@ -157,7 +162,7 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     });
 
     // Filter by tier restrictions if tier filter is applied
-    const finalCoupons = tierFilter && tierFilter !== 'all' 
+    const finalCoupons = tierFilter && tierFilter !== 'all'
       ? processedCoupons.filter(coupon => {
           const restrictions = coupon.tierRestrictions as string[] | null;
           return restrictions && restrictions.includes(tierFilter);
@@ -186,19 +191,24 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
       summary
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        coupons: finalCoupons,
-        summary,
-        filters: {
-          tier: tierFilter,
-          status: statusFilter,
-          startDate,
-          endDate
+    {
+      const response = NextResponse.json({
+        success: true,
+        data: {
+          coupons: finalCoupons,
+          summary,
+          filters: {
+            tier: tierFilter,
+            status: statusFilter,
+            startDate,
+            endDate
+          }
         }
-      }
-    });
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
 
   } catch (error) {
     console.error('❌ Admin tier coupons error:', error);
@@ -308,22 +318,33 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
       tierRestrictions
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        coupon: {
-          id: newCoupon.id,
-          code: newCoupon.code,
-          name: newCoupon.name,
-          description: newCoupon.description,
-          discountType: newCoupon.discount_type,
-          discountValue: newCoupon.discount_value,
-          tierRestrictions: JSON.parse(newCoupon.tier_restrictions || '[]'),
-          createdAt: newCoupon.created_at
-        }
-      },
-      message: `Tier-specific coupon "${newCoupon.code}" created successfully`
-    });
+    {
+      // Revalidate caches affected by coupon changes
+      try {
+        revalidateTag('coupons')
+        revalidatePath('/en/fyponly-admin/coupons')
+      } catch {}
+
+      const response = NextResponse.json({
+        success: true,
+        data: {
+          coupon: {
+            id: newCoupon.id,
+            code: newCoupon.code,
+            name: newCoupon.name,
+            description: newCoupon.description,
+            discountType: newCoupon.discount_type,
+            discountValue: newCoupon.discount_value,
+            tierRestrictions: JSON.parse(newCoupon.tier_restrictions || '[]'),
+            createdAt: newCoupon.created_at
+          }
+        },
+        message: `Tier-specific coupon "${newCoupon.code}" created successfully`
+      })
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+      response.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return response
+    }
 
   } catch (error) {
     console.error('❌ Admin create tier coupon error:', error);
