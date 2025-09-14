@@ -93,9 +93,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       // Sign out from Supabase first to clear cookies/tokens
       try {
-        await supabaseRef.current?.auth.signOut()
+        const { data: { session } } = await (supabaseRef.current?.auth.getSession() ?? { data: { session: null } as any })
+        if (session) {
+          await supabaseRef.current!.auth.signOut()
+        } else {
+          console.log('⏭️ Skipping duplicate signOut in cross-tab handler (no active session)')
+        }
       } catch (e) {
-        console.warn('⚠️ Supabase signOut failed during cross-tab sign out:', e)
+        console.warn('⚠️ Supabase signOut check/attempt failed during cross-tab sign out:', e)
       }
 
       // Best-effort server-side logout for token blacklisting
@@ -164,7 +169,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Reset the flag after a delay to allow for future cross-tab events
       setTimeout(() => {
         crossTabSignOutRef.current = false
-      }, 1000)
+      }, 200)
     }
   }, [clearUser, clearCartOnLogout, isClient, router])
 
@@ -642,18 +647,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             broadcast('AUTH_STATE_CHANGE', { user: null, event })
           }
 
-          // Reset logout flag after cleanup (reduced from 1000ms to 300ms for faster recovery)
+          // Reset logout flag after cleanup (further reduced to 100ms to minimize race window)
           setTimeout(() => {
             signOutInProgressRef.current = false
-          }, 300)
+          }, 100)
 
           router.push('/en/auth/login')
         } else if (event === 'SIGNED_IN') {
-          // Check if logout is in progress - ignore SIGNED_IN during logout
+          // If a logout guard is active but we received SIGNED_IN, clear it and proceed
           const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
           if (signOutInProgressRef.current || globalSignOutFlag) {
-            console.log('🚪 Ignoring SIGNED_IN event during logout process')
-            return
+            console.log('✅ SIGNED_IN received during logout guard; clearing guard and proceeding')
+            signOutInProgressRef.current = false
+            try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
+            // continue without early return
           }
 
           if (session?.user) {

@@ -116,7 +116,23 @@ export const useUserStore = create<UserStore>()(
     {
       name: 'foryoupiece-user',
       version: STORAGE_VERSION,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const testKey = '__fyp_user_store__'
+            localStorage.setItem(testKey, '1')
+            localStorage.removeItem(testKey)
+            return localStorage
+          }
+        } catch {}
+        // Memory fallback for Safari/private mode or blocked storage
+        const mem = new Map<string, string>()
+        return {
+          getItem: (name: string) => mem.get(name) ?? null,
+          setItem: (name: string, value: string) => { mem.set(name, value) },
+          removeItem: (name: string) => { mem.delete(name) }
+        } as unknown as Storage
+      }),
       migrate: (persistedState: any, version: number) => {
         // Handle storage migration when version changes
         if (version < STORAGE_VERSION) {
