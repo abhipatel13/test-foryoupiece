@@ -197,7 +197,7 @@ export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser 
     const results = [];
 
     for (const update of updates) {
-      const { id, price, compare_at_price, discount_percentage } = update;
+      const { id, price, compare_at_price, discount_percentage, sale_ends_at } = update;
 
       // Validate data
       if (!id) {
@@ -224,17 +224,51 @@ export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser 
         updateData.compare_at_price = null;
       }
 
-      // Update product
-      const { error: updateError } = await supabase
-        .from('products')
-        .update(updateData)
-        .eq('id', id);
+      // Optional sale end timestamp (best-effort; column may not exist in all environments)
+      if (sale_ends_at) {
+        updateData.sale_ends_at = sale_ends_at;
+      }
 
-      if (updateError) {
-        console.error(`❌ Error updating product ${id}:`, updateError);
-        results.push({ id, success: false, error: updateError.message });
+      // Update product with graceful fallback if sale_ends_at column doesn't exist
+      let updateErrorPrimary: any = null
+      {
+        const { error } = await supabase
+          .from('products')
+          .update(updateData)
+          .eq('id', id)
+        updateErrorPrimary = error
+      }
+
+      if (updateErrorPrimary && updateData.sale_ends_at) {
+        const msg = String(updateErrorPrimary.message || '')
+        // Retry without sale_ends_at if the column doesn't exist
+        if (msg.includes('sale_ends_at') || msg.includes('column') || msg.includes('does not exist')) {
+          try {
+            const retryData = { ...updateData }
+            delete (retryData as any).sale_ends_at
+            const { error: retryError } = await supabase
+              .from('products')
+              .update(retryData)
+              .eq('id', id)
+            if (retryError) {
+              console.error(`❌ Error updating product ${id} (retry without sale_ends_at):`, retryError)
+              results.push({ id, success: false, error: retryError.message, retried: true })
+            } else {
+              results.push({ id, success: true, retried: true, note: 'Updated without sale_ends_at (column missing)' })
+            }
+          } catch (e: any) {
+            console.error(`❌ Unexpected error on retry for product ${id}:`, e)
+            results.push({ id, success: false, error: e?.message || 'Unknown retry error', retried: true })
+          }
+        } else {
+          console.error(`❌ Error updating product ${id}:`, updateErrorPrimary)
+          results.push({ id, success: false, error: updateErrorPrimary.message })
+        }
+      } else if (updateErrorPrimary) {
+        console.error(`❌ Error updating product ${id}:`, updateErrorPrimary)
+        results.push({ id, success: false, error: updateErrorPrimary.message })
       } else {
-        results.push({ id, success: true });
+        results.push({ id, success: true })
       }
     }
 
@@ -244,7 +278,7 @@ export const PUT = withAdminAuth(async (request: NextRequest, { user, adminUser 
     console.log(`✅ Bulk update completed: ${successCount} success, ${errorCount} errors`);
 
     return NextResponse.json({
-      success: true,
+      success: errorCount === 0,
       results,
       summary: {
         total: results.length,

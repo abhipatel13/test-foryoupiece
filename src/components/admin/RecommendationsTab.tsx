@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Target, Percent, Star } from 'lucide-react'
+import { RefreshCw, Target, Percent, Star, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+import { SalesConfigModal } from '@/components/admin/sales-config-modal'
 
 interface CategoryOption { name: string; slug: string }
 
@@ -37,6 +39,12 @@ export default function RecommendationsTab() {
 
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>('')
+
+  // Sales modal state
+  const [salesModalOpen, setSalesModalOpen] = useState(false)
+  const [salesProduct, setSalesProduct] = useState<{
+    id: string; sku: string; name_en: string; price: number; compare_at_price?: number | null; points_rate?: number | null
+  } | null>(null)
 
   const fetchCategories = async () => {
     try {
@@ -156,12 +164,32 @@ export default function RecommendationsTab() {
                     {Array.isArray(item.reason) ? item.reason.join(' • ') : (item.reason || '')}
                   </div>
                 </div>
-                <div className="text-right ml-3">
-                  <div className="text-sm font-semibold">${'{'}item.product.price.toFixed(2){'}'}</div>
-                  {item.product.compare_at_price && item.product.compare_at_price > item.product.price ? (
-                    <div className="text-xs text-gray-500 line-through">${'{'}item.product.compare_at_price.toFixed(2){'}'}</div>
-                  ) : null}
-                  <div className="text-xs text-gray-500">Stock: {item.product.stock_quantity}</div>
+                <div className="text-right ml-3 flex flex-col items-end gap-2">
+                  <div>
+                    <div className="text-sm font-semibold">${'{'}item.product.price.toFixed(2){'}'}</div>
+                    {item.product.compare_at_price && item.product.compare_at_price > item.product.price ? (
+                      <div className="text-xs text-gray-500 line-through">${'{'}item.product.compare_at_price.toFixed(2){'}'}</div>
+                    ) : null}
+                    <div className="text-xs text-gray-500">Stock: {item.product.stock_quantity}</div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSalesProduct({
+                        id: item.product.id,
+                        sku: item.product.sku,
+                        name_en: item.product.name_en,
+                        price: item.product.price,
+                        compare_at_price: item.product.compare_at_price ?? null,
+                        // points_rate not included in this minimal payload from API; leave undefined
+                      } as any)
+                      setSalesModalOpen(true)
+                    }}
+                    className="mt-1"
+                  >
+                    <Tag className="mr-1 h-3 w-3" /> Add to Sales
+                  </Button>
                 </div>
               </div>
             ))}
@@ -210,6 +238,17 @@ export default function RecommendationsTab() {
         <Section title="Deals & Discounts Suggestions" icon={<Percent className="h-4 w-4" />} items={deals} />
         <Section title="Best Sellers Suggestions" icon={<Star className="h-4 w-4" />} items={best} />
       </div>
+
+      {/* Sales Configuration Modal */}
+      <SalesConfigModal
+        open={salesModalOpen}
+        onOpenChange={setSalesModalOpen}
+        product={salesProduct}
+        onSaved={() => {
+          // Reload lists to reflect latest data
+          loadRecommendations()
+        }}
+      />
     </div>
   )
 }
