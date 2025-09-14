@@ -20,6 +20,8 @@ export type UserProfile = {
   tier: string
   created_at: string
   updated_at: string
+  banned?: boolean | null
+  banned_at?: string | null
 }
 
 type UserStore = {

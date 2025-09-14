@@ -8,6 +8,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SessionMonitor } from '@/components/session-monitor';
 import { MetaPageviewTracker } from '@/components/analytics/meta-pageview-tracker';
+import { BannedUserModal } from '@/components/security/banned-user-modal';
 
 export const dynamicParams = true
 
@@ -49,6 +50,7 @@ export default async function LocaleLayout({
             <MainLayout>
               <MetaPageviewTracker />
               {children}
+              <BannedUserModal />
             </MainLayout>
           </NextIntlClientProvider>
         </AuthProvider>

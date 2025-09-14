@@ -74,7 +74,9 @@ export async function GET(
         permanent_free_shipping,
         address_line_1,
         address_line_2,
-        aba_bank_name
+        aba_bank_name,
+        banned,
+        banned_at
       `)
       .eq('id', userId)
       .single()
@@ -114,7 +116,9 @@ export async function GET(
               permanent_free_shipping,
               address_line_1,
               address_line_2,
-              aba_bank_name
+              aba_bank_name,
+              banned,
+              banned_at
             `)
             .eq('id', userId)
             .single()
@@ -192,7 +196,9 @@ export async function GET(
               permanent_free_shipping,
               address_line_1,
               address_line_2,
-              aba_bank_name
+              aba_bank_name,
+              banned,
+              banned_at
             `)
             .eq('id', userId)
             .order('created_at', { ascending: false })

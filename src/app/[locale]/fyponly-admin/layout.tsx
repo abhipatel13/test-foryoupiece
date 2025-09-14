@@ -606,10 +606,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         )}
 
         {/* Mobile sidebar */}
-        <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out md:hidden ${
+        <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out md:hidden flex flex-col ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
-          <div className="flex flex-col flex-grow pt-5 overflow-y-auto border-r">
+          <div className="flex flex-col h-full pt-5 border-r">
             <div className="flex items-center justify-between flex-shrink-0 px-4">
               <div className="flex items-center space-x-2">
                 <Image
@@ -630,7 +630,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </button>
             </div>
 
-            <div className="mt-5 flex-grow flex flex-col">
+            <div className="mt-5 flex-1 flex flex-col overflow-y-auto">
               <nav className="flex-1 px-2 pb-4 space-y-1">
                 {navigation.map((item) => {
                   const Icon = item.icon
@@ -649,7 +649,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </nav>
             </div>
 
-            <div className="flex-shrink-0 p-4">
+            <div className="flex-shrink-0 p-4 pb-[env(safe-area-inset-bottom)]">
               <Separator className="mb-4" />
               <div className="flex items-center space-x-3">
                 <div className="flex-shrink-0">

@@ -57,7 +57,9 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         telegram_username,
         created_at,
         updated_at,
-        is_active
+        is_active,
+        banned,
+        banned_at
       `, { count: 'exact' });
 
     // Add search filter if provided
@@ -127,7 +129,9 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
           preferred_language,
           telegram_username,
           created_at,
-          updated_at
+          updated_at,
+          banned,
+          banned_at
         `, { count: 'exact' });
 
       if (search.trim()) {

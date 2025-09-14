@@ -24,7 +24,8 @@ export async function GET(_req: NextRequest) {
         id, email, phone, first_name, last_name, avatar_url,
         points_balance, total_points_earned, tier_level,
         telegram_username,
-        address_line_1, address_line_2, aba_bank_name
+        address_line_1, address_line_2, aba_bank_name,
+        banned, banned_at
       `)
       .eq('id', user.id)
       .single()

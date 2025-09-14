@@ -309,11 +309,24 @@ export async function apiCall<T>(
       ...options,
     })
 
-    const data = await response.json()
+    let data: any = null
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
 
     if (!response.ok) {
+      // Special handling: if server signals user banned, broadcast an event so UI can react immediately
+      if (response.status === 403 && data && (data.errorCode === 'USER_BANNED' || data.error === 'USER_BANNED')) {
+        try {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('fyp:user-banned'))
+          }
+        } catch {}
+      }
       return {
-        error: data.error || `HTTP ${response.status}`,
+        error: (data && (data.error || data.message)) || `HTTP ${response.status}`,
         status: response.status
       }
     }

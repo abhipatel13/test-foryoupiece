@@ -38,6 +38,8 @@ interface User {
   created_at: string
   updated_at: string
   is_active?: boolean
+  banned?: boolean
+  banned_at?: string | null
 }
 
 interface UserOrder {
@@ -284,6 +286,28 @@ export default function UsersPage() {
     }
   }
 
+  const toggleBan = async (user: User, nextBanned: boolean) => {
+    try {
+      const reason = nextBanned ? (window.prompt('Reason for ban (optional):') || '') : ''
+      const resp = await fetch('/api/admin/users/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, banned: nextBanned, reason })
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update ban status')
+      }
+      toast.success(nextBanned ? 'User banned successfully' : 'User unbanned successfully')
+      // Update local state for immediate UI reflection
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, banned: nextBanned, banned_at: nextBanned ? new Date().toISOString() : null } : u))
+      setSelectedUser(prev => prev ? { ...prev, banned: nextBanned, banned_at: nextBanned ? new Date().toISOString() : null } : prev)
+    } catch (e: any) {
+      console.error('Ban toggle failed:', e)
+      toast.error(e?.message || 'Failed to update ban status')
+    }
+  }
+
   // Pagination handlers
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -483,6 +507,9 @@ export default function UsersPage() {
                       <Badge className={tierColors[getCorrectUserTier(user)]}>
                         {tierIcons[getCorrectUserTier(user)]} {getCorrectUserTier(user)}
                       </Badge>
+                      {user.banned && (
+                        <Badge className="bg-red-100 text-red-800 border-red-200">Banned</Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                       {user.email && (
@@ -582,6 +609,9 @@ export default function UsersPage() {
                     <Badge className={tierColors[getCorrectUserTier(selectedUser)]}>
                       {tierIcons[getCorrectUserTier(selectedUser)]} {getCorrectUserTier(selectedUser)}
                     </Badge>
+                  )}
+                  {selectedUser?.banned && (
+                    <Badge className="bg-red-100 text-red-800 border-red-200">Banned</Badge>
                   )}
                 </div>
                 <div className="text-sm text-gray-600 font-normal">
@@ -872,6 +902,7 @@ export default function UsersPage() {
                       <ShoppingBag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
                       <p className="text-gray-600">This user hasn't placed any orders</p>
+
                     </CardContent>
                   </Card>
                 )}
@@ -896,6 +927,47 @@ export default function UsersPage() {
                       <Send className="h-4 w-4 mr-2" />
                       Compose Message
                     </Button>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Ban Management
+                    </CardTitle>
+                    <CardDescription>
+                      Restrict access for this user to all authenticated features.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-700">Current status</div>
+                      <div>
+                        {selectedUser?.banned ? (
+                          <Badge className="bg-red-100 text-red-800 border-red-200">Banned</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">Active</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {selectedUser?.banned ? (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => selectedUser && toggleBan(selectedUser, false)}
+                        >
+                          Unban User
+                        </Button>
+                      ) : (
+                        <Button
+                          className="w-full bg-red-600 hover:bg-red-700"
+                          onClick={() => selectedUser && toggleBan(selectedUser, true)}
+                        >
+                          Ban User
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>

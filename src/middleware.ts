@@ -282,6 +282,54 @@ export default async function middleware(request: NextRequest) {
     return res
   }
 
+  // Server-side ban enforcement for authenticated API routes
+  try {
+    if (pathname.startsWith('/api')) {
+      const protectedApiPrefixes = ['/api/cart', '/api/orders', '/api/profile', '/api/user', '/api/wishlist', '/api/checkout']
+      const isProtectedApi = protectedApiPrefixes.some(p => pathname.startsWith(p))
+      if (isProtectedApi && supabaseUrl && supabaseAnonKey) {
+        const apiSupabase = createServerClient(
+          supabaseUrl,
+          supabaseAnonKey,
+          {
+            cookies: {
+              getAll() { return request.cookies.getAll() },
+              setAll(cookiesToSet) {
+                cookiesToSet.forEach(({ name, value, options }) => {
+                  const secureOptions = getSecureCookieOptions({ ...options, name })
+                  pendingCookies.push({ name, value, options: secureOptions })
+                  request.cookies.set(name, value)
+                })
+              }
+            }
+          }
+        )
+        const { data: { user }, error: userErr } = await apiSupabase.auth.getUser()
+        if (!user || userErr) {
+          // Not authenticated; let existing auth handling decide (other parts will handle 401 where applicable)
+        } else {
+          try {
+            const { data: self, error: selErr } = await apiSupabase
+              .from('users')
+              .select('banned')
+              .eq('id', user.id)
+              .single()
+            if (!selErr && self && self.banned === true) {
+              const res = NextResponse.json({ success: false, error: 'USER_BANNED', errorCode: 'USER_BANNED' }, { status: 403 })
+              // Security and anti-cache headers
+              res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+              res.headers.set('Content-Security-Policy', cspValue)
+              try { pendingCookies.forEach(({ name, value, options }) => res.cookies.set(name, value, options)) } catch {}
+              return res
+            }
+          } catch {}
+        }
+      }
+    }
+  } catch (e) {
+    try { console.warn('Ban enforcement check failed (non-fatal):', e) } catch {}
+  }
+
   // Exclude API routes from internationalization
   if (request.nextUrl.pathname.startsWith('/api')) {
     return supabaseResponse
