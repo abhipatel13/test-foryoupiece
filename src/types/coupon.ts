@@ -58,6 +58,17 @@ export interface CouponApplicationResult {
   coupon?: Coupon
 }
 
+// Targeting options
+export type UserRankTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'
+
+export interface CouponTargetingOptions {
+  tiers?: UserRankTier[] // By User Ranking
+  recentlySignedUpDays?: number // Users who registered within last N days
+  mostPurchasedTopN?: number // Top N by total_spent
+  mostPurchasedMinTotalSpent?: number // Minimum total_spent threshold ($)
+  recentlyPurchasedDays?: number // Users who purchased within last N days
+}
+
 // Form interfaces for admin
 export interface CouponFormData {
   code: string
@@ -72,6 +83,7 @@ export interface CouponFormData {
   startsAt: Date
   expiresAt?: Date
   status: CouponStatus
+  targeting?: CouponTargetingOptions
 }
 
 // Statistics interface for admin
@@ -235,20 +247,39 @@ export const convertCouponUsageRowToCouponUsage = (row: CouponUsageRow): CouponU
   usedAt: new Date(row.used_at)
 })
 
-export const convertCouponFormDataToCouponInsert = (formData: CouponFormData, createdBy?: string): CouponInsert => ({
-  code: formData.code.toUpperCase().trim(),
-  name: formData.name.trim(),
-  description: formData.description?.trim() || null,
-  discount_type: formData.discountType,
-  discount_value: formData.discountValue,
-  total_usage_limit: formData.totalUsageLimit || null,
-  per_user_usage_limit: formData.perUserUsageLimit || null,
-  allowed_user_ids: formData.allowedUserIds && formData.allowedUserIds.length > 0 
-    ? JSON.parse(JSON.stringify(formData.allowedUserIds)) 
-    : null,
-  minimum_order_amount: formData.minimumOrderAmount || null,
-  starts_at: formData.startsAt.toISOString(),
-  expires_at: formData.expiresAt?.toISOString() || null,
-  status: formData.status,
-  created_by: createdBy || null
-})
+export const convertCouponFormDataToCouponInsert = (formData: CouponFormData, createdBy?: string): CouponInsert => {
+  // Map targeting to DB metadata schema and tier fields
+  const targeting = formData.targeting
+  const hasTiers = targeting?.tiers && targeting.tiers.length > 0
+  const metadata: Record<string, any> = {}
+  if (targeting) {
+    metadata.targeting = {
+      ...(targeting.recentlySignedUpDays ? { recently_signed_up_days: targeting.recentlySignedUpDays } : {}),
+      ...(targeting.mostPurchasedTopN ? { most_purchased_top_n: targeting.mostPurchasedTopN } : {}),
+      ...(targeting.mostPurchasedMinTotalSpent ? { most_purchased_min_total_spent: targeting.mostPurchasedMinTotalSpent } : {}),
+      ...(targeting.recentlyPurchasedDays ? { recently_purchased_days: targeting.recentlyPurchasedDays } : {})
+    }
+  }
+
+  return {
+    code: formData.code.toUpperCase().trim(),
+    name: formData.name.trim(),
+    description: formData.description?.trim() || null,
+    discount_type: formData.discountType,
+    discount_value: formData.discountValue,
+    total_usage_limit: formData.totalUsageLimit || null,
+    per_user_usage_limit: formData.perUserUsageLimit || null,
+    allowed_user_ids: formData.allowedUserIds && formData.allowedUserIds.length > 0
+      ? JSON.parse(JSON.stringify(formData.allowedUserIds))
+      : null,
+    minimum_order_amount: formData.minimumOrderAmount || null,
+    starts_at: formData.startsAt.toISOString(),
+    expires_at: formData.expiresAt?.toISOString() || null,
+    status: formData.status,
+    created_by: createdBy || null,
+    // Extensions for targeting
+    ...(hasTiers ? { is_tier_specific: true as any } : {}),
+    ...(hasTiers ? { tier_restrictions: JSON.parse(JSON.stringify(targeting!.tiers)) as any } : {}),
+    ...(targeting ? { metadata: metadata as any } : {})
+  } as CouponInsert
+}

@@ -294,6 +294,30 @@ export class CouponService {
       if (formData.expiresAt !== undefined) updateData.expires_at = formData.expiresAt?.toISOString() || null
       if (formData.status) updateData.status = formData.status
 
+      // Targeting updates (optional)
+      const anyForm: any = formData as any
+      if (anyForm.targeting !== undefined) {
+        const t = anyForm.targeting || {}
+        const hasTiers = Array.isArray(t.tiers) && t.tiers.length > 0
+        if (hasTiers) {
+          updateData.is_tier_specific = true
+          updateData.tier_restrictions = JSON.parse(JSON.stringify(t.tiers))
+        } else if (t.tiers !== undefined) {
+          // Explicitly clear if empty array provided
+          updateData.is_tier_specific = false
+          updateData.tier_restrictions = null
+        }
+        const metadata: Record<string, any> = {
+          targeting: {
+            ...(t.recentlySignedUpDays ? { recently_signed_up_days: t.recentlySignedUpDays } : {}),
+            ...(t.mostPurchasedTopN ? { most_purchased_top_n: t.mostPurchasedTopN } : {}),
+            ...(t.mostPurchasedMinTotalSpent ? { most_purchased_min_total_spent: t.mostPurchasedMinTotalSpent } : {}),
+            ...(t.recentlyPurchasedDays ? { recently_purchased_days: t.recentlyPurchasedDays } : {})
+          }
+        }
+        updateData.metadata = metadata as any
+      }
+
       const { data, error } = await serviceClient
         .from('coupons')
         .update(updateData)
