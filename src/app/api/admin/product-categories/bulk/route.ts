@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag, revalidatePath } from 'next/cache'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 
@@ -73,6 +74,28 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
     const errorCount = results.filter(r => !r.success).length;
 
     console.log(`✅ Bulk operation completed: ${successCount} success, ${errorCount} errors`);
+
+    // Revalidate caches affected by bulk operations
+    try {
+      // Sales-related operations affect product listings
+      if (operation === 'apply_discount' || operation === 'remove_discount') {
+        revalidateTag('products')
+      }
+      // Best-seller operations also impact product lists
+      if (operation === 'set_best_seller' || operation === 'remove_best_seller' || operation === 'reorder_best_sellers') {
+        revalidateTag('products')
+      }
+    } catch {}
+
+    // Signal admin cache invalidation endpoint for broader client refreshes (best-effort)
+    try {
+      const requestOrigin = request.headers.get('origin') || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}`
+      fetch(`${requestOrigin}/api/admin/cache/invalidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cacheTypes: ['products'], reason: `bulk_${operation}`, forceRefresh: true })
+      }).catch(() => {})
+    } catch {}
 
     return NextResponse.json({
       success: true,
@@ -157,7 +180,10 @@ async function handleRemoveDiscount(supabase: any, productIds: string[], results
   for (const productId of productIds) {
     const { error: updateError } = await supabase
       .from('products')
-      .update({ compare_at_price: null })
+      .update({
+        compare_at_price: null,
+        points_rate: 1.0, // Reset to default 1.0%
+      })
       .eq('id', productId);
 
     if (updateError) {

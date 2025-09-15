@@ -167,6 +167,8 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
       return
     }
 
+    if (!window.confirm(`Remove sale and reset points for ${selectedProducts.length} product(s)?`)) return
+
     try {
       const response = await fetch('/api/admin/product-categories/bulk', {
         method: 'POST',
@@ -180,15 +182,40 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
       const data = await response.json()
 
       if (data.success) {
-        toast.success(`Removed discount from ${data.summary.success} products`)
+        toast.success(`Removed sale from ${data.summary.success} product(s)`)
         setSelectedProducts([])
         fetchSalesProducts()
       } else {
-        toast.error('Failed to remove bulk discount')
+        toast.error('Failed to remove bulk sale')
       }
     } catch (error) {
-      console.error('Error removing bulk discount:', error)
-      toast.error('Failed to remove bulk discount')
+      console.error('Error removing bulk sale:', error)
+      toast.error('Failed to remove bulk sale')
+    }
+  }
+
+  // Handle single product Remove Sale
+  const handleRemoveSale = async (productId: string) => {
+    if (!window.confirm('Remove sale price and reset points to 1% for this product?')) return
+    try {
+      const res = await fetch('/api/admin/product-categories/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'remove_discount',
+          product_ids: [productId]
+        })
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Sale removed')
+        fetchSalesProducts()
+      } else {
+        toast.error('Failed to remove sale')
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to remove sale')
     }
   }
 
@@ -528,6 +555,17 @@ export default function SalesProductsTab({ onCountChange }: SalesProductsTabProp
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        {(product.has_discount || product.has_high_points) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRemoveSale(product.id)}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Remove Sale
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
