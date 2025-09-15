@@ -42,7 +42,17 @@ export async function GET(request: NextRequest) {
     const recentlyAdded = searchParams.get('recently_added') === 'true';
     const deals = searchParams.get('deals') === 'true';
 
-    console.log('🎯 FIXED API Query params:', { limit, page, offset, categorySlug, search, recentlyAdded, deals });
+    // New: brand and price range filters
+    const brandsParam = searchParams.get('brands');
+    const brands = brandsParam
+      ? brandsParam.split(',').map(b => b.trim()).filter(Boolean)
+      : [] as string[];
+    const priceMinParam = searchParams.get('price_min');
+    const priceMaxParam = searchParams.get('price_max');
+    const priceMin = priceMinParam !== null ? parseFloat(priceMinParam) : undefined;
+    const priceMax = priceMaxParam !== null ? parseFloat(priceMaxParam) : undefined;
+
+    console.log('🎯 FIXED API Query params:', { limit, page, offset, categorySlug, search, recentlyAdded, deals, brands, priceMin, priceMax });
 
     // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
     const supabase = createAnonymousClient();
@@ -81,6 +91,18 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true)
       .eq('is_deleted', false); // SECURITY FIX: Exclude soft-deleted products
 
+    // Apply brand and price filters (if provided)
+    if (brands.length > 0) {
+      query = query.in('brand', brands)
+    }
+    if (typeof priceMin === 'number' && !Number.isNaN(priceMin)) {
+      query = query.gte('price', priceMin)
+    }
+    if (typeof priceMax === 'number' && !Number.isNaN(priceMax)) {
+      query = query.lte('price', priceMax)
+    }
+
+
     // Track resolved category id once
     let categoryId: string | null = null
 
@@ -92,6 +114,8 @@ export async function GET(request: NextRequest) {
 
       if (category) {
         console.log(`🎯 FIXED API: Found category: ${category.name_en || category.name_ja || 'Unknown'} (ID: ${category.id})`);
+
+
         categoryId = category.id
         // ONLY use category_id - NO keyword-based filtering
         query = query.eq('category_id', categoryId);
@@ -214,6 +238,21 @@ export async function GET(request: NextRequest) {
       outStockCountQuery = outStockCountQuery.or(orClause)
     }
 
+	    // Apply brand and price filters to count queries
+	    if (brands.length > 0) {
+	      inStockCountQuery = inStockCountQuery.in('brand', brands)
+	      outStockCountQuery = outStockCountQuery.in('brand', brands)
+	    }
+	    if (typeof priceMin === 'number' && !Number.isNaN(priceMin)) {
+	      inStockCountQuery = inStockCountQuery.gte('price', priceMin)
+	      outStockCountQuery = outStockCountQuery.gte('price', priceMin)
+	    }
+	    if (typeof priceMax === 'number' && !Number.isNaN(priceMax)) {
+	      inStockCountQuery = inStockCountQuery.lte('price', priceMax)
+	      outStockCountQuery = outStockCountQuery.lte('price', priceMax)
+	    }
+
+
     const [{ count: inStockCount, error: inErr }, { count: outStockCount, error: outErr }] = await Promise.all([
       inStockCountQuery.gt('stock_quantity', 0),
       outStockCountQuery.lte('stock_quantity', 0)
@@ -242,6 +281,15 @@ export async function GET(request: NextRequest) {
       }
       if (search) {
         q = q.or(`name_en.ilike.%${search}%,name_ja.ilike.%${search}%,description_en.ilike.%${search}%,description_ja.ilike.%${search}%,sku.ilike.%${search}%`)
+      }
+      if (brands.length > 0) {
+        q = q.in('brand', brands)
+      }
+      if (typeof priceMin === 'number' && !Number.isNaN(priceMin)) {
+        q = q.gte('price', priceMin)
+      }
+      if (typeof priceMax === 'number' && !Number.isNaN(priceMax)) {
+        q = q.lte('price', priceMax)
       }
       return applyOrdering(q)
     }

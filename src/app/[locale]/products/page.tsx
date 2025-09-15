@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Slider } from '@/components/ui/slider'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Pagination } from '@/components/ui/pagination'
@@ -60,6 +60,10 @@ function ProductsPageContent() {
   const [priceRange, setPriceRange] = useState([0, 500]) // USD range instead of Yen
   const [selectedBrands, setSelectedBrands] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  // Price filter UX: presets + custom inputs (apply-only)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
+  const [pendingMin, setPendingMin] = useState<string>('')
+  const [pendingMax, setPendingMax] = useState<string>('')
 
   // Check if this is a "recently added" view
   const isRecentlyAddedView = searchParams.get('recently_added') === 'true'
@@ -119,9 +123,14 @@ function ProductsPageContent() {
   useEffect(() => {
     const categoryParam = searchParams.get('category')
     const pageParam = searchParams.get('page')
+    const brandsParam = searchParams.get('brands')
+    const priceMinParam = searchParams.get('price_min')
+    const priceMaxParam = searchParams.get('price_max')
 
     if (categoryParam) {
       setSelectedCategory(categoryParam)
+    } else {
+      setSelectedCategory(null)
     }
 
     if (pageParam) {
@@ -129,7 +138,111 @@ function ProductsPageContent() {
     } else {
       setCurrentPage(1)
     }
+
+    if (brandsParam !== null) {
+      const parsed = brandsParam
+        .split(',')
+        .map(b => b.trim())
+        .filter(Boolean)
+      setSelectedBrands(parsed)
+    } else {
+      setSelectedBrands([])
+    }
+
+    if (priceMinParam !== null || priceMaxParam !== null) {
+      const min = priceMinParam ? Math.max(0, parseFloat(priceMinParam)) : 0
+      const max = priceMaxParam ? Math.max(min, parseFloat(priceMaxParam)) : 500
+      const next: [number, number] = [isFinite(min) ? min : 0, isFinite(max) ? max : 500]
+      setPriceRange(next)
+      setPendingMin(priceMinParam ?? '')
+      setPendingMax(priceMaxParam ?? '')
+      setSelectedPreset(null)
+    } else {
+      setPriceRange([0, 500])
+      setPendingMin('')
+      setPendingMax('')
+      setSelectedPreset(null)
+    }
   }, [searchParams])
+
+  // Small helper to update URL query params and reset page to 1
+  const updateURL = (updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) params.delete(key)
+      else params.set(key, value)
+    })
+    params.set('page', '1')
+    window.history.pushState({}, '', `?${params.toString()}`)
+  }
+
+  // Helper actions bound to filter UI
+  const selectCategory = (slug: string | null) => {
+    setSelectedCategory(slug)
+    updateURL({ category: slug })
+    setCurrentPage(1)
+    // Auto-close mobile filter sheet after applying a category
+    setShowFilters(false)
+  }
+
+  const toggleBrand = (brand: string, checked: boolean) => {
+    const next = checked
+      ? Array.from(new Set([...selectedBrands, brand]))
+      : selectedBrands.filter(b => b !== brand)
+    setSelectedBrands(next)
+    updateURL({ brands: next.length ? next.join(',') : null })
+    setCurrentPage(1)
+    // Auto-close mobile filter sheet after applying a brand filter
+    setShowFilters(false)
+  }
+
+  const applyPriceRange = (min?: number, max?: number) => {
+    const updates: Record<string, string | null> = {}
+    if (typeof min === 'number' && !Number.isNaN(min)) updates.price_min = String(Math.max(0, min))
+    else updates.price_min = null
+    if (typeof max === 'number' && !Number.isNaN(max)) updates.price_max = String(Math.max(0, max))
+    else updates.price_max = null
+
+    const nextMin = typeof min === 'number' && isFinite(min) ? Math.max(0, min) : 0
+    const nextMax = typeof max === 'number' && isFinite(max) ? Math.max(nextMin, max) : 500
+    setPriceRange([nextMin, nextMax])
+    updateURL(updates)
+    setCurrentPage(1)
+    // Auto-close mobile filter sheet after applying price range
+    setShowFilters(false)
+  }
+
+  const selectPresetRange = (preset: string) => {
+    // Apply immediately on mobile for better UX; also stage inputs for visibility.
+    setSelectedPreset(preset)
+    switch (preset) {
+      case '0-10':
+        setPendingMin('0'); setPendingMax('10'); applyPriceRange(0, 10); break
+      case '0-50':
+        setPendingMin('0'); setPendingMax('50'); applyPriceRange(0, 50); break
+      case '0-100':
+        setPendingMin('0'); setPendingMax('100'); applyPriceRange(0, 100); break
+      case '0-300':
+        setPendingMin('0'); setPendingMax('300'); applyPriceRange(0, 300); break
+      case '300+':
+        setPendingMin('300'); setPendingMax(''); applyPriceRange(300, undefined); break
+      default:
+        break
+    }
+  }
+
+  const applyCustomRange = () => {
+    const min = pendingMin !== '' ? parseFloat(pendingMin) : undefined
+    const max = pendingMax !== '' ? parseFloat(pendingMax) : undefined
+    const normalizedMin = typeof min === 'number' && !Number.isNaN(min) ? Math.max(0, min) : undefined
+    let normalizedMax = typeof max === 'number' && !Number.isNaN(max) ? Math.max(0, max) : undefined
+    if (typeof normalizedMin === 'number' && typeof normalizedMax === 'number' && normalizedMax < normalizedMin) {
+      normalizedMax = normalizedMin
+    }
+    setSelectedPreset(null)
+    applyPriceRange(normalizedMin, normalizedMax)
+  }
+
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -144,7 +257,7 @@ function ProductsPageContent() {
 
   useEffect(() => {
     loadData()
-  }, [selectedCategory, currentPage, user?.id, isRecommendedView, searchQuery, isDealsView])
+  }, [selectedCategory, selectedBrands, priceRange, currentPage, user?.id, isRecommendedView, searchQuery, isDealsView])
 
   const loadData = async () => {
     try {
@@ -230,6 +343,15 @@ function ProductsPageContent() {
 
         if (selectedCategory) {
           params.set('category', selectedCategory)
+        }
+
+        if (selectedBrands.length > 0) {
+          params.set('brands', selectedBrands.join(','))
+        }
+
+        if (!(priceRange[0] === 0 && priceRange[1] === 500)) {
+          params.set('price_min', String(priceRange[0]))
+          params.set('price_max', String(priceRange[1]))
         }
 
         // Add recently_added parameter if this is a recently added view
@@ -376,33 +498,33 @@ function ProductsPageContent() {
                   Filters
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0">
+              <SheetContent side="left" className="w-screen max-w-[100vw] sm:max-w-[420px] p-0 overflow-x-hidden">
                 <SheetHeader className="p-4 border-b">
                   <SheetTitle>Filter Products</SheetTitle>
                   <SheetDescription>
                     Refine your search with these filters
                   </SheetDescription>
                 </SheetHeader>
-                <div className="flex flex-col h-full overflow-y-auto">
+                <div className="flex flex-col h-full overflow-y-auto overflow-x-hidden max-w-full">
                   <div className="p-4 space-y-6">
                     {/* Categories Filter */}
                     <div>
                       <h3 className="font-medium text-gray-900 mb-3">Categories</h3>
                       <div className="space-y-3">
-                        <label className="flex items-center space-x-3 cursor-pointer">
+                        <label className="flex items-center justify-start space-x-3 cursor-pointer select-none w-full" onClick={() => selectCategory(null)}>
                           <Checkbox
                             checked={selectedCategory === null}
-                            onCheckedChange={() => setSelectedCategory(null)}
+                            onCheckedChange={() => selectCategory(null)}
                           />
                           <span className="text-sm">All Categories</span>
                         </label>
                         {categories.map((category) => (
-                          <label key={category.id} className="flex items-center space-x-3 cursor-pointer">
+                          <label key={category.id} className="flex items-center justify-start space-x-3 cursor-pointer select-none w-full" onClick={() => selectCategory(category.slug)}>
                             <Checkbox
                               checked={selectedCategory === category.slug}
-                              onCheckedChange={() => setSelectedCategory(category.slug)}
+                              onCheckedChange={() => selectCategory(category.slug)}
                             />
-                            <span className="text-sm">{category.name_en}</span>
+                            <span className="text-sm truncate">{category.name_en}</span>
                           </label>
                         ))}
                       </div>
@@ -411,18 +533,21 @@ function ProductsPageContent() {
                     {/* Price Range Filter */}
                     <div>
                       <h3 className="font-medium text-gray-900 mb-3">Price Range</h3>
-                      <div className="space-y-4">
-                        <Slider
-                          value={priceRange}
-                          onValueChange={setPriceRange}
-                          max={500}
-                          step={10}
-                          className="w-full"
-                        />
-                        <div className="flex items-center justify-between text-sm text-gray-600">
-                          <span>${priceRange[0]}</span>
-                          <span>${priceRange[1]}</span>
+                      <div className="space-y-3">
+                        <div data-slot="price-presets" className="grid grid-cols-3 gap-2">
+                          <Button size="sm" variant={selectedPreset==='0-10' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-10')}>$0–10</Button>
+                          <Button size="sm" variant={selectedPreset==='0-50' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-50')}>$0–50</Button>
+                          <Button size="sm" variant={selectedPreset==='0-100' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-100')}>$0–100</Button>
+                          <Button size="sm" variant={selectedPreset==='0-300' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-300')}>$0–300</Button>
+                          <Button size="sm" variant={selectedPreset==='300+' ? 'default' : 'outline'} onClick={() => selectPresetRange('300+')}>$300+</Button>
                         </div>
+                        <div data-slot="price-inputs" className="flex items-center gap-2">
+                          <Input type="number" inputMode="numeric" placeholder="Min" value={pendingMin} onChange={(e) => setPendingMin(e.target.value)} className="h-10" />
+                          <span className="text-gray-500">-</span>
+                          <Input type="number" inputMode="numeric" placeholder="Max" value={pendingMax} onChange={(e) => setPendingMax(e.target.value)} className="h-10" />
+                          <Button onClick={applyCustomRange} className="h-10">Apply</Button>
+                        </div>
+                        <div data-slot="price-current" className="text-xs text-gray-500">Current: ${priceRange[0]} — ${priceRange[1]}</div>
                       </div>
                     </div>
 
@@ -431,18 +556,12 @@ function ProductsPageContent() {
                       <h3 className="font-medium text-gray-900 mb-3">Brand</h3>
                       <div className="space-y-3">
                         {brands.map((brand) => (
-                          <label key={brand} className="flex items-center space-x-3 cursor-pointer">
+                          <label key={brand} className="flex items-center justify-start space-x-3 cursor-pointer select-none w-full" onClick={() => toggleBrand(brand, !selectedBrands.includes(brand))}>
                             <Checkbox
                               checked={selectedBrands.includes(brand)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedBrands([...selectedBrands, brand])
-                                } else {
-                                  setSelectedBrands(selectedBrands.filter(b => b !== brand))
-                                }
-                              }}
+                              onCheckedChange={(checked) => toggleBrand(brand, Boolean(checked))}
                             />
-                            <span className="text-sm">{brand}</span>
+                            <span className="text-sm truncate">{brand}</span>
                           </label>
                         ))}
                       </div>
@@ -501,7 +620,7 @@ function ProductsPageContent() {
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <Checkbox
                     checked={selectedCategory === null}
-                    onCheckedChange={() => setSelectedCategory(null)}
+                    onCheckedChange={() => selectCategory(null)}
                   />
                   <span className="text-sm">All Categories</span>
                 </label>
@@ -509,7 +628,7 @@ function ProductsPageContent() {
                   <label key={category.id} className="flex items-center space-x-2 cursor-pointer">
                     <Checkbox
                       checked={selectedCategory === category.slug}
-                      onCheckedChange={() => setSelectedCategory(category.slug)}
+                      onCheckedChange={() => selectCategory(category.slug)}
                     />
                     <span className="text-sm">{category.name_en}</span>
                   </label>
@@ -520,18 +639,21 @@ function ProductsPageContent() {
             {/* Price Range Filter */}
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <h3 className="font-medium text-gray-900 mb-3">Price Range</h3>
-              <div className="space-y-4">
-                <Slider
-                  value={priceRange}
-                  onValueChange={setPriceRange}
-                  max={500}
-                  step={10}
-                  className="w-full"
-                />
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>${priceRange[0]}</span>
-                  <span>${priceRange[1]}</span>
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button size="sm" variant={selectedPreset==='0-10' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-10')}>$0-10</Button>
+                  <Button size="sm" variant={selectedPreset==='0-50' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-50')}>$0-50</Button>
+                  <Button size="sm" variant={selectedPreset==='0-100' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-100')}>$0-100</Button>
+                  <Button size="sm" variant={selectedPreset==='0-300' ? 'default' : 'outline'} onClick={() => selectPresetRange('0-300')}>$0-300</Button>
+                  <Button size="sm" variant={selectedPreset==='300+' ? 'default' : 'outline'} onClick={() => selectPresetRange('300+')}>$300+</Button>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Input type="number" inputMode="numeric" placeholder="Min" value={pendingMin} onChange={(e) => setPendingMin(e.target.value)} className="h-10" />
+                  <span className="text-gray-500">-</span>
+                  <Input type="number" inputMode="numeric" placeholder="Max" value={pendingMax} onChange={(e) => setPendingMax(e.target.value)} className="h-10" />
+                  <Button onClick={applyCustomRange} className="h-10">Apply</Button>
+                </div>
+                <div className="text-xs text-gray-500">Current: ${priceRange[0]} - ${priceRange[1]}</div>
               </div>
             </div>
 
@@ -543,13 +665,7 @@ function ProductsPageContent() {
                   <label key={brand} className="flex items-center space-x-2 cursor-pointer">
                     <Checkbox
                       checked={selectedBrands.includes(brand)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedBrands([...selectedBrands, brand])
-                        } else {
-                          setSelectedBrands(selectedBrands.filter(b => b !== brand))
-                        }
-                      }}
+                      onCheckedChange={(checked) => toggleBrand(brand, Boolean(checked))}
                     />
                     <span className="text-sm">{brand}</span>
                   </label>
