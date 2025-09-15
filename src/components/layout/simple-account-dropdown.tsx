@@ -122,8 +122,8 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         points,
         tier: getCorrectUserTier(profile)
       })
-    } else if (user && profileLoading) {
-      // Show minimal shell when user exists but profile is still loading
+    } else if (user) {
+      // Fallback shell even if profile is not yet available to keep dropdown responsive
       setUserDisplayData({
         name: user.email?.split('@')[0] || 'User',
         email: user.email || '',

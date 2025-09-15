@@ -76,6 +76,106 @@ export class CouponService {
         }
       }
 
+      // Defensive server-side targeting enforcement (in case DB function is not yet updated)
+      if (result.is_valid) {
+        try {
+          const codeNorm = code.toUpperCase().trim()
+          const { data: couponRow, error: couponErr } = await serviceClient
+            .from('coupons')
+            .select('id, is_tier_specific, tier_restrictions, metadata')
+            .eq('code', codeNorm)
+            .single()
+
+          if (!couponErr && couponRow) {
+            const targeting = (couponRow.metadata && (couponRow.metadata as any).targeting) || null
+            const needsTierCheck = Boolean(couponRow.is_tier_specific && Array.isArray(couponRow.tier_restrictions) && couponRow.tier_restrictions.length)
+            const needsTargetingCheck = Boolean(targeting)
+
+            if (needsTierCheck || needsTargetingCheck) {
+              const { data: userRow, error: userErr } = await serviceClient
+                .from('users')
+                .select('id, tier_level, created_at, total_spent')
+                .eq('id', userId)
+                .single()
+
+              if (!userErr && userRow) {
+                // Tier restriction
+                if (needsTierCheck) {
+                  const tiers: string[] = couponRow.tier_restrictions as any
+                  if (!tiers.includes(userRow.tier_level)) {
+                    return { isValid: false, errorMessage: 'You are not eligible to use this coupon' }
+                  }
+                }
+
+                if (needsTargetingCheck && targeting) {
+                  // Recently signed up window
+                  const recentSignupDays = Number(targeting.recently_signed_up_days) || 0
+                  if (recentSignupDays > 0) {
+                    const createdAt = new Date(userRow.created_at)
+                    const cutoff = new Date()
+                    cutoff.setDate(cutoff.getDate() - recentSignupDays)
+                    if (createdAt < cutoff) {
+                      return { isValid: false, errorMessage: 'This coupon is only for recently signed up users' }
+                    }
+                  }
+
+                  // Recently purchased
+                  const recentPurchasedDays = Number(targeting.recently_purchased_days) || 0
+                  if (recentPurchasedDays > 0) {
+                    const cutoff = new Date()
+                    cutoff.setDate(cutoff.getDate() - recentPurchasedDays)
+                    const { error: ordersErr, count: recentOrdersCount } = await serviceClient
+                      .from('orders')
+                      .select('id', { count: 'exact', head: true })
+                      .eq('user_id', userId)
+                      .eq('payment_status', 'verified')
+                      .gte('created_at', cutoff.toISOString())
+
+                    if (ordersErr) {
+                      return { isValid: false, errorMessage: 'This coupon requires a recent purchase' }
+                    }
+                    if (typeof recentOrdersCount !== 'number' || recentOrdersCount <= 0) {
+                      return { isValid: false, errorMessage: 'This coupon requires a recent purchase' }
+                    }
+                  }
+
+                  // Most purchased by threshold
+                  const minTotalSpent = targeting.most_purchased_min_total_spent != null
+                    ? Number(targeting.most_purchased_min_total_spent)
+                    : 0
+                  if (minTotalSpent > 0) {
+                    const userSpent = Number(userRow.total_spent || 0)
+                    if (userSpent < minTotalSpent) {
+                      return { isValid: false, errorMessage: 'This coupon is for top purchasers only' }
+                    }
+                  } else {
+                    // Top N purchasers
+                    const topN = targeting.most_purchased_top_n != null ? Number(targeting.most_purchased_top_n) : 0
+                    if (topN > 0) {
+                      const { data: topUsers, error: topErr } = await serviceClient
+                        .from('users')
+                        .select('id')
+                        .order('total_spent', { ascending: false })
+                        .order('id', { ascending: true })
+                        .limit(topN)
+
+                      if (!topErr && Array.isArray(topUsers)) {
+                        const inTop = topUsers.some(u => u.id === userId)
+                        if (!inTop) {
+                          return { isValid: false, errorMessage: 'This coupon is limited to top purchasers' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (guardErr) {
+          console.warn('⚠️ Defensive coupon targeting guard failed, proceeding with DB result:', guardErr)
+        }
+      }
+
       console.log('✅ Coupon validation result:', result)
       return {
         isValid: result.is_valid,

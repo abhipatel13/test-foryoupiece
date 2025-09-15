@@ -10,24 +10,19 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🎫 Coupon validation API called')
 
-    // Get authenticated user (with fallback for testing)
-    const supabase = createClient()
-    let userId = '80901357-6a94-4b8a-91d7-4f9b5e5fb44c' // Valid UUID for testing
+    // Get authenticated user (required for validation to ensure correct targeting)
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-      if (!authError && user) {
-        userId = user.id
-      } else {
-        console.log('🔐 Using mock user ID for testing (auth failed):', userId)
-      }
-    } catch (authError) {
-      console.log('🔐 Using mock user ID for testing (auth error):', userId)
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Authentication required to validate coupons'
+      }, { status: 401 })
     }
 
     const body = await request.json()
-    const { code, orderTotal } = body
+    const { code, orderTotal } = body || {}
 
     if (!code || orderTotal === undefined) {
       return NextResponse.json({
@@ -36,13 +31,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    if (orderTotal < 0) {
+    if (typeof orderTotal !== 'number' || Number.isNaN(orderTotal) || orderTotal < 0) {
       return NextResponse.json({
         success: false,
         error: 'Invalid order total'
       }, { status: 400 })
     }
 
+    const userId = user.id
     console.log('🎫 Validating coupon:', { code, userId, orderTotal })
 
     const validationResult = await couponService.validateCoupon(code, userId, orderTotal)
@@ -55,9 +51,12 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('❌ Coupon validation failed:', error)
+    // Map known auth errors to 401 instead of 500 when possible
+    const message = error?.message || 'Failed to validate coupon'
+    const status = message?.toLowerCase().includes('auth') ? 401 : 500
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to validate coupon'
-    }, { status: 500 })
+      error: message
+    }, { status })
   }
 }
