@@ -10,6 +10,8 @@ import { ChevronDown, User, Package, Heart, Settings, LogOut, Coins, Bell } from
 import { useRouter } from 'next/navigation'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { getCorrectUserTier } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import { authFetch } from '@/lib/utils/auth-interceptor'
 
 interface SimpleAccountDropdownProps {
   className?: string
@@ -28,8 +30,51 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const [userDisplayData, setUserDisplayData] = useState<UserDisplayData | null>(null)
   const router = useRouter()
 
-  // Use simple auth hook without complex optimizations
   const { user, profile, isAuthenticated, loading, profileLoading, signOut } = useSSRSafeAuth()
+
+  // Use simple auth hook without complex optimizations
+  const [unreadCount, setUnreadCount] = useState(0)
+  const refreshUnread = useCallback(async () => {
+    try {
+      const res = await authFetch(`/api/user/notifications?limit=1&_=${Date.now()}` as string, { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setUnreadCount(data.unread_count || 0)
+      }
+    } catch {}
+  }, [])
+
+  // Initial load + realtime subscription for accuracy
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return
+    refreshUnread()
+    const supabase = createClient()
+    if (!supabase) return
+    const ch = supabase
+      .channel(`account-dropdown-notifications-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, () => {
+        refreshUnread()
+      })
+      .subscribe()
+    return () => { try { supabase.removeChannel(ch) } catch {} }
+  }, [isAuthenticated, user?.id, refreshUnread])
+
+  // Also refresh unread count when other parts of the app dispatch a notifications refresh/cleared event
+  useEffect(() => {
+    const onRefresh = () => { try { refreshUnread() } catch {} }
+    try {
+      window.addEventListener('notifications:refresh', onRefresh as any)
+      window.addEventListener('notifications:cleared', onRefresh as any)
+    } catch {}
+    return () => {
+      try {
+        window.removeEventListener('notifications:refresh', onRefresh as any)
+        window.removeEventListener('notifications:cleared', onRefresh as any)
+      } catch {}
+    }
+  }, [refreshUnread])
+
+
 
   const [authSigningIn, setAuthSigningIn] = useState(false)
 
@@ -231,12 +276,19 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         aria-controls={isOpen ? 'account-dropdown-menu' : undefined}
         {...getReferenceProps()}
       >
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={profile?.avatar_url || undefined} alt={userDisplayData.name} />
-          <AvatarFallback className="text-xs font-medium">
-            {userDisplayData.initials}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={profile?.avatar_url || undefined} alt={userDisplayData.name} />
+            <AvatarFallback className="text-xs font-medium">
+              {userDisplayData.initials}
+            </AvatarFallback>
+          </Avatar>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border border-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </div>
 
         <div className="hidden text-left min-w-0">
           <div className="text-sm font-medium truncate">
@@ -333,6 +385,11 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Bell className="h-4 w-4" />
                 <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </div>
             </Link>
 

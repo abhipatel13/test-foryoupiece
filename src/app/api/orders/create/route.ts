@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { PointsService } from '@/lib/services/points-service';
 import { Tables } from '@/lib/supabase/types';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 /**
  * Generate a unique order number with timestamp and random suffix
@@ -423,6 +424,22 @@ export async function POST(request: NextRequest) {
           hint: itemsError.hint
         }
       }, { status: 500 });
+    }
+
+    // In-app notification: Thank you for ordering
+    try {
+      const serviceClient = createServiceRoleClient()
+      if (serviceClient) {
+        await serviceClient.from('notifications').insert({
+          user_id: order.user_id,
+          title: 'Thank you for your order',
+          message: `Order #${order.order_number} received. We will process it soon!`,
+          type: 'success',
+          related_order_id: order.id
+        })
+      }
+    } catch (e) {
+      console.warn('Failed to insert in-app order notification', e)
     }
 
     console.log('✅ Order items created successfully');

@@ -10,6 +10,7 @@ import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { authFetch } from '@/lib/utils/auth-interceptor'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 
 interface Notification {
   id: string
@@ -34,11 +35,56 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (user) {
-      fetchNotifications()
-      // Set up polling for new notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000)
-      return () => clearInterval(interval)
+    if (!user) return
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+    if (!supabase) return
+
+    const channel = supabase
+      .channel(`notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload) => {
+        try {
+          const n = payload.new as any
+          setNotifications((prev) => [{
+            id: n.id,
+            title: n.title,
+            message: n.message,
+            type: n.type || 'info',
+            read: !!n.read,
+            created_at: n.created_at,
+            metadata: n.metadata
+          }, ...prev])
+          if (!n.read) setUnreadCount((c) => c + 1)
+        } catch (e) {
+          console.warn('Realtime notification parse error', e)
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload) => {
+        try {
+          const n = payload.new as any
+          setNotifications((prev) => prev.map((it) => it.id === n.id ? { ...it, read: !!n.read, updated_at: n.updated_at } as any : it))
+          setUnreadCount((_) => {
+            const current = (prev => prev.filter(p => !p.read).length)(notifications)
+            return current
+          })
+        } catch (e) {
+          console.warn('Realtime notification update error', e)
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          fetchNotifications()
+        }
+      })
+
+    return () => {
+      try { supabase.removeChannel(channel) } catch {}
     }
   }, [user])
 
@@ -82,7 +128,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
       })
 
       if (response.ok) {
-        setNotifications(prev => 
+        setNotifications(prev =>
           prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
         )
         setUnreadCount(prev => Math.max(0, prev - 1))
@@ -117,7 +163,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
 
   const getNotificationIcon = (notification: Notification) => {
     const metadata = notification.metadata || {}
-    
+
     if (metadata.tier_promotion) {
       return <Award className="h-4 w-4 text-purple-500" />
     }
@@ -127,7 +173,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
     if (notification.title.toLowerCase().includes('shipping')) {
       return <Truck className="h-4 w-4 text-blue-500" />
     }
-    
+
     switch (notification.type) {
       case 'success':
         return <Check className="h-4 w-4 text-green-500" />
@@ -207,7 +253,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
               </div>
             </div>
           </CardHeader>
-          
+
           <CardContent className="p-0">
             {notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
@@ -222,7 +268,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                       className={`p-3 min-h-[44px] cursor-pointer transition-colors hover:bg-gray-50 border-l-4 ${
                         getNotificationTypeColor(notification.type)
                       } ${!notification.read ? 'bg-blue-50' : ''}`}
-                      onClick={() => !notification.read && markAsRead(notification.id)}
+                      onClick={() => { if (!notification.read) markAsRead(notification.id); setIsOpen(false); window.location.href = '/en/profile#notifications'; }}
                     >
                       <div className="flex items-start space-x-3">
                         <div className="flex-shrink-0 mt-0.5">
@@ -251,10 +297,10 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                 ))}
               </div>
             )}
-            
+
             {notifications.length > 10 && (
               <div className="p-3 border-t bg-gray-50">
-                <Button variant="ghost" size="sm" className="w-full text-xs">
+                <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setIsOpen(false); window.location.href = '/en/profile#notifications' }}>
                   View all notifications
                 </Button>
               </div>

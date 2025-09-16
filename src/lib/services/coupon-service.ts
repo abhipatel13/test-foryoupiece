@@ -1,8 +1,8 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { 
-  Coupon, 
-  CouponUsage, 
-  CouponValidationResult, 
+import {
+  Coupon,
+  CouponUsage,
+  CouponValidationResult,
   CouponApplicationResult,
   CouponFormData,
   CouponStatistics,
@@ -347,6 +347,21 @@ export class CouponService {
         throw new Error(error.message)
       }
 
+
+      // Notify targeted users (if any)
+      try {
+        const allowed = (insertData as any).allowed_user_ids as string[] | null | undefined
+        if (Array.isArray(allowed) && allowed.length > 0) {
+          const title = 'You received a coupon'
+          const message = `Coupon ${data.code} is now available for you.`
+          await this.getServiceClient()
+            .from('notifications')
+            .insert(allowed.map((uid) => ({ user_id: uid, title, message, type: 'success', metadata: { coupon_id: data.id, code: data.code } })))
+        }
+      } catch (e) {
+        console.warn('Coupon notification insert failed', e)
+      }
+
       console.log('✅ Coupon created successfully:', data.id)
       return convertCouponRowToCoupon(data)
     } catch (error: any) {
@@ -376,7 +391,7 @@ export class CouponService {
       }
 
       const updateData: any = {}
-      
+
       if (formData.code) updateData.code = formData.code.toUpperCase().trim()
       if (formData.name) updateData.name = formData.name.trim()
       if (formData.description !== undefined) updateData.description = formData.description?.trim() || null
@@ -385,8 +400,8 @@ export class CouponService {
       if (formData.totalUsageLimit !== undefined) updateData.total_usage_limit = formData.totalUsageLimit || null
       if (formData.perUserUsageLimit !== undefined) updateData.per_user_usage_limit = formData.perUserUsageLimit || null
       if (formData.allowedUserIds !== undefined) {
-        updateData.allowed_user_ids = formData.allowedUserIds && formData.allowedUserIds.length > 0 
-          ? JSON.parse(JSON.stringify(formData.allowedUserIds)) 
+        updateData.allowed_user_ids = formData.allowedUserIds && formData.allowedUserIds.length > 0
+          ? JSON.parse(JSON.stringify(formData.allowedUserIds))
           : null
       }
       if (formData.minimumOrderAmount !== undefined) updateData.minimum_order_amount = formData.minimumOrderAmount || null
@@ -416,6 +431,25 @@ export class CouponService {
           }
         }
         updateData.metadata = metadata as any
+
+      // Notify targeted users on update (best-effort)
+      try {
+        const anyForm: any = formData as any
+        const allowed = anyForm.allowedUserIds as string[] | null | undefined
+        if (Array.isArray(allowed) && allowed.length > 0) {
+          const svc = this.getServiceClient()
+          if (svc) {
+            const title = 'You received a coupon'
+            const message = `Coupon ${data.code} has been assigned to you.`
+            await svc
+              .from('notifications')
+              .insert(allowed.map((uid: string) => ({ user_id: uid, title, message, type: 'success', metadata: { coupon_id: data.id, code: data.code, source: 'update' } })))
+          }
+        }
+      } catch (e) {
+        console.warn('Coupon notification update insert failed', e)
+      }
+
       }
 
       const { data, error } = await serviceClient

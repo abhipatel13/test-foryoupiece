@@ -344,7 +344,7 @@ export function Header() {
               <ChevronDown className="h-3 w-3 ml-2" />
             </div>
 
-            {/* Notifications moved into Account dropdown per spec - bell hidden */}
+            {/* Notifications bell intentionally removed; count appears in account dropdown */}
 
             {/* Account & Lists - Simple and Fast */}
             <SimpleAccountDropdown className="flex-shrink-0 min-w-0 max-w-[88px] overflow-hidden xl:max-w-none" />

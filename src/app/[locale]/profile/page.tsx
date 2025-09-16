@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { authFetch } from '@/lib/utils/auth-interceptor'
 
 import TierRewardsDisplay from '@/components/user/tier-rewards-display'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
@@ -173,6 +174,31 @@ export default function ProfilePage() {
       setSavingProfile(false)
     }
   }
+
+  // If navigated with #notifications hash, ensure the page auto-scrolls to the Notifications section on first paint
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash === '#notifications') {
+      setTimeout(() => {
+        const el = document.getElementById('notifications')
+        if (el) el.scrollIntoView({ behavior: 'auto', block: 'start' })
+      }, 0)
+    }
+  }, [])
+
+  // Also handle in-page navigation to #notifications when already on profile via hashchange
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onHashChange = () => {
+      if (window.location.hash === '#notifications') {
+        const el = document.getElementById('notifications')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
 
   const handleCancelProfileEdit = () => {
     if (profile) {
@@ -333,6 +359,118 @@ export default function ProfilePage() {
     }
   }
 
+  // Notifications section with pagination, loading state, realtime, and mobile height
+  function ProfileNotifications() {
+    const [items, setItems] = useState<any[]>([])
+    const [unread, setUnread] = useState(0)
+    const [page, setPage] = useState(1)
+    const limit = 7 // smaller initial page for faster load
+    const [total, setTotal] = useState(0)
+    const [loading, setLoading] = useState(false)
+
+    const load = useCallback(async (pageNum: number) => {
+      const offset = (pageNum - 1) * limit
+      setLoading(true)
+      try {
+        const res = await authFetch(`/api/user/notifications?limit=${limit}&offset=${offset}`)
+        if (res.ok) {
+          const data = await res.json()
+          setItems(data.notifications || [])
+          setUnread(data.unread_count || 0)
+          setTotal(data.metadata?.total_notifications || 0)
+        } else if (res.status === 401) {
+          setItems([]); setUnread(0); setTotal(0)
+        }
+      } catch (e) {
+        console.warn('Failed to load notifications', e)
+      } finally {
+        setLoading(false)
+      }
+    }, [])
+
+    useEffect(() => { load(page) }, [load, page])
+
+    // External refresh signal (e.g., Mark all read from parent button)
+    useEffect(() => {
+      const refreshHandler = () => load(1)
+      window.addEventListener('notifications:refresh', refreshHandler as any)
+      return () => window.removeEventListener('notifications:refresh', refreshHandler as any)
+    }, [load])
+
+    // Immediate clear signal to update UI without waiting for fetch
+    useEffect(() => {
+      const clearedHandler = () => { setItems([]); setUnread(0); setTotal(0); setPage(1) }
+      window.addEventListener('notifications:cleared', clearedHandler as any)
+      return () => window.removeEventListener('notifications:cleared', clearedHandler as any)
+    }, [])
+
+    useEffect(() => {
+      const supabase = createClient()
+      if (!supabase || !user?.id) return
+      const ch = supabase
+        .channel(`profile-notifications-${user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, () => {
+          load(page)
+        })
+        .subscribe()
+      return () => { try { supabase.removeChannel(ch) } catch {} }
+    }, [user?.id, load, page])
+
+    const markOne = async (id: string) => {
+      try {
+        const res = await authFetch(`/api/user/notifications/${id}/read`, { method: 'POST' })
+        if (res.ok) {
+          setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+          setUnread(u => Math.max(0, u - 1))
+        }
+      } catch {}
+    }
+
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+
+    return (
+      <div className="space-y-2">
+        <div className="space-y-2 h-[70vh] overflow-y-auto sm:h-auto">
+          {loading ? (
+            Array.from({ length: limit }).map((_, i) => (
+              <div key={i} className="p-3 rounded-lg border bg-white">
+                <div className="animate-pulse space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-3 bg-gray-100 rounded w-3/4" />
+                </div>
+              </div>
+            ))
+          ) : items.length === 0 ? (
+            <div className="text-center text-gray-500 py-6">No notifications yet</div>
+          ) : (
+            items.map((n) => (
+              <div key={n.id} className={`p-3 rounded-lg border ${n.read ? 'bg-white' : 'bg-blue-50 border-blue-200'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{n.title}</p>
+                      {!n.read && <span className="w-2 h-2 bg-blue-600 rounded-full" />}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{n.message}</p>
+                  </div>
+                  {!n.read && (
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => markOne(n.id)}>Mark read</Button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        {/* Pagination Controls (always visible) */}
+        <div className="flex items-center justify-between pt-2">
+          <Button variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
+          <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div role="main" aria-labelledby="page-title" className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="max-w-6xl mx-auto">
@@ -350,9 +488,9 @@ export default function ProfilePage() {
           <Card role="region" aria-labelledby="profile-info-title" className="lg:col-span-1">
             <CardHeader className="text-center pb-4 sm:pb-6 pt-6">
               <Avatar className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-4 sm:mb-5 ring-4 ring-blue-100">
-                <AvatarImage 
-                  src={profile?.avatar_url || ''} 
-                  alt={profile?.first_name ? `${profile.first_name} ${profile.last_name}` : 'User avatar'} 
+                <AvatarImage
+                  src={profile?.avatar_url || ''}
+                  alt={profile?.first_name ? `${profile.first_name} ${profile.last_name}` : 'User avatar'}
                 />
                 <AvatarFallback className="text-lg sm:text-xl font-bold bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                   {profile?.first_name?.[0] || profile?.telegram_username?.[0] || 'U'}
@@ -689,6 +827,47 @@ export default function ProfilePage() {
                     ))}
                   </div>
                 )}
+            {/* Notifications */}
+            <Card role="region" aria-labelledby="notifications-title" id="notifications">
+              <CardHeader className="!pb-0 h-[70px] sm:h-auto !grid-rows-1 items-center overflow-hidden">
+                <div className="flex items-center justify-between h-full">
+                  <div className="min-w-0">
+                    <CardTitle id="notifications-title" className="text-lg truncate">Notifications</CardTitle>
+                    <CardDescription className="truncate">Your latest updates</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="min-h-[44px]" onClick={async () => {
+                      try {
+                        const res = await authFetch('/api/user/notifications/mark-all-read', { method: 'POST' })
+                        if (res.ok) {
+                          toast.success('All notifications marked as read')
+                          try { window.dispatchEvent(new CustomEvent('notifications:refresh')) } catch {}
+                        }
+                      } catch {}
+                    }}>
+                      Mark all read
+                    </Button>
+                    <Button variant="destructive" size="sm" className="min-h-[44px]" onClick={async () => {
+                      try {
+                        if (!confirm('Are you sure you want to clear all notifications? This cannot be undone.')) return
+                        const res = await authFetch('/api/user/notifications/clear-all', { method: 'POST' })
+                        if (res.ok) {
+                          toast.success('All notifications cleared')
+                          try { window.dispatchEvent(new CustomEvent('notifications:cleared')) } catch {}
+                          try { window.dispatchEvent(new CustomEvent('notifications:refresh')) } catch {}
+                        }
+                      } catch {}
+                    }}>
+                      Clear all
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ProfileNotifications />
+              </CardContent>
+            </Card>
+
               </CardContent>
             </Card>
 

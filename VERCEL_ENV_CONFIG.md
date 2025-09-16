@@ -33,7 +33,7 @@ NEXTAUTH_SECRET=your_cryptographically_strong_secret_here
 BOXHERO_API_TOKEN=your_boxhero_api_token_here
 
 # Admin Authentication (Server-side only)
-ADMIN_EMAIL=akito12350@gmail.com
+ADMIN_EMAIL=Adminemail
 
 # Environment
 NODE_ENV=production

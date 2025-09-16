@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
+
+export const dynamic = 'force-dynamic'
+
 /**
  * Get user's notifications
  */
@@ -12,7 +15,7 @@ export async function GET(request: NextRequest) {
     // Get authenticated user
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       console.log('❌ User Notifications API: Authentication failed')
       return NextResponse.json({
@@ -39,9 +42,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch notifications and unread count in parallel
-    const [notificationsResult, unreadCountResult] = await Promise.all([
-      // Get notifications
+    // Fetch notifications and counts in parallel
+    const [notificationsResult, unreadCountResult, totalCountResult] = await Promise.all([
+      // Page of notifications
       serviceClient
         .from('notifications')
         .select('*')
@@ -49,12 +52,18 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1),
 
-      // Get unread count
+      // Unread count
       serviceClient
         .from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('read', false)
+        .eq('read', false),
+
+      // Total count for pagination
+      serviceClient
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
     ])
 
     if (notificationsResult.error) {
@@ -72,15 +81,16 @@ export async function GET(request: NextRequest) {
 
     const notifications = notificationsResult.data || []
     const unreadCount = unreadCountResult.count || 0
+    const totalCount = totalCountResult.count || 0
 
-    console.log(`✅ User Notifications API: Found ${notifications.length} notifications for user ${userId}`)
+    console.log(`✅ User Notifications API: Found ${notifications.length}/${totalCount} notifications for user ${userId}`)
 
     return NextResponse.json({
       success: true,
       notifications,
       unread_count: unreadCount,
       metadata: {
-        total_notifications: notifications.length,
+        total_notifications: totalCount,
         limit,
         offset,
         generated_at: new Date().toISOString()
