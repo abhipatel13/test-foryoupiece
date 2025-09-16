@@ -103,40 +103,103 @@ const createDefaultCartStore = (): CartStoreInterface => ({
   getShippingCalculation: () => null
 })
 
+
+// Build a proxy that forwards method calls to the real store even before hydration
+function createProxyCartStore(isHydrated: boolean): CartStoreInterface {
+  const safeGet = () => {
+    try { return (useCartStore as any)?.getState?.() } catch { return null }
+  }
+  const s = safeGet()
+
+  return {
+    // Expose the latest state if available; otherwise sensible defaults
+    items: s?.items ?? [],
+    isLoading: s?.isLoading ?? false,
+    isInitialized: isHydrated,
+    isHydrated,
+    userId: s?.userId ?? null,
+    pointsToRedeem: s?.pointsToRedeem ?? 0,
+    appliedCoupon: s?.appliedCoupon ?? null,
+    shippingCalculation: s?.shippingCalculation ?? null,
+
+    // Forwarders (never no-op on client)
+    addItem: async (...args: any[]) => (safeGet()?.addItem?.(...args)) ?? false,
+    removeItem: async (...args: any[]) => { await safeGet()?.removeItem?.(...args) },
+    updateQuantity: async (...args: any[]) => (safeGet()?.updateQuantity?.(...args)) ?? false,
+    clearCart: () => { safeGet()?.clearCart?.() },
+
+    getItemCount: () => safeGet()?.getItemCount?.() ?? (s?.items?.length ?? 0),
+    getTotal: () => safeGet()?.getTotal?.() ?? 0,
+    getTotalQuantity: () => safeGet()?.getTotalQuantity?.() ?? (s?.items?.reduce?.((sum: number, i: any) => sum + (i.quantity || 0), 0) ?? 0),
+    getShippingFee: () => safeGet()?.getShippingFee?.() ?? 0,
+    getTotalSavings: () => safeGet()?.getTotalSavings?.() ?? 0,
+    getFinalTotal: () => safeGet()?.getFinalTotal?.() ?? 0,
+    getTotalPointsEarned: () => safeGet()?.getTotalPointsEarned?.() ?? 0,
+
+    setUserId: (id: string, forceReload?: boolean) => { safeGet()?.setUserId?.(id, forceReload) },
+    forceLoadCartForUser: async (userId: string) => { await safeGet()?.forceLoadCartForUser?.(userId) },
+    clearCartOnLogout: async () => { await safeGet()?.clearCartOnLogout?.() },
+    setHydrated: (hydrated: boolean) => { safeGet()?.setHydrated?.(hydrated) },
+
+    // Points
+    setPointsToRedeem: (points: number) => { safeGet()?.setPointsToRedeem?.(points) },
+    getPointsDiscount: () => safeGet()?.getPointsDiscount?.() ?? 0,
+    getFinalTotalWithPoints: () => safeGet()?.getFinalTotalWithPoints?.() ?? 0,
+    validatePointsRedemption: (points: number, userPointsBalance: number) => safeGet()?.validatePointsRedemption?.(points, userPointsBalance) ?? ({ isValid: false, message: '' }),
+    clearPointsRedemption: () => { safeGet()?.clearPointsRedemption?.() },
+
+    // Coupons
+    applyCoupon: (coupon: any) => { safeGet()?.applyCoupon?.(coupon) },
+    removeCoupon: () => { safeGet()?.removeCoupon?.() },
+    getCouponDiscount: () => safeGet()?.getCouponDiscount?.() ?? 0,
+    getFinalTotalWithCouponAndPoints: () => safeGet()?.getFinalTotalWithCouponAndPoints?.() ?? 0,
+
+    // Stock validation
+    validateStock: (id: string, requestedQuantity: number, currentStock?: number) => safeGet()?.validateStock?.(id, requestedQuantity, currentStock) ?? ({ isValid: true, message: '' }),
+    getStockMessage: (stockQuantity: number) => safeGet()?.getStockMessage?.(stockQuantity) ?? '',
+    validateCartStock: async () => (safeGet()?.validateCartStock?.()) ?? ({ success: true, hasIssues: false, canCheckout: true }),
+    refreshStockStatus: async () => { await safeGet()?.refreshStockStatus?.() },
+    isStockValidationNeeded: () => safeGet()?.isStockValidationNeeded?.() ?? false,
+
+    // Shipping
+    calculateShipping: async () => { await safeGet()?.calculateShipping?.() },
+    getShippingMessage: () => safeGet()?.getShippingMessage?.() ?? '',
+    getShippingCalculation: () => safeGet()?.getShippingCalculation?.() ?? null,
+  }
+}
+
 /**
  * SSR-safe wrapper for the cart store
- * Returns default values during SSR and actual store values after hydration
+ * - On server: returns default read-only implementation
+ * - On client before hydration: returns a proxy that forwards method calls so nothing is lost
+ * - After hydration: returns the real store with isInitialized=true
  */
 export function useSSRSafeCartStore(): CartStoreInterface {
-  // If we're not in a browser environment, return default implementation
   if (!isBrowser) {
     return createDefaultCartStore()
   }
 
-  // Client-side state management
-  const [isHydrated, setIsHydrated] = useState(false)
-
-  // Use the actual cart store on client side
+  const [hydrated, setHydrated] = useState(false)
+  // Access the store to subscribe components post-hydration
   const actualCartStore = useCartStore()
 
-  // Hydration effect - only runs on client
+  // Mark hydration and notify underlying store
   useEffect(() => {
-    if (isBrowser) {
-      setIsHydrated(true)
-    }
+    setHydrated(true)
+    try { useCartStore.getState().setHydrated?.(true) } catch {}
   }, [])
 
-  // Return default implementation until hydrated
-  if (!isHydrated) {
-    return createDefaultCartStore()
+  // Before hydration, expose a proxy that forwards method calls
+  if (!hydrated) {
+    return createProxyCartStore(false)
   }
 
-  // Return actual cart store after hydration
+  // After hydration, return the real store with explicit flags
   return {
     ...actualCartStore,
     isInitialized: true,
-    isHydrated: true
-  }
+    isHydrated: true,
+  } as unknown as CartStoreInterface
 }
 
 

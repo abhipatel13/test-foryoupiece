@@ -66,7 +66,7 @@ useSSRSafeCartStore()  // Shopping cart with multi-tab sync
 All admin routes follow this pattern:
 ```typescript
 1. Rate limiting check
-2. Admin authentication verification  
+2. Admin authentication verification
 3. Service role client for database operations
 4. Comprehensive error handling with sanitization
 ```
@@ -205,6 +205,27 @@ COMMENT ON TABLE ... IS '...';
 - Implement server-side session validation using getUser(), add custom storage validation, implement periodic session checks.
 - Admin system requires httpOnly cookies for token storage, automatic session timeout, and token rotation.
 - Gate Supabase client console logs behind NEXT_PUBLIC_DEBUG_SUPABASE and only show them in development.
+
+
+## Authentication Implementation (Current) — Read First
+
+- One‑time AuthProvider init with global guard `__AUTH_PROVIDER_INIT_DONE` to prevent React StrictMode/HMR double initialization and cleanup/re‑init races. Runs once per tab; cleanup is harmless.
+- On INITIAL_SESSION/SIGNED_IN: set `user` + `userId` immediately and unblock UI (`setStoreLoading(false); setHydrated(true)`); profile and cart load in parallel afterwards to avoid perceived hangs.
+- Login page behavior: after email/password success OR when `onAuthStateChange` emits `SIGNED_IN`, trigger a programmatic hard reload using `window.location.replace(redirectTo + '?r=' + Date.now())` guarded by `__postLoginReloadDone`. This guarantees fresh profile/points/tier/preferences with no manual Ctrl+F5.
+- Account dropdowns (all variants) are gated by a real Supabase session: call `supabase.auth.getSession()` and render authenticated menu only when `session.access_token` exists; otherwise show a simple "Sign In" link.
+- Middleware respects Supabase cookie deletion semantics (preserves `maxAge: 0`/`expires`) so logout reliably clears cookies.
+- Cross‑tab sign‑out guard: `signOutInProgress` (local + window flag) prevents restoration during logout, cleared on `SIGNED_IN` if needed.
+
+Do/Don’t
+- DO keep the post‑login hard reload – it fixes incomplete data (e.g., "Telegram User" placeholder) and ensures full hydration.
+- DO avoid reintroducing store‑only checks for auth UI; always gate with `getSession()`.
+- DO NOT add dependencies to the AuthProvider init effect; it must run once. Changes belong in auth state handler, not init.
+- DO NOT override auth cookies’ deletion with default expiries in middleware.
+
+Troubleshooting checklist
+1) Seeing placeholders after login? Confirm the hard reload still runs; look for `__postLoginReloadDone` and a cache‑busting `?r=` param.
+2) Double init logs? Ensure `__AUTH_PROVIDER_INIT_DONE` remains at module scope and the init effect has `[]` deps.
+3) Dropdown shows while logged out? Verify `getSession()` check and that `hasSession === false` renders the Sign In UI.
 
 # BoxHero API Integration
 - Manual sync system with BoxHero API for inventory management, accessed via /en/fyponly-admin URL.

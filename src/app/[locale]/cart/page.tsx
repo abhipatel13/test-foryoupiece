@@ -42,6 +42,7 @@ export default function CartPage() {
     items,
     isLoading,
     isInitialized,
+    isHydrated,
     updateQuantity,
     removeItem,
     clearCart,
@@ -139,13 +140,12 @@ export default function CartPage() {
       controller.abort()
     }
   }, [items.length, user?.id])
-  // Always validate stock once when the cart page is visited
+  // Validate stock when items load (runs once per items length change)
   useEffect(() => {
     if (items.length > 0) {
       performStockValidation()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [items.length])
 
 
   // Real-time stock validation
@@ -331,6 +331,21 @@ export default function CartPage() {
               <p className="text-gray-600">
                 Please wait while we load your cart items.
               </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Avoid flicker: wait for cart hydration/loading before showing empty state
+  if (!isHydrated || isLoading) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="bg-white rounded-lg p-12">
+              <div className="animate-pulse text-gray-400">Loading your cart…</div>
             </div>
           </div>
         </div>

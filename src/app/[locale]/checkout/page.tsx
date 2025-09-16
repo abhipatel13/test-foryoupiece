@@ -384,6 +384,8 @@ export default function CheckoutPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-4">
+                  <p className="text-xs sm:text-sm text-red-600 font-medium" aria-live="polite">Currently only ships to Cambodia</p>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
                       <Label htmlFor="firstName" className="text-xs sm:text-sm font-medium text-slate-700">First Name <span className="text-red-600">*</span></Label>
