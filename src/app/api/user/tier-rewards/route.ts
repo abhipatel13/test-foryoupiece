@@ -35,8 +35,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('🔐 Tier Rewards API: Getting user from session')
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    console.log('🔐 Tier Rewards API: Getting user from session or Bearer')
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
 
     console.log('🔐 Tier Rewards API: Authentication result:', {
       hasUser: !!user,

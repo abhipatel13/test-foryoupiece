@@ -9,7 +9,7 @@ import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
 import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 
-import { registerAuthHandler, unregisterAuthHandler, authFetch } from '@/lib/utils/auth-interceptor'
+import { registerAuthHandler, unregisterAuthHandler, authFetch, initAuthFetchGlobalPatch } from '@/lib/utils/auth-interceptor'
 // import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
 import { clientSideLogout, createSession } from '@/lib/security/session-manager'
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
@@ -65,6 +65,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         supabaseRef.current = createClient()
         console.log('✅ Supabase client initialized successfully')
+        // Ensure all same-origin fetch() calls include Authorization automatically
+        initAuthFetchGlobalPatch()
       } catch (e) {
         console.error('❌ Failed to create Supabase client:', e)
 
@@ -171,6 +173,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Reset the flag after a delay to allow for future cross-tab events
       setTimeout(() => {
         crossTabSignOutRef.current = false
+        try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
       }, 200)
     }
   }, [clearUser, clearCartOnLogout, isClient, router])
@@ -642,6 +645,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Reset logout flag after cleanup (further reduced to 100ms to minimize race window)
           setTimeout(() => {
             signOutInProgressRef.current = false
+            try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
           }, 100)
 
           router.push('/en/auth/login')

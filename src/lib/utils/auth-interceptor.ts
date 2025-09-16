@@ -321,6 +321,52 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   }
 }
 
+//
+
+// Idempotent global fetch patch to ensure Authorization is added for same-origin API calls
+let __fetchPatched = false
+export function initAuthFetchGlobalPatch() {
+  try {
+    if (typeof window === 'undefined') return
+    if (__fetchPatched || (window as any).__fypAuthFetchPatched) return
+
+    const originalFetch = globalThis.fetch.bind(globalThis)
+    globalThis.fetch = async (input: any, init?: RequestInit) => {
+      const reqInit: RequestInit = init ? { ...init } : {}
+      try {
+        const urlStr = typeof input === 'string' ? input : (input?.url || input?.toString?.() || '')
+        const sameOrigin = typeof urlStr === 'string' && (urlStr.startsWith('/') || (typeof window !== 'undefined' && urlStr.startsWith(window.location.origin)))
+        if (sameOrigin) {
+          const headers = new Headers(reqInit.headers || {})
+          if (!headers.has('Authorization')) {
+            try {
+              const supabase = createClient()
+              const { data: { session } } = await supabase.auth.getSession()
+              const token = session?.access_token
+              if (token) headers.set('Authorization', `Bearer ${token}`)
+            } catch {}
+          }
+          reqInit.headers = headers
+        }
+      } catch {}
+
+      const res = await originalFetch(input, reqInit)
+      try {
+        if (res?.status === 401) {
+          await handleAuthError({ status: 401, message: 'Unauthorized' }, typeof input === 'string' ? input : undefined)
+        } else if (res?.status === 403) {
+          await handleAuthError({ status: 403, message: 'Forbidden' }, typeof input === 'string' ? input : undefined)
+        }
+      } catch {}
+      return res
+    }
+
+    ;(window as any).__fypAuthFetchPatched = true
+    __fetchPatched = true
+    console.log('🔐 Global fetch patched to inject Authorization for same-origin API calls')
+  } catch {}
+}
+
 /**
  * Wrapper for API calls that automatically handles auth errors
  */
