@@ -18,7 +18,7 @@ interface AnnouncementCoupon {
 }
 
 export function CouponAnnouncementPopup() {
-  const { user } = useSSRSafeAuth()
+  const { user, loading: authLoading, profileLoading } = useSSRSafeAuth()
   const [coupon, setCoupon] = useState<AnnouncementCoupon | null>(null)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -27,6 +27,12 @@ export function CouponAnnouncementPopup() {
     if (!user) return
     try {
       setLoading(true)
+      // Ensure token is available before calling protected API to avoid 401 race
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        return
+      }
       const res = await authFetch('/api/user/coupons/announcements')
       if (res.ok) {
         const data = await res.json()
@@ -44,10 +50,13 @@ export function CouponAnnouncementPopup() {
   }, [user])
 
   useEffect(() => {
-    if (!user) return
-    // On first auth state, attempt to fetch announcement
-    fetchAnnouncement()
-  }, [user, fetchAnnouncement])
+    if (!user || authLoading || profileLoading) return
+    // Slight delay to let tokens settle
+    const t = setTimeout(() => {
+      fetchAnnouncement()
+    }, 250)
+    return () => clearTimeout(t)
+  }, [user, authLoading, profileLoading, fetchAnnouncement])
 
   useEffect(() => {
     if (!user) return

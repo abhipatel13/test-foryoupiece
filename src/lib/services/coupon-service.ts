@@ -784,8 +784,16 @@ export class CouponService {
     const isTierSpecific = Boolean(couponRow?.is_tier_specific)
     const tierRestrictions: string[] = Array.isArray(couponRow?.tier_restrictions) ? couponRow.tier_restrictions : []
 
-    // Must be targeted: either tier or targeting present
-    const isTargeted = (isTierSpecific && tierRestrictions.length > 0) || Boolean(targeting)
+    // Treat empty targeting object as no targeting
+    const hasTargetingRules = !!(targeting && (
+      (Number((targeting as any).recently_signed_up_days) || 0) > 0 ||
+      (Number((targeting as any).recently_purchased_days) || 0) > 0 ||
+      (Number((targeting as any).most_purchased_min_total_spent) || 0) > 0 ||
+      (Number((targeting as any).most_purchased_top_n) || 0) > 0
+    ))
+
+    // Must be targeted: either tier rules present or non-empty targeting present
+    const isTargeted = (isTierSpecific && tierRestrictions.length > 0) || hasTargetingRules
     if (!isTargeted) return false
 
     // Must be active in time/status
@@ -879,7 +887,13 @@ export class CouponService {
       const targeting = (r?.metadata && (r.metadata as any).targeting) || null
       const isTierSpecific = Boolean(r?.is_tier_specific)
       const tiers: any[] = Array.isArray(r?.tier_restrictions) ? r.tier_restrictions : []
-      return (isTierSpecific && tiers.length > 0) || Boolean(targeting)
+      const hasTargetingRules = !!(targeting && (
+        (Number((targeting as any).recently_signed_up_days) || 0) > 0 ||
+        (Number((targeting as any).recently_purchased_days) || 0) > 0 ||
+        (Number((targeting as any).most_purchased_min_total_spent) || 0) > 0 ||
+        (Number((targeting as any).most_purchased_top_n) || 0) > 0
+      ))
+      return (isTierSpecific && tiers.length > 0) || hasTargetingRules
     })
 
     const result: any[] = []
