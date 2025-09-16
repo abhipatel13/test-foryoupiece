@@ -298,19 +298,21 @@ export function EnhancedSearch({
   // This ensures clicking outside (which sets isOpen=false) always hides it
   const shouldShowDropdown = isOpen && (hasResults || hasSuggestions || hasHistory)
 
-  // DEBUG: Log dropdown visibility conditions
-  console.log('🔍 Search dropdown debug:', {
-    isOpen,
-    hasResults,
-    hasSuggestions,
-    hasHistory,
-    searchResults: searchResults.length,
-    suggestions: suggestions.length,
-    searchHistory: searchHistory.length,
-    showHistory,
-    query: query.length,
-    shouldShowDropdown
-  })
+  // DEBUG: Log dropdown visibility conditions (gated)
+  if (process.env.NEXT_PUBLIC_DEBUG_UI === 'true') {
+    console.log('🔍 Search dropdown debug:', {
+      isOpen,
+      hasResults,
+      hasSuggestions,
+      hasHistory,
+      searchResults: searchResults.length,
+      suggestions: suggestions.length,
+      searchHistory: searchHistory.length,
+      showHistory,
+      query: query.length,
+      shouldShowDropdown
+    })
+  }
 
   return (
     <div ref={searchRef} className={cn("relative w-full", className)}>

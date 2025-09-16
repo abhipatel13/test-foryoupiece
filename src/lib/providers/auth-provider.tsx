@@ -30,7 +30,9 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  console.log('🚀 AuthProvider component rendered!')
+  if (process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true') {
+    console.log('🚀 AuthProvider component rendered!')
+  }
 
   const router = useRouter()
   const isClient = useIsClient()

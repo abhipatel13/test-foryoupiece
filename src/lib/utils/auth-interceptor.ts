@@ -122,6 +122,16 @@ export async function handleAuthError(error: any, url?: string) {
   try {
     const supabase = createClient()
 
+    // If there is no active session, do not try to refresh or escalate — avoid 400 refresh churn
+    try {
+      const { data: { session: activeSession } } = await supabase.auth.getSession()
+      if (!activeSession) {
+        console.log('🔒 Auth interceptor: no active session; skipping refresh/escalation', { url })
+        isHandlingAuthError = false
+        return
+      }
+    } catch {}
+
     // Conservative retry/backoff loop before any cleanup escalation
     let recovered = false
     for (let attempt = 0; attempt <= AUTH_RETRY_ATTEMPTS; attempt++) {

@@ -36,6 +36,9 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const [unreadCount, setUnreadCount] = useState(0)
   const refreshUnread = useCallback(async () => {
     try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
       const res = await authFetch(`/api/user/notifications?limit=1&_=${Date.now()}` as string, { cache: 'no-store' })
       if (res.ok) {
         const data = await res.json()

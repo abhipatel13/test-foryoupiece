@@ -369,9 +369,13 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(false)
 
     const load = useCallback(async (pageNum: number) => {
+      if (!user?.id) { setItems([]); setUnread(0); setTotal(0); return }
       const offset = (pageNum - 1) * limit
       setLoading(true)
       try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) { setItems([]); setUnread(0); setTotal(0); return }
         const res = await authFetch(`/api/user/notifications?limit=${limit}&offset=${offset}`)
         if (res.ok) {
           const data = await res.json()
@@ -386,9 +390,9 @@ export default function ProfilePage() {
       } finally {
         setLoading(false)
       }
-    }, [])
+    }, [user?.id])
 
-    useEffect(() => { load(page) }, [load, page])
+    useEffect(() => { if (user?.id) load(page) }, [user?.id, load, page])
 
     // External refresh signal (e.g., Mark all read from parent button)
     useEffect(() => {
