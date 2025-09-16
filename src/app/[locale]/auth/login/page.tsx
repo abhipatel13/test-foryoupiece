@@ -295,6 +295,24 @@ function LoginPageContent() {
       console.error('🚨 Login page init error (guard):', e)
     }
   }, [supabase, router, redirectTo, searchParams])
+  // Redirect off the login page immediately when auth state becomes SIGNED_IN
+  useEffect(() => {
+    let mounted = true
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (!mounted) return
+      if (event === 'SIGNED_IN') {
+        try { localStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS') } catch {}
+        setLoading(false)
+        // Use replace to avoid creating a back entry to the login page
+        router.replace(redirectTo)
+      }
+    })
+    return () => {
+      mounted = false
+      subscription?.subscription?.unsubscribe?.()
+    }
+  }, [supabase, router, redirectTo])
+
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()

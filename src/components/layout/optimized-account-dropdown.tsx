@@ -63,9 +63,6 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
         ;(window as any).signOutInProgress = true
       }
 
-      // Broadcast auth change to other tabs immediately
-      broadcast('AUTH_STATE_CHANGE', { user: null })
-
       // Call sign out function
       await signOut()
     } catch (error) {
@@ -75,7 +72,7 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
         if (typeof window !== 'undefined') {
           try { localStorage.clear() } catch {}
           try { sessionStorage.clear() } catch {}
-          window.location.replace('/en')
+          window.location.replace('/en/auth/login')
         }
       } catch {}
     }

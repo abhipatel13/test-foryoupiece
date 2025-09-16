@@ -10,16 +10,30 @@ const intlMiddleware = createMiddleware(routing)
  */
 function getSecureCookieOptions(originalOptions: any = {}) {
   const isProduction = process.env.NODE_ENV === 'production'
+  const name = originalOptions?.name as string | undefined
 
-  return {
-    ...originalOptions,
-    httpOnly: originalOptions.httpOnly !== false, // Default to httpOnly unless explicitly disabled
+  // Respect deletion semantics: if maxAge === 0 or expires is present (often in the past),
+  // pass through as-is and DO NOT add default maxAge.
+  const isDeleting = originalOptions?.maxAge === 0 || !!originalOptions?.expires
+
+  const base = {
+    ...originalOptions, // preserve provided attributes including expires
+    httpOnly: originalOptions?.httpOnly !== false, // Default to httpOnly unless explicitly disabled
     secure: isProduction, // Only secure in production (HTTPS)
-    sameSite: originalOptions.sameSite || 'lax', // Use Lax to ensure OAuth/Telegram redirects work reliably
-    path: originalOptions.path || '/',
-    // Add session timeout for auth cookies
-    maxAge: originalOptions.maxAge || (originalOptions.name?.includes('auth') ? 8 * 60 * 60 : undefined) // 8 hours for auth cookies
+    sameSite: originalOptions?.sameSite || 'lax', // Use Lax to ensure OAuth/Telegram redirects work reliably
+    path: originalOptions?.path || '/',
   }
+
+  if (isDeleting) {
+    return base
+  }
+
+  // Only apply default maxAge for auth cookies when neither maxAge nor expires are provided
+  if ((originalOptions?.maxAge == null) && (originalOptions?.expires == null) && name?.includes('auth')) {
+    return { ...base, maxAge: 8 * 60 * 60 } // 8 hours for auth cookies (non-deletion)
+  }
+
+  return base
 }
 
 /**
@@ -137,13 +151,16 @@ export default async function middleware(request: NextRequest) {
   // Determine whether this path requires session validation (to avoid unnecessary Supabase calls)
   const pathname = request.nextUrl.pathname
   const protectedPaths = ['/en/account', '/en/profile', '/en/checkout', '/en/orders', '/fyponly-admin', '/en/fyponly-admin', '/en/admin']
-  const authPaths = ['/en/auth/login', '/en/auth/register']
+  // Treat all auth pages as non-validated to reduce overhead and avoid churn on login screens
+  const authPaths = ['/en/auth']
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path))
   const isAuthPath = authPaths.some(path => pathname.startsWith(path))
   const isApiRoute = pathname.startsWith('/api')
-  const shouldValidateSession = !isApiRoute && (isProtectedPath || isAuthPath)
+  // Only validate sessions on protected app pages (not on auth pages, and not on API routes)
+  const shouldValidateSession = !isApiRoute && isProtectedPath
 
-  if (supabaseUrl && supabaseAnonKey && shouldValidateSession) {
+  const shouldInitSupabase = !!(supabaseUrl && supabaseAnonKey && (shouldValidateSession || isAuthPath))
+  if (shouldInitSupabase) {
     const supabase = createServerClient(
       supabaseUrl,
       supabaseAnonKey,
@@ -201,25 +218,27 @@ export default async function middleware(request: NextRequest) {
       }
     )
 
-    // Enhanced session validation with security checks
+    // Minimal user check for auth pages; full validation for protected pages only
     const { data: { user }, error } = await supabase.auth.getUser()
-    const sessionValidation = await validateSessionSecurity(supabase, request)
+    const sessionValidation = shouldValidateSession
+      ? await validateSessionSecurity(supabase, request)
+      : { valid: true, reason: 'skipped' as const }
 
-    // Enhanced redirect logic with session validation
+    // Enhanced redirect logic with session validation (protected pages)
     if (isProtectedPath && (error || !user || !sessionValidation.valid)) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/en/auth/login'
       redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
 
       // Add session expiration reason for better UX
-      if (sessionValidation.reason === 'session_expired') {
+      if ((sessionValidation as any).reason === 'session_expired') {
         redirectUrl.searchParams.set('reason', 'session_expired')
       }
 
       try {
         console.log('🧪 middleware: redirecting unauthenticated to login', {
           path: request.nextUrl.pathname,
-          reason: sessionValidation.reason || 'no_auth'
+          reason: (sessionValidation as any).reason || 'no_auth'
         })
       } catch {}
 
@@ -230,8 +249,8 @@ export default async function middleware(request: NextRequest) {
       return res
     }
 
-    // Redirect to home if accessing auth pages while authenticated (with valid session)
-    if (isAuthPath && user && !error && sessionValidation.valid) {
+    // Redirect to home if accessing auth pages while already authenticated
+    if (isAuthPath && user && !error) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/en'
       try {

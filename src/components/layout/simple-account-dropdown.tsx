@@ -198,7 +198,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         if (typeof window !== 'undefined') {
           try { localStorage.clear() } catch {}
           try { sessionStorage.clear() } catch {}
-          window.location.replace('/en')
+          window.location.replace('/en/auth/login')
         }
       } catch {}
     }

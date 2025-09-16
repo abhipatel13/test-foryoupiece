@@ -25,11 +25,19 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      console.log('❌ Enhanced logout: No authenticated user found')
-      return handleAuthenticationError(
-        new Error('No authenticated user'),
-        { operation: 'logout', endpoint: '/api/auth/logout' }
-      )
+      console.log('ℹ️ Enhanced logout: No authenticated user found — performing best-effort signOut and returning 200')
+      try {
+        await supabase.auth.signOut()
+      } catch (e) {
+        console.warn('Logout signOut best-effort call failed (non-fatal)', e)
+      }
+      const res = NextResponse.json({ success: true, message: 'Logged out (no active session)' })
+      // Ensure no caching and clear any auth-related intermediates
+      res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+      res.headers.set('Pragma', 'no-cache')
+      res.headers.set('Expires', '0')
+      res.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return res
     }
 
     console.log('🔐 Enhanced logout: Processing logout for user:', user.id.substring(0, 8) + '...')
@@ -39,22 +47,27 @@ export async function POST(request: NextRequest) {
 
     if (!logoutResult.success) {
       console.error('❌ Enhanced logout failed:', logoutResult.error)
-      return handleAuthenticationError(
-        new Error(logoutResult.error || 'Logout failed'),
-        {
-          operation: 'enhanced_logout',
-          userId: user.id,
-          endpoint: '/api/auth/logout'
-        }
-      )
+      // Still return 200 for client resilience but include detail
+      const res = NextResponse.json({ success: true, message: 'Logout completed with warnings' })
+      res.headers.set('X-Logout-Error', (logoutResult.error || 'unknown').toString())
+      res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+      res.headers.set('Pragma', 'no-cache')
+      res.headers.set('Expires', '0')
+      res.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+      return res
     }
 
     console.log('✅ Enhanced logout: Successfully completed for user:', user.id.substring(0, 8) + '...')
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       message: 'Successfully logged out'
     })
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+    res.headers.set('Pragma', 'no-cache')
+    res.headers.set('Expires', '0')
+    res.headers.set('Vary', 'Cookie, Authorization, Accept-Encoding')
+    return res
 
   } catch (error) {
     return handleGenericError(error, {

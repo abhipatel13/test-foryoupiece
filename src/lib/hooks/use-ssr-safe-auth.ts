@@ -195,6 +195,13 @@ export function useSSRSafeAuth() {
       if (typeof window !== 'undefined') {
         window.location.replace('/en/auth/login')
       }
+    } finally {
+      // Always reset global sign-out guard to prevent restoration from being skipped after navigation
+      try {
+        if (typeof window !== 'undefined') {
+          (window as any).signOutInProgress = false
+        }
+      } catch {}
     }
 
   }, [supabase.auth, clearUser, clearCartOnLogout, isClient, user?.id])

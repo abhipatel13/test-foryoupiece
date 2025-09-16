@@ -89,6 +89,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     currentUserRef.current = userStore.user
   }, [userStore.user])
 
+  // Centralized hard reset auth helper (top-level hook; do not declare inside callbacks)
+  const forceResetAuth = useCallback(async (reason: string) => {
+    try {
+      console.warn('🧹 Forcing authentication reset due to:', reason)
+      signOutInProgressRef.current = true
+      try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = true } } catch {}
+      try { await supabaseRef.current?.auth.signOut() } catch (e) { console.warn('⚠️ Supabase signOut during force reset:', e) }
+      try { await fetch('/api/auth/logout', { method: 'POST' }) } catch {}
+      try { await clearCartOnLogout() } catch {}
+      clearUser()
+      resetClientCache()
+      try { localStorage.clear() } catch {}
+      try { sessionStorage.clear() } catch {}
+    } finally {
+      signOutInProgressRef.current = false
+      if (typeof window !== 'undefined') {
+        const url = '/en/auth/login?reset=1&reason=' + encodeURIComponent(reason)
+        window.location.replace(url)
+      } else {
+        router.replace('/en/auth/login?reset=1')
+      }
+    }
+  }, [clearUser, clearCartOnLogout, router])
+
+
   // Session monitoring is performed by <SessionMonitor /> at layout level to avoid duplication
 
   // Handle cross-tab sign out (defined first to avoid circular dependency)
@@ -132,29 +157,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         'session_validated_at'
       ]
 
-      // Hard reset authentication when profile cannot be recovered
-      const forceResetAuth = useCallback(async (reason: string) => {
-        try {
-          console.warn('🧹 Forcing authentication reset due to:', reason)
-          signOutInProgressRef.current = true
-          ;(window as any).signOutInProgress = true
-          try { await supabaseRef.current?.auth.signOut() } catch (e) { console.warn('⚠️ Supabase signOut during force reset:', e) }
-          try { await fetch('/api/auth/logout', { method: 'POST' }) } catch {}
-          try { await clearCartOnLogout() } catch {}
-          clearUser()
-          resetClientCache()
-          try { localStorage.clear() } catch {}
-          try { sessionStorage.clear() } catch {}
-        } finally {
-          signOutInProgressRef.current = false
-          if (typeof window !== 'undefined') {
-            const url = '/en/auth/login?reset=1&reason=' + encodeURIComponent(reason)
-            window.location.replace(url)
-          } else {
-            router.push('/en/auth/login?reset=1')
-          }
-        }
-      }, [clearUser, clearCartOnLogout, router])
+      // Hard reset helper now defined at top-level; invoke directly here when needed
 
       authKeys.forEach(key => {
         try {
@@ -165,7 +168,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       })
 
       if (isClient) {
-        router.push('/en/auth/login?expired=true')
+        router.replace('/en/auth/login?expired=true')
       }
     } catch (error) {
       console.error('❌ Cross-tab sign out error:', error)
@@ -218,13 +221,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       resetClientCache()
 
       if (isClient) {
-        router.push('/en/auth/login?expired=true')
+        router.replace('/en/auth/login?expired=true')
       }
     } catch (error) {
       console.error('❌ Session expiration handler error:', error)
       // Ensure redirect even on error
       if (isClient) {
-        router.push('/en/auth/login?expired=true')
+        router.replace('/en/auth/login?expired=true')
       }
     }
   }, [clearUser, clearCartOnLogout, isClient, router])
@@ -648,7 +651,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
           }, 100)
 
-          router.push('/en/auth/login')
+          router.replace('/en/auth/login')
         } else if (event === 'SIGNED_IN') {
           // If a logout guard is active but we received SIGNED_IN, clear it and proceed
           const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false

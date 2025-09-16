@@ -279,8 +279,12 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
 
     try {
       const isStringUrl = typeof url === 'string'
-      const isSameOrigin = isStringUrl && (url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin)))
-      if (isSameOrigin && !headers.has('Authorization')) {
+      const urlStr = isStringUrl ? (url as string) : ((url as any)?.url || '')
+      const isSameOrigin = urlStr && (urlStr.startsWith('/') || (typeof window !== 'undefined' && urlStr.startsWith(window.location.origin)))
+      // Only inject for same-origin API requests to avoid affecting page navigations/auth screens
+      const path = urlStr.startsWith('http') ? (typeof window !== 'undefined' ? new URL(urlStr, window.location.origin).pathname : urlStr) : urlStr
+      const shouldInject = !!isSameOrigin && typeof path === 'string' && path.startsWith('/api/')
+      if (shouldInject && !headers.has('Authorization')) {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token
@@ -336,7 +340,11 @@ export function initAuthFetchGlobalPatch() {
       try {
         const urlStr = typeof input === 'string' ? input : (input?.url || input?.toString?.() || '')
         const sameOrigin = typeof urlStr === 'string' && (urlStr.startsWith('/') || (typeof window !== 'undefined' && urlStr.startsWith(window.location.origin)))
-        if (sameOrigin) {
+        const path = typeof urlStr === 'string'
+          ? (urlStr.startsWith('http') ? (typeof window !== 'undefined' ? new URL(urlStr, window.location.origin).pathname : urlStr) : urlStr)
+          : ''
+        const isApi = !!sameOrigin && typeof path === 'string' && path.startsWith('/api/')
+        if (isApi) {
           const headers = new Headers(reqInit.headers || {})
           if (!headers.has('Authorization')) {
             try {
