@@ -85,6 +85,8 @@ export default function CustomerCommunicationPage() {
     return (
       n?.message ||
       n?.metadata?.text ||
+      n?.metadata?.caption ||
+      n?.metadata?.sticker_emoji ||
       n?.metadata?.telegram_text ||
       n?.metadata?.message_text ||
       n?.metadata?.raw?.message?.text ||
@@ -383,6 +385,8 @@ export default function CustomerCommunicationPage() {
                 const previewMsg = (
                   entry?.lastMessage?.message ||
                   entry?.lastMessage?.metadata?.text ||
+                  entry?.lastMessage?.metadata?.caption ||
+                  entry?.lastMessage?.metadata?.sticker_emoji ||
                   entry?.lastMessage?.metadata?.telegram_text ||
                   entry?.lastMessage?.metadata?.message_text ||
                   entry?.lastMessage?.metadata?.raw?.message?.text ||

@@ -829,7 +829,7 @@ export default function ProfilePage() {
                 )}
             {/* Notifications */}
             <Card role="region" aria-labelledby="notifications-title" id="notifications">
-              <CardHeader className="!pb-0 h-[70px] sm:h-auto !grid-rows-1 items-center overflow-hidden">
+              <CardHeader className="!pb-0 h-[120px] sm:h-auto !grid-rows-1 items-center overflow-hidden">
                 <div className="flex items-center justify-between h-full">
                   <div className="min-w-0">
                     <CardTitle id="notifications-title" className="text-lg truncate">Notifications</CardTitle>

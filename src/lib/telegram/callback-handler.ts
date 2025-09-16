@@ -92,7 +92,22 @@ export class TelegramCallbackHandler {
           const supabase = createServiceRoleClient();
           const fromId = message.from?.id;
           const fromUsername = message.from?.username;
-          const text = (message.text || '').slice(0, 4000);
+
+          // Robust content extraction covering text, captions, stickers, and media
+          const rawText = typeof (message as any).text === 'string' ? (message as any).text : '';
+          const caption = typeof (message as any).caption === 'string' ? (message as any).caption : '';
+          const stickerEmoji = (message as any)?.sticker?.emoji || '';
+          const hasPhoto = Array.isArray((message as any).photo) && (message as any).photo.length > 0;
+          const hasVoice = !!(message as any).voice;
+          const hasDocument = !!(message as any).document;
+
+          let displayText = rawText || caption || stickerEmoji || '';
+          if (!displayText) {
+            if (hasPhoto) displayText = `[Photo] ${caption || ''}`.trim();
+            else if (hasVoice) displayText = '[Voice message]';
+            else if (hasDocument) displayText = `[Document] ${((message as any).document?.file_name || '')}`.trim();
+          }
+          displayText = displayText.toString().slice(0, 4000);
 
           // Resolve our app user by telegram_id first
           let userIdToStore: string | null = null;
@@ -127,16 +142,23 @@ export class TelegramCallbackHandler {
             const { error: insertErr } = await supabase.from('notifications').insert({
               user_id: userIdToStore,
               title: 'Reply from Telegram',
-              message: text,
+              message: displayText,
               type: 'info',
               metadata: {
                 channel: 'telegram',
                 direction: 'incoming',
                 telegram_username: fromUsername || null,
                 telegram_id: fromId,
-                message_id: message.message_id,
-                date: message.date,
-                chat_type: 'private'
+                message_id: (message as any).message_id,
+                date: (message as any).date,
+                chat_type: 'private',
+                // Extras to help rendering fallbacks
+                text: rawText || undefined,
+                caption: caption || undefined,
+                sticker_emoji: stickerEmoji || undefined,
+                has_photo: hasPhoto || undefined,
+                has_voice: hasVoice || undefined,
+                has_document: hasDocument || undefined,
               }
             });
             if (insertErr) {
