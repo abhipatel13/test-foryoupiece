@@ -264,7 +264,25 @@ export async function handleAuthError(error: any, url?: string) {
  */
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   try {
-    const response = await fetch(url, options)
+    // Ensure Authorization header with Supabase JWT for same-origin API calls
+    const headers = new Headers(options.headers || {})
+
+    try {
+      const isStringUrl = typeof url === 'string'
+      const isSameOrigin = isStringUrl && (url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin)))
+      if (isSameOrigin && !headers.has('Authorization')) {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (token) {
+          headers.set('Authorization', `Bearer ${token}`)
+        }
+      }
+    } catch (e) {
+      // Non-fatal; proceed without Authorization header
+    }
+
+    const response = await fetch(url, { ...options, headers })
 
     // Handle 401 errors immediately
     if (response.status === 401) {

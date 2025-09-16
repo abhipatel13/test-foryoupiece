@@ -2,17 +2,6 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Database } from './database.types'
 
-// Check if we're in an App Router context where next/headers is available
-function isAppRouterContext(): boolean {
-  try {
-    // Try to access next/headers - this will throw in Pages Router context
-    require('next/headers')
-    return true
-  } catch {
-    return false
-  }
-}
-
 export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -43,10 +32,10 @@ export async function createClient() {
     } as any
   }
 
-  // For App Router context, use next/headers
-  if (isAppRouterContext()) {
+  // Prefer App Router/Route Handler cookies via next/headers across Node & Edge runtimes
+  try {
     const { cookies } = await import('next/headers')
-    const cookieStore = await cookies()
+    const cookieStore = cookies() // cookies() is synchronous in App Router
 
     return createServerClient<Database>(
       supabaseUrl,
@@ -70,12 +59,11 @@ export async function createClient() {
         },
       }
     )
+  } catch {
+    // Fallback (Pages Router or environments without next/headers)
+    const { createClient: createBrowserClient } = await import('./client')
+    return createBrowserClient()
   }
-
-  // For Pages Router context or when next/headers is not available,
-  // fall back to client-side Supabase client
-  const { createClient: createBrowserClient } = await import('./client')
-  return createBrowserClient()
 }
 
 /**

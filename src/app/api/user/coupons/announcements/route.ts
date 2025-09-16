@@ -12,7 +12,11 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }
