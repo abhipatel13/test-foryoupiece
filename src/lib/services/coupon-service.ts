@@ -771,6 +771,127 @@ export class CouponService {
       (!coupon.expiresAt || now <= coupon.expiresAt)
     )
   }
+
+  /**
+   * Return true if this coupon is a targeted coupon and the user matches targeting rules
+   * (tier restrictions and metadata.targeting).
+   */
+  async isTargetedCouponEligibleForUserByRow(couponRow: any, userId: string): Promise<boolean> {
+    const svc = this.getServiceClient()
+    if (!svc) return false
+
+    const targeting = (couponRow?.metadata && (couponRow.metadata as any).targeting) || null
+    const isTierSpecific = Boolean(couponRow?.is_tier_specific)
+    const tierRestrictions: string[] = Array.isArray(couponRow?.tier_restrictions) ? couponRow.tier_restrictions : []
+
+    // Must be targeted: either tier or targeting present
+    const isTargeted = (isTierSpecific && tierRestrictions.length > 0) || Boolean(targeting)
+    if (!isTargeted) return false
+
+    // Must be active in time/status
+    const nowIso = new Date().toISOString()
+    if (couponRow.status !== 'active') return false
+    if (couponRow.starts_at && couponRow.starts_at > nowIso) return false
+    if (couponRow.expires_at && couponRow.expires_at < nowIso) return false
+
+    // Load user basics used by targeting
+    const { data: userRow, error: userErr } = await svc
+      .from('users')
+      .select('id, tier_level, created_at, total_spent')
+      .eq('id', userId)
+      .single()
+    if (userErr || !userRow) return false
+
+    // Tier restriction
+    if (isTierSpecific && tierRestrictions.length > 0) {
+      if (!tierRestrictions.includes(userRow.tier_level)) return false
+    }
+
+    if (targeting) {
+      // Recently signed up
+      const recentSignupDays = Number(targeting.recently_signed_up_days) || 0
+      if (recentSignupDays > 0) {
+        const createdAt = new Date(userRow.created_at)
+        const cutoff = new Date()
+        cutoff.setDate(cutoff.getDate() - recentSignupDays)
+        if (createdAt < cutoff) return false
+      }
+
+      // Recently purchased
+      const recentPurchasedDays = Number(targeting.recently_purchased_days) || 0
+      if (recentPurchasedDays > 0) {
+        const cutoff = new Date()
+        cutoff.setDate(cutoff.getDate() - recentPurchasedDays)
+        const { count: recentOrdersCount, error: ordersErr } = await svc
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('payment_status', 'verified')
+          .gte('created_at', cutoff.toISOString())
+        if (ordersErr || typeof recentOrdersCount !== 'number' || recentOrdersCount <= 0) return false
+      }
+
+      // Most purchased threshold or Top N
+      const minTotalSpent = targeting.most_purchased_min_total_spent != null
+        ? Number(targeting.most_purchased_min_total_spent)
+        : 0
+      if (minTotalSpent > 0) {
+        const userSpent = Number(userRow.total_spent || 0)
+        if (userSpent < minTotalSpent) return false
+      } else {
+        const topN = targeting.most_purchased_top_n != null ? Number(targeting.most_purchased_top_n) : 0
+        if (topN > 0) {
+          const { data: topUsers, error: topErr } = await svc
+            .from('users')
+            .select('id')
+            .order('total_spent', { ascending: false })
+            .order('id', { ascending: true })
+            .limit(topN)
+          if (topErr || !Array.isArray(topUsers) || !topUsers.some(u => u.id === userId)) return false
+        }
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Return a small set of recent targeted coupons that the user is eligible for.
+   */
+  async getEligibleTargetedCouponsForUser(userId: string, limit: number = 5): Promise<any[]> {
+    const svc = this.getServiceClient()
+    if (!svc) return []
+
+    const nowIso = new Date().toISOString()
+    // Preselect a limited recent window to keep it efficient
+    const { data: rows, error } = await svc
+      .from('coupons')
+      .select('id, code, name, description, status, starts_at, expires_at, is_tier_specific, tier_restrictions, metadata, created_at')
+      .eq('status', 'active')
+      .lte('starts_at', nowIso)
+      .or('expires_at.is.null,expires_at.gt.' + nowIso)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (error || !rows) return []
+
+    const targeted = rows.filter((r: any) => {
+      const targeting = (r?.metadata && (r.metadata as any).targeting) || null
+      const isTierSpecific = Boolean(r?.is_tier_specific)
+      const tiers: any[] = Array.isArray(r?.tier_restrictions) ? r.tier_restrictions : []
+      return (isTierSpecific && tiers.length > 0) || Boolean(targeting)
+    })
+
+    const result: any[] = []
+    for (const r of targeted) {
+      const eligible = await this.isTargetedCouponEligibleForUserByRow(r, userId)
+      if (eligible) {
+        result.push(r)
+        if (result.length >= limit) break
+      }
+    }
+    return result
+  }
 }
 
 // Export singleton instance

@@ -20,6 +20,7 @@ import { useHomepageBestSellers } from '@/presentation/hooks/useBestSellerProduc
 import { useHomepageData } from '@/presentation/hooks/useHomepageData';
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth';
 import { sortProductsByStockPriority } from '@/lib/utils';
+import { CouponAnnouncementPopup } from '@/components/coupons/coupon-announcement-popup'
 
 interface Product {
   id: string
@@ -892,6 +893,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      {/* Targeted coupon announcement popup (authenticated users only) */}
+      <CouponAnnouncementPopup />
     </div>
   )
 }
