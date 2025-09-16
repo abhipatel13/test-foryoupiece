@@ -24,10 +24,14 @@ export async function GET(
     }
 
     const supabase = await createClient()
-    
-    // Get authenticated user to verify access
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
+    // Get authenticated user to verify access (support Bearer token header or cookies)
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({
         success: false,

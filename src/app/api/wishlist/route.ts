@@ -8,10 +8,14 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
+    // Get authenticated user (support Bearer token header or cookies)
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({
         success: false,
@@ -90,10 +94,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
+    // Get authenticated user (support Bearer token header or cookies)
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({
         success: false,
@@ -197,10 +205,14 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
+    // Get authenticated user (support Bearer token header or cookies)
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({
         success: false,

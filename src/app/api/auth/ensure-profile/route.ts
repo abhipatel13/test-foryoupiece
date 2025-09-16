@@ -10,7 +10,11 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authErr } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
     if (authErr || !user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }

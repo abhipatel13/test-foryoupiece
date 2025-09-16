@@ -9,7 +9,7 @@ import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
 import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 
-import { registerAuthHandler, unregisterAuthHandler } from '@/lib/utils/auth-interceptor'
+import { registerAuthHandler, unregisterAuthHandler, authFetch } from '@/lib/utils/auth-interceptor'
 // import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
 import { clientSideLogout, createSession } from '@/lib/security/session-manager'
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
@@ -255,20 +255,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Proactively ensure a profile exists before fetching it (handles new users across all providers)
       try {
-        const attempts = [3000, 4000, 6000] // SEA networks can be slow
-        for (let i = 0; i < attempts.length; i++) {
-          try {
-            const controller = new AbortController()
-            const t = setTimeout(() => controller.abort(), attempts[i])
-            const resp = await fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
-            clearTimeout(t)
-            if (resp.ok) break
-          } catch (e) {
-            if (i === attempts.length - 1) throw e
-          }
-          // backoff before retry
-          await new Promise(r => setTimeout(r, 200 + i * 200))
-        }
+        const controller = new AbortController()
+        const t = setTimeout(() => controller.abort(), 2000)
+        await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+        clearTimeout(t)
       } catch (e) {
         console.warn('⚠️ ensure-profile prefetch failed (non-fatal):', e)
       }
@@ -685,7 +675,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               try {
                 const controller = new AbortController()
                 const t = setTimeout(() => controller.abort(), 2000)
-                await fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+                await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
                 clearTimeout(t)
               } catch (e) {
                 console.warn('⚠️ ensure-profile POST failed (non-fatal):', e)

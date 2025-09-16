@@ -9,10 +9,14 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🗑️ Clear All Notifications API called')
 
-    // Get authenticated user
+    // Get authenticated user (support Bearer token header or cookies)
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+    const { data: { user }, error: authError } = bearer
+      ? await supabase.auth.getUser(bearer)
+      : await supabase.auth.getUser()
+
     if (authError || !user) {
       console.log('❌ Clear All Notifications API: Authentication failed')
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
