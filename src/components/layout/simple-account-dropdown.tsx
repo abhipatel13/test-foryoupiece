@@ -32,6 +32,22 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
 
   const { user, profile, isAuthenticated, loading, profileLoading, signOut } = useSSRSafeAuth()
 
+  // Guard against stale persisted auth by verifying Supabase session
+  const [hasSession, setHasSession] = useState<boolean | null>(null)
+  useEffect(() => {
+    let canceled = false
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!canceled) setHasSession(!!session?.access_token)
+      } catch {
+        if (!canceled) setHasSession(false)
+      }
+    })()
+    return () => { canceled = true }
+  }, [])
+
   // Use simple auth hook without complex optimizations
   const [unreadCount, setUnreadCount] = useState(0)
   const refreshUnread = useCallback(async () => {
@@ -219,8 +235,8 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     )
   }
 
-  // Not authenticated
-  if (!isAuthenticated) {
+  // Not authenticated or no valid session -> show Sign In; never open dropdown
+  if (!isAuthenticated || hasSession === false) {
     if (authSigningIn) {
       return (
         <div className={`flex items-center space-x-2 ${className}`}>

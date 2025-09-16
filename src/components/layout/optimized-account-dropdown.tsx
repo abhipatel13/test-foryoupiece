@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { useHydration } from '@/lib/hooks/use-hydration'
+import { createClient } from '@/lib/supabase/client'
 import { PointsBreakdownComponent } from '@/components/user/points-breakdown'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -27,6 +28,22 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
   const mounted = useHydration() // Fix: useHydration returns boolean, not object
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [hasSession, setHasSession] = useState<boolean | null>(null)
+  const supabase = createClient()
+
+  // Ensure real session exists to avoid showing dropdown on stale persisted state
+  useEffect(() => {
+    let canceled = false
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!canceled) setHasSession(!!session?.access_token)
+      } catch {
+        if (!canceled) setHasSession(false)
+      }
+    })()
+    return () => { canceled = true }
+  }, [supabase])
 
   // Multi-tab synchronization
   const { broadcast } = useMultiTabSync({
@@ -104,8 +121,8 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
 
 
 
-  // Show loading state during hydration
-  if (!mounted || loading) {
+  // Show loading state during hydration or while verifying session
+  if (!mounted || loading || hasSession === null) {
     return (
       <div className={`flex items-center text-foreground text-sm px-1 sm:px-2 lg:px-3 py-2 rounded-lg flex-shrink-0 min-w-0 ${className}`}>
         <div className="text-right mr-1 sm:mr-2 min-w-0">
@@ -120,12 +137,12 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
     )
   }
 
-  // Show unauthenticated state
-  if (!isAuthenticated) {
+  // Show unauthenticated state (also when there is no valid Supabase session)
+  if (!isAuthenticated || hasSession === false) {
     return (
       <div className={`flex items-center space-x-1 sm:space-x-2 ${className}`}>
-        <Link 
-          href="/en/auth/login" 
+        <Link
+          href="/en/auth/login"
           className="flex items-center text-foreground text-sm hover:text-primary transition-colors px-1 sm:px-2 lg:px-3 py-2 rounded-lg hover:bg-secondary flex-shrink-0 min-w-0"
         >
           <div className="text-right">

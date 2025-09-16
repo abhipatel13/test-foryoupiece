@@ -303,8 +303,18 @@ function LoginPageContent() {
       if (event === 'SIGNED_IN') {
         try { localStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS') } catch {}
         setLoading(false)
-        // Use replace to avoid creating a back entry to the login page
-        router.replace(redirectTo)
+        // Force a hard reload to guarantee full data hydration (profile, points, tier)
+        try {
+          if (!(window as any).__postLoginReloadDone) {
+            ;(window as any).__postLoginReloadDone = true
+            const url = redirectTo?.startsWith('/') ? redirectTo : '/'
+            const sep = url.includes('?') ? '&' : '?'
+            window.location.replace(`${url}${sep}r=${Date.now()}`)
+          }
+        } catch (e) {
+          // Fallback: soft navigation if window access blocked
+          router.replace(redirectTo)
+        }
       }
     })
     return () => {
@@ -333,7 +343,18 @@ function LoginPageContent() {
 
       if (data.user) {
         toast.success('Successfully logged in!')
-        router.push(redirectTo)
+        // Hard reload to ensure all profile and saved data are fresh
+        try {
+          if (!(window as any).__postLoginReloadDone) {
+            ;(window as any).__postLoginReloadDone = true
+            const url = redirectTo?.startsWith('/') ? redirectTo : '/'
+            const sep = url.includes('?') ? '&' : '?'
+            window.location.replace(`${url}${sep}r=${Date.now()}`)
+          }
+        } catch (e) {
+          // Fallback soft navigation if needed
+          router.push(redirectTo)
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred')

@@ -15,6 +15,8 @@ import { clientSideLogout, createSession } from '@/lib/security/session-manager'
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
 
 // Enhanced auth provider with session monitoring
+// Global guard to avoid double initialization in React StrictMode / Fast Refresh
+let __AUTH_PROVIDER_INIT_DONE = false;
 
 // Create auth context
 const AuthContext = createContext<{
@@ -435,12 +437,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     console.log('🔍 Auth provider useEffect triggered:', { isClient, initialized: initializationRef.current })
 
-    if (!isClient || initializationRef.current) {
-      console.log('❌ Not client-side or already initialized, skipping auth initialization')
+    // Guard against React StrictMode and Fast Refresh double-invocations
+    if (typeof window === 'undefined') {
+      console.log('❌ Not client-side, skipping auth initialization')
+      return
+    }
+    if (__AUTH_PROVIDER_INIT_DONE) {
+      console.log('⏭️ Skipping auth initialization (global guard)')
+      // Ensure UI is not stuck in validating if we skipped
+      setIsValidating(false)
+      try { setStoreLoading(false); setHydrated(true) } catch {}
+      return
+    }
+    if (initializationRef.current) {
+      console.log('⏭️ Already initialized in this instance, skipping')
       return
     }
 
     console.log('✅ Starting simplified auth initialization...')
+    __AUTH_PROVIDER_INIT_DONE = true
     initializationRef.current = true
     let mounted = true
 
@@ -592,7 +607,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('🧹 Auth provider cleanup, setting mounted = false')
       mounted = false
     }
-  }, [isClient, setUser, setUserId, setProfile, setStoreLoading, setHydrated, clearUser, forceLoadCartForUser, clearCart])
+  }, [])
 
   // Set up auth state change listener - simplified
   useEffect(() => {
@@ -670,6 +685,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
               console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
               setUser(session.user)
               setUserId(session.user.id)
+              // Immediately unblock UI; profile/cart loads will continue in background
+              try { setStoreLoading(false); setHydrated(true) } catch {}
 
               // Initialize in-memory session tracker for validation endpoints
               try {
