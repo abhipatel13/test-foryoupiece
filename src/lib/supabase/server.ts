@@ -35,7 +35,8 @@ export async function createClient() {
   // Prefer App Router/Route Handler cookies via next/headers across Node & Edge runtimes
   try {
     const { cookies } = await import('next/headers')
-    const cookieStore = cookies() // cookies() is synchronous in App Router
+    // Next.js 15: cookies() must be awaited in Route Handlers (dynamic API)
+    const cookieStore = await cookies()
 
     return createServerClient<Database>(
       supabaseUrl,
