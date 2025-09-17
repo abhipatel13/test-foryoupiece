@@ -51,55 +51,48 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Handle password recovery differently from regular auth
+      // Handle password recovery: prefer code-exchange when available, fallback to verifyOtp
       if (type === 'recovery') {
-        console.log('🔑 Password recovery callback detected, using verifyOtp approach')
-
-        // For password recovery, use verifyOtp instead of exchangeCodeForSession
         try {
-          console.log('🔄 Attempting to verify OTP for password recovery...')
-          const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: token as string,
-            type: 'recovery'
-          })
-
-          if (!error && data.session) {
-            console.log('✅ Password recovery session established successfully:', {
-              userId: data.session.user.id,
-              email: data.session.user.email
-            })
-
-            // Redirect directly to the appropriate reset page with session established
-            if (redirectTo.includes('/en/auth/admin-reset-password')) {
-              console.log('🔐 Admin password reset verified, redirecting to admin reset page')
-              return NextResponse.redirect(`${origin}/en/auth/admin-reset-password`)
+          if (code) {
+            console.log('🔑 Recovery flow detected, exchanging code for session...')
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+            if (!error && data.session) {
+              console.log('✅ Recovery session (via code) established:', { userId: data.session.user.id, email: data.session.user.email })
+              if (redirectTo.includes('/en/auth/admin-reset-password')) {
+                return NextResponse.redirect(`${origin}/en/auth/admin-reset-password`)
+              }
+              return NextResponse.redirect(`${origin}/en/auth/reset-password`)
+            } else {
+              console.log('❌ Recovery code exchange failed:', error?.message)
             }
-
-            // Regular user password reset
-            console.log('👤 Regular user password reset verified, redirecting to reset page')
-            return NextResponse.redirect(`${origin}/en/auth/reset-password`)
-          } else {
-            console.log('❌ Password recovery verification failed:', error?.message)
-
-            // Redirect to error page or back to forgot password
-            if (redirectTo.includes('/en/auth/admin-reset-password')) {
-              console.log('🔐 Admin password reset failed, redirecting to admin forgot password')
-              return NextResponse.redirect(`${origin}/en/auth/admin-forgot-password?error=invalid_link`)
-            }
-
-            console.log('👤 Regular user password reset failed, redirecting to forgot password')
-            return NextResponse.redirect(`${origin}/en/auth/forgot-password?error=invalid_link`)
           }
-        } catch (verifyError) {
-          console.log('❌ Password recovery verification exception:', verifyError)
 
-          // Redirect to error page
+          // Fallback to verifyOtp using token_hash when code is absent
+          if (token) {
+            console.log('🔄 Attempting to verify OTP (token_hash) for password recovery...')
+            const { data, error } = await supabase.auth.verifyOtp({ token_hash: token as string, type: 'recovery' })
+            if (!error && data.session) {
+              console.log('✅ Recovery session (via token) established:', { userId: data.session.user.id, email: data.session.user.email })
+              if (redirectTo.includes('/en/auth/admin-reset-password')) {
+                return NextResponse.redirect(`${origin}/en/auth/admin-reset-password`)
+              }
+              return NextResponse.redirect(`${origin}/en/auth/reset-password`)
+            } else {
+              console.log('❌ Password recovery verification failed:', error?.message)
+            }
+          }
+
+          // If both mechanisms fail, route back to the appropriate forgot page
           if (redirectTo.includes('/en/auth/admin-reset-password')) {
-            console.log('🔐 Admin password reset exception, redirecting to admin forgot password')
             return NextResponse.redirect(`${origin}/en/auth/admin-forgot-password?error=invalid_link`)
           }
-
-          console.log('👤 Regular user password reset exception, redirecting to forgot password')
+          return NextResponse.redirect(`${origin}/en/auth/forgot-password?error=invalid_link`)
+        } catch (verifyError) {
+          console.log('❌ Password recovery handling exception:', verifyError)
+          if (redirectTo.includes('/en/auth/admin-reset-password')) {
+            return NextResponse.redirect(`${origin}/en/auth/admin-forgot-password?error=invalid_link`)
+          }
           return NextResponse.redirect(`${origin}/en/auth/forgot-password?error=invalid_link`)
         }
       }

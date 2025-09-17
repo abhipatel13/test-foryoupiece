@@ -73,66 +73,68 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(errorUrl)
   }
 
-  // Handle missing code
-  if (!code) {
-    console.error('❌ No auth code provided in callback')
-    const errorUrl = new URL('/auth/error', requestUrl.origin)
-    errorUrl.searchParams.set('error', 'missing_code')
-    errorUrl.searchParams.set('message', 'No authorization code provided')
-    return NextResponse.redirect(errorUrl)
-  }
-
   try {
     const supabase = await createClient()
 
-    console.log('🔑 Exchanging code for session...')
-
-    // Password recovery flow: establish a session using verifyOtp then go to reset page
+    // Password recovery flow: prefer code-exchange when code is present, otherwise verifyOtp with token_hash
     if (type === 'recovery') {
       try {
-        const tokenHash = token || ''
-        if (!tokenHash) {
-          console.error('❌ Missing recovery token in callback')
-          const errorUrl = new URL('/auth/error', requestUrl.origin)
-          errorUrl.searchParams.set('error', 'missing_token')
-          errorUrl.searchParams.set('message', 'Missing password recovery token')
-          return NextResponse.redirect(errorUrl)
+        if (code) {
+          console.log('🔑 Recovery flow: exchanging code for session...')
+          const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeErr || !data.session) {
+            console.error('❌ Recovery code exchange failed:', exchangeErr)
+          } else {
+            console.log('✅ Recovery session (via code) established:', { userId: data.session.user.id, email: data.session.user.email })
+            const wantsAdminReset = (redirectTo && redirectTo.includes('/admin-reset-password')) || (next && next.includes('admin-reset-password'))
+            const dest = wantsAdminReset ? '/en/auth/admin-reset-password' : '/en/auth/reset-password'
+            return NextResponse.redirect(new URL(dest, requestUrl.origin))
+          }
         }
 
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: 'recovery'
-        })
-
-        if (verifyError || !data.session) {
+        // Fallback: verify using token_hash if provided
+        const tokenHash = (token || '').trim()
+        if (tokenHash) {
+          console.log('🔑 Recovery flow: verifying OTP (token_hash) ...')
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+          if (!verifyError && data.session) {
+            console.log('✅ Recovery session (via token) established:', { userId: data.session.user.id, email: data.session.user.email })
+            const wantsAdminReset = (redirectTo && redirectTo.includes('/admin-reset-password')) || (next && next.includes('admin-reset-password'))
+            const dest = wantsAdminReset ? '/en/auth/admin-reset-password' : '/en/auth/reset-password'
+            return NextResponse.redirect(new URL(dest, requestUrl.origin))
+          }
           console.error('❌ Password recovery verification failed:', verifyError)
-          // Send users back to forgot password with a friendly error
-          const isAdminReset = (redirectTo && redirectTo.includes('/admin-reset-password')) || (next && next.includes('admin-reset-password'))
-          const fallback = isAdminReset ? '/en/auth/admin-forgot-password?error=invalid_link' : '/en/auth/forgot-password?error=invalid_link'
-          return NextResponse.redirect(new URL(fallback, requestUrl.origin))
+        } else {
+          console.error('❌ Missing recovery credentials (no code, no token)')
         }
 
-        console.log('✅ Recovery session established:', { userId: data.session.user.id, email: data.session.user.email })
-        const wantsAdminReset = (redirectTo && redirectTo.includes('/admin-reset-password')) || (next && next.includes('admin-reset-password'))
-        const dest = wantsAdminReset ? '/en/auth/admin-reset-password' : '/en/auth/reset-password'
-        const redirectUrl = new URL(dest, requestUrl.origin).toString()
-        console.log('🔄 Redirecting to (recovery):', redirectUrl)
-        return NextResponse.redirect(redirectUrl)
+        // Send users back to forgot password with a friendly error
+        const isAdminReset = (redirectTo && redirectTo.includes('/admin-reset-password')) || (next && next.includes('admin-reset-password'))
+        const fallback = isAdminReset ? '/en/auth/admin-forgot-password?error=invalid_link' : '/en/auth/forgot-password?error=invalid_link'
+        return NextResponse.redirect(new URL(fallback, requestUrl.origin))
       } catch (e) {
-        console.error('❌ Unexpected error during recovery verification:', e)
+        console.error('❌ Unexpected error during recovery handling:', e)
         const errorUrl = new URL('/auth/error', requestUrl.origin)
-        errorUrl.searchParams.set('error', 'recovery_verify_failed')
-        errorUrl.searchParams.set('message', 'Failed to verify password recovery link')
+        errorUrl.searchParams.set('error', 'recovery_failed')
+        errorUrl.searchParams.set('message', 'Failed to process password recovery link')
         return NextResponse.redirect(errorUrl)
       }
     }
 
-    // Regular OAuth / magic-link exchange
+    // Non-recovery flows
+    if (!code) {
+      console.error('❌ No auth code provided in callback (non-recovery)')
+      const errorUrl = new URL('/auth/error', requestUrl.origin)
+      errorUrl.searchParams.set('error', 'missing_code')
+      errorUrl.searchParams.set('message', 'No authorization code provided')
+      return NextResponse.redirect(errorUrl)
+    }
+
+    console.log('🔑 Exchanging code for session...')
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
     if (exchangeError) {
       console.error('❌ Code exchange failed:', exchangeError)
-
       const errorUrl = new URL('/auth/error', requestUrl.origin)
       errorUrl.searchParams.set('error', 'exchange_failed')
       errorUrl.searchParams.set('message', exchangeError.message)
@@ -141,27 +143,21 @@ export async function GET(request: NextRequest) {
 
     if (!data.session) {
       console.error('❌ No session returned from code exchange')
-
       const errorUrl = new URL('/auth/error', requestUrl.origin)
       errorUrl.searchParams.set('error', 'no_session')
       errorUrl.searchParams.set('message', 'Failed to establish session')
       return NextResponse.redirect(errorUrl)
     }
 
-    console.log('✅ Session established successfully:', {
-      userId: data.session.user.id,
-      email: data.session.user.email
-    })
+    console.log('✅ Session established successfully:', { userId: data.session.user.id, email: data.session.user.email })
 
     const sanitizedNext = sanitizeNext(next)
     const redirectUrl = new URL(sanitizedNext, requestUrl.origin).toString()
-
     console.log('🔄 Redirecting to:', redirectUrl)
     return NextResponse.redirect(redirectUrl)
 
   } catch (error) {
     console.error('❌ Unexpected error in auth callback:', error)
-
     const errorUrl = new URL('/auth/error', requestUrl.origin)
     errorUrl.searchParams.set('error', 'unexpected_error')
     errorUrl.searchParams.set('message', 'An unexpected error occurred during authentication')
