@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Categorize products based on their BoxHero metadata attributes
  * This specifically addresses the Home category discrepancy issue
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('🔄 Starting BoxHero-based product categorization...');
+    // Disable in production unless explicitly enabled
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
+      return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
+    }
     
     const supabase = createServiceRoleClient();
     
@@ -125,6 +130,18 @@ export async function POST(request: NextRequest) {
     
     console.log(`✅ BoxHero categorization completed. Categorized ${categorizedCount} products.`);
     
+    // Audit log successful debug operation
+    try {
+      await supabase.rpc('log_admin_activity', {
+        p_admin_user_id: adminUser?.id || null,
+        p_action_type: 'debug_categorize_boxhero_products',
+        p_action_description: `Categorized ${categorizedCount} products (total processed: ${products.length}, errors: ${errors.length})`,
+        p_resource_type: 'debug_endpoint',
+        p_resource_name: 'categorize-boxhero-products',
+        p_metadata: { endpoint: request.nextUrl?.pathname, method: request.method }
+      });
+    } catch {}
+
     return NextResponse.json({
       success: true,
       categorizedCount,
@@ -140,7 +157,20 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('❌ BoxHero categorization error:', error);
-    
+
+    // Audit log failure
+    try {
+      const adminClient = createServiceRoleClient();
+      await adminClient.rpc('log_admin_activity', {
+        p_admin_user_id: (typeof adminUser !== 'undefined' && adminUser?.id) ? adminUser.id : null,
+        p_action_type: 'debug_categorize_boxhero_products',
+        p_action_description: 'Failed to categorize products using BoxHero metadata',
+        p_resource_type: 'debug_endpoint',
+        p_resource_name: 'categorize-boxhero-products',
+        p_metadata: { error: error instanceof Error ? error.message : 'Unknown error', endpoint: request.nextUrl?.pathname, method: request.method }
+      });
+    } catch {}
+
     return NextResponse.json(
       {
         error: 'Failed to categorize products using BoxHero metadata',
@@ -149,4 +179,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { rateLimitType: 'admin_bulk_operations' })

@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { CategoriesService } from '@/lib/categories-service';
+import { withAdminAuth } from '@/lib/auth/admin-middleware';
 
 /**
  * Fix category data accuracy issues
  * Recategorizes miscategorized products and categorizes uncategorized products
  */
-export async function POST(request: NextRequest) {
+export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('🔧 Starting category recategorization fix...');
+    // Disable in production unless explicitly enabled
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEBUG_ENDPOINTS !== 'true') {
+      return NextResponse.json({ success: false, error: 'Endpoint disabled in production' }, { status: 404 });
+    }
     
     const supabase = createServiceRoleClient();
     
@@ -151,7 +156,19 @@ export async function POST(request: NextRequest) {
     }
     
     console.log(`✅ Categorization fix completed. Fixed ${fixedCount} products.`);
-    
+
+    // Audit log successful debug operation
+    try {
+      await supabase.rpc('log_admin_activity', {
+        p_admin_user_id: adminUser?.id || null,
+        p_action_type: 'debug_fix_categorization',
+        p_action_description: `Fixed ${fixedCount} products (errors: ${errors.length})`,
+        p_resource_type: 'debug_endpoint',
+        p_resource_name: 'fix-categorization',
+        p_metadata: { endpoint: request.nextUrl?.pathname, method: request.method }
+      });
+    } catch {}
+
     return NextResponse.json({
       success: true,
       fixedCount,
@@ -166,7 +183,20 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('❌ Categorization fix error:', error);
-    
+
+    // Audit log failure
+    try {
+      const adminClient = createServiceRoleClient();
+      await adminClient.rpc('log_admin_activity', {
+        p_admin_user_id: (typeof adminUser !== 'undefined' && adminUser?.id) ? adminUser.id : null,
+        p_action_type: 'debug_fix_categorization',
+        p_action_description: 'Failed to fix categorization',
+        p_resource_type: 'debug_endpoint',
+        p_resource_name: 'fix-categorization',
+        p_metadata: { error: error instanceof Error ? error.message : 'Unknown error', endpoint: request.nextUrl?.pathname, method: request.method }
+      });
+    } catch {}
+
     return NextResponse.json(
       {
         error: 'Failed to fix categorization',
@@ -175,4 +205,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { rateLimitType: 'admin_bulk_operations' })

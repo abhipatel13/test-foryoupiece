@@ -155,6 +155,21 @@ export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser
 
           console.log(`✅ Successfully awarded ${pointsToAward} points to user ${order.user_id}`);
           console.log(`💰 Points transaction ID: ${transaction.id}`);
+
+          // Best-effort web notification for loyalty points earned
+          try {
+            await supabase
+              .from('notifications')
+              .insert({
+                user_id: order.user_id,
+                title: 'Points earned',
+                message: `You earned ${pointsToAward.toLocaleString()} points from order #${order.order_number}.`,
+                type: 'success',
+                metadata: { points: pointsToAward, source: 'order_earned', order_number: order.order_number }
+              })
+          } catch (e) {
+            console.warn('Points earned notification insert failed', e)
+          }
         } else {
           console.log('⚠️ No points to award (order total is $0 or negative)');
         }

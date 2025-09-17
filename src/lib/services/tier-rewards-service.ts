@@ -377,6 +377,20 @@ export class TierRewardsService {
       }
 
       console.log(`✅ Created free shipping coupon ${couponCode} for user ${userId}`)
+      // Best-effort web notification to user about rewarded coupon
+      try {
+        await this.serviceClient
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            title: 'You received a coupon',
+            message: `Free shipping coupon awarded! Code ${coupon.code} (valid for 1 year).`,
+            type: 'success',
+            metadata: { coupon_id: coupon.id, code: coupon.code, source: 'tier_reward' }
+          })
+      } catch (e) {
+        console.warn('Failed to insert coupon reward notification', e)
+      }
       return { couponId: coupon.id, couponCode: coupon.code }
     } catch (error: any) {
       console.error('❌ Failed to create free shipping coupon:', error)
@@ -430,6 +444,20 @@ export class TierRewardsService {
       }
 
       console.log(`✅ Created ${reward.reward_value}% coupon ${couponCode} for user ${userId}`)
+      // Best-effort web notification to user about rewarded coupon
+      try {
+        await this.serviceClient
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            title: 'You received a coupon',
+            message: `${reward.reward_value}% off coupon awarded! Code ${coupon.code} (valid for 1 year).`,
+            type: 'success',
+            metadata: { coupon_id: coupon.id, code: coupon.code, source: 'tier_reward' }
+          })
+      } catch (e) {
+        console.warn('Failed to insert coupon reward notification', e)
+      }
       return { couponId: coupon.id, couponCode: coupon.code }
     } catch (error: any) {
       console.error('❌ Failed to create percentage coupon:', error)
