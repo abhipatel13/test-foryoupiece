@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const type = searchParams.get('type')
   const redirectTo = searchParams.get('redirectTo') ?? '/'
+  // Supabase recovery links may use token or token_hash; normalize here
+  const token = searchParams.get('token') || searchParams.get('token_hash') || code
 
   // Check for error parameters from Supabase verification
   const error = searchParams.get('error')
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/en/auth/login?error=auth_error&details=${encodeURIComponent(errorDescription || error)}`)
   }
 
-  if (code) {
+  if (code || token) {
     const supabase = await createClient()
 
     if (!supabase) {
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
         try {
           console.log('🔄 Attempting to verify OTP for password recovery...')
           const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: code,
+            token_hash: token as string,
             type: 'recovery'
           })
 
