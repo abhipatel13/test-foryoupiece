@@ -34,16 +34,27 @@ export function OptimizedAccountDropdown({ className = '' }: OptimizedAccountDro
   // Ensure real session exists to avoid showing dropdown on stale persisted state
   useEffect(() => {
     let canceled = false
-    ;(async () => {
+
+    const check = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!canceled) setHasSession(!!session?.access_token)
       } catch {
         if (!canceled) setHasSession(false)
       }
-    })()
-    return () => { canceled = true }
-  }, [supabase])
+    }
+
+    // Initial check and keep in sync with auth changes
+    check()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (!canceled) setHasSession(!!session?.access_token)
+    })
+
+    return () => {
+      canceled = true
+      try { subscription?.unsubscribe() } catch {}
+    }
+  }, [supabase, isAuthenticated])
 
   // Multi-tab synchronization
   const { broadcast } = useMultiTabSync({

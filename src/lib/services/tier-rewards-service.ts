@@ -4,7 +4,7 @@ import { getTierFromPoints, isTierUpgrade } from '@/lib/utils'
 export interface TierReward {
   id: string
   tier_level: string
-  reward_type: 'points_bonus' | 'free_shipping_coupon' | 'gift_notification' | 'permanent_free_shipping' | 'exclusive_access'
+  reward_type: 'points_bonus' | 'free_shipping_coupon' | 'percentage_coupon' | 'gift_notification' | 'permanent_free_shipping' | 'exclusive_access'
   reward_value: number
   reward_description: string
   is_active: boolean
@@ -97,11 +97,11 @@ export class TierRewardsService {
         is_active: true
       },
       {
-        id: 'platinum-gift-notification',
+        id: 'platinum-10pct-coupon',
         tier_level: 'platinum',
-        reward_type: 'gift_notification',
-        reward_value: 50,
-        reward_description: '$50 gift notification for reaching Platinum tier',
+        reward_type: 'percentage_coupon',
+        reward_value: 10,
+        reward_description: '10% off coupon (single use) for reaching Platinum tier',
         is_active: true
       }
     ],
@@ -112,6 +112,14 @@ export class TierRewardsService {
         reward_type: 'permanent_free_shipping',
         reward_value: 0,
         reward_description: 'Permanent free shipping privilege for Diamond tier',
+        is_active: true
+      },
+      {
+        id: 'diamond-15pct-coupon',
+        tier_level: 'diamond',
+        reward_type: 'percentage_coupon',
+        reward_value: 15,
+        reward_description: '15% off coupon (single use) for reaching Diamond tier',
         is_active: true
       },
       {
@@ -264,7 +272,7 @@ export class TierRewardsService {
 
       // Update user's points balance (but NOT total_points_earned to avoid affecting tier calculations)
       const { error: updateError } = await serviceClient
-        .rpc('update_user_points', {
+        .rpc('award_bonus_points_balance_only', {
           p_user_id: userId,
           p_points: reward.reward_value
         })
@@ -377,6 +385,59 @@ export class TierRewardsService {
   }
 
   /**
+   * Create a percentage discount coupon for tier reward
+   */
+  private async createPercentageCoupon(userId: string, reward: TierReward): Promise<{ couponId: string; couponCode: string }> {
+    try {
+      const serviceClient = this.getServiceClient()
+      if (!serviceClient) {
+        throw new Error('Service client not available')
+      }
+
+      const couponCode = await this.generateUniqueCouponCode(reward.tier_level, userId)
+
+      const expiresAt = new Date()
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+
+      const couponData = {
+        code: couponCode,
+        name: `${reward.tier_level.charAt(0).toUpperCase() + reward.tier_level.slice(1)} Tier ${reward.reward_value}% Off`,
+        description: `${reward.reward_value}% off coupon (single use) awarded for reaching ${reward.tier_level} tier`,
+        discount_type: 'percentage',
+        discount_value: reward.reward_value,
+        allowed_user_ids: JSON.stringify([userId]),
+        per_user_usage_limit: 1,
+        total_usage_limit: 1,
+        expires_at: expiresAt.toISOString(),
+        status: 'active',
+        metadata: {
+          tier_reward: true,
+          tier_level: reward.tier_level,
+          user_id: userId,
+          awarded_at: new Date().toISOString(),
+          auto_generated: true
+        }
+      }
+
+      const { data: coupon, error: couponError } = await serviceClient
+        .from('coupons')
+        .insert(couponData)
+        .select()
+        .single()
+
+      if (couponError) {
+        throw new Error(`Failed to create percentage coupon: ${couponError.message}`)
+      }
+
+      console.log(`✅ Created ${reward.reward_value}% coupon ${couponCode} for user ${userId}`)
+      return { couponId: coupon.id, couponCode: coupon.code }
+    } catch (error: any) {
+      console.error('❌ Failed to create percentage coupon:', error)
+      throw error
+    }
+  }
+
+  /**
    * Enable permanent free shipping for Diamond tier users
    */
   private async enablePermanentFreeShipping(userId: string): Promise<void> {
@@ -429,9 +490,15 @@ export class TierRewardsService {
           break
         
         case 'free_shipping_coupon':
-          const couponResult = await this.createFreeShippingCoupon(userId, reward)
-          couponId = couponResult.couponId
-          couponCode = couponResult.couponCode
+          { const couponResult = await this.createFreeShippingCoupon(userId, reward)
+            couponId = couponResult.couponId
+            couponCode = couponResult.couponCode }
+          break
+
+        case 'percentage_coupon':
+          { const couponResult = await this.createPercentageCoupon(userId, reward)
+            couponId = couponResult.couponId
+            couponCode = couponResult.couponCode }
           break
         
         case 'permanent_free_shipping':
@@ -531,6 +598,7 @@ export class TierRewardsService {
       let rewardsSummary = ''
       const pointsRewards = rewardsAwarded.filter(r => r.reward_type === 'points_bonus')
       const couponRewards = rewardsAwarded.filter(r => r.reward_type === 'free_shipping_coupon')
+      const percentCouponRewards = rewardsAwarded.filter(r => r.reward_type === 'percentage_coupon')
       const giftRewards = rewardsAwarded.filter(r => r.reward_type === 'gift_notification')
       const permanentShipping = rewardsAwarded.find(r => r.reward_type === 'permanent_free_shipping')
       const exclusiveAccess = rewardsAwarded.find(r => r.reward_type === 'exclusive_access')
@@ -544,6 +612,11 @@ export class TierRewardsService {
 
       if (couponRewards.length > 0) {
         rewards.push(`🚚 Free shipping coupon (valid for 1 year)`)
+      }
+
+      if (percentCouponRewards.length > 0) {
+        const maxPct = Math.max(...percentCouponRewards.map(r => r.reward_value || 0))
+        rewards.push(`🏷️ ${maxPct}% off coupon (single use; valid for 1 year)`)
       }
 
       if (giftRewards.length > 0) {

@@ -233,14 +233,14 @@ export default function PointsResetCountdown() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Annual Points Reset Countdown
+            Rank Tracking Reset (Manual Only)
           </CardTitle>
           <CardDescription>
-            All user points will be reset to 0 on January 1st, {new Date().getFullYear() + 1}
+            Resets are manual-only and do not zero spendable points. Usable points are preserved.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {countdown && (
+          {false && countdown && (
             <div className="grid grid-cols-4 gap-4 mb-6">
               {[
                 { label: 'Days', value: countdown.days },
@@ -258,19 +258,15 @@ export default function PointsResetCountdown() {
             </div>
           )}
 
-          <div className="space-y-2 text-sm text-gray-600">
+          <div className="space-y-2 text-sm text-gray-700">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              <span>Next Reset: {formatDate(resetInfo.nextResetDate)}</span>
+              <span>No automatic reset is scheduled. Admins can run a manual rank tracking reset anytime.</span>
             </div>
-            {resetInfo.currentYearReset && (
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-600">
-                  Points already reset this year on {formatDate(resetInfo.currentYearReset.reset_date)}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-green-700">Usable points balances are always preserved.</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -333,7 +329,7 @@ export default function PointsResetCountdown() {
               Manual Reset (Super Admin Only)
             </CardTitle>
             <CardDescription className="text-amber-700">
-              Perform an immediate points reset for all users. This action cannot be undone.
+              Perform an immediate rank tracking reset for all users. Usable points balances are preserved. This action cannot be undone.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -344,6 +340,7 @@ export default function PointsResetCountdown() {
                   Perform Manual Reset
                 </Button>
               </DialogTrigger>
+              <p className="mt-2 text-xs text-amber-700">Spendable points are permanent; only rank tracking resets.</p>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -351,7 +348,8 @@ export default function PointsResetCountdown() {
                     Confirm Manual Points Reset
                   </DialogTitle>
                   <DialogDescription>
-                    This will immediately reset ALL user points to 0 and set all user tiers to Bronze.
+                    This will reset all user tiers to Bronze and reset lifetime points tracking to 0.
+                    Usable points balances will be preserved.
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -360,15 +358,16 @@ export default function PointsResetCountdown() {
                     <AlertTriangle className="h-4 w-4 text-red-600" />
                     <AlertDescription className="text-red-800">
                       <strong>WARNING:</strong> This action is irreversible and will affect all users immediately.
-                      All points balances will be set to 0 and user ranks will be reset to Bronze.
+                      Rank progression will be reset to 0 and tiers set to Bronze. Usable points balances are preserved.
                     </AlertDescription>
                   </Alert>
 
                   <div className="space-y-2 text-sm">
                     <p><strong>This action will:</strong></p>
                     <ul className="list-disc list-inside space-y-1 text-gray-600">
-                      <li>Reset all user points balances to 0</li>
-                      <li>Set all user tiers to Bronze</li>
+                      <li>Reset all user tiers to Bronze</li>
+                      <li>Reset all lifetime points earned tracking to 0</li>
+                      <li><strong className="text-green-700">PRESERVE all usable points balances</strong></li>
                       <li>Create a reset history record</li>
                       <li>Log the action for audit purposes</li>
                       <li>Cannot be undone</li>
@@ -425,6 +424,7 @@ export default function PointsResetCountdown() {
                   Reset All User Ranks & Lifetime Points Tracking (and change the name to Annually accumulated points)
                 </Button>
               </DialogTrigger>
+              <p className="mt-2 text-xs text-purple-700">Spendable points are permanent; only rank tracking resets.</p>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-purple-600">

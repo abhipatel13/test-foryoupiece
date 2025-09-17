@@ -36,17 +36,28 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const [hasSession, setHasSession] = useState<boolean | null>(null)
   useEffect(() => {
     let canceled = false
-    ;(async () => {
+    const supabase = createClient()
+
+    const check = async () => {
       try {
-        const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
         if (!canceled) setHasSession(!!session?.access_token)
       } catch {
         if (!canceled) setHasSession(false)
       }
-    })()
-    return () => { canceled = true }
-  }, [])
+    }
+
+    // Initial check and keep in sync with real auth changes
+    check()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (!canceled) setHasSession(!!session?.access_token)
+    })
+
+    return () => {
+      canceled = true
+      try { subscription?.unsubscribe() } catch {}
+    }
+  }, [isAuthenticated])
 
   // Use simple auth hook without complex optimizations
   const [unreadCount, setUnreadCount] = useState(0)

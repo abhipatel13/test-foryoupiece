@@ -114,16 +114,9 @@ export async function GET(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Get next reset date and time until reset
-    const { data: nextResetDate, error: nextResetError } = await serviceClient
-      .rpc('get_next_points_reset_date');
-
-    const { data: timeUntilReset, error: timeUntilError } = await serviceClient
-      .rpc('get_time_until_reset');
-
-    if (nextResetError || timeUntilError) {
-      console.error('❌ Failed to get reset timing:', { nextResetError, timeUntilError });
-    }
+    // Manual-only: no automatic reset schedule; suppress countdown values
+    const nextResetDate = null;
+    const timeUntilReset = null;
 
     // Get reset history
     const { data: resetHistory, error: historyError } = await serviceClient

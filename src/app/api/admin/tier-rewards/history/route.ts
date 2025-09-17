@@ -53,7 +53,6 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
         reward_description,
         status,
         coupon_id,
-        coupon_code,
         point_transaction_id,
         awarded_at,
         expires_at,
@@ -62,6 +61,9 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
           last_name,
           email,
           avatar_url
+        ),
+        coupon:coupons(
+          code
         )
       `, { count: 'exact' });
 
@@ -121,7 +123,8 @@ export const GET = withAdminAuth(async (request: NextRequest, { user, adminUser 
     // Format the rewards data
     const formattedRewards = rewards?.map(reward => ({
       ...reward,
-      user: reward.users
+      user: reward.users,
+      coupon_code: reward.coupon?.code ?? null
     })) || [];
 
     console.log('✅ Tier rewards history fetched successfully:', {

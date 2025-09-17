@@ -285,11 +285,21 @@ export class PointsService {
         throw new Error('Failed to create points transaction')
       }
 
-      // Update user's points balance and total points earned
-      const { error: userUpdateError } = await this.serviceClient.rpc('update_user_points', {
-        p_user_id: userId,
-        p_points: points
-      })
+      // Update user's points balance; ensure tier-reward bonuses do NOT affect rank totals
+      let userUpdateError: any = null
+      if (transactionType === 'bonus' && (referenceType === 'tier_reward' || (description || '').includes('Tier reward'))) {
+        const { error } = await this.serviceClient.rpc('award_bonus_points_balance_only', {
+          p_user_id: userId,
+          p_points: points
+        })
+        userUpdateError = error
+      } else {
+        const { error } = await this.serviceClient.rpc('update_user_points', {
+          p_user_id: userId,
+          p_points: points
+        })
+        userUpdateError = error
+      }
 
       if (userUpdateError) {
         console.error('Error updating user points:', userUpdateError)
@@ -1006,8 +1016,8 @@ export class PointsService {
       bronze: ['10 points per $1 spent', 'Welcome bonus'],
       silver: ['10 points per $1 spent', 'Free shipping coupon on tier achievement'],
       gold: ['10 points per $1 spent', '10,000 bonus points on tier achievement', 'Free shipping coupon'],
-      platinum: ['10 points per $1 spent', '20,000 bonus points on tier achievement', '$50 gift notification'],
-      diamond: ['10 points per $1 spent', 'Permanent free shipping', '$100 end-of-year bundle pack']
+      platinum: ['10 points per $1 spent', '20,000 bonus points on tier achievement', '10% off coupon'],
+      diamond: ['10 points per $1 spent', 'Permanent free shipping', '15% off coupon', '$100 end-of-year bundle pack']
     }
 
     return benefits[tier] || benefits.bronze
