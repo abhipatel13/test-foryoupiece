@@ -274,6 +274,9 @@ export class TelegramNotificationService {
       console.log(`📱 Sending Telegram notification for order ${order.order_number}`);
 
       const message = this.formatOrderMessage(order);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔎 Telegram notification preview:\n' + message);
+      }
 
       const response = await this.sendMessage({
         chat_id: this.config.notificationGroupId,
@@ -331,6 +334,9 @@ export class TelegramNotificationService {
       console.log(`📱 Sending confirmation message for order ${order.order_number}: ${action}`);
 
       const message = this.formatConfirmationMessage(order, action, processedBy);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔎 Telegram confirmation preview:\n' + message);
+      }
 
       const response = await this.sendMessage({
         chat_id: this.config.confirmationGroupId,
@@ -454,11 +460,16 @@ export class TelegramNotificationService {
 
     const fullAddress = addressComponents.length > 0 ? addressComponents.join(', ') : '';
 
-    // Format order items with more details
-    const items = order.order_items?.map(item => {
-      const sku = item.sku ? ` (${item.sku})` : '';
-      return `• ${item.title}${sku}\n  Qty: ${item.quantity} × $${item.price.toFixed(2)} = $${item.total.toFixed(2)}`;
-    }).join('\n') || 'No items found';
+    // Format ORDER ITEMS as numbered list with blank lines between items
+    // Format: "1. Product Name x QTY = $TOTAL" and add a blank line between each item
+    const items = (order.order_items && order.order_items.length > 0)
+      ? ('\n' + order.order_items.map((item, index) => {
+          const title = item.title || 'Item';
+          const quantity = Number(item.quantity || 0);
+          const total = Number(item.total || (Number(item.price || 0) * quantity));
+          return `${index + 1}. ${title} x ${quantity} = $${total.toFixed(2)}`;
+        }).join('\n\n'))
+      : 'No items found';
 
     // Format discount information
     const discountInfo = [];
@@ -536,15 +547,15 @@ ${specialNotes ? `📝 <b>Special Notes:</b>\n${specialNotes}\n\n` : ''}📅 <b>
     }
 
     // Format order items directly
-    let orderItemsText = '• No items found';
+    let orderItemsText = 'No items found';
     if (order.order_items && order.order_items.length > 0) {
-      orderItemsText = order.order_items.map((item: any) => {
+      orderItemsText = '\n' + order.order_items.map((item: any, index: number) => {
         const title = item.title || 'Unknown Item';
         const quantity = item.quantity || 1;
-        const price = parseFloat(item.price || '0');
+
         const total = parseFloat(item.total || '0');
-        return `• ${title}\n  Qty: ${quantity} × $${price.toFixed(2)} = $${total.toFixed(2)}`;
-      }).join('\n');
+        return `${index + 1}. ${title} x ${quantity} = $${total.toFixed(2)}`;
+      }).join('\n\n');
     }
 
     // Calculate discount and points

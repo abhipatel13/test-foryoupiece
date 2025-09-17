@@ -76,6 +76,8 @@ export default function CartPage() {
     hasIssues: boolean
     canCheckout: boolean
   } | null>(null)
+  // Smooth remove animation state by key (id+variant)
+  const [removingMap, setRemovingMap] = useState<Record<string, boolean>>({})
 
   // Recommendations state for cart page
   const [recommendedProducts, setRecommendedProducts] = useState<any[]>([])
@@ -232,7 +234,14 @@ export default function CartPage() {
   }
 
   const handleRemoveItem = async (itemId: string, variant?: string) => {
+    // Pre-animate the row to avoid flicker, then remove
+    const key = generateCartItemKey(itemId, variant)
+    setRemovingMap((m) => ({ ...m, [key]: true }))
+
+    // Give the UI a short time to animate before mutating store
+    const ANIM_MS = 250
     try {
+      await new Promise((r) => setTimeout(r, ANIM_MS))
       await removeItem(itemId, variant)
       toast.success('Item removed from cart')
 
@@ -244,10 +253,17 @@ export default function CartPage() {
           // Reset validation state if cart is now empty
           setStockValidationResult(null)
         }
-      }, 200)
+      }, 250)
     } catch (error) {
       console.error('Failed to remove item:', error)
       toast.error('Failed to remove item')
+    } finally {
+      // Clear removing state just in case the row persists (safety)
+      setRemovingMap((m) => {
+        const copy = { ...m }
+        delete copy[key]
+        return copy
+      })
     }
   }
 
@@ -478,7 +494,16 @@ export default function CartPage() {
               {/* Improved Cart Items Layout - Optimized Mobile Spacing */}
               <div className="divide-y divide-gray-100">
                 {items.map((item) => (
-                  <div key={generateCartItemKey(item.id, item.variant)} className={`p-2 sm:p-3 lg:p-6 hover:bg-gray-50 transition-all duration-200 ${ (item.stockStatus === 'out_of_stock' || item.stockStatus === 'insufficient_stock') ? 'border border-red-300 rounded-lg' : '' }`}>
+                  <div
+                    key={generateCartItemKey(item.id, item.variant)}
+                    className={`p-2 sm:p-3 lg:p-6 hover:bg-gray-50 transition-all duration-200 ${
+                      (item.stockStatus === 'out_of_stock' || item.stockStatus === 'insufficient_stock') ? 'border border-red-300 rounded-lg' : ''
+                    } ${
+                      removingMap[generateCartItemKey(item.id, item.variant)]
+                        ? 'opacity-0 pointer-events-none p-0 max-h-0 overflow-hidden'
+                        : ''
+                    }`}
+                  >
                     <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-3">
                       {/* Left Section: Checkbox and Image */}
                       <div className="flex items-start space-x-2 sm:contents">

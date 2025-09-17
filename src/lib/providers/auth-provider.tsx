@@ -264,7 +264,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Proactively ensure a profile exists before fetching it (handles new users across all providers)
       try {
         const controller = new AbortController()
-        const t = setTimeout(() => controller.abort(), 2000)
+        const t = setTimeout(() => controller.abort(), 5000)
         await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
         clearTimeout(t)
       } catch (e) {
@@ -698,7 +698,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               // Proactively ensure a users row exists for new accounts (covers Google/Telegram/email)
               try {
                 const controller = new AbortController()
-                const t = setTimeout(() => controller.abort(), 2000)
+                const t = setTimeout(() => controller.abort(), 5000)
                 await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
                 clearTimeout(t)
               } catch (e) {

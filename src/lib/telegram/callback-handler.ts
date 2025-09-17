@@ -689,15 +689,15 @@ ${emoji} <b>ORDER ${actionText}</b>
     }
 
     // Format order items directly
-    let orderItemsText = '• No items found';
+    let orderItemsText = 'No items found';
     if (order.order_items && order.order_items.length > 0) {
-      orderItemsText = order.order_items.map((item: any) => {
+      orderItemsText = '\n' + order.order_items.map((item: any, index: number) => {
         const title = item.title || 'Unknown Item';
         const quantity = item.quantity || 1;
-        const price = parseFloat(item.price || '0');
+
         const total = parseFloat(item.total || '0');
-        return `• ${title}\n  Qty: ${quantity} × $${price.toFixed(2)} = $${total.toFixed(2)}`;
-      }).join('\n');
+        return `${index + 1}. ${title} x ${quantity} = $${total.toFixed(2)}`;
+      }).join('\n\n');
     }
 
     // Calculate discount and points

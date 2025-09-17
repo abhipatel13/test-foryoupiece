@@ -53,7 +53,7 @@ const userQueries = {
       // Only log errors, not routine "not found" cases
       if (error.code === 'PGRST116' || error.message?.includes('No rows found')) {
         // Cache null result to prevent repeated queries for non-existent profiles
-        cache.set(cacheKey, null, 30000) // Reduced to 30 seconds for null results
+        cache.set(cacheKey, null, 3000) // Reduce null-result cache to 3 seconds to avoid stale profile on first-load races
         return null
       }
 
@@ -75,7 +75,7 @@ const userQueries = {
     }
 
     if (!data) {
-      cache.set(cacheKey, null, 30000) // Cache null result
+      cache.set(cacheKey, null, 3000) // Cache null result briefly (3s) to limit UI staleness
       return null
     }
 
