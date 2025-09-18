@@ -157,12 +157,19 @@ export const GET = withAdminAuth(async (
         product_sku: item.sku,
         product_image_url: null, // We'll fetch this separately if needed
         quantity: item.quantity,
+        cancelled_quantity: item.cancelled_quantity || 0,
         unit_price: parseFloat(item.price),
         total_price: parseFloat(item.total),
         variant_title: item.variant_title
       })) || [],
-      // Calculate subtotal from order items
-      subtotal: order.order_items?.reduce((sum: number, item: any) => sum + parseFloat(item.total), 0) || 0,
+      // Calculate subtotal from order items (excluding cancelled portions)
+      subtotal: order.order_items?.reduce((sum: number, item: any) => {
+        const total = parseFloat(item.total)
+        const cancelled = Number(item.cancelled_quantity || 0)
+        const qty = Number(item.quantity || 0)
+        const effective = qty > 0 ? total * (1 - Math.min(1, cancelled / qty)) : total
+        return sum + effective
+      }, 0) || 0,
       // Shipping cost calculation
       shipping_cost: order.shipping_cost || 1.50,
       // Tax amount

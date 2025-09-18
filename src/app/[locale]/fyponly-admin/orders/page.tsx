@@ -324,7 +324,7 @@ export default function AdminOrdersPage() {
                           <span className="ml-1 capitalize">{order.fulfillment_status}</span>
                         </Badge>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
                         <div>
                           <p><strong>Customer:</strong> {order.customer_email}</p>
@@ -401,6 +401,19 @@ export default function AdminOrdersPage() {
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Mark as Delivered
                               </Button>
+                              {order.payment_status === 'verified' && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleCancelOrder(order.id)}
+                                  disabled={updating === order.id}
+                                  className="w-full"
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  Cancel Order
+                                </Button>
+                              )}
+
                             </div>
                           )}
 
@@ -420,7 +433,7 @@ export default function AdminOrdersPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <Button asChild variant="outline" size="sm">
                         <Link href={`/en/fyponly-admin/orders/${order.id}`}>
@@ -438,7 +451,7 @@ export default function AdminOrdersPage() {
               <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
               <p className="text-gray-500">
-                {searchTerm || statusFilter !== 'all' 
+                {searchTerm || statusFilter !== 'all'
                   ? 'Try adjusting your search or filter criteria.'
                   : 'Orders will appear here when customers make purchases.'
                 }

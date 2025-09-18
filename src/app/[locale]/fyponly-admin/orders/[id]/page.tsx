@@ -35,6 +35,7 @@ interface OrderItem {
   product_sku: string
   product_image_url: string | null
   quantity: number
+  cancelled_quantity?: number
   unit_price: number
   total_price: number
 }
@@ -107,10 +108,13 @@ export default function AdminOrderDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const orderId = params.id as string
-  
+
   const [order, setOrder] = useState<OrderDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [cancelInputs, setCancelInputs] = useState<Record<string, number>>({})
+  const [keepStockOut, setKeepStockOut] = useState(false)
+
 
   useEffect(() => {
     if (orderId) {
@@ -121,7 +125,7 @@ export default function AdminOrderDetailsPage() {
   const loadOrderDetails = async () => {
     try {
       console.log('📋 Loading order details for ID:', orderId)
-      
+
       const response = await fetch(`/api/admin/orders/${orderId}`)
       const result = await response.json()
 
@@ -141,7 +145,7 @@ export default function AdminOrderDetailsPage() {
 
   const handleStatusUpdate = async (newStatus: string, type: 'payment' | 'fulfillment') => {
     if (!order) return
-    
+
     setUpdating(true)
     try {
       console.log('📝 Updating order status:', { orderId, newStatus, type })
@@ -179,6 +183,79 @@ export default function AdminOrderDetailsPage() {
       setUpdating(false)
     }
   }
+
+  // Cancel order (for confirmed orders)
+  const handleCancelOrder = async () => {
+    if (!order) return
+    setUpdating(true)
+    try {
+      const res = await fetch('/api/admin/orders/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id })
+      })
+      const result = await res.json()
+      if (!result.success) throw new Error(result.error || 'Failed to cancel order')
+
+      setOrder(prev => (prev ? { ...prev, fulfillment_status: 'cancelled' } : prev))
+      toast.success('Order cancelled successfully')
+    } catch (e) {
+      console.error('Failed to cancel order', e)
+      toast.error('Failed to cancel order')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const computeRefundPreview = () => {
+    if (!order) return { amount: 0, points: 0 }
+    let amount = 0
+    for (const it of order.order_items) {
+      const req = Math.max(0, Math.min(
+        cancelInputs[it.id] || 0,
+        Math.max(0, it.quantity - (it.cancelled_quantity || 0))
+      ))
+      if (req > 0 && it.quantity > 0) {
+        const unit = Number(it.total_price) / Number(it.quantity)
+        amount += unit * req
+      }
+    }
+    const pointsCap = Math.max(0, Number(order.points_used || 0))
+    const points = Math.min(pointsCap, Math.round(amount * 1000))
+    return { amount, points }
+  }
+
+  const handleCancelSelected = async () => {
+    if (!order) return
+    const payloadItems = Object.entries(cancelInputs)
+      .map(([orderItemId, qty]) => ({ orderItemId, quantity: Number(qty || 0) }))
+      .filter((x) => x.quantity > 0)
+    if (payloadItems.length === 0) {
+      toast.error('Select at least one item/quantity to cancel')
+      return
+    }
+
+    setUpdating(true)
+    try {
+      const res = await fetch('/api/admin/orders/cancel-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, items: payloadItems, keepStockOut })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result?.error || 'Failed to cancel items')
+
+      toast.success('Selected items cancelled successfully')
+      setCancelInputs({})
+      await loadOrderDetails()
+    } catch (e) {
+      console.error('Partial cancel failed', e)
+      toast.error('Failed to cancel selected items')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -324,14 +401,67 @@ export default function AdminOrderDetailsPage() {
                       )}
                       <p className="text-sm text-gray-500">SKU: {item.product_sku}</p>
                       <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
+                      {(item.cancelled_quantity ?? 0) > 0 && (
+                        <p className="text-xs text-red-600">Cancelled: {item.cancelled_quantity}</p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-gray-900">{formatPrice(item.total_price)}</p>
                       <p className="text-sm text-gray-500">{formatPrice(item.unit_price)} each</p>
+                      {order.payment_status === 'verified' && (['pending','on_hold','processing','shipped'].includes(order.fulfillment_status)) && (
+                        <div className="mt-2 flex items-center justify-end gap-2">
+                          <label className="text-xs text-gray-500">Cancel</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={Math.max(0, item.quantity - (item.cancelled_quantity ?? 0))}
+                            value={Math.min(
+                              Math.max(0, cancelInputs[item.id] ?? 0),
+                              Math.max(0, item.quantity - (item.cancelled_quantity ?? 0))
+                            )}
+                            onChange={(e) => {
+                              const v = Number(e.target.value)
+                              setCancelInputs((prev) => ({ ...prev, [item.id]: v }))
+                            }}
+                            className="w-20 h-9 border rounded px-2 text-right"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {(order.payment_status === 'verified' && ['pending','on_hold','processing','shipped'].includes(order.fulfillment_status)) && (
+                <div className="mt-4 border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={keepStockOut}
+                        onChange={(e) => setKeepStockOut(e.target.checked)}
+                      />
+                      Do not restore stock for cancelled items
+                    </label>
+                    {(() => { const p = computeRefundPreview(); return (
+                      <div className="text-sm text-gray-700">
+                        Refund preview: <span className="font-semibold">{formatPrice(p.amount)}</span>
+                        {p.points > 0 && (<span> | Points: <span className="font-semibold">{p.points}</span> pts</span>)}
+                      </div>
+                    )})()}
+                  </div>
+                  <Button
+                    onClick={handleCancelSelected}
+                    disabled={updating || !Object.values(cancelInputs).some(v => Number(v) > 0)}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Selected Items
+                  </Button>
+                </div>
+              )}
+
             </CardContent>
           </Card>
 
@@ -617,6 +747,19 @@ export default function AdminOrderDetailsPage() {
                 >
                   <Package className="h-4 w-4 mr-2" />
                   Start Processing
+                </Button>
+              )}
+
+
+              {order.payment_status === 'verified' && ['pending','on_hold','processing','shipped'].includes(order.fulfillment_status) && (
+                <Button
+                  onClick={handleCancelOrder}
+                  disabled={updating}
+                  variant="destructive"
+                  className="w-full"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancel Order
                 </Button>
               )}
 

@@ -15,7 +15,7 @@ const noStoreHeaders = {
  * Cancel Order API - Cancel order and refund points
  * POST /api/admin/orders/cancel
  */
-export const POST = withAdminAuth(async (request: NextRequest) => {
+export const POST = withAdminAuth(async (request: NextRequest, { user, adminUser }) => {
   try {
     console.log('📦 Order cancellation API called');
 
@@ -63,13 +63,14 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       userId: order.user_id
     });
 
-    // Cancel the order using RPC function to avoid trigger issues
-    console.log('🔧 Using helper RPC function to cancel order');
+    // Cancel the order using Telegram-aware RPC function (keeps existing payment status)
+    console.log('🔧 Using Telegram-aware RPC function to cancel order');
     const { data: rpcResult, error: rpcError } = await supabase
-      .rpc('update_order_status', {
+      .rpc('update_order_status_with_telegram', {
         order_id: orderId,
         new_payment_status: order.payment_status, // Keep current payment status
-        new_fulfillment_status: 'cancelled'
+        new_fulfillment_status: 'cancelled',
+        processed_by_user: `Admin: ${adminUser?.email || 'admin'}`
       });
 
     if (rpcError) {
@@ -217,6 +218,37 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
           pointsRefunded: order.points_used || 0,
           cancellationReason: 'Cancelled by admin'
         });
+
+
+      // Send admin/staff Telegram cancellation notice (simplified message for cancellations)
+      try {
+        // Send simplified cancellation one-liner directly to the confirmation group
+        const botToken = process.env.TELEGRAM_BOT_TOKEN
+        const chatId = process.env.TELEGRAM_CONFIRMATION_GROUP_ID
+        const threadId = process.env.TELEGRAM_CONFIRMATION_THREAD_ID
+        if (botToken && chatId) {
+          const text = `Order ID ${orderDetails.order_number || orderDetails.id} is cancelled`
+          const resp = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              message_thread_id: threadId || undefined,
+              text
+            })
+          })
+          if (!resp.ok) {
+            console.error('⚠️ Failed to send simple Telegram cancellation notice', await resp.text())
+          } else {
+            console.log('✅ Admin Telegram simple cancellation notification sent')
+          }
+        } else {
+          console.warn('⚠️ Telegram env not set; skipping simple cancellation notification')
+        }
+      } catch (tgError) {
+        console.error('⚠️ Failed to send admin Telegram cancellation notification:', tgError)
+        // Best-effort only; do not fail the API if Telegram notification fails
+      }
 
         console.log('✅ Order cancelled email notification sent successfully');
       }

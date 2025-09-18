@@ -569,3 +569,65 @@ export async function sendCustomerNotification(params: {
   }
 }
 
+
+// Partial cancellation notification (email + Telegram DM)
+export async function sendPartialCancellationNotification(params: {
+  orderId: string,
+  cancelledItems: Array<{ title: string; quantity: number; refund: number }>,
+  refundAmount: number,
+  pointsRefund: number,
+  newTotalAmount: number
+}): Promise<void> {
+  const { orderId, cancelledItems, refundAmount, pointsRefund, newTotalAmount } = params
+  const order = await loadOrderWithRelations(orderId)
+  const user = order.users || {}
+  const shippingAddressStr = formatShippingAddress(order.shipping_address)
+  const customerName = [user.first_name, user.last_name].filter(Boolean).join(' ') || ''
+
+  // Build simple HTML
+  const listHtml = cancelledItems
+    .map((it, idx) => `${idx + 1}. ${escapeHtml(it.title)} ×${it.quantity} — $${it.refund.toFixed(2)}`)
+    .join('<br/>')
+  const html = `
+    <p>Your order <b>${order.order_number}</b> was partially cancelled.</p>
+    <p><b>Cancelled Items</b><br/>${listHtml || '—'}</p>
+    <p><b>Refund</b>: $${refundAmount.toFixed(2)}</p>
+    ${pointsRefund > 0 ? `<p><b>Points Refunded</b>: ${pointsRefund} pts</p>` : ''}
+    <p><b>Updated Order Total</b>: $${Number(newTotalAmount || 0).toFixed(2)}</p>
+  `
+
+  // Email (respect Telegram-only users like other flows)
+  const isTelegramUser = !!user.telegram_id || isTelegramSyntheticEmail(order.email)
+  if (!isTelegramUser) {
+    const emailRes = await sendEmailViaSupabase({
+      to: order.email,
+      subject: `Partial Cancellation for Order ${order.order_number}`,
+      html,
+      emailType: 'order_partial_cancelled',
+      metadata: { order_id: orderId, channel: 'email' }
+    })
+    await logDelivery(orderId, order.email, `Partial Cancellation (${order.order_number})`, 'order_partial_cancelled', 'email', emailRes.success ? undefined : emailRes.error)
+  } else {
+    await logDelivery(orderId, order.email, `Partial Cancellation (${order.order_number})`, 'order_partial_cancelled', 'email', undefined, { skipped_reason: 'skipped_telegram_user' })
+  }
+
+  // Telegram DM (best-effort)
+  const telegramId = user.telegram_id
+  if (telegramId) {
+    const itemsBlock = (cancelledItems || []).map((it, i) => `• ${escapeHtml(it.title)} ×${it.quantity} — $${it.refund.toFixed(2)}`).join('\n') || '—'
+    const msg = limitMessage([
+      `Your order was partially cancelled.`,
+      `Order: <b>${order.order_number}</b>`,
+      `\n<b>Cancelled Items</b>`,
+      itemsBlock,
+      `\nRefund: <b>$${refundAmount.toFixed(2)}</b>`,
+      pointsRefund > 0 ? `Points refunded: <b>${pointsRefund} pts</b>` : '',
+      `Updated total: <b>$${Number(newTotalAmount || 0).toFixed(2)}</b>`,
+      shippingAddressStr ? `\n<b>Ship to</b>\n${escapeHtml(shippingAddressStr)}` : ''
+    ].filter(Boolean).join('\n'))
+    const sent = await trySendTelegramDM(telegramId, msg)
+    const meta = { bot_id: sent.debug?.bot_id, bot_username: sent.debug?.bot_username, chat_verified: sent.debug?.chat_verified, telegram_api_desc: sent.debug?.telegram_api_desc }
+    await logDelivery(orderId, `telegram:${telegramId}`, `Order ${order.order_number} partial cancellation`, 'order_partial_cancelled', 'telegram', sent.success ? undefined : sent.error, meta)
+  }
+}
+
