@@ -227,6 +227,18 @@ Troubleshooting checklist
 2) Double init logs? Ensure `__AUTH_PROVIDER_INIT_DONE` remains at module scope and the init effect has `[]` deps.
 3) Dropdown shows while logged out? Verify `getSession()` check and that `hasSession === false` renders the Sign In UI.
 
+
+## Post-login reload loop guard (All providers) — Definitive
+- One-time hard reload is triggered on `INITIAL_SESSION` and `SIGNED_IN` with a cache-busting `?r=` parameter.
+- A pre-init guard runs on the next load to prevent loops:
+  - If `?r` exists: set a one-time `__postLoginReloadDone` guard and `sessionStorage['__postLoginReloadDone']='1'`, then remove `?r` via `history.replaceState`.
+  - Else if `sessionStorage['__postLoginReloadDone']=='1'`: set the guard and clear the key.
+- Applies equally to Google OAuth, Email/Password, and Telegram flows; do not bypass this guard.
+- All authenticated UI must be gated by `supabase.auth.getSession()` (not store-only checks).
+- Always call `/api/auth/ensure-profile` promptly after auth to guarantee a users row.
+- Telegram server-side hardening remains available behind `NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN` (default OFF). Default OFF preserves legacy session_bridge + JSON handoff.
+- See also: `docs/AUTHENTICATION.md` (definitive, up-to-date reference).
+
 # BoxHero API Integration
 - Manual sync system with BoxHero API for inventory management, accessed via /en/fyponly-admin URL.
 - Sync-based architecture where API calls only happen during manual sync operations, with Supabase as single source of truth.

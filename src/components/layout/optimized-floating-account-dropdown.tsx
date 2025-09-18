@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { requestUtils } from '@/lib/utils/request-deduplication'
 import { useDropdownPerformance, useDropdownPerformanceMonitoring } from '@/lib/hooks/use-performance-optimization'
+import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 
 
@@ -53,6 +54,30 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
 
   // Use optimized auth hook with caching
   const { user, profile, isAuthenticated, loading, signOut } = useSSRSafeAuth()
+
+  // Verify real Supabase session to avoid stale persisted state
+  const [hasSession, setHasSession] = useState<boolean | null>(null)
+  useEffect(() => {
+    let canceled = false
+    const supabase = createClient()
+    const check = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!canceled) setHasSession(!!session?.access_token)
+      } catch {
+        if (!canceled) setHasSession(false)
+      }
+    }
+    // Initial check and keep in sync with auth changes
+    check()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (!canceled) setHasSession(!!session?.access_token)
+    })
+    return () => {
+      canceled = true
+      try { subscription?.unsubscribe() } catch {}
+    }
+  }, [isAuthenticated])
 
   // Performance optimization hooks with memoization
   const { handlePrefetchTrigger } = useDropdownPerformance()
@@ -186,8 +211,8 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
     }
   }, [signOut])
 
-  // Show sign in link if not authenticated
-  if (!isAuthenticated) {
+  // Show sign in link if not authenticated OR no real Supabase session
+  if (!isAuthenticated || hasSession === false) {
     return (
       <div className={`flex items-center flex-shrink-0 min-w-0 ${className}`}>
         <Link
@@ -207,8 +232,8 @@ export function OptimizedFloatingAccountDropdown({ className = '' }: OptimizedFl
     )
   }
 
-  // Don't render if still loading
-  if (loading) {
+  // Don't render if still loading or verifying real session
+  if (loading || hasSession === null) {
     return (
       <div className={`flex items-center flex-shrink-0 min-w-0 ${className}`}>
         <div className="flex items-center text-foreground text-sm px-1 sm:px-2 lg:px-3 py-2">
