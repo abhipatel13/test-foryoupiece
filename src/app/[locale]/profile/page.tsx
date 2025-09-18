@@ -234,6 +234,41 @@ export default function ProfilePage() {
     }
   }, [user?.id, isAuthenticated, loading])
 
+  // New server-managed Telegram auth handler: ensure-profile, strip param, hard reload with cache-buster
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const useServerTelegram = process.env.NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN === 'true'
+    if (!useServerTelegram) return
+    const authParam = searchParams.get('auth')
+    if (authParam === 'telegram_success') {
+      try {
+        const guardKey = '__tg_server_auth_processed'
+        if (!sessionStorage.getItem(guardKey)) {
+          // Ensure profile row exists before first paint after reload
+          fetch('/api/auth/ensure-profile', { method: 'POST', headers: { 'cache-control': 'no-store' } }).catch(() => {})
+          // Remove auth param to avoid loops
+          const clean = new URL(window.location.href)
+          clean.searchParams.delete('auth')
+          window.history.replaceState({}, '', clean.toString())
+          // Guard and force hard reload with cache buster
+          sessionStorage.setItem(guardKey, '1')
+          const reloadUrl = new URL(window.location.href)
+          reloadUrl.searchParams.set('r', String(Date.now()))
+          window.location.replace(reloadUrl.toString())
+          return
+        } else {
+          // Clear guard after the reload completes and clean cache-buster param
+          try {
+            const url2 = new URL(window.location.href)
+            url2.searchParams.delete('r')
+            window.history.replaceState({}, '', url2.toString())
+          } catch {}
+          sessionStorage.removeItem(guardKey)
+        }
+      } catch {}
+    }
+  }, [searchParams])
+
   useEffect(() => {
     loadProfileData().catch((error) => {
       Sentry.captureException(error)

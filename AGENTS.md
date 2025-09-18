@@ -287,3 +287,64 @@ Troubleshooting checklist
 
 # Coupon Creation
 - Enhance coupon creation with toggleable user targeting (rank tiers Silver/Gold/Platinum/Diamond, recently signed up ≤2 weeks, top purchasers by threshold/top N, recently purchased within timeframe), show eligible users in admin (40 per page with totals and details), validate eligibility at redemption, preserve backward compatibility, and test only with akito12350@gmail.com or designated test users.
+
+## Do‑Not‑Break Reference: Authentication System & Telegram Integration (Authoritative Summary)
+
+This section documents the exact behaviors relied on across the app. Do not modify these without an explicit plan, feature flag, and production soak.
+
+### Authentication System (Current)
+1) One‑time AuthProvider initialization (StrictMode-safe)
+- Location: src/lib/providers/auth-provider.tsx
+- Pattern: a module‑scope boolean guard `__AUTH_PROVIDER_INIT_DONE` plus a local `initializationRef` ensure the init effect runs once per tab. Do not add dependencies to the init effect; all logic changes belong in the auth state handler.
+- Purpose: Prevents duplicate client initialization, racey cleanup/re‑init, and cross‑tab churn.
+
+2) Post‑login hard reload with cache buster
+- On INITIAL_SESSION or SIGNED_IN: immediately set `user` + `userId`, unblock UI, and force a one‑time hard reload using `window.location.replace(redirect + '?r=' + Date.now())`.
+- Purpose: Guarantees fresh profile/points/tier/preferences and eliminates “Telegram User” placeholders without manual Ctrl+F5.
+
+3) Session restoration fallback chain
+- Order: `supabase.auth.getSession()` → if absent and error‑free, try `supabase.auth.getUser()` → if present, `supabase.auth.refreshSession()`.
+- Purpose: Maximizes session recovery across browsers (Firefox/Safari peculiarities) and avoids false sign‑outs.
+
+4) Cross‑tab synchronization via BroadcastChannel
+- Multi‑tab sync publishes AUTH_STATE_CHANGE, session‑validated, and expiration events. Cross‑tab sign‑out is guarded by `signOutInProgress` (local + window flag) to avoid “zombie” sessions.
+- Purpose: Consistent logout/refresh across tabs; prevents rehydration during logout.
+
+5) Ensure‑profile prefetch after successful auth
+- Immediately call `/api/auth/ensure-profile` post‑auth (and during certain bootstrap paths) before loading the profile to guarantee a users row exists for all providers (Google/Email/Telegram).
+- Purpose: Eliminates missing‑profile edge cases and placeholder names.
+
+6) Account dropdown gating by real Supabase session
+- All authenticated UI (e.g., account menu) must check `supabase.auth.getSession()` and render the authenticated state only when `session.access_token` exists; otherwise, render “Sign In”. Store‑only checks are forbidden.
+
+Notes & Guardrails
+- Keep the double‑init guard, cross‑tab sign‑out guard, and post‑login hard reload.
+- Middleware must respect Supabase cookie deletion semantics (preserve `maxAge: 0`/`expires`).
+- Performance logs and retries should not block auth resolution.
+
+### Telegram Integration (Current)
+1) Two‑bot architecture
+- Authentication bot: @Authenticationfypbot (ID: 8066090295) — used for OAuth/login.
+- Notification bot: @notificationfypbot — used for order updates.
+
+2) Order notification routing
+- Target: group `-1002667614926`, thread `3`.
+- Format: detailed order summary; admin actions are handled from Telegram and reflected in the admin panel.
+
+3) Telegram authentication flow (high‑level)
+- Widget verification on client → server verifies Telegram payload → upsert Supabase auth user and users profile row → generate magic link and verify (prefer `token_hash`) → Supabase session is established → client lands on profile and triggers the post‑login hard reload. All branches (including duplicate user) converge to the same success redirect format.
+
+4) Webhook security
+- All Telegram webhooks must perform signature verification and input sanitization before processing.
+
+5) Staff Helper Bot memory isolation
+- Threads: Admin ID 1519, Team ID 1521.
+- Memory policy: 10 messages per thread, 5‑minute TTL; no individual chats; strict security via env vars (no secret logging).
+
+6) Testing constraints
+- Telegram end‑to‑end testing can only be performed in production. Use DEV overrides only where explicitly documented; otherwise avoid modifying bot identities and threads.
+
+Operational Guidance
+- Prefer server‑side session establishment for Telegram (verify → set session → clean redirect). If experimenting with new flows (e.g., session bridge), gate behind `NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN` (or a dedicated flag) with telemetry and rate limiting, and keep the existing AuthProvider/monitor in place until proven stable.
+- Always add rate limiting and anti‑replay (nonce single‑use) to verification endpoints.
+- Maintain Referrer‑Policy and never place auth tokens in URLs.

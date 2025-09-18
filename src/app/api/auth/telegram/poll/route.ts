@@ -8,6 +8,23 @@ export const fetchCache = 'force-no-store'
 export const runtime = 'nodejs'
 
 
+// Simple in-memory rate limiter (prefer Redis in production)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000 // 15 minutes
+const RATE_LIMIT_MAX_ATTEMPTS = 30 // polling endpoint can be hit frequently but still limited
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const record = rateLimitStore.get(ip)
+  if (!record || now > record.resetTime) {
+    rateLimitStore.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW })
+    return true
+  }
+  if (record.count >= RATE_LIMIT_MAX_ATTEMPTS) return false
+  record.count++
+  return true
+}
+
 
 /**
  * Telegram Deep-Link Login Polling Endpoint
@@ -22,6 +39,7 @@ let nonceStore: Map<string, any>
 
 try {
   // Dynamic import to avoid circular dependency
+
   const startModule = require('../start/route')
   nonceStore = startModule.nonceStore
 } catch (error) {
@@ -38,6 +56,13 @@ export async function GET(request: NextRequest) {
         error: 'Deep-link login is production-only'
       }, { status: 403 })
     }
+
+	    // Rate limiting
+	    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
+	    if (!checkRateLimit(String(ip))) {
+	      return NextResponse.json({ success: false, error: 'Too many requests' }, { status: 429 })
+	    }
+
 
     const url = new URL(request.url)
     const nonce = url.searchParams.get('nonce')
@@ -184,7 +209,26 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Deep-link Telegram login successful for user:', userId.substring(0, 8) + '...')
 
-    // Return session data
+    // Server-side session handoff behind feature flag
+    const useServerTelegram = process.env.NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN === 'true'
+    if (useServerTelegram) {
+      try {
+        await supabaseSSR.auth.setSession({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+        })
+      } catch (e) {
+        console.warn('\u26a0\ufe0f setSession failed in poll route:', e)
+      }
+
+      const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
+      const res = NextResponse.redirect(redirectUrl)
+      res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+      console.log('\ud83d\udcc8 TELEMETRY: telegram_deeplink_server_login_success', { uid: userId.substring(0, 8) + '...' })
+      return res
+    }
+
+    // Legacy JSON response for client-side session handling
     return NextResponse.json({
       success: true,
       status: 'verified',

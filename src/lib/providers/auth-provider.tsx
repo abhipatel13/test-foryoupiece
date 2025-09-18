@@ -17,6 +17,9 @@ import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supa
 // Enhanced auth provider with session monitoring
 // Global guard to avoid double initialization in React StrictMode / Fast Refresh
 let __AUTH_PROVIDER_INIT_DONE = false;
+// One-time post-login reload guard to ensure fresh profile/points after OAuth or login
+let __postLoginReloadDone = false;
+
 
 // Create auth context
 const AuthContext = createContext<{
@@ -60,6 +63,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
   const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
+
+
+  // Initialize one-time post-login reload guard using URL cache-buster and sessionStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const url = new URL(window.location.href)
+      // If cache-buster is present, mark reload as done and clean the URL
+      if (url.searchParams.has('r')) {
+        __postLoginReloadDone = true
+        try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+        url.searchParams.delete('r')
+        window.history.replaceState({}, '', url.toString())
+      } else if (sessionStorage.getItem('__postLoginReloadDone') === '1') {
+        // Persist guard across a single hard reload, then clear it for future logins
+        __postLoginReloadDone = true
+        try { sessionStorage.removeItem('__postLoginReloadDone') } catch {}
+      }
+    } catch (e) {
+      console.warn('⚠️ Post-login reload guard init failed:', e)
+    }
+  }, [])
 
   // Initialize a single Supabase client on the client only with browser-specific handling
   useEffect(() => {
@@ -639,6 +664,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
             // Broadcast initial session to other tabs in case they're open
             broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+
+          // Post-login hard reload on INITIAL_SESSION as well
+          if (typeof window !== 'undefined' && !__postLoginReloadDone) {
+            __postLoginReloadDone = true
+            try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+            const reloadUrl = new URL(window.location.href)
+            reloadUrl.searchParams.set('r', String(Date.now()))
+            window.location.replace(reloadUrl.toString())
+            return
+          }
+
           }
           setStoreLoading(false)
           return
@@ -712,6 +748,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
             // Broadcast sign in to other tabs
             broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
+
+            // Post-login hard reload to guarantee fresh profile/points/tier/preferences
+            if (typeof window !== 'undefined' && !__postLoginReloadDone) {
+              __postLoginReloadDone = true
+              try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+              const reloadUrl = new URL(window.location.href)
+              reloadUrl.searchParams.set('r', String(Date.now()))
+              window.location.replace(reloadUrl.toString())
+              return
+            }
+
           }
         } else if (event === 'TOKEN_REFRESHED') {
           // Token refreshed should not churn user state if identity is unchanged

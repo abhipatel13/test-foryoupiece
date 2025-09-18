@@ -40,6 +40,22 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000 // 15 minutes
 const RATE_LIMIT_MAX_ATTEMPTS = 5
 
+// In-memory replay guard for Telegram login hash values (10 min TTL)
+const processedHashes = new Map<string, number>()
+const REPLAY_TTL_MS = 10 * 60 * 1000
+
+function isReplay(hash: string) {
+  const now = Date.now()
+  const prev = processedHashes.get(hash)
+  // Cleanup lazily
+  for (const [k, ts] of processedHashes.entries()) {
+    if (now - ts > REPLAY_TTL_MS) processedHashes.delete(k)
+  }
+  if (prev && (now - prev) < REPLAY_TTL_MS) return true
+  processedHashes.set(hash, now)
+  return false
+}
+
 function checkRateLimit(ip: string): boolean {
   const now = Date.now()
   const record = rateLimitStore.get(ip)
@@ -157,6 +173,7 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     const id = params.get('id') || ''
     const auth_date = params.get('auth_date') || ''
     const hash = params.get('hash') || ''
+
     if (!id || !auth_date || !hash) {
       console.log('🚫 Missing required Telegram auth data')
       return NextResponse.redirect(new URL('/en/auth/login?error=invalid_data', request.url))
@@ -194,6 +211,15 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       console.error('❌ Failed to create Supabase clients')
       return NextResponse.redirect(new URL('/en/auth/login?error=server_error', request.url))
     }
+
+    // Replay protection: reject repeated hash within TTL window (after all validations)
+    if (isReplay(hash)) {
+      console.log('🚫 Replay detected for Telegram auth hash (post-verify)')
+      const res = NextResponse.redirect(new URL('/en/auth/login?error=replay_detected', request.url))
+      res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+      return res
+    }
+
 
     // Validate service role client has proper configuration
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -824,8 +850,27 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
     const processingTime = Date.now() - startTime
     console.log('✅ Telegram login successful for user:', sessionUserId.substring(0, 8) + '...', `(${processingTime}ms)`)
 
-    // Create a session bridge token for client-side session establishment
-    // This helps ensure the AuthProvider recognizes the session immediately
+    // Feature-flagged server-side session handoff (no bridge tokens)
+    const useServerTelegram = process.env.NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN === 'true'
+    if (useServerTelegram) {
+      try {
+        // Ensure cookies are written immediately in this response
+        await supabaseSSR.auth.setSession({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+        })
+      } catch (e) {
+        console.warn('⚠️ setSession failed (continuing with existing server cookies if any):', e)
+      }
+
+      const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
+      const res = NextResponse.redirect(redirectUrl)
+      res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+      console.log('📈 TELEMETRY: telegram_server_login_success', { uid: sessionUserId.substring(0, 8) + '...' })
+      return res
+    }
+
+    // Legacy path: keep session_bridge for client flow
     const sessionBridgeToken = Buffer.from(JSON.stringify({
       access_token: sessionData.session.access_token,
       refresh_token: sessionData.session.refresh_token,
@@ -834,10 +879,11 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       timestamp: Date.now()
     })).toString('base64')
 
-    // Redirect to success page with session bridge token
     const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
     redirectUrl.searchParams.set('session_bridge', sessionBridgeToken)
-    return NextResponse.redirect(redirectUrl)
+    const res = NextResponse.redirect(redirectUrl)
+    res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    return res
 
   } catch (error) {
     const processingTime = Date.now() - startTime
