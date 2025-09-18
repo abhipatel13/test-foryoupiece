@@ -333,13 +333,7 @@ export default function ProfilePage() {
       url.searchParams.delete('r')
       window.history.replaceState({}, '', url.toString())
 
-      // No reload here; UI is already fresh after first hard reload
-      try {
-        // noop to keep structure consistent
-        } catch (e) {
-          console.warn('Telegram post-login reload failed:', e)
-        }
-      }, 500)
+
     }
   }, [searchParams])
 
