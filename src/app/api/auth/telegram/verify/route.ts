@@ -834,8 +834,8 @@ function isDuplicateUserErrorMessage(msg: string): boolean {
       timestamp: Date.now()
     })).toString('base64')
 
-    // Redirect to success page with session bridge token
-    const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
+    // Redirect back to login with session bridge token for immediate client-side session + hard reload
+    const redirectUrl = new URL('/en/auth/login?auth=telegram_success', request.url)
     redirectUrl.searchParams.set('session_bridge', sessionBridgeToken)
     redirectUrl.searchParams.set('r', String(Date.now()))
     return NextResponse.redirect(redirectUrl)
