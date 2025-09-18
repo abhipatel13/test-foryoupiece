@@ -109,7 +109,18 @@ function TelegramLoginWidget() {
           const supabase = createClient()
           await supabase.auth.setSession(data.session)
           toast.success('Successfully logged in with Telegram!')
-          window.location.href = '/en/profile?auth=telegram_success'
+          try {
+            if (!(window as any).__postLoginReloadDone) {
+              ;(window as any).__postLoginReloadDone = true
+              const base = '/en/profile?auth=telegram_success'
+              const sep = base.includes('?') ? '&' : '?'
+              window.location.replace(`${base}${sep}r=${Date.now()}`)
+            } else {
+              window.location.replace('/en/profile?auth=telegram_success')
+            }
+          } catch {
+            window.location.replace('/en/profile?auth=telegram_success')
+          }
           return
         }
 

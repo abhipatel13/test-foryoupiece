@@ -277,14 +277,17 @@ export default function ProfilePage() {
               window.history.replaceState({}, '', url.toString())
 
               // One-time reload to synchronize UI state specifically for Telegram login
-              // Reload after the success notification has been shown
-              setTimeout(() => {
-                try {
-                  window.location.reload()
-                } catch (e) {
-                  console.warn('Telegram post-login reload failed:', e)
+              // Use the same hard reload pattern with cache-busting param
+              try {
+                if (!(window as any).__postLoginReloadDone) {
+                  ;(window as any).__postLoginReloadDone = true
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('r', String(Date.now()))
+                  window.location.replace(url.toString())
                 }
-              }, 500)
+              } catch (e) {
+                console.warn('Telegram post-login reload failed:', e)
+              }
             }
           }).catch((error) => {
             console.error('❌ Session bridge error:', error)
@@ -306,13 +309,17 @@ export default function ProfilePage() {
       window.history.replaceState({}, '', url.toString())
 
       // One-time reload to synchronize UI state specifically for Telegram login
-      setTimeout(() => {
-        try {
-          window.location.reload()
-        } catch (e) {
-          console.warn('Telegram post-login reload failed:', e)
+      // Use the same hard reload pattern with cache-busting param
+      try {
+        if (!(window as any).__postLoginReloadDone) {
+          ;(window as any).__postLoginReloadDone = true
+          const url = new URL(window.location.href)
+          url.searchParams.set('r', String(Date.now()))
+          window.location.replace(url.toString())
         }
-      }, 500)
+      } catch (e) {
+        console.warn('Telegram post-login reload failed:', e)
+      }
     }
   }, [searchParams])
 
