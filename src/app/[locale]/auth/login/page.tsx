@@ -109,18 +109,7 @@ function TelegramLoginWidget() {
           const supabase = createClient()
           await supabase.auth.setSession(data.session)
           toast.success('Successfully logged in with Telegram!')
-          try {
-            if (!(window as any).__postLoginReloadDone) {
-              ;(window as any).__postLoginReloadDone = true
-              const base = '/en/profile?auth=telegram_success'
-              const sep = base.includes('?') ? '&' : '?'
-              window.location.replace(`${base}${sep}r=${Date.now()}`)
-            } else {
-              window.location.replace('/en/profile?auth=telegram_success')
-            }
-          } catch {
-            window.location.replace('/en/profile?auth=telegram_success')
-          }
+          window.location.href = '/en/profile?auth=telegram_success'
           return
         }
 
@@ -306,61 +295,6 @@ function LoginPageContent() {
       console.error('🚨 Login page init error (guard):', e)
     }
   }, [supabase, router, redirectTo, searchParams])
-  // Handle Telegram success arriving back on the login page with session bridge
-  useEffect(() => {
-    try {
-      const authParam = searchParams.get('auth')
-      const sessionBridge = searchParams.get('session_bridge')
-      if (authParam === 'telegram_success' && sessionBridge) {
-        ;(async () => {
-          try {
-            // Decode bridge
-            let decodedJson = ''
-            try {
-              decodedJson = typeof window !== 'undefined' && typeof atob === 'function'
-                ? atob(sessionBridge)
-                : Buffer.from(sessionBridge, 'base64').toString()
-            } catch {
-              decodedJson = Buffer.from(sessionBridge, 'base64').toString()
-            }
-            const sessionData = JSON.parse(decodedJson)
-
-            if (sessionData?.access_token && sessionData?.refresh_token) {
-              const { error } = await supabase.auth.setSession({
-                access_token: sessionData.access_token,
-                refresh_token: sessionData.refresh_token,
-                expires_at: sessionData.expires_at,
-              })
-              if (!error) {
-                // Ensure profile exists before navigating
-                try {
-                  const controller = new AbortController()
-                  const t = setTimeout(() => controller.abort(), 5000)
-                  await fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
-                  clearTimeout(t)
-                } catch {}
-
-                // Clean URL params to avoid reprocessing
-                const url = new URL(window.location.href)
-                url.searchParams.delete('auth')
-                url.searchParams.delete('session_bridge')
-                window.history.replaceState({}, '', url.toString())
-
-                // Immediate hard reload into profile with cache-busting
-                const base = '/en/profile?auth=telegram_success'
-                const sep = base.includes('?') ? '&' : '?'
-                window.location.replace(`${base}${sep}r=${Date.now()}`)
-              }
-            }
-          } catch (e) {
-            console.error('❌ Telegram session bridge handling on login page failed:', e)
-          }
-        })()
-      }
-    } catch (e) {
-      console.error('🚨 Login page Telegram bridge guard error:', e)
-    }
-  }, [searchParams, supabase])
 
   // Redirect off the login page immediately when auth state becomes SIGNED_IN
   useEffect(() => {
