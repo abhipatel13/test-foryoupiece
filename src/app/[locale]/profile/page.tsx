@@ -273,12 +273,22 @@ export default function ProfilePage() {
             access_token: sessionData.access_token,
             refresh_token: sessionData.refresh_token,
             expires_at: sessionData.expires_at
-          }).then(({ data, error }) => {
+          }).then(async ({ data, error }) => {
             if (error) {
               console.error('❌ Failed to set session from bridge:', error)
             } else {
               console.log('✅ Session bridge successful, user authenticated')
               toast.success('Successfully logged in with Telegram!')
+
+              // Proactively ensure a profile exists before reloading (prevents placeholder UI)
+              try {
+                const controller = new AbortController()
+                const t = setTimeout(() => controller.abort(), 5000)
+                await fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+                clearTimeout(t)
+              } catch (e) {
+                console.warn('⚠️ ensure-profile (telegram bridge) failed (non-fatal):', e)
+              }
 
               // Clean up URL parameters first to avoid reload loops
               const url = new URL(window.location.href)
@@ -313,22 +323,34 @@ export default function ProfilePage() {
       console.log('✅ Telegram authentication success (no bridge)')
       toast.success('Successfully logged in with Telegram!')
 
-      // Clean up URL parameters first to avoid reload loops
-      const url = new URL(window.location.href)
-      url.searchParams.delete('auth')
-      window.history.replaceState({}, '', url.toString())
-
-      // One-time reload to synchronize UI state specifically for Telegram login
-      // Use the same hard reload pattern with cache-busting param
+      // Proactively ensure a profile exists before reloading (prevents placeholder UI)
       try {
-        if (!(window as any).__postLoginReloadDone) {
-          ;(window as any).__postLoginReloadDone = true
-          const url = new URL(window.location.href)
-          url.searchParams.set('r', String(Date.now()))
-          window.location.replace(url.toString())
-        }
+        const controller = new AbortController()
+        const t = setTimeout(() => controller.abort(), 5000)
+        fetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+          .catch((e) => console.warn('⚠️ ensure-profile (telegram success) failed (non-fatal):', e))
+          .finally(() => {
+            clearTimeout(t)
+            // Clean up URL parameters first to avoid reload loops
+            const url = new URL(window.location.href)
+            url.searchParams.delete('auth')
+            window.history.replaceState({}, '', url.toString())
+
+            // One-time reload to synchronize UI state specifically for Telegram login
+            // Use the same hard reload pattern with cache-busting param
+            try {
+              if (!(window as any).__postLoginReloadDone) {
+                ;(window as any).__postLoginReloadDone = true
+                const url2 = new URL(window.location.href)
+                url2.searchParams.set('r', String(Date.now()))
+                window.location.replace(url2.toString())
+              }
+            } catch (e2) {
+              console.warn('Telegram post-login reload failed:', e2)
+            }
+          })
       } catch (e) {
-        console.warn('Telegram post-login reload failed:', e)
+        console.warn('⚠️ ensure-profile (telegram success) scheduling failed (non-fatal):', e)
       }
     }
   }, [searchParams])
