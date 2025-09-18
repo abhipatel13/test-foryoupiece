@@ -345,5 +345,14 @@ export const requestUtils = {
     deduplicator.clearCache(`admin_status_${userId}`)
     deduplicator.clearCache(`user_profile_${userId}`)
     deduplicator.clearCache(`points_breakdown_${userId}`)
+    deduplicator.clearCache(`user_points_summary_${userId}`)
+  },
+  clearAllCaches: () => {
+    const deduplicator = getRequestDeduplicator()
+    deduplicator.clearAllCache()
+  },
+  cancelAllRequests: () => {
+    const deduplicator = getRequestDeduplicator()
+    deduplicator.cancelAllRequests()
   }
 }

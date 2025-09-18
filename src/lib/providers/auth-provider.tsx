@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, ReactNode, useCallback, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient, resetClientCache } from '@/lib/supabase/client'
-import { useSSRSafeUserStore } from '@/lib/store/ssr-safe-user-store'
+import { useSSRSafeUserStore, resetSSRSafeUserSingleton } from '@/lib/store/ssr-safe-user-store'
 import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
 import { userQueries } from '@/lib/supabase/queries'
 import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
@@ -12,6 +12,7 @@ import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 import { registerAuthHandler, unregisterAuthHandler, authFetch, initAuthFetchGlobalPatch } from '@/lib/utils/auth-interceptor'
 // import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
 import { clientSideLogout, createSession } from '@/lib/security/session-manager'
+import { requestUtils } from '@/lib/utils/request-deduplication'
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
 
 // Enhanced auth provider with session monitoring
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const userStore = useSSRSafeUserStore()
   const cartStore = useSSRSafeCartStore()
 
-  const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser } = userStore
+  const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser, updatePoints } = userStore
   const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
 
 
@@ -126,6 +127,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try { await fetch('/api/auth/logout', { method: 'POST' }) } catch {}
       try { await clearCartOnLogout() } catch {}
       clearUser()
+      try { resetSSRSafeUserSingleton() } catch {}
       resetClientCache()
       try { localStorage.clear() } catch {}
       try { sessionStorage.clear() } catch {}
@@ -172,6 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Clear Zustand stores with proper cart cleanup
       await clearCartOnLogout()
       clearUser()
+      try { resetSSRSafeUserSingleton() } catch {}
 
       // Reset Supabase client cache to prevent stale client issues
       resetClientCache()
@@ -214,7 +217,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const handleSessionExpiration = useCallback(async () => {
     console.log('🔄 Session expired, performing complete logout...')
     try {
-      // Prefer consistent client-side logout for cleanup and Supabase sign out
+      // 1) Immediately clear UI state synchronously to avoid stale authenticated display
+      try { clearUser() } catch {}
+      try { resetSSRSafeUserSingleton() } catch {}
+      try { setStoreLoading(false); setHydrated(true) } catch {}
+      try { setUserId(null as any) } catch {}
+
+      // 2) Prefer consistent client-side logout for cleanup and Supabase sign out
       const currentUserId = currentUserRef.current?.id
       if (currentUserId) {
         const result = await clientSideLogout(currentUserId)
@@ -230,7 +239,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
-      // Best-effort server-side logout for token blacklisting
+      // 3) Best-effort server-side logout for token blacklisting
       try {
         await fetch('/api/auth/logout', {
           method: 'POST',
@@ -240,11 +249,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.warn('⚠️ Server-side logout API call failed during session expiration:', e)
       }
 
-      // Clear stores
+      // 4) Clear cart store thoroughly (async cleanup)
       await clearCartOnLogout()
-      clearUser()
 
-      // Reset Supabase client cache to prevent stale client issues
+      // 5) Reset Supabase client cache to prevent stale client issues
       resetClientCache()
 
       if (isClient) {
@@ -257,7 +265,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         router.replace('/en/auth/login?expired=true')
       }
     }
-  }, [clearUser, clearCartOnLogout, isClient, router])
+  }, [clearUser, clearCartOnLogout, isClient, router, setStoreLoading, setHydrated, setUserId])
 
   // Removed performance optimization hooks to improve dropdown speed
 
@@ -333,6 +341,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
           console.log('✅ Setting profile in store:', profile.id)
         }
         setProfile(profile)
+        // Also fetch authoritative points summary and sync points_balance to store (dropdown depends on it)
+        try {
+          const { requestUtils } = await import('@/lib/utils/request-deduplication')
+          const pointsSummary = await requestUtils.fetchUserPointsSummary(userId)
+          const newPoints = (pointsSummary?.points_balance ?? (pointsSummary as any)?.balance ?? 0) as number
+          if (typeof newPoints === 'number' && !Number.isNaN(newPoints)) {
+            updatePoints(newPoints)
+            if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+              console.log('🔢 Points sync (AuthProvider) -> store.updatePoints:', newPoints)
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to fetch points summary in AuthProvider:', e)
+        }
         profileLoadTimestampRef.current = Date.now()
       } else {
         // Handle soft timeout case - schedule background retry and track failures for auto-recovery
@@ -403,6 +425,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }, 500) // Reduced from 1000ms to 500ms
     }
   }
+
+  // Cleanup when switching between different accounts/auth methods to prevent cross-contamination
+  const cleanupOnAccountSwitch = useCallback(async (prevUserId: string | undefined, nextUserId: string) => {
+    try {
+      console.log('🧹 Account switch detected, performing cleanup', { prevUserId, nextUserId })
+      // Cancel any in-flight requests and clear caches (profile, points, admin checks)
+      try { requestUtils.cancelAllRequests() } catch {}
+      try {
+        if (prevUserId) requestUtils.clearUserCache(prevUserId)
+        requestUtils.clearAllCaches?.()
+      } catch {}
+
+      // Clear cart and user store to avoid leaking previous identity
+      try { await clearCartOnLogout() } catch {}
+      try { clearUser() } catch {}
+
+      // Remove common local/session storage items that may hold user-scoped data
+      const keys = [
+        'foryoupiece-user',
+        'foryoupiece-cart',
+        'session_validated_at'
+      ]
+      keys.forEach(k => { try { localStorage.removeItem(k) } catch {} })
+      try { sessionStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS') } catch {}
+    } catch (e) {
+      console.warn('⚠️ Cleanup on account switch encountered an issue:', e)
+    }
+  }, [clearCartOnLogout, clearUser])
+
 
   // Memoized callback functions to prevent re-rendering loops
   const handleAuthStateChange = useCallback((payload: any) => {
@@ -492,10 +543,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const initializeAuth = async () => {
       try {
-        setIsValidating(true)
-        console.log('🔍 Enhanced session restoration starting...')
-
-        // Check if sign-out is in progress (local or global flag)
+        // Check if sign-out is in progress (local or global flag) BEFORE any restoration work
         const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
         if (signOutInProgressRef.current || globalSignOutFlag) {
           console.log('🚪 Sign-out in progress, skipping session restoration')
@@ -512,6 +560,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
           return
         }
+
+        setIsValidating(true)
+        console.log('🔍 Enhanced session restoration starting...')
 
         // Try multiple methods to restore session
         let session = null
@@ -649,7 +700,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (sameUser) {
               console.log('⏭️ Skipping duplicate INITIAL_SESSION handling for same user')
             } else {
+              console.log('👤 INITIAL_SESSION - preparing post-login hard reload')
+              // Trigger hard reload BEFORE setting any possibly incomplete user data to avoid placeholders
+              if (typeof window !== 'undefined' && !__postLoginReloadDone) {
+                __postLoginReloadDone = true
+                try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+                const reloadUrl = new URL(window.location.href)
+                reloadUrl.searchParams.set('r', String(Date.now()))
+                window.location.replace(reloadUrl.toString())
+                return
+              }
+
               console.log('👤 INITIAL_SESSION - setting user:', { id: session.user.id, email: session.user.email })
+              // Cleanup previous account state if switching identities
+              await cleanupOnAccountSwitch(currentUserRef.current?.id, session.user.id)
               setUser(session.user)
               setUserId(session.user.id)
 
@@ -687,6 +751,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Use proper cart logout cleanup
           await clearCartOnLogout()
           clearUser()
+          try { resetSSRSafeUserSingleton() } catch {}
 
           // Reset Supabase client cache to prevent stale client issues
           resetClientCache()
@@ -718,7 +783,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (sameUser) {
               console.log('⏭️ Skipping duplicate SIGNED_IN handling for same user')
             } else {
+              console.log('👤 Auth state change - preparing post-login hard reload')
+              // Trigger hard reload BEFORE setting any possibly incomplete user data to avoid placeholders
+              if (typeof window !== 'undefined' && !__postLoginReloadDone) {
+                __postLoginReloadDone = true
+                try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+                const reloadUrl = new URL(window.location.href)
+                reloadUrl.searchParams.set('r', String(Date.now()))
+                window.location.replace(reloadUrl.toString())
+                return
+              }
+
               console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
+              // Cleanup previous account state if switching identities
+              await cleanupOnAccountSwitch(currentUserRef.current?.id, session.user.id)
               setUser(session.user)
               setUserId(session.user.id)
               // Immediately unblock UI; profile/cart loads will continue in background
@@ -774,6 +852,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.log('👤 TOKEN_REFRESHED with different user, updating state:', { id: session.user.id, email: session.user.email })
             setUser(session.user)
             setUserId(session.user.id)
+
             await loadUserProfile(session.user.id)
             // Do not broadcast TOKEN_REFRESHED as AUTH_STATE_CHANGE to avoid cross-tab loops
           }
@@ -806,6 +885,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unregisterAuthHandler()
     }
   }, [isClient, handleSessionExpiration])
+  // Lightweight periodic session validation to catch silent expirations
+  useEffect(() => {
+    if (!isClient || !supabaseRef.current) return
+
+    const interval = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabaseRef.current!.auth.getSession()
+        const userInStore = currentUserRef.current
+        // If store has a user but Supabase session is gone -> treat as expired
+        if (!session?.access_token && userInStore && !signOutInProgressRef.current) {
+          console.warn('⏳ Periodic check: session missing while UI shows user; triggering expiration cleanup')
+          await handleSessionExpiration()
+          return
+        }
+        // Broadcast validation for cart sync if the same user remains valid
+        if (session?.user?.id && userInStore?.id === session.user.id) {
+          try { broadcast('SESSION_VALIDATED', { userId: session.user.id }) } catch {}
+        }
+      } catch (e) {
+        // Ignore transient errors
+      }
+    }, 45000) // every 45 seconds
+
+    return () => clearInterval(interval)
+  }, [isClient, handleSessionExpiration, broadcast])
+
 
   const contextValue = useMemo(() => ({ initialized: true, isValidating }), [isValidating])
 
@@ -814,8 +919,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuthContext() {
-  return useContext(AuthContext)
 }

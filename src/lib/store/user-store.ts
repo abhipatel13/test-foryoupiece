@@ -50,12 +50,7 @@ export const useUserStore = create<UserStore>()(
       lastValidated: null,
 
       setUser: (user) => {
-        const current = get().user
-        const sameIdentity = (current?.id ?? null) === (user?.id ?? null) && (current?.email ?? null) === (user?.email ?? null)
-        if (sameIdentity) {
-          console.log('⏭️ User store: no-op setUser (same identity)')
-          return
-        }
+        // Always set user to avoid stale state and ensure proper clearing on logout/switch
         console.log('🏪 User store setUser called:', { userId: user?.id, email: user?.email })
         set({ user })
         console.log('✅ User store state updated')

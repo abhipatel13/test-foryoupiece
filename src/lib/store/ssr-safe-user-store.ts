@@ -14,6 +14,24 @@ let globalStoreState = {
   isHydrated: false
 }
 
+// Reset function to fully clear global singleton state on logout or account switch
+export function resetSSRSafeUserSingleton() {
+  try { globalUnsubscribe?.() } catch {}
+  globalUnsubscribe = null
+  globalIsInitialized = false
+  globalStoreState = {
+    user: null,
+    profile: null,
+    isLoading: false,
+    isHydrated: false,
+  }
+  // Notify any listeners to re-render with cleared state
+  listeners.forEach((listener) => {
+    try { listener(globalStoreState) } catch {}
+  })
+  console.log('🧼 SSR-safe user store: Global singleton reset completed')
+}
+
 // Global state change listeners
 const listeners = new Set<(state: typeof globalStoreState) => void>()
 

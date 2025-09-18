@@ -62,6 +62,19 @@ const tokenBlacklist = new Map<string, { blacklistedAt: number; reason: string }
 // Session validation cache to prevent excessive validation calls
 const sessionValidationCache = new Map<string, { validated: boolean; timestamp: number }>()
 
+
+/**
+ * Clear session validation cache (all or for a specific user)
+ */
+export function clearSessionValidationCache(userId?: string) {
+  if (userId) {
+    sessionValidationCache.delete(userId)
+  } else {
+    sessionValidationCache.clear()
+  }
+  console.log('🧹 Session validation cache cleared', { scope: userId ? 'user' : 'all', userId })
+}
+
 /**
  * Generate a unique session ID
  */
@@ -132,25 +145,25 @@ export function updateSessionActivity(userId: string): boolean {
   if (!session || !session.isValid) {
     return false
   }
-  
+
   const now = Date.now()
-  
+
   // Check if session has exceeded absolute timeout
   if (now > session.expiresAt) {
     invalidateSession(userId, 'absolute_timeout')
     return false
   }
-  
+
   // Check if session has exceeded idle timeout
   if (now - session.lastActivity > DEFAULT_SESSION_CONFIG.idleTimeout) {
     invalidateSession(userId, 'idle_timeout')
     return false
   }
-  
+
   // Update last activity
   session.lastActivity = now
   sessionTracker.set(userId, session)
-  
+
   return true
 }
 
@@ -162,10 +175,10 @@ export function shouldRefreshSession(userId: string): boolean {
   if (!session || !session.isValid) {
     return false
   }
-  
+
   const now = Date.now()
   const timeSinceRefresh = now - session.refreshedAt
-  
+
   return timeSinceRefresh > DEFAULT_SESSION_CONFIG.refreshThreshold
 }
 
@@ -182,29 +195,29 @@ export async function refreshSessionTokens(userId: string): Promise<{
     if (!session || !session.isValid) {
       return { success: false, error: 'Invalid session' }
     }
-    
+
     const supabase = createClient()
-    
+
     // Refresh the session with Supabase
     const { data, error } = await supabase.auth.refreshSession()
-    
+
     if (error || !data.session) {
       console.error('❌ Session refresh failed:', error?.message)
       invalidateSession(userId, 'refresh_failed')
       return { success: false, error: error?.message || 'Refresh failed' }
     }
-    
+
     // Update session state
     const now = Date.now()
     session.refreshedAt = now
     session.lastActivity = now
     sessionTracker.set(userId, session)
-    
+
     console.log('✅ Session refreshed:', {
       userId: userId.substring(0, 8) + '...',
       sessionId: session.sessionId
     })
-    
+
     return {
       success: true,
       newTokens: {
@@ -227,11 +240,11 @@ export function checkSessionWarnings(userId: string): SessionWarning | null {
   if (!session || !session.isValid) {
     return null
   }
-  
+
   const now = Date.now()
   const timeSinceActivity = now - session.lastActivity
   const timeUntilAbsoluteExpiry = session.expiresAt - now
-  
+
   // Check for idle timeout warning
   const idleTimeRemaining = DEFAULT_SESSION_CONFIG.idleTimeout - timeSinceActivity
   if (idleTimeRemaining <= DEFAULT_SESSION_CONFIG.warningThreshold && idleTimeRemaining > 0) {
@@ -241,7 +254,7 @@ export function checkSessionWarnings(userId: string): SessionWarning | null {
       message: `Your session will expire due to inactivity in ${Math.ceil(idleTimeRemaining / 60000)} minutes`
     }
   }
-  
+
   // Check for absolute timeout warning
   if (timeUntilAbsoluteExpiry <= DEFAULT_SESSION_CONFIG.warningThreshold && timeUntilAbsoluteExpiry > 0) {
     return {
@@ -250,7 +263,7 @@ export function checkSessionWarnings(userId: string): SessionWarning | null {
       message: `Your session will expire in ${Math.ceil(timeUntilAbsoluteExpiry / 60000)} minutes`
     }
   }
-  
+
   return null
 }
 
@@ -262,7 +275,7 @@ export function invalidateSession(userId: string, reason: string): void {
   if (session) {
     session.isValid = false
     sessionTracker.set(userId, session)
-    
+
     console.log('🔒 Session invalidated:', {
       userId: userId.substring(0, 8) + '...',
       sessionId: session.sessionId,
@@ -449,6 +462,8 @@ export async function clientSideLogout(userId: string): Promise<{
 
     // Invalidate local session
     invalidateSession(userId, 'user_logout')
+    // Purge session validation cache
+    clearSessionValidationCache(userId)
 
     // Clear all auth-related storage
     const authKeys = [
@@ -550,7 +565,7 @@ export async function enhancedLogout(userId: string): Promise<{
  */
 export function cleanupExpiredSessions(): void {
   const now = Date.now()
-  
+
   for (const [userId, session] of sessionTracker.entries()) {
     if (!session.isValid || now > session.expiresAt) {
       sessionTracker.delete(userId)

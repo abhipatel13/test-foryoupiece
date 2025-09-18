@@ -372,13 +372,13 @@ export default function HomePage() {
             hasUserHistory: data.meta?.hasUserHistory
           })
         } else {
-          console.error('❌ Failed to fetch recommendations:', data.error)
+          console.warn('⚠️ Failed to fetch recommendations:', data.error)
           // Fallback to empty array
           setRecommendedProducts([])
         }
 
       } catch (error) {
-        console.error('❌ Error fetching recommendations:', error)
+        console.warn('⚠️ Error fetching recommendations:', error)
         setRecommendedProducts([])
       } finally {
         setRecommendationsLoading(false)

@@ -185,7 +185,7 @@ export const useCartStore = create<CartStore>()(
         // Handle user authentication state changes
         if (userId) {
           if (userId !== currentUserId) {
-            console.log('👤 User changed, clearing localStorage and loading from database')
+            console.log('👤 User changed, clearing in-memory cart and localStorage before DB load')
             // Clear localStorage to prevent cross-browser conflicts
             try {
               localStorage.removeItem('foryoupiece-cart')
@@ -193,12 +193,20 @@ export const useCartStore = create<CartStore>()(
             } catch (error) {
               console.warn('Failed to clear cart localStorage:', error)
             }
+            // Immediately clear in-memory cart to avoid bleed between accounts
+            set({
+              items: [],
+              pointsToRedeem: 0,
+              appliedCoupon: null,
+              shippingCalculation: null,
+            })
+            // Inform other tabs/UI about cart state reset on user switch
+            try { tabSyncUtils.broadcastCartCleared() } catch (e) { console.warn('Failed to broadcast CART_CLEARED on user switch:', e) }
           } else if (forceReload) {
             console.log('👤 Same user but forcing cart reload from database')
           }
 
-          // Don't clear items immediately - keep them until database load completes
-          // This prevents the cart count from showing 0 temporarily
+          // Load cart from database for the (new) user
           get().loadCartFromDatabase()
           // Recalculate shipping for the new user
           get().calculateShipping()
@@ -588,7 +596,17 @@ export const useCartStore = create<CartStore>()(
       },
 
       setHydrated: (hydrated: boolean) => {
-        console.log('🔄 Cart store: Setting hydrated state:', hydrated)
+        const current = get().isHydrated
+        // No-op if state is already the same to avoid re-renders/log storms
+        if (current === hydrated) {
+          if (process.env.NEXT_PUBLIC_DEBUG_CART === 'true') {
+            console.log('🔄 Cart store: setHydrated no-op (unchanged):', hydrated)
+          }
+          return
+        }
+        if (process.env.NEXT_PUBLIC_DEBUG_CART === 'true') {
+          console.log('🔄 Cart store: Setting hydrated state:', hydrated)
+        }
         set({ isHydrated: hydrated })
       },
 

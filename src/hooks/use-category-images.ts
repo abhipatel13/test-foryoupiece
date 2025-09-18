@@ -251,7 +251,7 @@ export function useCategoryImages() {
       }
 
     } catch (err) {
-      console.error('❌ Error fetching category images:', err);
+      console.warn('⚠️ Error fetching category images:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
 
