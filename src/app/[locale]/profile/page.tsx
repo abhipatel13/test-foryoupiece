@@ -299,12 +299,9 @@ export default function ProfilePage() {
               // One-time reload to synchronize UI state specifically for Telegram login
               // Use the same hard reload pattern with cache-busting param
               try {
-                if (!(window as any).__postLoginReloadDone) {
-                  ;(window as any).__postLoginReloadDone = true
-                  const url = new URL(window.location.href)
-                  url.searchParams.set('r', String(Date.now()))
-                  window.location.replace(url.toString())
-                }
+                const url2 = new URL(window.location.href)
+                url2.searchParams.set('r', String(Date.now()))
+                window.location.replace(url2.toString())
               } catch (e) {
                 console.warn('Telegram post-login reload failed:', e)
               }
@@ -339,12 +336,9 @@ export default function ProfilePage() {
             // One-time reload to synchronize UI state specifically for Telegram login
             // Use the same hard reload pattern with cache-busting param
             try {
-              if (!(window as any).__postLoginReloadDone) {
-                ;(window as any).__postLoginReloadDone = true
-                const url2 = new URL(window.location.href)
-                url2.searchParams.set('r', String(Date.now()))
-                window.location.replace(url2.toString())
-              }
+              const url3 = new URL(window.location.href)
+              url3.searchParams.set('r', String(Date.now()))
+              window.location.replace(url3.toString())
             } catch (e2) {
               console.warn('Telegram post-login reload failed:', e2)
             }
