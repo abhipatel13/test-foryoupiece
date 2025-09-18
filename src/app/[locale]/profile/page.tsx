@@ -251,8 +251,18 @@ export default function ProfilePage() {
       console.log('🔗 Processing Telegram session bridge...')
 
       try {
-        // Decode the session bridge token
-        const sessionData = JSON.parse(Buffer.from(sessionBridge, 'base64').toString())
+        // Decode the session bridge token (browser-safe)
+        let decodedJson = ''
+        try {
+          // Prefer atob in browsers to avoid relying on Node Buffer
+          decodedJson = typeof window !== 'undefined' && typeof atob === 'function'
+            ? atob(sessionBridge)
+            : Buffer.from(sessionBridge, 'base64').toString()
+        } catch (e) {
+          // Fallback to Buffer if atob fails or not available
+          decodedJson = Buffer.from(sessionBridge, 'base64').toString()
+        }
+        const sessionData = JSON.parse(decodedJson)
 
         // Validate the session data
         if (sessionData.access_token && sessionData.refresh_token && sessionData.user_id) {
