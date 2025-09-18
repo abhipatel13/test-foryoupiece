@@ -246,6 +246,17 @@ export default function ProfilePage() {
   useEffect(() => {
     const authParam = searchParams.get('auth')
     const sessionBridge = searchParams.get('session_bridge')
+    const hasReloadToken = (typeof window !== 'undefined') ? new URL(window.location.href).searchParams.has('r') : false
+
+    // Early, one-time hard reload to ensure fresh hydration for Telegram login
+    if (authParam === 'telegram_success' && sessionBridge && !hasReloadToken) {
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.set('r', String(Date.now()))
+        window.location.replace(url.toString())
+        return
+      } catch {}
+    }
 
     if (authParam === 'telegram_success' && sessionBridge) {
       console.log('🔗 Processing Telegram session bridge...')
@@ -286,14 +297,15 @@ export default function ProfilePage() {
               url.searchParams.delete('session_bridge')
               window.history.replaceState({}, '', url.toString())
 
-              // Reload shortly after success to synchronize UI state
-              setTimeout(() => {
-                try {
-                  window.location.reload()
-                } catch (e) {
-                  console.warn('Telegram post-login reload failed:', e)
-                }
-              }, 500)
+              // Clean params (auth, session_bridge, r) without another reload
+              try {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('auth')
+                url.searchParams.delete('session_bridge')
+                url.searchParams.delete('r')
+                window.history.replaceState({}, '', url.toString())
+              } catch {}
+
             }
           }).catch((error) => {
             console.error('❌ Session bridge error:', error)
@@ -309,15 +321,21 @@ export default function ProfilePage() {
       console.log('✅ Telegram authentication success (no bridge)')
       toast.success('Successfully logged in with Telegram!')
 
-      // Clean up URL parameters first to avoid reload loops
       const url = new URL(window.location.href)
+      if (!url.searchParams.has('r')) {
+        url.searchParams.set('r', String(Date.now()))
+        window.location.replace(url.toString())
+        return
+      }
+
+      // Second pass: clean params only without further reloads
       url.searchParams.delete('auth')
+      url.searchParams.delete('r')
       window.history.replaceState({}, '', url.toString())
 
-      // Reload shortly after success to synchronize UI state
-      setTimeout(() => {
-        try {
-          window.location.reload()
+      // No reload here; UI is already fresh after first hard reload
+      try {
+        // noop to keep structure consistent
         } catch (e) {
           console.warn('Telegram post-login reload failed:', e)
         }
