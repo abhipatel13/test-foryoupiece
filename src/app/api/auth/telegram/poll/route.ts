@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { createHash } from 'crypto'
+import { getNonce, deleteNonce } from '@/lib/telegram/nonce-store'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
@@ -33,19 +33,7 @@ function checkRateLimit(ip: string): boolean {
  * When a nonce is verified by the Telegram bot, this endpoint creates a Supabase session.
  */
 
-// Import nonce store from start endpoint
-// Note: In production, this should be a shared Redis store
-let nonceStore: Map<string, any>
-
-try {
-  // Dynamic import to avoid circular dependency
-
-  const startModule = require('../start/route')
-  nonceStore = startModule.nonceStore
-} catch (error) {
-  console.error('❌ Failed to import nonce store:', error)
-  nonceStore = new Map()
-}
+// Stateless nonce storage handled via Supabase DB (see nonce-store.ts)
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,7 +62,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const nonceData = nonceStore.get(nonce)
+    const nonceData = await getNonce(nonce)
 
     if (!nonceData) {
       return NextResponse.json({
@@ -83,29 +71,18 @@ export async function GET(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // Check if nonce has expired (10 minutes)
-    const now = Date.now()
-    const expiredTime = 10 * 60 * 1000
-
-    if (now - nonceData.created > expiredTime) {
-      nonceStore.delete(nonce)
-      return NextResponse.json({
-        success: false,
-        error: 'Nonce has expired'
-      }, { status: 410 })
-    }
-
     // If not verified yet, return pending status
-    if (!nonceData.verified || !nonceData.telegramData) {
+    if (!nonceData.verified || !nonceData.telegram_data) {
+      const created = new Date(nonceData.created_at).getTime()
       return NextResponse.json({
         success: true,
         status: 'pending',
-        expiresAt: nonceData.created + expiredTime
+        expiresAt: created + 10 * 60 * 1000
       })
     }
 
     // Nonce is verified, create Supabase session
-    console.log('✅ Nonce verified, creating session for user:', nonceData.telegramData.id)
+    console.log('✅ Nonce verified, creating session for user:', (nonceData as any).telegram_data?.id)
 
     const supabaseSSR = await createClient()
     const supabaseAdmin = createServiceRoleClient()
@@ -116,7 +93,7 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
-    const telegramData = nonceData.telegramData
+    const telegramData = nonceData.telegram_data as { id: number; username?: string; first_name?: string; last_name?: string }
     const syntheticEmail = `tg_${telegramData.id}@telegram.foryoupiece.local`
 
     // Check if user already exists
@@ -205,11 +182,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Clean up nonce
-    nonceStore.delete(nonce)
+    await deleteNonce(nonce)
 
     console.log('✅ Deep-link Telegram login successful for user:', userId.substring(0, 8) + '...')
 
-    // Server-side session handoff behind feature flag
+    // Server-side session handoff behind feature flag (always return JSON to satisfy client polling)
     const useServerTelegram = process.env.NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN === 'true'
     if (useServerTelegram) {
       try {
@@ -221,11 +198,13 @@ export async function GET(request: NextRequest) {
         console.warn('\u26a0\ufe0f setSession failed in poll route:', e)
       }
 
-      const redirectUrl = new URL('/en/profile?auth=telegram_success', request.url)
-      const res = NextResponse.redirect(redirectUrl)
-      res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
       console.log('\ud83d\udcc8 TELEMETRY: telegram_deeplink_server_login_success', { uid: userId.substring(0, 8) + '...' })
-      return res
+      return NextResponse.json({
+        success: true,
+        status: 'verified',
+        serverHandoff: true,
+        profileRedirect: '/en/profile?auth=telegram_success'
+      })
     }
 
     // Legacy JSON response for client-side session handling

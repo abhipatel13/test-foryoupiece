@@ -115,8 +115,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/en/auth/login?error=rate_limit', request.url))
     }
 
-    // Get bot token with fallback
-    const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN
+    // Get authentication bot token (no fallback to avoid wrong HMAC secret)
+    const botToken = process.env.TELEGRAM_AUTH_BOT_TOKEN
     if (!botToken) {
       console.error('❌ TELEGRAM_AUTH_BOT_TOKEN not configured')
       console.error('🔍 Available Telegram env vars:', {
@@ -124,10 +124,12 @@ export async function GET(request: NextRequest) {
         hasBotToken: !!process.env.TELEGRAM_BOT_TOKEN,
         hasStockToken: !!process.env.TELEGRAM_STOCK_BOT_TOKEN
       })
-      return NextResponse.redirect(new URL('/en/auth/login?error=config_error', request.url))
+      return NextResponse.redirect(new URL('/en/auth/login?error=missing_auth_bot_token', request.url))
     }
+    const botId = botToken.split(':')[0]
+    console.log('✅ Using Telegram auth bot:', { botId, tokenPreview: botToken.substring(0, 10) + '...' })
 
-    console.log('✅ Using bot token:', botToken.substring(0, 10) + '...')
+
 
 function isDuplicateUserErrorMessage(msg: string): boolean {
   if (!msg) return false

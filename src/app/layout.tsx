@@ -55,8 +55,8 @@ export default async function RootLayout({
       <head>
         <link rel="preconnect" href="https://oauth.telegram.org" />
         <link rel="dns-prefetch" href="https://oauth.telegram.org" />
-        <link rel="preconnect" href="https://xhfmyghtcugcocchzgja.supabase.co" crossOrigin="" />
-        <link rel="dns-prefetch" href="https://xhfmyghtcugcocchzgja.supabase.co" />
+        <link rel="preconnect" href="https://auth.foryoupiece.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://auth.foryoupiece.com" />
       </head>
 
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
