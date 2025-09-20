@@ -270,7 +270,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Removed performance optimization hooks to improve dropdown speed
 
   // Optimized user profile loading with faster caching and reduced delays
-  const profileLoadTimestampRef = useRef<number>(0)
+  // Throttle per-user to avoid skipping loads after account switches
+  const profileLoadTimestampByUserRef = useRef<Record<string, number>>({})
   const loadUserProfile = async (userId: string) => {
     if (profileLoadInFlightRef.current === userId) {
       if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
@@ -279,8 +280,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return
     }
 
-    // Reduce cache time to 2 minutes for faster updates
-    const timeSinceLastLoad = Date.now() - profileLoadTimestampRef.current
+    // Reduce cache time to 2 minutes for faster updates (per-user)
+    const last = profileLoadTimestampByUserRef.current[userId] ?? 0
+    const timeSinceLastLoad = Date.now() - last
     if (timeSinceLastLoad < 120000) { // 2 minutes instead of 5
       if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
         console.log('📋 Profile recently loaded, skipping reload for user:', userId)
@@ -297,7 +299,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Proactively ensure a profile exists before fetching it (handles new users across all providers)
       try {
         const controller = new AbortController()
-        const t = setTimeout(() => controller.abort(), 5000)
+        const t = setTimeout(() => controller.abort(), 10000)
         await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
         clearTimeout(t)
       } catch (e) {
@@ -307,7 +309,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Use optimized profile loading via lightweight bootstrap API with soft timeout and background retry
       const profilePromise = (async () => {
         const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 6000)
+        const timer = setTimeout(() => controller.abort(), 12000)
         try {
           const resp = await fetch('/api/profile/bootstrap', {
             cache: 'no-store',
@@ -327,7 +329,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setTimeout(() => {
           console.warn('⏰ Profile load exceeded 5-6s, continuing with background retry...')
           resolve(null) // Soft timeout - resolve with null instead of rejecting
-        }, 6000)
+        }, 12000)
       )
 
       const profile = await Promise.race([profilePromise, softTimeoutPromise])
@@ -355,8 +357,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } catch (e) {
           console.warn('⚠️ Failed to fetch points summary in AuthProvider:', e)
         }
-        profileLoadTimestampRef.current = Date.now()
+        profileLoadTimestampByUserRef.current[userId] = Date.now()
       } else {
+        // Immediate fallback: try direct Supabase profile fetch once before counting a failure
+        try {
+          const fallback = await Promise.race([
+            userQueries.getProfile(userId),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000))
+          ]) as any
+          if (fallback) {
+            if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+              console.log('✅ Fallback profile fetch succeeded, setting profile:', fallback.id)
+            }
+            setProfile(fallback)
+            profileLoadTimestampByUserRef.current[userId] = Date.now()
+            // success: reset failure window
+            profileFailWindowRef.current = { count: 0, windowStart: Date.now(), lastUserId: userId }
+            // Sync points balance in background (non-blocking)
+            try {
+              const { requestUtils } = await import('@/lib/utils/request-deduplication')
+              const ps = await requestUtils.fetchUserPointsSummary(userId)
+              const np = (ps?.points_balance ?? (ps as any)?.balance ?? 0) as number
+              if (typeof np === 'number' && !Number.isNaN(np)) updatePoints(np)
+            } catch {}
+            return
+          }
+        } catch (e) {
+          console.warn('⚠️ Fallback profile fetch attempt failed:', e)
+        }
+
         // Handle soft timeout case - schedule background retry and track failures for auto-recovery
         if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
           console.log('⚠️ Profile load timed out or no profile found, scheduling background retry...')
@@ -373,8 +402,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // If repeated failures, force a clean sign-out so user can re-authenticate
         if (profileFailWindowRef.current.count >= 3) {
-          await forceResetAuth('profile_bootstrap_failed')
-          return
+          if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+            console.warn('🟡 Profile bootstrap repeatedly timing out; continuing passive retries (no logout).')
+          }
         }
 
         // Schedule background retry with exponential backoff
@@ -386,7 +416,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 console.log('✅ Background retry successful, setting profile:', retryProfile.id)
               }
               setProfile(retryProfile)
-              profileLoadTimestampRef.current = Date.now()
+              profileLoadTimestampByUserRef.current[userId] = Date.now()
               // success: reset failure window
               profileFailWindowRef.current = { count: 0, windowStart: Date.now(), lastUserId: userId }
             } else {
@@ -399,13 +429,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 win2.count += 1
               }
               if (profileFailWindowRef.current.count >= 3) {
-                await forceResetAuth('profile_retry_failed')
+                if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+                  console.warn('🟡 Profile retry repeatedly timing out; continuing passive retries (no logout).')
+                }
               }
             }
           } catch (retryError) {
             console.warn('⚠️ Background profile retry failed:', retryError)
             if (profileFailWindowRef.current.count >= 3) {
-              await forceResetAuth('profile_retry_exception')
+              if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
+                console.warn('🟡 Profile retry exception; continuing passive retries (no logout).')
+              }
             }
           }
         }, 2000) // 2 second retry delay
@@ -449,6 +483,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       ]
       keys.forEach(k => { try { localStorage.removeItem(k) } catch {} })
       try { sessionStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS') } catch {}
+      // Reset per-user profile load throttle on account switch
+      profileLoadTimestampByUserRef.current = {}
     } catch (e) {
       console.warn('⚠️ Cleanup on account switch encountered an issue:', e)
     }
@@ -705,6 +741,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
               if (typeof window !== 'undefined' && !__postLoginReloadDone) {
                 __postLoginReloadDone = true
                 try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+                // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
+                try { localStorage.removeItem('foryoupiece-user') } catch {}
+                try { localStorage.removeItem('foryoupiece-cart') } catch {}
+                try { localStorage.removeItem('session_validated_at') } catch {}
                 const reloadUrl = new URL(window.location.href)
                 reloadUrl.searchParams.set('r', String(Date.now()))
                 window.location.replace(reloadUrl.toString())
@@ -733,6 +773,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (typeof window !== 'undefined' && !__postLoginReloadDone) {
             __postLoginReloadDone = true
             try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+            // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
+            try { localStorage.removeItem('foryoupiece-user') } catch {}
+            try { localStorage.removeItem('foryoupiece-cart') } catch {}
+            try { localStorage.removeItem('session_validated_at') } catch {}
             const reloadUrl = new URL(window.location.href)
             reloadUrl.searchParams.set('r', String(Date.now()))
             window.location.replace(reloadUrl.toString())
@@ -781,13 +825,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (session?.user) {
             const sameUser = currentUserRef.current?.id === session.user.id
             if (sameUser) {
-              console.log('⏭️ Skipping duplicate SIGNED_IN handling for same user')
+              console.log('⏭️ SIGNED_IN for same user; refreshing profile defensively')
+              // Defensive refresh to ensure fresh profile/points immediately after auth
+              try {
+                const controller = new AbortController()
+                const t = setTimeout(() => controller.abort(), 10000)
+                await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
+                clearTimeout(t)
+              } catch (e) {
+                console.warn('⚠️ ensure-profile POST failed on SIGNED_IN same-user (non-fatal):', e)
+              }
+              try {
+                await loadUserProfile(session.user.id)
+              } catch (e) {
+                console.warn('⚠️ loadUserProfile failed on SIGNED_IN same-user (non-fatal):', e)
+              }
             } else {
               console.log('👤 Auth state change - preparing post-login hard reload')
               // Trigger hard reload BEFORE setting any possibly incomplete user data to avoid placeholders
               if (typeof window !== 'undefined' && !__postLoginReloadDone) {
                 __postLoginReloadDone = true
                 try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+                // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
+                try { localStorage.removeItem('foryoupiece-user') } catch {}
+                try { localStorage.removeItem('foryoupiece-cart') } catch {}
+                try { localStorage.removeItem('session_validated_at') } catch {}
                 const reloadUrl = new URL(window.location.href)
                 reloadUrl.searchParams.set('r', String(Date.now()))
                 window.location.replace(reloadUrl.toString())
@@ -812,7 +874,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               // Proactively ensure a users row exists for new accounts (covers Google/Telegram/email)
               try {
                 const controller = new AbortController()
-                const t = setTimeout(() => controller.abort(), 5000)
+                const t = setTimeout(() => controller.abort(), 10000)
                 await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
                 clearTimeout(t)
               } catch (e) {
@@ -831,6 +893,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (typeof window !== 'undefined' && !__postLoginReloadDone) {
               __postLoginReloadDone = true
               try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+              // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
+              try { localStorage.removeItem('foryoupiece-user') } catch {}
+              try { localStorage.removeItem('foryoupiece-cart') } catch {}
+              try { localStorage.removeItem('session_validated_at') } catch {}
               const reloadUrl = new URL(window.location.href)
               reloadUrl.searchParams.set('r', String(Date.now()))
               window.location.replace(reloadUrl.toString())

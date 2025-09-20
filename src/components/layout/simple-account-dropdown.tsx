@@ -31,6 +31,33 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
   const router = useRouter()
 
   const { user, profile, isAuthenticated, loading, profileLoading, signOut } = useSSRSafeAuth()
+  // Points fallback when profile is not yet available
+  const [pointsFallback, setPointsFallback] = useState<number | null>(null)
+  useEffect(() => {
+    let canceled = false
+    const load = async () => {
+      try {
+        if (!isAuthenticated || !user?.id) return
+        // If profile already present, mirror its points for immediate display
+        if (profile && typeof (profile as any).points_balance === 'number') {
+          if (!canceled) setPointsFallback((profile as any).points_balance)
+          return
+        }
+        // Fallback: fetch summarized points when profile is missing or still loading
+        if (!profile || profileLoading) {
+          const { requestUtils } = await import('@/lib/utils/request-deduplication')
+          const summary = await requestUtils.fetchUserPointsSummary(user.id)
+          const p = (summary?.points_balance ?? (summary as any)?.balance ?? null) as number | null
+          if (!canceled && typeof p === 'number' && !Number.isNaN(p)) {
+            setPointsFallback(p)
+          }
+        }
+      } catch {}
+    }
+    load()
+    return () => { canceled = true }
+  }, [isAuthenticated, user?.id, profile, profileLoading])
+
 
   // Guard against stale persisted auth by verifying Supabase session
   const [hasSession, setHasSession] = useState<boolean | null>(null)
@@ -199,13 +226,15 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
       })
     } else if (user) {
       // Fallback shell even if profile is not yet available to keep dropdown responsive
-      setUserDisplayData({
+      // Preserve previous points (do not force 0) and only set basic identity fields
+      setUserDisplayData(prev => ({
         name: user.email?.split('@')[0] || 'User',
         email: user.email || '',
         initials: (user.email?.charAt(0) || 'U').toUpperCase(),
-        points: 0,
-        tier: 'bronze'
-      })
+        points: prev?.points ?? 0,
+        // Avoid showing a wrong tier during loading; keep previous if any, otherwise mark as loading
+        tier: prev?.tier ?? 'loading'
+      }))
     } else {
       setUserDisplayData(null)
     }
@@ -291,7 +320,9 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
       case 'platinum': return 'text-purple-600'
       case 'gold': return 'text-yellow-600'
       case 'silver': return 'text-gray-600'
-      default: return 'text-amber-600'
+      case 'bronze': return 'text-amber-600'
+      case 'loading': return 'text-muted-foreground'
+      default: return 'text-muted-foreground'
     }
   }
 
@@ -369,13 +400,15 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
                   <span className="text-sm font-medium">Points</span>
                 </div>
                 <span className="text-sm font-bold text-blue-600">
-                  {userDisplayData.points.toLocaleString()}
+                  {(!userDisplayData) ? '...' : (profile && !profileLoading
+                    ? userDisplayData.points.toLocaleString()
+                    : (pointsFallback != null ? pointsFallback.toLocaleString() : '...'))}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-xs text-muted-foreground">Tier</span>
-                <span className={`text-xs font-medium ${getTierColor(userDisplayData.tier)}`}>
-                  {userDisplayData.tier.toUpperCase()}
+                <span className={`text-xs font-medium ${profile && !profileLoading ? getTierColor(getCorrectUserTier(profile)) : 'text-muted-foreground'}`}>
+                  {profile && !profileLoading ? getCorrectUserTier(profile).toUpperCase() : '...'}
                 </span>
               </div>
             </div>

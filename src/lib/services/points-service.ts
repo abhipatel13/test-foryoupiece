@@ -629,10 +629,10 @@ export class PointsService {
 
       const totalAvailablePoints = earnedPoints + tierRewardPoints
 
-      // Prefer calculated current balance from transactions to avoid stale DB value in UI
+      // Display policy: always use stored DB points_balance for UI (avoid over-correcting with calculated value)
       const summary: UserPointsSummary = {
         total_points_earned: totalPointsEarned,
-        points_balance: actualCurrentBalance, // Use calculated balance for display correctness
+        points_balance: storedBalance,
         points_used: pointsUsed,
         weekly_points_used: weeklyPointsUsed,
         current_rank: currentRank,
