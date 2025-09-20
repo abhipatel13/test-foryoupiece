@@ -1,4 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getNonce, markNonceVerified, deleteNonce } from '@/lib/telegram/nonce-store'
+
 
 interface TelegramCallbackQuery {
   id: string;
@@ -266,44 +268,25 @@ export class TelegramCallbackHandler {
 
       console.log('🔐 Processing login request for nonce:', nonce.substring(0, 8) + '...');
 
-      // Import nonce store dynamically to avoid circular dependency
-      let nonceStore: Map<string, any>;
-      try {
-        const startModule = await import('../../app/api/auth/telegram/start/route');
-        nonceStore = startModule.nonceStore;
-      } catch (error) {
-        console.error('❌ Failed to import nonce store:', error);
-        await this.sendMessage(message.chat.id, '❌ Authentication system error. Please try again later.');
-        return false;
-      }
-
-      // Check if nonce exists and is valid
-      const nonceData = nonceStore.get(nonce);
-      if (!nonceData) {
+      // Validate nonce via stateless store
+      const existing = await getNonce(nonce);
+      if (!existing) {
         console.error('❌ Invalid or expired nonce:', nonce);
         await this.sendMessage(message.chat.id, '❌ Login request expired or invalid. Please try again from the website.');
         return false;
       }
 
-      // Check if nonce has expired (10 minutes)
-      const now = Date.now();
-      const expiredTime = 10 * 60 * 1000;
+      // Nonce existence already validated above via getNonce()
 
-      if (now - nonceData.created > expiredTime) {
-        nonceStore.delete(nonce);
-        console.error('❌ Nonce expired:', nonce);
-        await this.sendMessage(message.chat.id, '❌ Login request expired. Please try again from the website.');
-        return false;
-      }
+      // TTL is enforced in getNonce(); if we reached here, the nonce is valid
 
       // Mark nonce as verified with user data
-      nonceData.verified = true;
-      nonceData.telegramData = {
+      await markNonceVerified(nonce, {
         id: message.from.id,
         username: message.from.username,
         first_name: message.from.first_name,
         last_name: message.from.last_name
-      };
+      });
 
       console.log('✅ Login nonce verified for user:', message.from.id);
 
@@ -394,10 +377,10 @@ export class TelegramCallbackHandler {
       await this.updateOriginalMessage(callbackQuery, actionType, processedBy);
 
       // Answer the callback query
-      const successMessage = actionType === 'confirmed' 
-        ? '✅ Order confirmed successfully!' 
+      const successMessage = actionType === 'confirmed'
+        ? '✅ Order confirmed successfully!'
         : '❌ Order cancelled successfully!';
-      
+
       await this.answerCallbackQuery(callbackQuery.id, successMessage);
 
       console.log(`✅ Order ${orderId} ${actionType} by ${processedBy}`);
@@ -860,14 +843,14 @@ ${orderItemsText}
    * Update the original message to show it's been processed
    */
   private async updateOriginalMessage(
-    callbackQuery: TelegramCallbackQuery, 
-    action: 'confirmed' | 'cancelled', 
+    callbackQuery: TelegramCallbackQuery,
+    action: 'confirmed' | 'cancelled',
     processedBy: string
   ): Promise<void> {
     try {
       const emoji = action === 'confirmed' ? '✅' : '❌';
       const actionText = action === 'confirmed' ? 'CONFIRMED' : 'CANCELLED';
-      
+
       const updatedText = `${callbackQuery.message.text}
 
 ${emoji} <b>ORDER ${actionText}</b>
@@ -895,7 +878,7 @@ ${emoji} <b>ORDER ${actionText}</b>
   private async answerCallbackQuery(callbackQueryId: string, text: string): Promise<void> {
     try {
       const url = `https://api.telegram.org/bot${this.botToken}/answerCallbackQuery`;
-      
+
       await fetch(url, {
         method: 'POST',
         headers: {

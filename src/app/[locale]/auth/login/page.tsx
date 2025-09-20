@@ -112,8 +112,16 @@ function TelegramLoginWidget() {
         const response = await fetch(`/api/auth/telegram/poll?nonce=${nonceToCheck}`)
         const data = await response.json()
 
+        // Support server-side session handoff
+        if (data.success && data.status === 'verified' && data.serverHandoff === true) {
+          toast.success('Successfully logged in with Telegram!')
+          const redirect = data.profileRedirect || '/en/profile?auth=telegram_success'
+          window.location.href = redirect
+          return
+        }
+
+        // Legacy client-side session flow
         if (data.success && data.status === 'verified' && data.session) {
-          // Set session cookies and redirect
           const supabase = createClient()
           await supabase.auth.setSession(data.session)
           toast.success('Successfully logged in with Telegram!')

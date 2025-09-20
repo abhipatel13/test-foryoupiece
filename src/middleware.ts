@@ -98,7 +98,7 @@ export default async function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com https://telegram.org https://oauth.telegram.org https://capig.foryoupiece.com wss://*.supabase.co",
+    "connect-src 'self' https://auth.foryoupiece.com https://*.supabase.co https://api.boxhero.io https://accounts.google.com https://oauth2.googleapis.com https://graph.facebook.com https://www.facebook.com https://telegram.org https://oauth.telegram.org https://capig.foryoupiece.com wss://auth.foryoupiece.com wss://*.supabase.co",
     "frame-src 'self' https://accounts.google.com https://www.facebook.com https://oauth.telegram.org https://telegram.org https://t.me https://www.youtube.com https://www.youtube-nocookie.com",
     "worker-src 'self' blob:",
     "object-src 'none'",

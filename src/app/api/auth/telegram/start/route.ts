@@ -20,29 +20,8 @@ export const runtime = 'nodejs'
  * 4. Frontend polls for nonce status and completes login
  */
 
-// In-memory store for nonces (in production, use Redis or similar)
-const nonceStore = new Map<string, {
-  created: number
-  verified: boolean
-  telegramData?: {
-    id: number
-    username?: string
-    first_name?: string
-    last_name?: string
-  }
-}>()
-
-// Cleanup expired nonces every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  const expiredTime = 10 * 60 * 1000 // 10 minutes
-
-  for (const [nonce, data] of nonceStore.entries()) {
-    if (now - data.created > expiredTime) {
-      nonceStore.delete(nonce)
-    }
-  }
-}, 5 * 60 * 1000)
+// Stateless nonce storage backed by Supabase (service role)
+import { createNonce } from '@/lib/telegram/nonce-store'
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,11 +36,8 @@ export async function POST(request: NextRequest) {
     // Generate secure nonce
     const nonce = randomBytes(16).toString('hex')
 
-    // Store nonce with timestamp
-    nonceStore.set(nonce, {
-      created: Date.now(),
-      verified: false
-    })
+    // Store nonce in Supabase (10-min TTL enforced in code)
+    await createNonce(nonce)
 
     // Create deep-link URL
     const deepLinkUrl = `https://t.me/Authenticationfypbot?start=login-${nonce}`
@@ -84,5 +60,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export the nonce store for use in webhook
-export { nonceStore }
+
