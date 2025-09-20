@@ -34,6 +34,14 @@ function TelegramLoginWidget() {
 
 
   useEffect(() => {
+    // Only render the Telegram widget on the apex domain to avoid "Bot domain invalid" on previews
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname
+      if (!host.endsWith('foryoupiece.com')) {
+        setShowFallback(true)
+        return
+      }
+    }
     // Load Telegram widget script
     const script = document.createElement('script')
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
@@ -377,10 +385,14 @@ function LoginPageContent() {
     }
 
     try {
+      const origin =
+        typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')
+          ? 'https://foryoupiece.com'
+          : window.location.origin
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          redirectTo: `${origin}/en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',

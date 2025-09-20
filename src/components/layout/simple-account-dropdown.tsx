@@ -437,7 +437,7 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
               </div>
             </Link>
 
-            <Link href="/en/settings" role="menuitem" onClick={() => setIsOpen(false)}>
+            <Link href="/en/settings" prefetch={false} role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>

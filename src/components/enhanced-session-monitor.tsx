@@ -29,6 +29,44 @@ export function EnhancedSessionMonitor() {
   const warningCheckIntervalRef = useRef<NodeJS.Timeout>()
   const lastActivityRef = useRef<number>(Date.now())
 
+  // Global OAuth code-exchange fallback (handles stray ?code= from OAuth providers)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const url = new URL(window.location.href)
+      const hasCode = url.searchParams.get('code')
+      const processed = sessionStorage.getItem('__oauth_code_exchanged') === '1'
+      if (!hasCode || processed) return
+
+      const supabase = createClient()
+      ;(async () => {
+        try {
+          // Exchange the code for a session on the client (works when landing on unexpected routes like "/")
+          const { data, error } = await (supabase.auth as any).exchangeCodeForSession(window.location.href)
+          if (error) {
+            console.warn('⚠️ OAuth code exchange failed (fallback):', error?.message || error)
+            return
+          }
+          sessionStorage.setItem('__oauth_code_exchanged', '1')
+          // Ensure profile row exists ASAP
+          fetch('/api/auth/ensure-profile', { method: 'POST', headers: { 'cache-control': 'no-store' } }).catch(() => {})
+
+          // Clean URL and force a one-time hard reload with cache-buster to hydrate fresh data
+          try {
+            url.searchParams.delete('code')
+            url.searchParams.delete('state')
+            url.searchParams.set('r', String(Date.now()))
+            window.location.replace(url.toString())
+          } catch {}
+        } catch (e) {
+          console.warn('⚠️ OAuth code exchange error (fallback):', e)
+        }
+      })()
+    } catch (e) {
+      console.warn('⚠️ OAuth fallback guard error:', e)
+    }
+  }, [])
+
   // Multi-tab synchronization
   const { broadcast } = useMultiTabSync({
     onSessionExpired: (payload) => {
@@ -85,12 +123,12 @@ export function EnhancedSessionMonitor() {
       } else {
         console.warn('❌ Session validation failed:', result.reason)
         setSessionStatus({ valid: false })
-        
+
         // Handle different failure reasons
         if (result.reason === 'session_expired' || result.reason === 'token_blacklisted') {
           handleSessionExpired(result.reason)
         }
-        
+
         return false
       }
     } catch (error) {
@@ -143,7 +181,7 @@ export function EnhancedSessionMonitor() {
     if (typeof window !== 'undefined') {
       const protectedPaths = ['/account', '/profile', '/checkout', '/orders']
       const currentPath = window.location.pathname
-      
+
       if (protectedPaths.some(path => currentPath.includes(path))) {
         window.location.href = `/en/auth/login?redirectTo=${encodeURIComponent(currentPath)}&reason=${reason}`
       }
@@ -163,7 +201,7 @@ export function EnhancedSessionMonitor() {
     if (typeof window === 'undefined') return
 
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
-    
+
     events.forEach(event => {
       document.addEventListener(event, trackActivity, { passive: true })
     })
