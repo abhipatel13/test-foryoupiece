@@ -318,11 +318,25 @@ export default function CartPage() {
   const pointsDiscount = getPointsDiscount()
   const finalTotalWithCouponAndPoints = getFinalTotalWithCouponAndPoints()
 
-  // --- FIX: This is the primary change to fix the loading flicker. ---
-  // REASONING: We should wait until the cart is fully initialized AND hydrated from storage
-  // before we decide whether to show the "empty" message or the cart items. This single
-  // check prevents the "empty cart" from flashing on screen.
-  if (!isHydrated || !isInitialized) {
+  // Debug logging for calculations
+  console.log('Cart calculations:', {
+    subtotal,
+    shippingFee,
+    finalTotal,
+    couponDiscount,
+    pointsDiscount,
+    pointsToRedeem,
+    appliedCoupon: appliedCoupon?.code,
+    finalTotalWithCouponAndPoints,
+    isLoading,
+    isInitialized,
+    itemsLength: items.length
+  })
+
+
+
+  // Show loading if cart is loading or not yet initialized
+  if (isLoading || !isInitialized) {
     return (
       <div className="bg-gray-50 min-h-screen">
         <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
@@ -337,11 +351,25 @@ export default function CartPage() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
-  // --- FIX: The old `isLoading` check is removed from here. ---
-  // Now that we've waited for hydration, we can safely check the items length.
+  // Avoid flicker: wait for cart hydration/loading before showing empty state
+  if (!isHydrated || isLoading) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="container mx-auto px-4 py-8 max-w-screen-2xl">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="bg-white rounded-lg p-12">
+              <div className="animate-pulse text-gray-400">Loading your cart…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show empty cart only after initialization is complete
   if (items.length === 0) {
     return (
       <div className="bg-gray-50 min-h-screen">
@@ -362,9 +390,8 @@ export default function CartPage() {
           </div>
         </div>
       </div>
-    );
+    )
   }
-
 
   return (
     <div className="bg-gray-50 min-h-screen cart-mobile-compact">
