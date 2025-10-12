@@ -228,19 +228,9 @@ function LoginPageContent() {
 
   const supabase = createClient()
 
+  // Handles displaying errors from URL params on initial load
   useEffect(() => {
     try {
-      // Check if user is already logged in
-      const checkUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          console.log('🔄 User already authenticated, redirecting to:', redirectTo)
-          router.push(redirectTo)
-        }
-      }
-      checkUser()
-
-      // Handle OAuth callback errors (defensively decode params)
       const rawError = searchParams.get('error')
       const rawErrorMessage = searchParams.get('message')
       const rawErrorCode = searchParams.get('code')
@@ -310,117 +300,80 @@ function LoginPageContent() {
       // Absolute safeguard: the effect must never crash React tree
       console.error('🚨 Login page init error (guard):', e)
     }
-  }, [supabase, router, redirectTo, searchParams])
+  }, [searchParams])
 
-  // Redirect off the login page immediately when auth state becomes SIGNED_IN
+  // This is now the SINGLE source of truth for handling redirects on successful login.
   useEffect(() => {
-    let mounted = true
-    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      if (!mounted) return
-      if (event === 'SIGNED_IN') {
-        try { localStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS') } catch {}
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
         setLoading(false)
-        // Force a hard reload to guarantee full data hydration (profile, points, tier)
-        try {
-          if (!(window as any).__postLoginReloadDone) {
-            ;(window as any).__postLoginReloadDone = true
-            const url = redirectTo?.startsWith('/') ? redirectTo : '/'
-            const sep = url.includes('?') ? '&' : '?'
-            window.location.replace(`${url}${sep}r=${Date.now()}`)
-          }
-        } catch (e) {
-          // Fallback: soft navigation if window access blocked
-          router.replace(redirectTo)
-        }
+        toast.success('Successfully logged in!')
+        
+        // Use a hard reload to ensure all user data is fresh across the app.
+        // This is a deliberate choice you made and we're keeping it, but now it only runs ONCE.
+        const targetUrl = redirectTo.startsWith('/') ? redirectTo : '/'
+        const cacheBustUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}r=${Date.now()}`
+        window.location.replace(cacheBustUrl)
       }
     })
+
     return () => {
-      mounted = false
-      subscription?.subscription?.unsubscribe?.()
+      subscription.unsubscribe()
     }
   }, [supabase, router, redirectTo])
-
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-      if (error) {
-        setError(error.message)
-        toast.error('Login failed: ' + error.message)
-        return
-      }
-
-      if (data.user) {
-        toast.success('Successfully logged in!')
-        // Hard reload to ensure all profile and saved data are fresh
-        try {
-          if (!(window as any).__postLoginReloadDone) {
-            ;(window as any).__postLoginReloadDone = true
-            const url = redirectTo?.startsWith('/') ? redirectTo : '/'
-            const sep = url.includes('?') ? '&' : '?'
-            window.location.replace(`${url}${sep}r=${Date.now()}`)
-          }
-        } catch (e) {
-          // Fallback soft navigation if needed
-          router.push(redirectTo)
-        }
-      }
-    } catch (err) {
-      setError('An unexpected error occurred')
-      toast.error('An unexpected error occurred')
-    } finally {
-      setLoading(false)
+    if (error) {
+      setError(error.message)
+      toast.error('Login failed: ' + error.message)
     }
+    
+    // We no longer need redirect logic here.
+    // The onAuthStateChange listener will handle it automatically.
+    setLoading(false)
   }
-
-
 
   const handleGoogleLogin = async () => {
     setLoading(true)
     setError('')
-
-    // Mark OAuth flow as in-flight to avoid interceptor interference
-    if (typeof window !== 'undefined') {
-      ;(window as any).__oauthSignInInFlight = true
+    
+    // Simplified origin logic to be more robust.
+    const getRedirectUrl = () => {
+      let url = 
+        process?.env?.NEXT_PUBLIC_SITE_URL ?? // Vercel Environment Variable
+        process?.env?.NEXT_PUBLIC_VERCEL_URL ?? // Vercel System Variable
+        'http://localhost:3000/'
+      // Make sure to include `https://` when not localhost.
+      url = url.includes('http') ? url : `https://${url}`
+      // Make sure to include a trailing `/`.
+      url = url.charAt(url.length - 1) === '/' ? url : `${url}/`
+      return `${url}en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
     }
 
-    try {
-      const origin =
-        typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')
-          ? 'https://foryoupiece.com'
-          : window.location.origin
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${origin}/en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'select_account',
-          },
-        }
-      })
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: getRedirectUrl(),
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account',
+        },
+      }
+    })
 
-      if (error) {
-        setError(error.message)
-        toast.error('Google login failed: ' + error.message)
-      }
-    } catch (err) {
-      setError('Failed to initiate Google login')
-      toast.error('Failed to initiate Google login')
-    } finally {
-      // Clear OAuth in-flight flag regardless of outcome
-      if (typeof window !== 'undefined') {
-        ;(window as any).__oauthSignInInFlight = false
-      }
-      setLoading(false)
+    if (error) {
+      setError(error.message)
+      toast.error('Google login failed: ' + error.message)
+      setLoading(false) // Stop loading on error
     }
   }
 
@@ -450,7 +403,7 @@ function LoginPageContent() {
             </div>
           </Link>
           <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-foreground">
-            Sign in to your account
+            Sign in to your account Plus
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Or{' '}

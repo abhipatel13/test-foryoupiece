@@ -347,7 +347,8 @@ export function Header() {
             {/* Notifications bell intentionally removed; count appears in account dropdown */}
 
             {/* Account & Lists - Simple and Fast */}
-            <SimpleAccountDropdown className="flex-shrink-0 min-w-0 max-w-[88px] overflow-hidden xl:max-w-none" />
+                        
+            <SimpleAccountDropdown className="flex-shrink-0 min-w-0 max-w-[88px] overflow-hidden xl:max-w-none" />          
 
             {/* Ultra Compact Cart - Maximum Visibility on Small Screens */}
             <Link href="/en/cart" className="flex items-center text-foreground hover:text-primary hover:bg-accent/30 transition-all duration-200 px-1 sm:px-2 lg:px-3 py-1 sm:py-2 rounded-lg flex-shrink-0 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 group min-w-[52px] sm:min-w-[64px]" aria-label="View shopping cart">

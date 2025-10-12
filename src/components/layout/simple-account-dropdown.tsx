@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFloating, offset, flip, shift, autoUpdate, useClick, useDismiss, useInteractions } from '@floating-ui/react'
+import { useFloating, offset, shift, autoUpdate, useClick, useDismiss, useInteractions } from '@floating-ui/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronDown, User, Package, Heart, Settings, LogOut, Coins, Bell } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useSSRSafeAuth } from '@/lib/hooks/use-ssr-safe-auth'
 import { getCorrectUserTier } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -28,65 +27,10 @@ interface UserDisplayData {
 export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [userDisplayData, setUserDisplayData] = useState<UserDisplayData | null>(null)
-  const router = useRouter()
 
+  // The hook is now the single source of truth for all auth-related data
   const { user, profile, isAuthenticated, loading, profileLoading, signOut } = useSSRSafeAuth()
-  // Points fallback when profile is not yet available
-  const [pointsFallback, setPointsFallback] = useState<number | null>(null)
-  useEffect(() => {
-    let canceled = false
-    const load = async () => {
-      try {
-        if (!isAuthenticated || !user?.id) return
-        // If profile already present, mirror its points for immediate display
-        if (profile && typeof (profile as any).points_balance === 'number') {
-          if (!canceled) setPointsFallback((profile as any).points_balance)
-          return
-        }
-        // Fallback: fetch summarized points when profile is missing or still loading
-        if (!profile || profileLoading) {
-          const { requestUtils } = await import('@/lib/utils/request-deduplication')
-          const summary = await requestUtils.fetchUserPointsSummary(user.id)
-          const p = (summary?.points_balance ?? (summary as any)?.balance ?? null) as number | null
-          if (!canceled && typeof p === 'number' && !Number.isNaN(p)) {
-            setPointsFallback(p)
-          }
-        }
-      } catch {}
-    }
-    load()
-    return () => { canceled = true }
-  }, [isAuthenticated, user?.id, profile, profileLoading])
 
-
-  // Guard against stale persisted auth by verifying Supabase session
-  const [hasSession, setHasSession] = useState<boolean | null>(null)
-  useEffect(() => {
-    let canceled = false
-    const supabase = createClient()
-
-    const check = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!canceled) setHasSession(!!session?.access_token)
-      } catch {
-        if (!canceled) setHasSession(false)
-      }
-    }
-
-    // Initial check and keep in sync with real auth changes
-    check()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (!canceled) setHasSession(!!session?.access_token)
-    })
-
-    return () => {
-      canceled = true
-      try { subscription?.unsubscribe() } catch {}
-    }
-  }, [isAuthenticated])
-
-  // Use simple auth hook without complex optimizations
   const [unreadCount, setUnreadCount] = useState(0)
   const refreshUnread = useCallback(async () => {
     try {
@@ -101,7 +45,6 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     } catch {}
   }, [])
 
-  // Initial load + realtime subscription for accuracy
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return
     refreshUnread()
@@ -116,7 +59,6 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     return () => { try { supabase.removeChannel(ch) } catch {} }
   }, [isAuthenticated, user?.id, refreshUnread])
 
-  // Also refresh unread count when other parts of the app dispatch a notifications refresh/cleared event
   useEffect(() => {
     const onRefresh = () => { try { refreshUnread() } catch {} }
     try {
@@ -131,11 +73,8 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     }
   }, [refreshUnread])
 
-
-
   const [authSigningIn, setAuthSigningIn] = useState(false)
 
-  // Read cross-page sign-in flag set by Telegram widget and others (with TTL)
   useEffect(() => {
     const FLAG_KEY = 'AUTH_SIGNIN_IN_PROGRESS'
     const TTL_MS = 3 * 60 * 1000 // 3 minutes safety
@@ -149,12 +88,9 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
           if (!fresh) localStorage.removeItem(FLAG_KEY)
           return fresh
         }
-        // Legacy value handling: treat as invalid to avoid pre-click confusion
         return false
       } catch {
-        // Non-JSON legacy value
         if (raw === '1') {
-          // Treat as invalid to prevent stale banner
           localStorage.removeItem(FLAG_KEY)
         }
         return false
@@ -174,7 +110,6 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     } catch {}
   }, [])
 
-  // Clear flag once authenticated
   useEffect(() => {
     try {
       if (isAuthenticated) {
@@ -184,36 +119,28 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     } catch {}
   }, [isAuthenticated])
 
-  // Floating UI setup with proper overlay positioning
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
     middleware: [
       offset(8),
-      // Keep menu below trigger; avoid flipping to top to prevent upward dropdowns
-      // Remove flip or restrict to bottom-aligned behavior only
-      // flip({ fallbackPlacements: ['bottom-end', 'bottom-start'], padding: 16 }),
       shift({ padding: 16 })
     ],
     whileElementsMounted: autoUpdate,
     placement: 'bottom-end',
-    strategy: 'fixed' // Use fixed to avoid clipping and ensure stable below-header positioning
+    strategy: 'fixed'
   })
 
   const click = useClick(context)
   const dismiss = useDismiss(context)
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss])
 
-  // Simple user data preparation with defensive points mapping
   useEffect(() => {
     if (user && profile) {
       const firstName = profile.first_name || ''
       const lastName = profile.last_name || ''
       const name = firstName && lastName ? `${firstName} ${lastName}` : user.email?.split('@')[0] || 'User'
-
-      // Prefer points_balance; if undefined, try fallback fields
-      const rawPoints = (profile as any).points_balance ?? (profile as any).points ?? 0
-      const points = typeof rawPoints === 'number' && !Number.isNaN(rawPoints) ? rawPoints : 0
+      const points = (profile as any).points_balance ?? 0
 
       setUserDisplayData({
         name,
@@ -225,58 +152,33 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
         tier: getCorrectUserTier(profile)
       })
     } else if (user) {
-      // Fallback shell even if profile is not yet available to keep dropdown responsive
-      // Preserve previous points (do not force 0) and only set basic identity fields
       setUserDisplayData(prev => ({
         name: user.email?.split('@')[0] || 'User',
         email: user.email || '',
         initials: (user.email?.charAt(0) || 'U').toUpperCase(),
         points: prev?.points ?? 0,
-        // Avoid showing a wrong tier during loading; keep previous if any, otherwise mark as loading
         tier: prev?.tier ?? 'loading'
       }))
     } else {
       setUserDisplayData(null)
     }
-  }, [user, profile, profileLoading])
+  }, [user, profile])
 
-  // Handle sign out
   const handleSignOut = useCallback(async () => {
-    try {
-      await signOut()
-    } catch (error) {
-      console.error('Sign out error:', error)
-    } finally {
-      try {
-        setIsOpen(false)
-      } catch {}
-      try {
-        if (typeof window !== 'undefined') {
-          try { localStorage.clear() } catch {}
-          try { sessionStorage.clear() } catch {}
-          window.location.replace('/en/auth/login')
-        }
-      } catch {}
-    }
+    await signOut()
+    setIsOpen(false)
   }, [signOut])
 
-  // Only show loading skeleton during session hydration, not profile loading
-  // This allows the dropdown to be clickable even when profile is still loading
-  if (loading && !user) {
+  if (loading && !isAuthenticated) {
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-        <div className="hidden">
-          <div className="h-4 w-24 bg-muted animate-pulse rounded mb-1" />
-          <div className="h-3 w-20 bg-muted animate-pulse rounded" />
-        </div>
         <ChevronDown className="h-4 w-4 text-muted-foreground animate-pulse" />
       </div>
     )
   }
 
-  // Not authenticated or no valid session -> show Sign In; never open dropdown
-  if (!isAuthenticated || hasSession === false) {
+  if (!isAuthenticated) {
     if (authSigningIn) {
       return (
         <div className={`flex items-center space-x-2 ${className}`}>
@@ -300,15 +202,10 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
     )
   }
 
-  // No user data yet
   if (!userDisplayData) {
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <Skeleton className="h-8 w-8 rounded-full" />
-        <div className="hidden">
-          <Skeleton className="h-4 w-24 mb-1" />
-          <Skeleton className="h-3 w-20" />
-        </div>
         <Skeleton className="h-4 w-4" />
       </div>
     )
@@ -373,7 +270,6 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
           className="z-[100] min-w-[280px] bg-background border border-border rounded-lg shadow-lg p-0 animate-in fade-in-0 zoom-in-95"
           {...getFloatingProps()}
         >
-          {/* User Info Header */}
           <div className="p-4 border-b border-border">
             <div className="flex items-center space-x-3">
               <Avatar className="h-10 w-10">
@@ -392,7 +288,6 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
               </div>
             </div>
 
-            {/* Simple Points Display */}
             <div className="mt-3 p-2 bg-accent/30 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -400,21 +295,18 @@ export function SimpleAccountDropdown({ className = '' }: SimpleAccountDropdownP
                   <span className="text-sm font-medium">Points</span>
                 </div>
                 <span className="text-sm font-bold text-blue-600">
-                  {(!userDisplayData) ? '...' : (profile && !profileLoading
-                    ? userDisplayData.points.toLocaleString()
-                    : (pointsFallback != null ? pointsFallback.toLocaleString() : '...'))}
+                  {profileLoading ? '...' : userDisplayData.points.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-xs text-muted-foreground">Tier</span>
-                <span className={`text-xs font-medium ${profile && !profileLoading ? getTierColor(getCorrectUserTier(profile)) : 'text-muted-foreground'}`}>
-                  {profile && !profileLoading ? getCorrectUserTier(profile).toUpperCase() : '...'}
+                <span className={`text-xs font-medium ${!profileLoading ? getTierColor(userDisplayData.tier) : 'text-muted-foreground'}`}>
+                  {profileLoading ? '...' : userDisplayData.tier.toUpperCase()}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Menu Items */}
           <div className="p-2">
             <Link href="/en/profile" role="menuitem" onClick={() => setIsOpen(false)}>
               <div className="flex items-center space-x-3 px-3 py-2 min-h-[44px] text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer">

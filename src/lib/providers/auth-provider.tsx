@@ -10,12 +10,10 @@ import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
 import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 
 import { registerAuthHandler, unregisterAuthHandler, authFetch, initAuthFetchGlobalPatch } from '@/lib/utils/auth-interceptor'
-// import removed: useSessionMonitor not needed here; SessionMonitor component handles monitoring
 import { clientSideLogout, createSession } from '@/lib/security/session-manager'
 import { requestUtils } from '@/lib/utils/request-deduplication'
 import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
 
-// Enhanced auth provider with session monitoring
 // Global guard to avoid double initialization in React StrictMode / Fast Refresh
 let __AUTH_PROVIDER_INIT_DONE = false;
 // One-time post-login reload guard to ensure fresh profile/points after OAuth or login
@@ -86,6 +84,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.warn('⚠️ Post-login reload guard init failed:', e)
     }
   }, [])
+  
+  // Centralized helper function for the one-time post-login hard reload
+  const handlePostLoginReload = useCallback(() => {
+    if (typeof window !== 'undefined' && !__postLoginReloadDone) {
+      console.log('🚀 Triggering one-time post-login hard reload...');
+      __postLoginReloadDone = true;
+      try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+      
+      // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
+      try { localStorage.removeItem('foryoupiece-user') } catch {}
+      try { localStorage.removeItem('foryoupiece-cart') } catch {}
+      try { localStorage.removeItem('session_validated_at') } catch {}
+      
+      const reloadUrl = new URL(window.location.href);
+      reloadUrl.searchParams.set('r', String(Date.now()));
+      window.location.replace(reloadUrl.toString());
+    }
+  }, []);
 
   // Initialize a single Supabase client on the client only with browser-specific handling
   useEffect(() => {
@@ -721,213 +737,81 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
-  // Set up auth state change listener - simplified
+  // Set up auth state change listener
   useEffect(() => {
     if (!isClient || !initializationRef.current || !supabaseRef.current) return
 
     const { data: { subscription } } = supabaseRef.current.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: SupabaseSession | null) => {
-        console.log('🔄 Auth state change:', event)
+        console.log('🔄 Auth state change:', event, { hasSession: !!session })
 
-        // Properly handle INITIAL_SESSION to immediately hydrate UI after OAuth redirects
         if (event === 'INITIAL_SESSION') {
           if (session?.user) {
             const sameUser = currentUserRef.current?.id === session.user.id
-            if (sameUser) {
-              console.log('⏭️ Skipping duplicate INITIAL_SESSION handling for same user')
-            } else {
-              console.log('👤 INITIAL_SESSION - preparing post-login hard reload')
-              // Trigger hard reload BEFORE setting any possibly incomplete user data to avoid placeholders
-              if (typeof window !== 'undefined' && !__postLoginReloadDone) {
-                __postLoginReloadDone = true
-                try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
-                // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
-                try { localStorage.removeItem('foryoupiece-user') } catch {}
-                try { localStorage.removeItem('foryoupiece-cart') } catch {}
-                try { localStorage.removeItem('session_validated_at') } catch {}
-                const reloadUrl = new URL(window.location.href)
-                reloadUrl.searchParams.set('r', String(Date.now()))
-                window.location.replace(reloadUrl.toString())
-                return
-              }
-
-              console.log('👤 INITIAL_SESSION - setting user:', { id: session.user.id, email: session.user.email })
-              // Cleanup previous account state if switching identities
-              await cleanupOnAccountSwitch(currentUserRef.current?.id, session.user.id)
-              setUser(session.user)
-              setUserId(session.user.id)
-
-              try {
-                createSession(session.user.id)
-              } catch (e) {
-                console.warn('⚠️ Failed to create client session state (INITIAL_SESSION):', e)
-              }
-
-              await loadUserProfile(session.user.id)
+            if (!sameUser) {
+                console.log('👤 INITIAL_SESSION - setting user from existing session:', { id: session.user.id });
+                await cleanupOnAccountSwitch(currentUserRef.current?.id, session.user.id);
+                setUser(session.user);
+                setUserId(session.user.id);
+                try {
+                    createSession(session.user.id);
+                } catch (e) {
+                    console.warn('⚠️ Failed to create client session state (INITIAL_SESSION):', e);
+                }
+                await loadUserProfile(session.user.id);
             }
-
-            // Broadcast initial session to other tabs in case they're open
-            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
-
-          // Post-login hard reload on INITIAL_SESSION as well
-          if (typeof window !== 'undefined' && !__postLoginReloadDone) {
-            __postLoginReloadDone = true
-            try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
-            // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
-            try { localStorage.removeItem('foryoupiece-user') } catch {}
-            try { localStorage.removeItem('foryoupiece-cart') } catch {}
-            try { localStorage.removeItem('session_validated_at') } catch {}
-            const reloadUrl = new URL(window.location.href)
-            reloadUrl.searchParams.set('r', String(Date.now()))
-            window.location.replace(reloadUrl.toString())
-            return
           }
-
-          }
-          setStoreLoading(false)
-          return
+          setStoreLoading(false);
+          setIsValidating(false);
+          return;
         }
 
         if (event === 'SIGNED_OUT') {
-          // Set local logout flag to prevent race conditions
           signOutInProgressRef.current = true
-
-          // Use proper cart logout cleanup
           await clearCartOnLogout()
           clearUser()
           try { resetSSRSafeUserSingleton() } catch {}
-
-          // Reset Supabase client cache to prevent stale client issues
           resetClientCache()
-
-          // Broadcast sign out to other tabs (only if not from cross-tab event)
           if (!crossTabSignOutRef.current) {
             broadcast('AUTH_STATE_CHANGE', { user: null, event })
           }
-
-          // Reset logout flag after cleanup (further reduced to 100ms to minimize race window)
           setTimeout(() => {
             signOutInProgressRef.current = false
             try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
           }, 100)
-
           router.replace('/en/auth/login')
-        } else if (event === 'SIGNED_IN') {
-          // If a logout guard is active but we received SIGNED_IN, clear it and proceed
-          const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
-          if (signOutInProgressRef.current || globalSignOutFlag) {
-            console.log('✅ SIGNED_IN received during logout guard; clearing guard and proceeding')
-            signOutInProgressRef.current = false
-            try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
-            // continue without early return
-          }
+        } 
+        
+        else if (event === 'SIGNED_IN') {
+          if (session?.user) {
+            const sameUser = currentUserRef.current?.id === session.user.id;
+            if (sameUser) {
+              console.log('⏭️ SIGNED_IN for same user; ensuring profile is fresh.');
+              await loadUserProfile(session.user.id);
+            } else {
+              console.log('👤 New user SIGNED_IN. Preparing for hard reload.');
+              handlePostLoginReload();
+              return;
+            }
 
+            broadcast('AUTH_STATE_CHANGE', { user: session.user, event });
+          }
+        } 
+        
+        else if (event === 'TOKEN_REFRESHED') {
           if (session?.user) {
             const sameUser = currentUserRef.current?.id === session.user.id
-            if (sameUser) {
-              console.log('⏭️ SIGNED_IN for same user; refreshing profile defensively')
-              // Defensive refresh to ensure fresh profile/points immediately after auth
-              try {
-                const controller = new AbortController()
-                const t = setTimeout(() => controller.abort(), 10000)
-                await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
-                clearTimeout(t)
-              } catch (e) {
-                console.warn('⚠️ ensure-profile POST failed on SIGNED_IN same-user (non-fatal):', e)
-              }
-              try {
-                await loadUserProfile(session.user.id)
-              } catch (e) {
-                console.warn('⚠️ loadUserProfile failed on SIGNED_IN same-user (non-fatal):', e)
-              }
-            } else {
-              console.log('👤 Auth state change - preparing post-login hard reload')
-              // Trigger hard reload BEFORE setting any possibly incomplete user data to avoid placeholders
-              if (typeof window !== 'undefined' && !__postLoginReloadDone) {
-                __postLoginReloadDone = true
-                try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
-                // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
-                try { localStorage.removeItem('foryoupiece-user') } catch {}
-                try { localStorage.removeItem('foryoupiece-cart') } catch {}
-                try { localStorage.removeItem('session_validated_at') } catch {}
-                const reloadUrl = new URL(window.location.href)
-                reloadUrl.searchParams.set('r', String(Date.now()))
-                window.location.replace(reloadUrl.toString())
-                return
-              }
-
-              console.log('👤 Auth state change - setting user:', { id: session.user.id, email: session.user.email })
-              // Cleanup previous account state if switching identities
-              await cleanupOnAccountSwitch(currentUserRef.current?.id, session.user.id)
+            if (!sameUser) {
+              console.log('👤 TOKEN_REFRESHED with different user, updating state:', { id: session.user.id, email: session.user.email })
               setUser(session.user)
               setUserId(session.user.id)
-              // Immediately unblock UI; profile/cart loads will continue in background
-              try { setStoreLoading(false); setHydrated(true) } catch {}
-
-              // Initialize in-memory session tracker for validation endpoints
-              try {
-                createSession(session.user.id)
-              } catch (e) {
-                console.warn('⚠️ Failed to create client session state:', e)
-              }
-
-              // Proactively ensure a users row exists for new accounts (covers Google/Telegram/email)
-              try {
-                const controller = new AbortController()
-                const t = setTimeout(() => controller.abort(), 10000)
-                await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
-                clearTimeout(t)
-              } catch (e) {
-                console.warn('⚠️ ensure-profile POST failed (non-fatal):', e)
-              }
-
               await loadUserProfile(session.user.id)
-              // Only force cart reload when user actually changed
-              // setUserId already triggers cart load; avoid duplicate
             }
-
-            // Broadcast sign in to other tabs
-            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
-
-            // Post-login hard reload to guarantee fresh profile/points/tier/preferences
-            if (typeof window !== 'undefined' && !__postLoginReloadDone) {
-              __postLoginReloadDone = true
-              try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
-              // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
-              try { localStorage.removeItem('foryoupiece-user') } catch {}
-              try { localStorage.removeItem('foryoupiece-cart') } catch {}
-              try { localStorage.removeItem('session_validated_at') } catch {}
-              const reloadUrl = new URL(window.location.href)
-              reloadUrl.searchParams.set('r', String(Date.now()))
-              window.location.replace(reloadUrl.toString())
-              return
-            }
-
-          }
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Token refreshed should not churn user state if identity is unchanged
-          if (session?.user) {
-            const sameUser = currentUserRef.current?.id === session.user.id
-            if (sameUser) {
-              console.log('⏭️ Skipping store update/broadcast on TOKEN_REFRESHED for same user')
-              // No user/profile/cart updates or cross-tab broadcast needed
-              // Supabase autoRefresh keeps tokens valid; UI state remains stable
-              return
-            }
-            // In rare cases the user object changes (e.g., anon->auth), update accordingly
-            console.log('👤 TOKEN_REFRESHED with different user, updating state:', { id: session.user.id, email: session.user.email })
-            setUser(session.user)
-            setUserId(session.user.id)
-
-            await loadUserProfile(session.user.id)
-            // Do not broadcast TOKEN_REFRESHED as AUTH_STATE_CHANGE to avoid cross-tab loops
           }
         } else if (event === 'USER_UPDATED') {
           if (session?.user) {
             setUser(session.user)
             await loadUserProfile(session.user.id)
-
-            // Broadcast user update to other tabs
             broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
           }
         }
@@ -939,7 +823,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [isClient, setUser, setUserId, clearUser, clearCartOnLogout, router])
+  }, [isClient, setUser, setUserId, clearUser, clearCartOnLogout, router, handlePostLoginReload]);
 
   // Register auth handler for interceptor
   useEffect(() => {
