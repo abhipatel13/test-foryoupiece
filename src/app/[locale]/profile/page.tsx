@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Shield, Bell } from 'lucide-react'
+import { toast } from 'sonner';
 
 // Import the refactored child components
 import { ProfileInfoCard } from './_components/ProfileInfoCard'
