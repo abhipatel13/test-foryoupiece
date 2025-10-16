@@ -100,6 +100,9 @@ export async function GET(request: NextRequest) {
       // For regular authentication (not password recovery), use exchangeCodeForSession
       const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
+      console.log('✅ Data',data)
+      console.log('❌ Error',error)
+
       if (!error && data.session) {
         console.log('✅ Session exchanged successfully:', {
           userId: data.session.user.id,

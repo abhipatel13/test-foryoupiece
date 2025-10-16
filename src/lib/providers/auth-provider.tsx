@@ -1,872 +1,122 @@
+// lib/providers/auth-provider.tsx
 'use client'
 
-import { createContext, useContext, useEffect, useRef, ReactNode, useCallback, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient, resetClientCache } from '@/lib/supabase/client'
-import { useSSRSafeUserStore, resetSSRSafeUserSingleton } from '@/lib/store/ssr-safe-user-store'
-import { useSSRSafeCartStore } from '@/lib/store/ssr-safe-cart-store'
+import { useEffect, useRef, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+
+// 💡 FIX: Import the REAL Zustand stores directly.
+// The AuthProvider will interact with these, and the SSR-safe hooks
+// will ensure the UI components consume the state changes correctly.
+import { useUserStore } from '@/lib/store/user-store' 
+import { useCartStore } from '@/lib/store/cart-store'
+
 import { userQueries } from '@/lib/supabase/queries'
-import { useIsClient } from '@/lib/hooks/use-ssr-safe-store'
-import { useMultiTabSync } from '@/lib/utils/multi-tab-sync'
 
-import { registerAuthHandler, unregisterAuthHandler, authFetch, initAuthFetchGlobalPatch } from '@/lib/utils/auth-interceptor'
-import { clientSideLogout, createSession } from '@/lib/security/session-manager'
-import { requestUtils } from '@/lib/utils/request-deduplication'
-import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js'
+// NOTE: You may need to adjust the import paths for user-store and cart-store
+// if they are located elsewhere.
 
-// Global guard to avoid double initialization in React StrictMode / Fast Refresh
-let __AUTH_PROVIDER_INIT_DONE = false;
-// One-time post-login reload guard to ensure fresh profile/points after OAuth or login
-let __postLoginReloadDone = false;
+const AUTH_CHANNEL_NAME = 'app_auth_channel'
 
+/**
+ * AuthProvider is the single source of truth for the application's authentication state.
+ * It listens for Supabase auth events and directly manipulates the underlying Zustand
+ * stores. The UI components will then react to these changes via the SSR-safe hooks.
+ */
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const supabase = createClient()
+  const subscribed = useRef(false)
 
-// Create auth context
-const AuthContext = createContext<{
-  initialized: boolean
-  isValidating: boolean
-}>({
-  initialized: false,
-  isValidating: true
-})
+  const revalidateSession = useCallback(async () => {
+    console.log('[Auth Sync] Revalidating session from other tab event.')
+    await supabase.auth.getSession()
+  }, [supabase.auth])
 
-interface AuthProviderProps {
-  children: ReactNode
-}
-
-export function AuthProvider({ children }: AuthProviderProps) {
-  if (process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true') {
-    console.log('🚀 AuthProvider component rendered!')
-  }
-
-  const router = useRouter()
-  const isClient = useIsClient()
-  const initializationRef = useRef(false)
-  const [isValidating, setIsValidating] = useState(true)
-  const crossTabSignOutRef = useRef(false)
-  const signOutInProgressRef = useRef(false)
-
-  // Stable refs to reduce re-renders and duplicate work
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
-  const currentUserRef = useRef<ReturnType<typeof useSSRSafeUserStore>['user']>(null)
-  const profileLoadInFlightRef = useRef<string | null>(null)
-
-  // Track profile load failures to trigger automatic recovery if stuck
-  const profileFailWindowRef = useRef<{ count: number; windowStart: number; lastUserId: string }>({ count: 0, windowStart: 0, lastUserId: '' })
-
-  // Throttle repeated cross-tab cart reloads
-  const lastCrossTabCartReloadRef = useRef(0)
-
-  // Use SSR-safe store wrappers
-  const userStore = useSSRSafeUserStore()
-  const cartStore = useSSRSafeCartStore()
-
-  const { setUser, setProfile, setLoading: setStoreLoading, setHydrated, clearUser, updatePoints } = userStore
-  const { setUserId, forceLoadCartForUser, clearCart, clearCartOnLogout } = cartStore
-
-
-  // Initialize one-time post-login reload guard using URL cache-buster and sessionStorage
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const url = new URL(window.location.href)
-      // If cache-buster is present, mark reload as done and clean the URL
-      if (url.searchParams.has('r')) {
-        __postLoginReloadDone = true
-        try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
-        url.searchParams.delete('r')
-        window.history.replaceState({}, '', url.toString())
-      } else if (sessionStorage.getItem('__postLoginReloadDone') === '1') {
-        // Persist guard across a single hard reload, then clear it for future logins
-        __postLoginReloadDone = true
-        try { sessionStorage.removeItem('__postLoginReloadDone') } catch {}
+    if (subscribed.current) return
+    subscribed.current = true
+
+    // 💡 FIX: Call methods on the real store's state.
+    // This is safe because onAuthStateChange only runs on the client.
+    useUserStore.getState().setLoading(true)
+
+    const channel = new BroadcastChannel(AUTH_CHANNEL_NAME)
+
+    channel.onmessage = (event) => {
+      console.log(`[Auth Sync] Received event from other tab:`, event.data.type)
+      switch (event.data.type) {
+        case 'SIGNED_IN':
+        case 'USER_UPDATED':
+          revalidateSession()
+          break;
+        case 'SIGNED_OUT':
+          useUserStore.getState().clearUser()
+          useCartStore.getState().clearCartOnLogout()
+          break;
       }
-    } catch (e) {
-      console.warn('⚠️ Post-login reload guard init failed:', e)
     }
-  }, [])
-  
-  // Centralized helper function for the one-time post-login hard reload
-  const handlePostLoginReload = useCallback(() => {
-    if (typeof window !== 'undefined' && !__postLoginReloadDone) {
-      console.log('🚀 Triggering one-time post-login hard reload...');
-      __postLoginReloadDone = true;
-      try { sessionStorage.setItem('__postLoginReloadDone', '1') } catch {}
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`[Supabase Auth] Event received: ${event}`)
       
-      // Wipe persisted user/cart/profile before hard reload to avoid rehydrating stale data
-      try { localStorage.removeItem('foryoupiece-user') } catch {}
-      try { localStorage.removeItem('foryoupiece-cart') } catch {}
-      try { localStorage.removeItem('session_validated_at') } catch {}
-      
-      const reloadUrl = new URL(window.location.href);
-      reloadUrl.searchParams.set('r', String(Date.now()));
-      window.location.replace(reloadUrl.toString());
-    }
-  }, []);
-
-  // Initialize a single Supabase client on the client only with browser-specific handling
-  useEffect(() => {
-    if (isClient && !supabaseRef.current) {
-      try {
-        supabaseRef.current = createClient()
-        console.log('✅ Supabase client initialized successfully')
-        // Ensure all same-origin fetch() calls include Authorization automatically
-        initAuthFetchGlobalPatch()
-      } catch (e) {
-        console.error('❌ Failed to create Supabase client:', e)
-
-        // Browser-specific error handling
-        if (e instanceof Error) {
-          if (e.message.includes('localStorage') || e.message.includes('storage')) {
-            console.warn('🔒 Storage access blocked - this may be due to private browsing mode or strict privacy settings')
-          }
-
-          if (e.message.includes('network') || e.message.includes('fetch')) {
-            console.warn('🌐 Network error - check internet connection and firewall settings')
-          }
-        }
-      }
-    }
-  }, [isClient])
-
-  // Track current user in a ref to avoid coupling callbacks to store deps
-  useEffect(() => {
-    currentUserRef.current = userStore.user
-  }, [userStore.user])
-
-  // Centralized hard reset auth helper (top-level hook; do not declare inside callbacks)
-  const forceResetAuth = useCallback(async (reason: string) => {
-    try {
-      console.warn('🧹 Forcing authentication reset due to:', reason)
-      signOutInProgressRef.current = true
-      try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = true } } catch {}
-      try { await supabaseRef.current?.auth.signOut() } catch (e) { console.warn('⚠️ Supabase signOut during force reset:', e) }
-      try { await fetch('/api/auth/logout', { method: 'POST' }) } catch {}
-      try { await clearCartOnLogout() } catch {}
-      clearUser()
-      try { resetSSRSafeUserSingleton() } catch {}
-      resetClientCache()
-      try { localStorage.clear() } catch {}
-      try { sessionStorage.clear() } catch {}
-    } finally {
-      signOutInProgressRef.current = false
-      if (typeof window !== 'undefined') {
-        const url = '/en/auth/login?reset=1&reason=' + encodeURIComponent(reason)
-        window.location.replace(url)
-      } else {
-        router.replace('/en/auth/login?reset=1')
-      }
-    }
-  }, [clearUser, clearCartOnLogout, router])
-
-
-  // Session monitoring is performed by <SessionMonitor /> at layout level to avoid duplication
-
-  // Handle cross-tab sign out (defined first to avoid circular dependency)
-  const handleCrossTabSignOut = useCallback(async () => {
-    console.log('🔄 AuthProvider: Handling cross-tab sign out')
-    try {
-      // Sign out from Supabase first to clear cookies/tokens
-      try {
-        const { data: { session } } = await (supabaseRef.current?.auth.getSession() ?? { data: { session: null } as any })
-        if (session) {
-          await supabaseRef.current!.auth.signOut()
-        } else {
-          console.log('⏭️ Skipping duplicate signOut in cross-tab handler (no active session)')
-        }
-      } catch (e) {
-        console.warn('⚠️ Supabase signOut check/attempt failed during cross-tab sign out:', e)
-      }
-
-      // Best-effort server-side logout for token blacklisting
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      } catch (e) {
-        console.warn('⚠️ Server-side logout API call failed during cross-tab sign out:', e)
-      }
-
-      // Clear Zustand stores with proper cart cleanup
-      await clearCartOnLogout()
-      clearUser()
-      try { resetSSRSafeUserSingleton() } catch {}
-
-      // Reset Supabase client cache to prevent stale client issues
-      resetClientCache()
-
-      // Clear localStorage items
-      const authKeys = [
-        'supabase.auth.token',
-        'foryoupiece-user',
-        'foryoupiece-cart',
-        'session_validated_at'
-      ]
-
-      // Hard reset helper now defined at top-level; invoke directly here when needed
-
-      authKeys.forEach(key => {
-        try {
-          localStorage.removeItem(key)
-        } catch (e) {
-          console.error(`Failed to remove ${key}:`, e)
-        }
-      })
-
-      if (isClient) {
-        router.replace('/en/auth/login?expired=true')
-      }
-    } catch (error) {
-      console.error('❌ Cross-tab sign out error:', error)
-    } finally {
-      // Reset the flag after a delay to allow for future cross-tab events
-      setTimeout(() => {
-        crossTabSignOutRef.current = false
-        try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
-      }, 200)
-    }
-  }, [clearUser, clearCartOnLogout, isClient, router])
-
-
-
-  // Session expiration handler for auth interceptor
-  const handleSessionExpiration = useCallback(async () => {
-    console.log('🔄 Session expired, performing complete logout...')
-    try {
-      // 1) Immediately clear UI state synchronously to avoid stale authenticated display
-      try { clearUser() } catch {}
-      try { resetSSRSafeUserSingleton() } catch {}
-      try { setStoreLoading(false); setHydrated(true) } catch {}
-      try { setUserId(null as any) } catch {}
-
-      // 2) Prefer consistent client-side logout for cleanup and Supabase sign out
-      const currentUserId = currentUserRef.current?.id
-      if (currentUserId) {
-        const result = await clientSideLogout(currentUserId)
-        if (!result.success) {
-          console.warn('⚠️ clientSideLogout reported failure:', result.error)
-        }
-      } else {
-        // Fallback to direct Supabase sign out
-        try {
-          await supabaseRef.current?.auth.signOut()
-        } catch (e) {
-          console.warn('⚠️ Supabase signOut failed during session expiration:', e)
-        }
-      }
-
-      // 3) Best-effort server-side logout for token blacklisting
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      } catch (e) {
-        console.warn('⚠️ Server-side logout API call failed during session expiration:', e)
-      }
-
-      // 4) Clear cart store thoroughly (async cleanup)
-      await clearCartOnLogout()
-
-      // 5) Reset Supabase client cache to prevent stale client issues
-      resetClientCache()
-
-      if (isClient) {
-        router.replace('/en/auth/login?expired=true')
-      }
-    } catch (error) {
-      console.error('❌ Session expiration handler error:', error)
-      // Ensure redirect even on error
-      if (isClient) {
-        router.replace('/en/auth/login?expired=true')
-      }
-    }
-  }, [clearUser, clearCartOnLogout, isClient, router, setStoreLoading, setHydrated, setUserId])
-
-  // Removed performance optimization hooks to improve dropdown speed
-
-  // Optimized user profile loading with faster caching and reduced delays
-  // Throttle per-user to avoid skipping loads after account switches
-  const profileLoadTimestampByUserRef = useRef<Record<string, number>>({})
-  const loadUserProfile = async (userId: string) => {
-    if (profileLoadInFlightRef.current === userId) {
-      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-        console.log('⏭️ Skipping duplicate profile load for:', userId)
-      }
-      return
-    }
-
-    // Reduce cache time to 2 minutes for faster updates (per-user)
-    const last = profileLoadTimestampByUserRef.current[userId] ?? 0
-    const timeSinceLastLoad = Date.now() - last
-    if (timeSinceLastLoad < 120000) { // 2 minutes instead of 5
-      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-        console.log('📋 Profile recently loaded, skipping reload for user:', userId)
-      }
-      return
-    }
-
-    profileLoadInFlightRef.current = userId
-    try {
-      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-        console.log('📋 Querying user profile for userId:', userId)
-      }
-
-      // Proactively ensure a profile exists before fetching it (handles new users across all providers)
-      try {
-        const controller = new AbortController()
-        const t = setTimeout(() => controller.abort(), 10000)
-        await authFetch('/api/auth/ensure-profile', { method: 'POST', cache: 'no-store', signal: controller.signal })
-        clearTimeout(t)
-      } catch (e) {
-        console.warn('⚠️ ensure-profile prefetch failed (non-fatal):', e)
-      }
-
-      // Use optimized profile loading via lightweight bootstrap API with soft timeout and background retry
-      const profilePromise = (async () => {
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 12000)
-        try {
-          const resp = await fetch('/api/profile/bootstrap', {
-            cache: 'no-store',
-            signal: controller.signal,
-            headers: { 'Accept': 'application/json' }
-          })
-          const json = await resp.json().catch(() => null)
-          return json?.data?.profile ?? null
-        } catch (_e) {
-          return null
-        } finally {
-          clearTimeout(timer)
-        }
-      })()
-
-      const softTimeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => {
-          console.warn('⏰ Profile load exceeded 5-6s, continuing with background retry...')
-          resolve(null) // Soft timeout - resolve with null instead of rejecting
-        }, 12000)
-      )
-
-      const profile = await Promise.race([profilePromise, softTimeoutPromise])
-
-      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-        console.log('📋 Profile query result:', profile)
-      }
-
-      if (profile) {
-        if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-          console.log('✅ Setting profile in store:', profile.id)
-        }
-        setProfile(profile)
-        // Also fetch authoritative points summary and sync points_balance to store (dropdown depends on it)
-        try {
-          const { requestUtils } = await import('@/lib/utils/request-deduplication')
-          const pointsSummary = await requestUtils.fetchUserPointsSummary(userId)
-          const newPoints = (pointsSummary?.points_balance ?? (pointsSummary as any)?.balance ?? 0) as number
-          if (typeof newPoints === 'number' && !Number.isNaN(newPoints)) {
-            updatePoints(newPoints)
-            if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-              console.log('🔢 Points sync (AuthProvider) -> store.updatePoints:', newPoints)
-            }
-          }
-        } catch (e) {
-          console.warn('⚠️ Failed to fetch points summary in AuthProvider:', e)
-        }
-        profileLoadTimestampByUserRef.current[userId] = Date.now()
-      } else {
-        // Immediate fallback: try direct Supabase profile fetch once before counting a failure
-        try {
-          const fallback = await Promise.race([
-            userQueries.getProfile(userId),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000))
-          ]) as any
-          if (fallback) {
-            if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-              console.log('✅ Fallback profile fetch succeeded, setting profile:', fallback.id)
-            }
-            setProfile(fallback)
-            profileLoadTimestampByUserRef.current[userId] = Date.now()
-            // success: reset failure window
-            profileFailWindowRef.current = { count: 0, windowStart: Date.now(), lastUserId: userId }
-            // Sync points balance in background (non-blocking)
+      switch (event) {
+        case 'INITIAL_SESSION':
+        case 'SIGNED_IN': {
+          const user = session?.user
+          if (user) {
+            useUserStore.getState().setUser(user)
+            channel.postMessage({ type: 'SIGNED_IN' })
             try {
-              const { requestUtils } = await import('@/lib/utils/request-deduplication')
-              const ps = await requestUtils.fetchUserPointsSummary(userId)
-              const np = (ps?.points_balance ?? (ps as any)?.balance ?? 0) as number
-              if (typeof np === 'number' && !Number.isNaN(np)) updatePoints(np)
-            } catch {}
-            return
-          }
-        } catch (e) {
-          console.warn('⚠️ Fallback profile fetch attempt failed:', e)
-        }
-
-        // Handle soft timeout case - schedule background retry and track failures for auto-recovery
-        if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-          console.log('⚠️ Profile load timed out or no profile found, scheduling background retry...')
-        }
-
-        // Update failure window (1 minute window, 3+ misses triggers reset)
-        const now = Date.now()
-        const win = profileFailWindowRef.current
-        if (win.lastUserId !== userId || now - win.windowStart > 60000) {
-          profileFailWindowRef.current = { count: 1, windowStart: now, lastUserId: userId }
-        } else {
-          win.count += 1
-        }
-
-        // If repeated failures, force a clean sign-out so user can re-authenticate
-        if (profileFailWindowRef.current.count >= 3) {
-          if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-            console.warn('🟡 Profile bootstrap repeatedly timing out; continuing passive retries (no logout).')
-          }
-        }
-
-        // Schedule background retry with exponential backoff
-        setTimeout(async () => {
-          try {
-            const retryProfile = await userQueries.getProfile(userId)
-            if (retryProfile && profileLoadInFlightRef.current === userId) {
-              if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-                console.log('✅ Background retry successful, setting profile:', retryProfile.id)
+              const profile = await userQueries.getProfile(user.id)
+              // Race-condition safe check using the real store
+              if (useUserStore.getState().user?.id === user.id) {
+                useUserStore.getState().setProfile(profile)
               }
-              setProfile(retryProfile)
-              profileLoadTimestampByUserRef.current[userId] = Date.now()
-              // success: reset failure window
-              profileFailWindowRef.current = { count: 0, windowStart: Date.now(), lastUserId: userId }
-            } else {
-              // escalate count and possibly force reset
-              const now2 = Date.now()
-              const win2 = profileFailWindowRef.current
-              if (win2.lastUserId !== userId || now2 - win2.windowStart > 60000) {
-                profileFailWindowRef.current = { count: 1, windowStart: now2, lastUserId: userId }
-              } else {
-                win2.count += 1
-              }
-              if (profileFailWindowRef.current.count >= 3) {
-                if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-                  console.warn('🟡 Profile retry repeatedly timing out; continuing passive retries (no logout).')
-                }
-              }
-            }
-          } catch (retryError) {
-            console.warn('⚠️ Background profile retry failed:', retryError)
-            if (profileFailWindowRef.current.count >= 3) {
-              if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEBUG_SUPABASE === 'true') {
-                console.warn('🟡 Profile retry exception; continuing passive retries (no logout).')
-              }
+            } catch (error) {
+              console.error('Failed to fetch profile:', error)
+              useUserStore.getState().setProfile(null)
             }
           }
-        }, 2000) // 2 second retry delay
-      }
-    } catch (error) {
-      // Downgrade expected timeouts from error to warn to reduce Sentry noise
-      if (error instanceof Error && error.message.includes('timeout')) {
-        console.warn('⚠️ Profile load timeout (expected on slow networks):', error.message)
-      } else {
-        console.error('❌ Error loading user profile:', error)
-      }
-      // Don't throw - profile loading failure shouldn't break authentication
-    } finally {
-      // Reduce debounce time for faster subsequent loads
-      setTimeout(() => {
-        if (profileLoadInFlightRef.current === userId) profileLoadInFlightRef.current = null
-      }, 500) // Reduced from 1000ms to 500ms
-    }
-  }
-
-  // Cleanup when switching between different accounts/auth methods to prevent cross-contamination
-  const cleanupOnAccountSwitch = useCallback(async (prevUserId: string | undefined, nextUserId: string) => {
-    try {
-      console.log('🧹 Account switch detected, performing cleanup', { prevUserId, nextUserId })
-      // Cancel any in-flight requests and clear caches (profile, points, admin checks)
-      try { requestUtils.cancelAllRequests() } catch {}
-      try {
-        if (prevUserId) requestUtils.clearUserCache(prevUserId)
-        requestUtils.clearAllCaches?.()
-      } catch {}
-
-      // Clear cart and user store to avoid leaking previous identity
-      try { await clearCartOnLogout() } catch {}
-      try { clearUser() } catch {}
-
-      // Remove common local/session storage items that may hold user-scoped data
-      const keys = [
-        'foryoupiece-user',
-        'foryoupiece-cart',
-        'session_validated_at'
-      ]
-      keys.forEach(k => { try { localStorage.removeItem(k) } catch {} })
-      try { sessionStorage.removeItem('AUTH_SIGNIN_IN_PROGRESS') } catch {}
-      // Reset per-user profile load throttle on account switch
-      profileLoadTimestampByUserRef.current = {}
-    } catch (e) {
-      console.warn('⚠️ Cleanup on account switch encountered an issue:', e)
-    }
-  }, [clearCartOnLogout, clearUser])
-
-
-  // Memoized callback functions to prevent re-rendering loops
-  const handleAuthStateChange = useCallback((payload: any) => {
-    console.log('🔄 AuthProvider: Auth state change from another tab:', payload)
-    if (!payload.user && !crossTabSignOutRef.current) {
-      console.log('🚪 AuthProvider: Signing out due to cross-tab auth change')
-      crossTabSignOutRef.current = true
-      handleCrossTabSignOut()
-    } else if (payload.user && !currentUserRef.current) {
-      console.log('👤 AuthProvider: Updating user state from cross-tab sign in')
-      setUser(payload.user)
-      setUserId(payload.user.id)
-      // Ensure cart loads even if setUserId no-ops due to same user on reload
-      const prevCartUserId = cartStore.userId
-      if (prevCartUserId === payload.user.id) {
-        forceLoadCartForUser(payload.user.id).catch(err => console.warn('⚠️ Cross-tab: forceLoadCartForUser failed:', err))
-      }
-      loadUserProfile(payload.user.id)
-    }
-  }, [setUser, setUserId, handleCrossTabSignOut, forceLoadCartForUser])
-
-  const handleSessionExpiredCallback = useCallback((payload: any) => {
-    console.log('🔄 AuthProvider: Session expired in another tab:', payload)
-    if (!crossTabSignOutRef.current) {
-      crossTabSignOutRef.current = true
-      handleCrossTabSignOut()
-    }
-  }, [handleCrossTabSignOut])
-
-  const handleSessionValidated = useCallback((payload: any) => {
-    console.log('🔄 AuthProvider: Session validated in another tab:', payload)
-    if (currentUserRef.current?.id === payload.userId) {
-      const now = Date.now()
-      // Avoid redundant reloads within 5 seconds window
-      if (now - lastCrossTabCartReloadRef.current < 5000) {
-        console.log('⏭️ AuthProvider: Skipping duplicate cart reload (throttled)')
-        return
-      }
-      lastCrossTabCartReloadRef.current = now
-      console.log('🛒 AuthProvider: Reloading cart due to cross-tab session validation')
-      forceLoadCartForUser(payload.userId).catch(error => {
-        console.warn('⚠️ AuthProvider: Failed to reload cart from cross-tab validation:', error)
-      })
-    }
-  }, [forceLoadCartForUser])
-
-  // Multi-tab synchronization for authentication state (stable configuration)
-  const multiTabConfig = useMemo(() => ({
-    onAuthStateChange: handleAuthStateChange,
-    onSessionExpired: handleSessionExpiredCallback,
-    onSessionValidated: handleSessionValidated
-  }), [handleAuthStateChange, handleSessionExpiredCallback, handleSessionValidated])
-
-  const { broadcast } = useMultiTabSync(multiTabConfig)
-
-  // Initialize auth state once - simplified approach
-  useEffect(() => {
-    console.log('🔍 Auth provider useEffect triggered:', { isClient, initialized: initializationRef.current })
-
-    // Guard against React StrictMode and Fast Refresh double-invocations
-    if (typeof window === 'undefined') {
-      console.log('❌ Not client-side, skipping auth initialization')
-      return
-    }
-    if (__AUTH_PROVIDER_INIT_DONE) {
-      console.log('⏭️ Skipping auth initialization (global guard)')
-      // Ensure UI is not stuck in validating if we skipped
-      setIsValidating(false)
-      try { setStoreLoading(false); setHydrated(true) } catch {}
-      return
-    }
-    if (initializationRef.current) {
-      console.log('⏭️ Already initialized in this instance, skipping')
-      return
-    }
-
-    console.log('✅ Starting simplified auth initialization...')
-    __AUTH_PROVIDER_INIT_DONE = true
-    initializationRef.current = true
-    let mounted = true
-
-    // Reset global sign-out flag on page load
-    if (typeof window !== 'undefined') {
-      (window as any).signOutInProgress = false
-      console.log('🔁 Global sign-out flag reset on mount')
-    }
-
-    const initializeAuth = async () => {
-      try {
-        // Check if sign-out is in progress (local or global flag) BEFORE any restoration work
-        const globalSignOutFlag = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
-        if (signOutInProgressRef.current || globalSignOutFlag) {
-          console.log('🚪 Sign-out in progress, skipping session restoration')
-          // Sync local flag with global flag
-          if (globalSignOutFlag) {
-            signOutInProgressRef.current = true
-          }
-          if (mounted) {
-            clearUser()
-            clearCart()
-            setStoreLoading(false)
-            setHydrated(true)
-            setIsValidating(false)
-          }
-          return
+          break;
         }
 
-        setIsValidating(true)
-        console.log('🔍 Enhanced session restoration starting...')
-
-        // Try multiple methods to restore session
-        let session = null
-        let sessionError = null
-
-        // Method 1: Try getSession first with browser-specific error handling
-        try {
-          const { data: sessionData, error } = await supabaseRef.current?.auth.getSession() ?? { data: { session: null }, error: null as any }
-          session = sessionData.session
-          sessionError = error
-          console.log('🔍 getSession result:', { hasSession: !!session, error: error?.message })
-        } catch (error) {
-          console.warn('🔍 getSession failed:', error)
-
-          // Browser-specific error handling
-          if (error instanceof Error) {
-            if (error.message.includes('localStorage') || error.message.includes('storage')) {
-              console.warn('🦊 Storage access issue detected - may be Firefox private browsing or strict privacy settings')
-            }
-
-            if (error.message.includes('network') || error.message.includes('fetch')) {
-              console.warn('🌐 Network connectivity issue during session restoration')
-            }
-          }
+        case 'SIGNED_OUT': {
+          useUserStore.getState().clearUser()
+          await useCartStore.getState().clearCartOnLogout()
+          channel.postMessage({ type: 'SIGNED_OUT' })
+          break;
         }
 
-        // Method 2: If no session, try getUser to validate stored tokens
-        if (!session && !sessionError) {
-          try {
-            console.log('🔍 Trying getUser for token validation...')
-            const { data: userData, error: userError } = await supabaseRef.current?.auth.getUser() ?? { data: { user: null }, error: null as any }
-            if (userData.user && !userError) {
-              console.log('✅ Valid user found via getUser, refreshing session...')
-              // Try to refresh the session
-              const { data: refreshData } = await supabaseRef.current!.auth.refreshSession()
-              session = refreshData.session
-            }
-          } catch (error) {
-            console.warn('🔍 getUser validation failed:', error)
-          }
-        }
-
-        if (sessionError && !session) {
-          console.error('❌ Session error:', sessionError)
-          if (mounted) {
-            clearUser()
-            clearCart()
-          }
-          return
-        }
-
-        // Double-check sign-out status before setting user (local or global flag)
-        const globalSignOutFlagCheck = typeof window !== 'undefined' ? (window as any).signOutInProgress : false
-        if (signOutInProgressRef.current || globalSignOutFlagCheck) {
-          console.log('🚪 Sign-out detected during session restoration, aborting')
-          if (mounted) {
-            clearUser()
-            clearCart()
-          }
-          return
-        }
-
-        if (session?.user && mounted) {
-          console.log('👤 Session restored, setting user in store:', { id: session.user.id, email: session.user.email })
-
-          setUser(session.user)
-          setUserId(session.user.id)
-
-          // Initialize in-memory session tracker for validation endpoints
-          try {
-            createSession(session.user.id)
-          } catch (e) {
-            console.warn('⚠️ Failed to create client session state:', e)
-          }
-
-          // Load profile and cart in parallel for better performance
-          console.log('📋 Loading user data in parallel for:', session.user.id)
-          try {
-            // If cart store already has same userId (rehydrated on reload), setUserId will no-op.
-            // In that case explicitly force-load the cart to fix the reload issue.
-            const prevCartUserId = cartStore.userId
-            await Promise.all([
-              loadUserProfile(session.user.id),
-              prevCartUserId === session.user.id
-                ? forceLoadCartForUser(session.user.id)
-                : Promise.resolve()
-            ])
-          } catch (error) {
-            console.error('❌ Parallel data loading failed:', error)
-            // Don't fail auth if data loading fails
-          }
-
-          console.log('✅ User authentication setup complete')
-        } else if (mounted) {
-          console.log('❌ No valid session found, clearing user data')
-          clearUser()
-          clearCart()
-        }
-      } catch (error) {
-        console.error('❌ Auth initialization error:', error)
-        if (mounted) {
-          clearUser()
-          clearCart()
-        }
-      } finally {
-        console.log('🏁 Auth initialization finally block:', { mounted })
-        if (mounted) {
-          setStoreLoading(false)
-          setHydrated(true)
-          setIsValidating(false)
-        }
-      }
-    }
-
-    initializeAuth()
-
-    return () => {
-      console.log('🧹 Auth provider cleanup, setting mounted = false')
-      mounted = false
-    }
-  }, [])
-
-  // Set up auth state change listener
-  useEffect(() => {
-    if (!isClient || !initializationRef.current || !supabaseRef.current) return
-
-    const { data: { subscription } } = supabaseRef.current.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: SupabaseSession | null) => {
-        console.log('🔄 Auth state change:', event, { hasSession: !!session })
-
-        if (event === 'INITIAL_SESSION') {
+        case 'TOKEN_REFRESHED': {
           if (session?.user) {
-            const sameUser = currentUserRef.current?.id === session.user.id
-            if (!sameUser) {
-                console.log('👤 INITIAL_SESSION - setting user from existing session:', { id: session.user.id });
-                await cleanupOnAccountSwitch(currentUserRef.current?.id, session.user.id);
-                setUser(session.user);
-                setUserId(session.user.id);
-                try {
-                    createSession(session.user.id);
-                } catch (e) {
-                    console.warn('⚠️ Failed to create client session state (INITIAL_SESSION):', e);
-                }
-                await loadUserProfile(session.user.id);
-            }
+            useUserStore.getState().setUser(session.user)
+          } else {
+            useUserStore.getState().clearUser()
+            await useCartStore.getState().clearCartOnLogout()
+            channel.postMessage({ type: 'SIGNED_OUT' })
           }
-          setStoreLoading(false);
-          setIsValidating(false);
-          return;
+          break;
         }
-
-        if (event === 'SIGNED_OUT') {
-          signOutInProgressRef.current = true
-          await clearCartOnLogout()
-          clearUser()
-          try { resetSSRSafeUserSingleton() } catch {}
-          resetClientCache()
-          if (!crossTabSignOutRef.current) {
-            broadcast('AUTH_STATE_CHANGE', { user: null, event })
-          }
-          setTimeout(() => {
-            signOutInProgressRef.current = false
-            try { if (typeof window !== 'undefined') { (window as any).signOutInProgress = false } } catch {}
-          }, 100)
-          router.replace('/en/auth/login')
-        } 
         
-        else if (event === 'SIGNED_IN') {
+        case 'USER_UPDATED': {
           if (session?.user) {
-            const sameUser = currentUserRef.current?.id === session.user.id;
-            if (sameUser) {
-              console.log('⏭️ SIGNED_IN for same user; ensuring profile is fresh.');
-              await loadUserProfile(session.user.id);
-            } else {
-              console.log('👤 New user SIGNED_IN. Preparing for hard reload.');
-              handlePostLoginReload();
-              return;
-            }
-
-            broadcast('AUTH_STATE_CHANGE', { user: session.user, event });
+            useUserStore.getState().setUser(session.user)
+            channel.postMessage({ type: 'USER_UPDATED' })
           }
-        } 
-        
-        else if (event === 'TOKEN_REFRESHED') {
-          if (session?.user) {
-            const sameUser = currentUserRef.current?.id === session.user.id
-            if (!sameUser) {
-              console.log('👤 TOKEN_REFRESHED with different user, updating state:', { id: session.user.id, email: session.user.email })
-              setUser(session.user)
-              setUserId(session.user.id)
-              await loadUserProfile(session.user.id)
-            }
-          }
-        } else if (event === 'USER_UPDATED') {
-          if (session?.user) {
-            setUser(session.user)
-            await loadUserProfile(session.user.id)
-            broadcast('AUTH_STATE_CHANGE', { user: session.user, event })
-          }
+          break;
         }
-
-        setStoreLoading(false)
       }
-    )
+      
+      useUserStore.getState().setLoading(false)
+    })
 
     return () => {
       subscription.unsubscribe()
+      channel.close()
+      subscribed.current = false
     }
-  }, [isClient, setUser, setUserId, clearUser, clearCartOnLogout, router, handlePostLoginReload]);
+  }, [revalidateSession])
 
-  // Register auth handler for interceptor
-  useEffect(() => {
-    if (!isClient) return
-
-    registerAuthHandler(handleSessionExpiration)
-
-    return () => {
-      unregisterAuthHandler()
-    }
-  }, [isClient, handleSessionExpiration])
-  // Lightweight periodic session validation to catch silent expirations
-  useEffect(() => {
-    if (!isClient || !supabaseRef.current) return
-
-    const interval = setInterval(async () => {
-      try {
-        const { data: { session } } = await supabaseRef.current!.auth.getSession()
-        const userInStore = currentUserRef.current
-        // If store has a user but Supabase session is gone -> treat as expired
-        if (!session?.access_token && userInStore && !signOutInProgressRef.current) {
-          console.warn('⏳ Periodic check: session missing while UI shows user; triggering expiration cleanup')
-          await handleSessionExpiration()
-          return
-        }
-        // Broadcast validation for cart sync if the same user remains valid
-        if (session?.user?.id && userInStore?.id === session.user.id) {
-          try { broadcast('SESSION_VALIDATED', { userId: session.user.id }) } catch {}
-        }
-      } catch (e) {
-        // Ignore transient errors
-      }
-    }, 45000) // every 45 seconds
-
-    return () => clearInterval(interval)
-  }, [isClient, handleSessionExpiration, broadcast])
-
-
-  const contextValue = useMemo(() => ({ initialized: true, isValidating }), [isValidating])
-
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <>{children}</>
 }
