@@ -161,7 +161,7 @@ export default function ResetPasswordPage() {
 
       // Redirect to login after a short delay
       setTimeout(() => {
-        router.push('/en/auth/login?message=password_reset_success')
+        router.push('/en/profile?message=password_reset_success')
       }, 2000)
     } catch (err) {
       console.error('❌ Password reset error:', err)
@@ -213,14 +213,15 @@ export default function ResetPasswordPage() {
                 <div className="mt-4">
                   <h3 className="text-lg font-medium text-gray-900">Success!</h3>
                   <p className="mt-2 text-sm text-gray-600">
-                    Your password has been updated successfully. You can now sign in with your new password.
+                    Your password has been updated successfully. 
+                    {/* You can now sign in with your new password. */}
                   </p>
                 </div>
               </div>
 
               <Button asChild className="w-full">
-                <Link href="/en/auth/login">
-                  Continue to login
+                <Link href="/en/profile">
+                  Continue 
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>

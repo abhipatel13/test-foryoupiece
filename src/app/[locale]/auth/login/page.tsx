@@ -303,31 +303,48 @@ function LoginPageContent() {
   }, [searchParams])
 
   // This is now the SINGLE source of truth for handling redirects on successful login.
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        setLoading(false)
-        toast.success('Successfully logged in!')
+  // useEffect(() => {
+  //   const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+  //     if (event === 'SIGNED_IN' && session) {
+  //       setLoading(false)
+  //       toast.success('Successfully logged in!')
         
-        // Use a hard reload to ensure all user data is fresh across the app.
-        // This is a deliberate choice you made and we're keeping it, but now it only runs ONCE.
-        const targetUrl = redirectTo.startsWith('/') ? redirectTo : '/'
-        const cacheBustUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}r=${Date.now()}`
-        window.location.replace(cacheBustUrl)
-      }
-    })
+  //       // Use a hard reload to ensure all user data is fresh across the app.
+  //       // This is a deliberate choice you made and we're keeping it, but now it only runs ONCE.
+  //       const targetUrl = redirectTo.startsWith('/') ? redirectTo : '/'
+  //       const cacheBustUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}r=${Date.now()}`
+  //       window.location.replace(cacheBustUrl)
+  //     }
+  //   })
 
-    return () => {
-      subscription.unsubscribe()
+  //   return () => {
+  //     subscription.unsubscribe()
+  //   }
+  // }, [supabase, router, redirectTo])
+
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session) {
+        console.log('✅ User is already logged in. Redirecting to profile page.')
+        router.push('/en/profile') // Or any other page like '/'
+      } else {
+        // If no session, allow the login page to be rendered
+        setLoading(false)
+      }
     }
-  }, [supabase, router, redirectTo])
+
+    checkSession()
+  }, [router, supabase.auth])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error,data } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -336,10 +353,18 @@ function LoginPageContent() {
       setError(error.message)
       toast.error('Login failed: ' + error.message)
     }
+
+    console.log("data_LOGIC",data)
+
+    if (data.session) {
+        // On success, simply navigate. The AuthProvider will handle the state update.
+        toast.success('Successfully logged in!')
+        router.push(redirectTo) 
+    }
     
     // We no longer need redirect logic here.
     // The onAuthStateChange listener will handle it automatically.
-    setLoading(false)
+    //setLoading(false)
   }
 
   const handleGoogleLogin = async () => {
