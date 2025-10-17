@@ -2,8 +2,8 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-
+import { createClient,resetClientCache } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 // 💡 FIX: Import the REAL Zustand stores directly.
 // The AuthProvider will interact with these, and the SSR-safe hooks
 // will ensure the UI components consume the state changes correctly.
@@ -25,6 +25,7 @@ const AUTH_CHANNEL_NAME = 'app_auth_channel'
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
   const subscribed = useRef(false)
+  const router = useRouter()
 
   const revalidateSession = useCallback(async () => {
     console.log('[Auth Sync] Revalidating session from other tab event.')
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Race-condition safe check using the real store
               if (useUserStore.getState().user?.id === user.id) {
                 useUserStore.getState().setProfile(profile)
+                useCartStore.getState().forceLoadCartForUser(user?.id)
               }
             } catch (error) {
               console.error('Failed to fetch profile:', error)
@@ -85,6 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           useUserStore.getState().clearUser()
           await useCartStore.getState().clearCartOnLogout()
           channel.postMessage({ type: 'SIGNED_OUT' })
+          resetClientCache()
+          router.replace('/en/auth/login')
           break;
         }
 
