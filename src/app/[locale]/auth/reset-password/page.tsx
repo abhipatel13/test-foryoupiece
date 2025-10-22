@@ -29,57 +29,7 @@ export default function ResetPasswordPage() {
 
   const supabase = createClient()
 
-  const handleResetValidation = useCallback(async () => {
-    console.log('🔍 Starting password reset validation...')
-
-    try {
-      // Check if user has a valid session (should be established by callback route)
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-      if (sessionError) {
-        console.error('❌ Session error:', sessionError)
-        setError('Failed to verify authentication. Please try clicking the reset link again.')
-        setInitialLoading(false)
-        return
-      }
-
-      if (session) {
-        console.log('✅ Valid session found for password reset:', {
-          userId: session.user.id,
-          email: session.user.email
-        })
-        setIsValidToken(true)
-        setSessionReady(true)
-        setInitialLoading(false)
-        return
-      }
-
-      // No session found - user needs to use a valid reset link
-      console.log('❌ No valid session found')
-      setError('No valid authentication session found. Please click the reset link from your email.')
-      setInitialLoading(false)
-
-    } catch (err) {
-      console.error('❌ Unexpected error:', err)
-      setError('An error occurred while validating your session.')
-      setInitialLoading(false)
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    // Ensure we only run once
-    let mounted = true
-
-    if (mounted) {
-      handleResetValidation()
-    }
-
-    return () => {
-      mounted = false
-    }
-  }, []) // Empty dependency array - run only once on mount
-
-  // Listen for auth state changes
+  // Listen for auth state changes - this is the primary method
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('🔄 Auth state change:', { event, userId: session?.user?.id })
@@ -89,11 +39,38 @@ export default function ResetPasswordPage() {
         setIsValidToken(true)
         setSessionReady(true)
         setInitialLoading(false)
+      } else if (event === 'INITIAL_SESSION' && session) {
+        // Fallback: check if we already have a valid session
+        console.log('✅ Initial session found for password reset:', {
+          userId: session.user.id,
+          email: session.user.email
+        })
+        setIsValidToken(true)
+        setSessionReady(true)
+        setInitialLoading(false)
+      } else if (event === 'SIGNED_IN' && session) {
+        // Another fallback for existing sessions
+        console.log('✅ Signed in session found for password reset')
+        setIsValidToken(true)
+        setSessionReady(true)
+        setInitialLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [supabase])
+    // Set a timeout to show error if no auth event occurs
+    const timeout = setTimeout(() => {
+      if (!sessionReady) {
+        console.log('❌ No auth event received within timeout')
+        setError('No valid authentication session found. Please click the reset link from your email.')
+        setInitialLoading(false)
+      }
+    }, 5000) // 5 second timeout
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, [supabase, sessionReady])
 
 
 

@@ -64,7 +64,19 @@ export default function ProfilePage() {
     try {
       const [userOrders, notificationsData] = await Promise.all([
         orderQueries.getUserOrders(user.id, 5),
-        authFetch(`/api/user/notifications?limit=7&offset=0`).then(res => res.json()).catch(() => null)
+        authFetch(`/api/user/notifications?limit=7&offset=0`)
+          .then(res => {
+            if (res.ok) {
+              return res.json();
+            } else {
+              console.warn('Profile: Failed to load initial notifications', res.status);
+              return null;
+            }
+          })
+          .catch((error) => {
+            console.warn('Profile: Error loading initial notifications', error);
+            return null;
+          })
       ]);
       setInitialData({ orders: userOrders, notifications: notificationsData });
     } catch (error) {
