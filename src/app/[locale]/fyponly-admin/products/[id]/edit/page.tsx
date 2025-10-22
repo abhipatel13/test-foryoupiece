@@ -65,7 +65,39 @@ export default function ProductEditPage() {
   const [categories, setCategories] = useState<{ id: string; name_en: string; slug: string }[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    sku: string
+    name_en: string
+    name_ja: string
+    description_en: string
+    description_ja: string
+    short_description_en: string
+    short_description_ja: string
+    price: number
+    compare_at_price: number
+    cost_price: number
+    stock_quantity: number
+    low_stock_threshold: number
+    weight_grams: number
+    brand: string
+    category_id: string
+    is_active: boolean
+    is_featured: boolean
+    is_preorder: boolean
+    preorder_limit: number
+    requires_shipping: boolean
+    is_digital: boolean
+    track_inventory: boolean
+    allow_backorder: boolean
+    seo_title: string
+    seo_description: string
+    is_trending: boolean
+    is_best_seller: boolean
+    best_seller_position: number
+    images: string[]
+    videos: string[]
+    media_order: string[]
+  }>({
     sku: '',
     name_en: '',
     name_ja: '',
@@ -101,11 +133,11 @@ export default function ProductEditPage() {
 
   // Load product data - PHASE 1 FIX: Force fresh load on page navigation
   useEffect(() => {
-    if (params.id) {
+    if (params?.id) {
       console.log('🔄 Page loaded - forcing fresh product data fetch')
       loadProduct(params.id as string, true) // Force refresh on page load
     }
-  }, [params.id])
+  }, [params?.id])
 
   // Load categories for selection
   useEffect(() => {
@@ -161,7 +193,6 @@ export default function ProductEditPage() {
         seo_description: '',
         is_trending: false,
         is_best_seller: false,
-        trending_position: 0,
         best_seller_position: 0,
         images: [],
         videos: [],
@@ -280,7 +311,7 @@ export default function ProductEditPage() {
       }
 
       console.log('📤 Sending product update request:', {
-        productId: params.id,
+        productId: params?.id,
         formData: {
           ...formData,
           // Log data types for debugging
@@ -289,7 +320,7 @@ export default function ProductEditPage() {
         }
       })
 
-      const response = await fetch(`/api/admin/products/${params.id}`, {
+      const response = await fetch(`/api/admin/products/${params?.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -336,7 +367,9 @@ export default function ProductEditPage() {
 
       // Instead of updating form state with response data, force a fresh database fetch
       // This ensures we get the absolute latest data from the database
-      await loadProduct(params.id as string, true)
+      if (params?.id) {
+        await loadProduct(params.id as string, true)
+      }
 
       console.log('🔄 Fresh product data reloaded after save')
 
@@ -390,7 +423,7 @@ export default function ProductEditPage() {
           <h2 className="text-2xl font-bold text-gray-900">Product not found</h2>
           <p className="text-gray-600 mt-2">The product you're looking for doesn't exist.</p>
           <Button asChild className="mt-4">
-            <Link href={`/${params.locale}/fyponly-admin/products`}>
+            <Link href={`/${params?.locale || 'en'}/fyponly-admin/products`}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Products
             </Link>
@@ -456,11 +489,12 @@ export default function ProductEditPage() {
       return
     }
     const normalized = `https://www.youtube.com/watch?v=${id}`
-    if ((formData.videos || []).includes(normalized)) {
+    const currentVideos = formData.videos || []
+    if (currentVideos.includes(normalized)) {
       toast.message('This video is already added')
       return
     }
-    handleInputChange('videos', [...(formData.videos || []), normalized])
+    handleInputChange('videos', [...currentVideos, normalized])
     setProduct(prev => prev ? { ...prev, videos: [...(prev.videos || []), normalized] } : prev)
     setVideoUrl('')
     toast.success('Video added')
@@ -479,7 +513,7 @@ export default function ProductEditPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/${params.locale}/fyponly-admin/products`}>
+            <Link href={`/${params?.locale || 'en'}/fyponly-admin/products`}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Products
             </Link>
@@ -1059,7 +1093,7 @@ export default function ProductEditPage() {
           {/* Save Button */}
           <div className="flex justify-end space-x-4">
             <Button type="button" variant="outline" asChild>
-              <Link href={`/${params.locale}/fyponly-admin/products`}>Cancel</Link>
+              <Link href={`/${params?.locale || 'en'}/fyponly-admin/products`}>Cancel</Link>
             </Button>
             <Button type="submit" disabled={saving} className="min-w-[120px]">
               {saving ? (

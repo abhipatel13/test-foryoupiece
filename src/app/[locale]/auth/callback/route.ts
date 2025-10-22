@@ -21,8 +21,15 @@ export async function GET(request: NextRequest) {
     error: error,
     errorCode: errorCode,
     errorDescription: errorDescription,
+    token: token ? 'present' : 'missing',
     allParams: Object.fromEntries(searchParams.entries())
   })
+  
+  // AUTO-DETECT password recovery based on redirectTo parameter
+  const isPasswordRecovery = redirectTo.includes('reset-password')
+  if (isPasswordRecovery && !type) {
+    console.log('🔑 Auto-detected password recovery flow (missing type param, added automatically)')
+  }
 
   // Handle error cases from Supabase verification
   if (error) {
@@ -52,19 +59,35 @@ export async function GET(request: NextRequest) {
 
     try {
       // Handle password recovery: prefer code-exchange when available, fallback to verifyOtp
-      if (type === 'recovery') {
+      // AUTO-DETECT: If redirectTo includes reset-password, treat as recovery
+      const isPasswordRecovery = type === 'recovery' || redirectTo.includes('reset-password')
+      
+      if (isPasswordRecovery) {
+        console.log('🔑 Processing password recovery flow...')
         try {
           if (code) {
             console.log('🔑 Recovery flow detected, exchanging code for session...')
             const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+            
+            console.log('🔍 Exchange result:', { 
+              hasSession: !!data?.session, 
+              hasError: !!error,
+              errorMessage: error?.message 
+            })
+            
             if (!error && data.session) {
               console.log('✅ Recovery session (via code) established:', { userId: data.session.user.id, email: data.session.user.email })
-              if (redirectTo.includes('/en/auth/admin-reset-password')) {
-                return NextResponse.redirect(`${origin}/en/auth/admin-reset-password`)
-              }
-              return NextResponse.redirect(`${origin}/en/auth/reset-password`)
+              
+              // Set cookies and redirect
+              const response = NextResponse.redirect(
+                redirectTo.includes('/en/auth/admin-reset-password') 
+                  ? `${origin}/en/auth/admin-reset-password`
+                  : `${origin}/en/auth/reset-password`
+              )
+              
+              return response
             } else {
-              console.log('❌ Recovery code exchange failed:', error?.message)
+              console.log('❌ Recovery code exchange failed:', error?.message, error)
             }
           }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, FC } from 'react';
+import { useState, useEffect, useCallback, FC, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { authFetch } from '@/lib/utils/auth-interceptor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,28 +26,67 @@ export const ProfileNotifications: FC<ProfileNotificationsProps> = ({ initialDat
     const limit = 7;
     const [total, setTotal] = useState(initialData?.metadata?.total_notifications || 0);
     const [loading, setLoading] = useState(false);
+    const [hasTriedInitialLoad, setHasTriedInitialLoad] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(false);
+    const isLoadingRef = useRef(false);
 
     const load = useCallback(async (pageNum: number) => {
-        if (!userId) { return; }
+        if (!userId) { 
+            console.warn('ProfileNotifications: No userId provided');
+            return; 
+        }
+        
+        // Prevent duplicate calls using ref for immediate check
+        if (isLoadingRef.current) {
+            console.log('ProfileNotifications: Already loading, skipping duplicate call');
+            return;
+        }
+        
+        isLoadingRef.current = true;
+        setIsLoadingData(true);
         setLoading(true);
         try {
             const offset = (pageNum - 1) * limit;
+            console.log(`ProfileNotifications: Loading page ${pageNum}, offset ${offset}`);
             const res = await authFetch(`/api/user/notifications?limit=${limit}&offset=${offset}`);
             if (res.ok) {
                 const data = await res.json();
                 setItems(data.notifications || []);
                 setUnread(data.unread_count || 0);
                 setTotal(data.metadata?.total_notifications || 0);
+            } else {
+                console.error('ProfileNotifications: API request failed', res.status, res.statusText);
             }
         } catch (e) { 
-            console.warn('Failed to load notifications', e); 
+            console.error('ProfileNotifications: Failed to load notifications', e); 
         } finally { 
-            setLoading(false); 
+            setLoading(false);
+            setIsLoadingData(false);
+            isLoadingRef.current = false;
         }
     }, [userId]);
 
+    // Load initial data when component mounts or when initialData changes
     useEffect(() => {
-        // Only fetch if page changes from the initial load
+        if (userId && (!initialData?.notifications || initialData?.notifications?.length === 0) && !hasTriedInitialLoad && !isLoadingRef.current) {
+            setHasTriedInitialLoad(true);
+            load(1);
+        }
+    }, [userId, initialData, load, hasTriedInitialLoad]);
+
+    // Fallback: Load data if no initial data is provided after a short delay
+    useEffect(() => {
+        if (userId && !initialData && !hasTriedInitialLoad && !isLoadingRef.current) {
+            const timer = setTimeout(() => {
+                setHasTriedInitialLoad(true);
+                load(1);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [userId, initialData, load, hasTriedInitialLoad]);
+
+    useEffect(() => {
+        // Load data when page changes (for pagination)
         if (page > 1) {
             load(page);
         }
@@ -75,10 +114,11 @@ export const ProfileNotifications: FC<ProfileNotificationsProps> = ({ initialDat
             const res = await authFetch(`/api/user/notifications/${id}/read`, { method: 'POST' });
             if (res.ok) {
                 setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-                setUnread(u => Math.max(0, u - 1));
+                setUnread((u: number) => Math.max(0, u - 1));
             }
         } catch {}
     };
+
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -117,16 +157,21 @@ export const ProfileNotifications: FC<ProfileNotificationsProps> = ({ initialDat
             <CardContent>
                 <div className="space-y-2 h-[70vh] overflow-y-auto sm:h-auto">
                     {loading ? (
-                        Array.from({ length: limit }).map((_, i) => (
-                            <div key={i} className="p-3 rounded-lg border bg-white">
-                                <div className="animate-pulse space-y-2">
-                                    <div className="h-4 bg-gray-200 rounded w-1/2" />
-                                    <div className="h-3 bg-gray-100 rounded w-3/4" />
+                        <div className="space-y-2">
+                            {Array.from({ length: limit }).map((_, i) => (
+                                <div key={i} className="p-3 rounded-lg border bg-white">
+                                    <div className="animate-pulse space-y-2">
+                                        <div className="h-4 bg-gray-200 rounded w-1/2" />
+                                        <div className="h-3 bg-gray-100 rounded w-3/4" />
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            ))}
+                        </div>
                     ) : items.length === 0 ? (
-                        <div className="text-center text-gray-500 py-6">No notifications yet</div>
+                        <div className="text-center text-gray-500 py-6">
+                            <div className="text-sm">No notifications yet</div>
+                            <div className="text-xs text-gray-400 mt-1">Check back later for updates</div>
+                        </div>
                     ) : (
                         items.map((n) => (
                             <div key={n.id} className={`p-3 rounded-lg border ${n.read ? 'bg-white' : 'bg-blue-50 border-blue-200'}`}>

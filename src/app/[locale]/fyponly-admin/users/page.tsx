@@ -270,17 +270,33 @@ export default function UsersPage() {
     try {
       setSendingMessage(true)
 
-      // Here you would implement the actual messaging logic
-      // For now, we'll just simulate sending a message
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Actually send the notification to the user
+      const response = await fetch('/api/admin/users/send-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          title: messageSubject.trim(),
+          message: messageContent.trim(),
+          type: 'info'
+        })
+      })
 
-      toast.success(`Message sent to ${selectedUser.first_name || selectedUser.email}`)
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to send notification')
+      }
+
+      toast.success(`Notification sent to ${selectedUser.first_name || selectedUser.email}`)
       setMessageDialogOpen(false)
       setMessageSubject('')
       setMessageContent('')
     } catch (error) {
-      console.error('Error sending message:', error)
-      toast.error('Failed to send message')
+      console.error('Error sending notification:', error)
+      toast.error(`Failed to send notification: ${error.message}`)
     } finally {
       setSendingMessage(false)
     }
