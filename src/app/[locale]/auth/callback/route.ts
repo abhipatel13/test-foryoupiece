@@ -91,10 +91,10 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          // Fallback to verifyOtp using token_hash when code is absent
+          // Fallback to verifyOtp using token when code is absent
           if (token) {
-            console.log('🔄 Attempting to verify OTP (token_hash) for password recovery...')
-            const { data, error } = await supabase.auth.verifyOtp({ token_hash: token as string, type: 'recovery' })
+            console.log('🔄 Attempting to verify OTP (token) for password recovery...')
+            const { data, error } = await supabase.auth.verifyOtp({ token: token as string, type: 'recovery' })
             if (!error && data.session) {
               console.log('✅ Recovery session (via token) established:', { userId: data.session.user.id, email: data.session.user.email })
               if (redirectTo.includes('/en/auth/admin-reset-password')) {
