@@ -184,7 +184,8 @@ export const useCartStore = create<CartStore>()(
 
         // Handle user authentication state changes
         if (userId) {
-          if (userId !== currentUserId) {
+          if (userId !== currentUserId && currentUserId !== null) {
+            // Only clear cart if switching between different users (not login after logout)
             console.log('👤 User changed, clearing in-memory cart and localStorage before DB load')
             // Clear localStorage to prevent cross-browser conflicts
             try {
@@ -204,6 +205,8 @@ export const useCartStore = create<CartStore>()(
             try { tabSyncUtils.broadcastCartCleared() } catch (e) { console.warn('Failed to broadcast CART_CLEARED on user switch:', e) }
           } else if (forceReload) {
             console.log('👤 Same user but forcing cart reload from database')
+          } else if (currentUserId === null) {
+            console.log('👤 User logging in (no previous user), loading cart from database')
           }
 
           // Load cart from database for the (new) user
@@ -296,8 +299,8 @@ export const useCartStore = create<CartStore>()(
           if (!validation.isValid) {
             console.warn('Stock validation failed:', validation.message)
             // Show the validation message to the user
-            if (typeof window !== 'undefined' && window.toast) {
-              window.toast.error(validation.message)
+            if (typeof window !== 'undefined' && (window as any).toast) {
+              (window as any).toast.error(validation.message)
             }
             return false
           }
@@ -443,7 +446,7 @@ export const useCartStore = create<CartStore>()(
             // Get fresh cart items from database
             const cartItems = await cartQueries.getCartItems(userId)
             const dbItemToRemove = cartItems.find(
-              (item) => item.product_id === id &&
+              (item: any) => item.product_id === id &&
                        (item.variant_id === variant ||
                         (item.variant_id === null && variant === undefined) ||
                         (item.variant_id === null && variant === null))
@@ -506,7 +509,7 @@ export const useCartStore = create<CartStore>()(
           try {
             const cartItems = await cartQueries.getCartItems(userId)
             const itemToUpdate = cartItems.find(
-              (item) => item.product_id === id && item.variant_id === variant
+              (item: any) => item.product_id === id && item.variant_id === variant
             )
             if (itemToUpdate) {
               await cartQueries.updateCartItem(itemToUpdate.id, { quantity })
@@ -694,14 +697,14 @@ export const useCartStore = create<CartStore>()(
           const cartItems = await cartQueries.getCartItems(userId)
           console.log('🛒 Retrieved cart items from database:', {
             count: cartItems.length,
-            items: cartItems.map(item => ({
+            items: cartItems.map((item: any) => ({
               product_id: item.product_id,
               quantity: item.quantity,
               variant_id: item.variant_id
             }))
           })
 
-          const items: CartItem[] = cartItems.map((item) => ({
+          const items: CartItem[] = cartItems.map((item: any) => ({
             id: item.product_id,
             name: item.product?.name_en || 'Unknown Product',
             price: item.product?.price || 0,
@@ -730,8 +733,8 @@ export const useCartStore = create<CartStore>()(
         } catch (error) {
           console.error('❌ Failed to load cart from database:', error)
           console.error('❌ Cart loading error details:', {
-            message: error.message,
-            stack: error.stack,
+            message: (error as Error).message,
+            stack: (error as Error).stack,
             userId
           })
 
