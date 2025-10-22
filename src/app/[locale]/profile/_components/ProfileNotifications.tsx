@@ -58,7 +58,7 @@ export const ProfileNotifications: FC<ProfileNotificationsProps> = ({ initialDat
                 console.error('ProfileNotifications: API request failed', res.status, res.statusText);
             }
         } catch (e) { 
-            console.error('ProfileNotifications: Failed to load notifications', e); 
+            console.error('ProfleNotifications: Failed to load notifications', e); 
         } finally { 
             setLoading(false);
             setIsLoadingData(false);
