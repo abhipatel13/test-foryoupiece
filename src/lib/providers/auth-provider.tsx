@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           break;
         case 'SIGNED_OUT':
           useUserStore.getState().clearUser()
+          useCartStore.getState().setUserId(null)
           useCartStore.getState().clearCartOnLogout()
           break;
       }
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: any, session: any ) => {
       console.log(`[Supabase Auth] Event received: ${event}`)
       
       switch (event) {
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Race-condition safe check using the real store
               if (useUserStore.getState().user?.id === user.id) {
                 useUserStore.getState().setProfile(profile)
+                useCartStore.getState().setUserId(user.id)
                 useCartStore.getState().forceLoadCartForUser(user?.id)
               }
             } catch (error) {
@@ -85,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         case 'SIGNED_OUT': {
           useUserStore.getState().clearUser()
+          useCartStore.getState().setUserId(null)
           await useCartStore.getState().clearCartOnLogout()
           channel.postMessage({ type: 'SIGNED_OUT' })
           resetClientCache()
@@ -95,8 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         case 'TOKEN_REFRESHED': {
           if (session?.user) {
             useUserStore.getState().setUser(session.user)
+            useCartStore.getState().setUserId(session.user.id)
           } else {
             useUserStore.getState().clearUser()
+            useCartStore.getState().setUserId(null)
             await useCartStore.getState().clearCartOnLogout()
             channel.postMessage({ type: 'SIGNED_OUT' })
           }
@@ -106,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         case 'USER_UPDATED': {
           if (session?.user) {
             useUserStore.getState().setUser(session.user)
+            useCartStore.getState().setUserId(session.user.id)
             channel.postMessage({ type: 'USER_UPDATED' })
           }
           break;

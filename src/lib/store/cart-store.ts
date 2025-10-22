@@ -177,7 +177,9 @@ export const useCartStore = create<CartStore>()(
           from: currentUserId,
           to: userId,
           currentItemCount: currentItems.length,
-          forceReload
+          forceReload,
+          willClearCart: userId !== currentUserId && currentUserId !== null,
+          isLoginAfterLogout: userId !== currentUserId && currentUserId === null
         })
 
         set({ userId })
@@ -331,7 +333,7 @@ export const useCartStore = create<CartStore>()(
         // Sync with database if user is logged in
         if (userId) {
           try {
-            await cartQueries.addToCart({
+            console.log('💾 Saving cart item to database:', {
               user_id: userId,
               product_id: item.id,
               variant_id: item.variant || null,
@@ -339,6 +341,17 @@ export const useCartStore = create<CartStore>()(
                 ? updatedItems[existingItemIndex].quantity
                 : item.quantity
             })
+            
+            const savedItem = await cartQueries.addToCart({
+              user_id: userId,
+              product_id: item.id,
+              variant_id: item.variant || null,
+              quantity: existingItemIndex !== -1
+                ? updatedItems[existingItemIndex].quantity
+                : item.quantity
+            })
+
+            console.log('✅ Cart item saved to database:', savedItem)
 
             // Track cart add behavior
             await trackCartBehavior('cart_add', userId, item.id, {
@@ -352,6 +365,8 @@ export const useCartStore = create<CartStore>()(
             console.error('Failed to sync cart with database:', error)
             return false
           }
+        } else {
+          console.log('⚠️ No userId, cart item not saved to database (localStorage only)')
         }
 
         // Fire Meta Pixel AddToCart after successful local + server updates
@@ -725,7 +740,8 @@ export const useCartStore = create<CartStore>()(
 
           console.log('✅ Cart loaded successfully:', {
             itemCount: deduplicatedItems.length,
-            totalQuantity: deduplicatedItems.reduce((sum, item) => sum + item.quantity, 0)
+            totalQuantity: deduplicatedItems.reduce((sum, item) => sum + item.quantity, 0),
+            items: deduplicatedItems.map(item => ({ id: item.id, name: item.name, quantity: item.quantity }))
           })
 
           // Clean up any invalid quantities after loading
