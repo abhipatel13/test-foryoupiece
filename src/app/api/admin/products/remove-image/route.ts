@@ -65,8 +65,8 @@ export async function DELETE(request: NextRequest) {
     try {
       // Extract file path from URL
       let filePath = ''
-      if (imageUrl.includes('supabase.co')) {
-        // Extract path from Supabase URL
+      // Match any Supabase storage public URL regardless of host
+      if (imageUrl.includes('/storage/v1/object/public/product-images/')) {
         const urlParts = imageUrl.split('/storage/v1/object/public/product-images/')
         if (urlParts.length > 1) {
           filePath = urlParts[1]
