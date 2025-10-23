@@ -8,6 +8,10 @@ export const fetchCache = 'force-no-store'
 
 const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN
 
+let __locations_cache: { items: any[]; ts: number } | null = null
+const LOC_TTL_MS = 60_000
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
 /**
  * POST /api/admin/boxhero/stock-chunk
  * Processes a single page of BoxHero items and updates stock quantities for matched products.
@@ -23,7 +27,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
     const limit = Number.isFinite(inputLimit) && inputLimit > 0 ? Math.min(100, inputLimit) : 100
 
     // Resolve locations to find the exact "Instock items" location IDs
-    const locations = await fetchBoxHeroLocations()
+    const locations = await fetchBoxHeroLocationsCached()
     const inStockIds = (locations || [])
       .filter((l: any) => { const n = (((l.name ?? '') + '').trim().replace(/\s+/g, ' ')).toLowerCase(); return n === 'instock items' })
       .map((l: any) => Number(l.id))
@@ -122,6 +126,7 @@ async function fetchBoxHeroItemsPage(cursor: string | null, limit: number) {
   if (cursor) url.searchParams.set('cursor', cursor)
   url.searchParams.set('limit', String(limit))
 
+  await sleep(200)
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
@@ -130,6 +135,23 @@ async function fetchBoxHeroItemsPage(cursor: string | null, limit: number) {
       'Accept': 'application/json',
     },
   })
+
+  if (response.status === 429) {
+    const reset = response.headers.get('X-Ratelimit-Reset')
+    let waitMs = 1000
+    if (reset) {
+      const n = parseInt(reset, 10)
+      if (Number.isFinite(n)) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const isEpoch = n > nowSec + 5
+        let seconds = isEpoch ? Math.max(0, n - nowSec) : n
+        seconds = Math.min(Math.max(seconds, 1), 5)
+        waitMs = seconds * 1000
+      }
+    }
+    await sleep(waitMs)
+    return fetchBoxHeroItemsPage(cursor, limit)
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
@@ -141,6 +163,7 @@ async function fetchBoxHeroItemsPage(cursor: string | null, limit: number) {
 
 async function fetchBoxHeroLocations() {
   const url = new URL('https://rest.boxhero-app.com/v1/locations')
+  await sleep(200)
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
@@ -150,10 +173,35 @@ async function fetchBoxHeroLocations() {
     },
   })
 
+  if (response.status === 429) {
+    const reset = response.headers.get('X-Ratelimit-Reset')
+    let waitMs = 1000
+    if (reset) {
+      const n = parseInt(reset, 10)
+      if (Number.isFinite(n)) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const isEpoch = n > nowSec + 5
+        let seconds = isEpoch ? Math.max(0, n - nowSec) : n
+        seconds = Math.min(Math.max(seconds, 1), 5)
+        waitMs = seconds * 1000
+      }
+    }
+    await sleep(waitMs)
+    return fetchBoxHeroLocations()
+  }
+
   if (!response.ok) {
     return [] as any[]
   }
 
   const data = await response.json()
   return Array.isArray(data.items) ? data.items : []
+}
+
+async function fetchBoxHeroLocationsCached() {
+  const now = Date.now()
+  if (__locations_cache && (now - __locations_cache.ts) < LOC_TTL_MS) return __locations_cache.items
+  const items = await fetchBoxHeroLocations()
+  __locations_cache = { items, ts: now }
+  return items
 }

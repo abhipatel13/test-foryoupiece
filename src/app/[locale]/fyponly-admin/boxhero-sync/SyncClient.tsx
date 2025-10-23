@@ -103,7 +103,7 @@ export default function SyncClientPage() {
         cursor = data?.cursor || null;
         hasMore = !!data?.hasMore;
         setChunkProgress({ processed: totalProcessed, updated: totalUpdated, skipped: totalSkipped, hasMore, cursor });
-        await new Promise(r => setTimeout(r, 50));
+        await new Promise(r => setTimeout(r, 200));
       }
 
       await queryClient.invalidateQueries({ queryKey: ['products'] });
