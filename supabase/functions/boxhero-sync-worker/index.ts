@@ -25,13 +25,13 @@ serve(async (req) => {
       return json({ success: false, error: 'Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY/BOXHERO_API_TOKEN' }, 500)
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey)
+    let supabase: any = createClient(supabaseUrl, serviceKey)
 
     const body = await req.json().catch(() => ({}))
     const jobId = body?.job_id as string | undefined
 
     // resolve job
-    let job = await getJob(supabase, jobId)
+    let job: any = await getJob(supabase, jobId)
     if (!job) {
       // no job queued; nothing to do
       return json({ success: true, message: 'No queued job' })
@@ -192,6 +192,21 @@ serve(async (req) => {
     return json({ success: true, job_id: job.id, processed: totalProcessed, updated: totalUpdated, skipped: totalSkipped, done })
   } catch (e: any) {
     console.error('❌ boxhero-sync-worker error', e)
+    try {
+      // Best-effort: mark the job as failed so UI can reflect error state
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      if (supabaseUrl && serviceKey) {
+        const sb = createClient(supabaseUrl, serviceKey)
+        const body = await req.json().catch(() => ({}))
+        const jobId = body?.job_id as string | undefined
+        if (jobId) {
+          await sb.from('boxhero_sync_jobs')
+            .update({ status: 'failed', error: (e && e.message) ? e.message : 'Unknown error' })
+            .eq('id', jobId)
+        }
+      }
+    } catch {}
     return json({ success: false, error: e?.message || 'Unknown error' }, 500)
   }
 })
