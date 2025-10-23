@@ -15,6 +15,7 @@ serve(async (req) => {
 
   const startTs = Date.now()
   const budgetMs = 50_000 // keep under typical 60s edge timeout
+  let jobId: string | undefined
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -28,7 +29,7 @@ serve(async (req) => {
     let supabase: any = createClient(supabaseUrl, serviceKey)
 
     const body = await req.json().catch(() => ({}))
-    const jobId = body?.job_id as string | undefined
+    jobId = (body?.job_id as string | undefined)
 
     // resolve job
     let job: any = await getJob(supabase, jobId)
@@ -198,8 +199,6 @@ serve(async (req) => {
       const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
       if (supabaseUrl && serviceKey) {
         const sb = createClient(supabaseUrl, serviceKey)
-        const body = await req.json().catch(() => ({}))
-        const jobId = body?.job_id as string | undefined
         if (jobId) {
           await sb.from('boxhero_sync_jobs')
             .update({ status: 'failed', error: (e && e.message) ? e.message : 'Unknown error' })
