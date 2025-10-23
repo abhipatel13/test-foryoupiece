@@ -51,6 +51,15 @@ serve(async (req) => {
       .filter((l: any) => ((l.name ?? '').toString().trim().replace(/\s+/g, ' ').toLowerCase()) === 'instock items')
       .map((l: any) => Number(l.id))
 
+    // Safety guard: if we cannot resolve in-stock locations, abort to avoid zeroing stock
+    if (!inStockIds || inStockIds.length === 0) {
+      await supabase
+        .from('boxhero_sync_jobs')
+        .update({ status: 'failed', error: 'Unable to resolve in-stock locations. Aborting to prevent accidental zeroing of stock.' })
+        .eq('id', job.id)
+      return json({ success: false, error: 'Unable to resolve in-stock locations', retryable: true }, 503)
+    }
+
     let cursor: string | null = job.cursor || null
     let totalProcessed = job.processed_items || 0
     let totalUpdated = job.updated_items || 0
