@@ -30,7 +30,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const startTs = Date.now()
-  const budgetMs = 50_000 // keep under typical 60s edge timeout
+  let budgetMs = 50_000 // keep under typical 60s edge timeout
   let jobId: string | undefined
 
   try {
@@ -46,6 +46,11 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}))
     jobId = (body?.job_id as string | undefined)
+    // Optional: allow caller to reduce per-invocation processing budget
+    const reqBudget = Number((body as any)?.budget_ms)
+    if (Number.isFinite(reqBudget) && reqBudget > 0) {
+      budgetMs = Math.min(50_000, Math.max(200, Math.floor(reqBudget)))
+    }
 
     // resolve job
     let job: any = await getJob(supabase, jobId)
@@ -216,8 +221,16 @@ serve(async (req) => {
           'apikey': serviceKey,
           'Authorization': `Bearer ${serviceKey}`
         }
-        // Fire-and-forget best-effort; the next invocation will resume by job_id
-        fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: job.id }) }).catch(() => {})
+        // Await the next invocation briefly to ensure it is dispatched before this runtime ends
+        const controller = new AbortController()
+        const t = setTimeout(() => controller.abort(), 6000)
+        try {
+          await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: job.id, budget_ms: 45_000 }), signal: controller.signal })
+        } catch (_) {
+          // ignore; the next invocation may still have been accepted
+        } finally {
+          clearTimeout(t)
+        }
       }
     }
 

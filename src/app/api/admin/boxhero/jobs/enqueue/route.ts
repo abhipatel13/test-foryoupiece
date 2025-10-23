@@ -33,7 +33,20 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY as string,
       'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
     }
-    fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: data.id }) }).catch(() => {})
+    // Await initial invocation to avoid it being dropped by the platform tear-down
+    const controller = new AbortController()
+    const t = setTimeout(() => controller.abort(), 6000)
+    try {
+      const resp = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: data.id }), signal: controller.signal })
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => '')
+        console.warn('boxhero-sync-worker initial invoke returned non-2xx', resp.status, txt)
+      }
+    } catch (e) {
+      console.warn('boxhero-sync-worker initial invoke error', e)
+    } finally {
+      clearTimeout(t)
+    }
 
     return NextResponse.json({ success: true, job: { id: data.id, status: data.status } })
   } catch (e: any) {
