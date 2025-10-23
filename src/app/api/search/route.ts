@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAnonymousClient } from '@/lib/supabase/server'
-import { sortProductsByStockPriority } from '@/lib/utils'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 /**
  * SECURITY FIX: Sanitize search input to prevent PostgREST filter injection
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     })
 
     // SECURITY FIX: Use anonymous client instead of service role to ensure RLS applies
-    const supabase = createAnonymousClient()
+    const supabase: any = createAnonymousClient()
     const response: any = {
       success: true,
       data: {
@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
     const startTime = Date.now()
 
     // If no query provided, return suggestions and history only
-    if (!query || query.length < 2) {
+    const hasNonAscii = /[^\x00-\x7F]/.test(query)
+    if (!query || (query.length < 2 && !hasNonAscii)) {
       if (includeSuggestions) {
         const { data: suggestions } = await supabase
           .rpc('get_search_suggestions', { p_query: query || '', p_limit: 10 })
@@ -78,132 +79,169 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(response)
     }
 
-    // Build comprehensive product search query
-    let productQuery = supabase
-      .from('products')
-      .select(`
-        id,
-        name_en,
-        description_en,
-        price,
-        compare_at_price,
-        points_rate,
-        stock_quantity,
-        is_featured,
-        brand,
-        images,
-        tags,
-        sku,
-        created_at,
-        category:categories(
+    // Build candidates via RPC with server-side ranking (EN + KM), then fetch details
+    const candidateLimit = Math.max(limit, 100)
+    const { data: rpcRows, error: rpcError } = await supabase
+      .rpc('search_products_en_km', {
+        p_query: query,
+        p_limit: candidateLimit,
+        p_category_slug: category && category !== 'all' ? category : null
+      })
+
+    let finalProducts: any[] = []
+
+    if (!rpcError && rpcRows && rpcRows.length > 0) {
+      const ids = rpcRows.map((r: any) => r.product_id)
+      const scoreMap = new Map<string, number>(rpcRows.map((r: any) => [r.product_id, Number(r.score) || 0]))
+
+      const { data: details, error: detailsError } = await supabase
+        .from('products')
+        .select(`
           id,
           name_en,
-          slug
-        )
-      `)
-      .eq('is_active', true)
+          description_en,
+          price,
+          compare_at_price,
+          points_rate,
+          stock_quantity,
+          is_featured,
+          brand,
+          images,
+          tags,
+          sku,
+          created_at,
+          category:categories(
+            id,
+            name_en,
+            slug
+          )
+        `)
+        .eq('is_active', true)
+        .in('id', ids)
 
-    // SECURITY FIX: Build a single OR clause to avoid overriding filters
-    if (query && query.length >= 2) {
-      const orConditions: string[] = [
-        `name_en.ilike.%${query}%`,
-        `brand.ilike.%${query}%`,
-        `description_en.ilike.%${query}%`,
-        `sku.ilike.%${query}%`
-      ]
+      const byId = new Map((details || []).map((p: any) => [p.id, p]))
+      finalProducts = ids
+        .map((id: string) => byId.get(id))
+        .filter(Boolean)
+        .map((p: any) => ({ ...p, relevanceScore: scoreMap.get(p.id) || 0 }))
 
-      // For tag search, use individual terms safely and include them in the same OR
-      const searchTerms = query.split(' ').filter(term => term.length > 1).slice(0, 5) // Limit terms
-      for (const term of searchTerms) {
-        const sanitizedTerm = sanitizeSearchInput(term)
-        if (sanitizedTerm) {
-          // JSONB contains for tags array
-          orConditions.push(`tags.cs.{"${sanitizedTerm}"}`)
+      // Stock-priority ordering, then textual relevance, then recency
+      finalProducts.sort((a: any, b: any) => {
+        const stockCmp = Number(b.stock_quantity > 0) - Number(a.stock_quantity > 0)
+        if (stockCmp) return stockCmp
+        const relCmp = (b.relevanceScore || 0) - (a.relevanceScore || 0)
+        if (relCmp) return relCmp
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+
+      const limited = finalProducts.slice(0, limit)
+      response.data.products = limited
+      response.data.meta.total = limited.length
+      ;(response.data.meta as any).totalCandidates = finalProducts.length
+      response.data.meta.searchTime = Date.now() - startTime
+    } else {
+      // Fallback to previous OR-based search if RPC fails or yields no results
+      let productQuery = supabase
+        .from('products')
+        .select(`
+          id,
+          name_en,
+          description_en,
+          price,
+          compare_at_price,
+          points_rate,
+          stock_quantity,
+          is_featured,
+          brand,
+          images,
+          tags,
+          sku,
+          created_at,
+          category:categories(
+            id,
+            name_en,
+            slug
+          )
+        `)
+        .eq('is_active', true)
+
+      if (query && (query.length >= 2 || /[^\x00-\x7F]/.test(query))) {
+        const orConditions: string[] = [
+          `name_en.ilike.%${query}%`,
+          `brand.ilike.%${query}%`,
+          `description_en.ilike.%${query}%`,
+          `sku.ilike.%${query}%`
+        ]
+        const searchTerms = query
+          .split(' ')
+          .filter(term => term.length > 1 || /[^\x00-\x7F]/.test(term))
+          .slice(0, 5)
+        for (const term of searchTerms) {
+          const sanitizedTerm = sanitizeSearchInput(term)
+          if (sanitizedTerm) {
+            orConditions.push(`tags.cs.{"${sanitizedTerm}"}`)
+          }
+        }
+        if (orConditions.length > 0) {
+          productQuery = productQuery.or(orConditions.join(','))
         }
       }
 
-      if (orConditions.length > 0) {
-        productQuery = productQuery.or(orConditions.join(','))
+      if (category && category !== 'all') {
+        const { data: categoryData } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('slug', category)
+          .single()
+        if (categoryData) {
+          productQuery = productQuery.eq('category_id', categoryData.id)
+        }
       }
-    }
 
-    // Apply category filter if provided
-    if (category && category !== 'all') {
-      const { data: categoryData } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('slug', category)
-        .single()
+      const { data: products, error: searchError } = await productQuery
+        .order('created_at', { ascending: false })
+        .limit(limit)
 
-      if (categoryData) {
-        productQuery = productQuery.eq('category_id', categoryData.id)
+      if (searchError) {
+        console.error('❌ Product search error (fallback):', searchError)
+        return NextResponse.json({
+          success: false,
+          error: 'Search failed',
+          data: { products: [], suggestions: [], history: [] }
+        }, { status: 500 })
       }
-    }
 
-    // Execute search with limit
-    const { data: products, error: searchError } = await productQuery
-      .order('is_featured', { ascending: false })
-      .order('stock_quantity', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (searchError) {
-      console.error('❌ Product search error:', searchError)
-      return NextResponse.json({
-        success: false,
-        error: 'Search failed',
-        data: { products: [], suggestions: [], history: [] }
-      }, { status: 500 })
-    }
-
-    // Calculate search relevance scores
-    const scoredProducts = (products || []).map(product => {
-      let relevanceScore = 0
       const queryLower = query.toLowerCase()
-      const nameLower = product.name_en?.toLowerCase() || ''
-      const brandLower = product.brand?.toLowerCase() || ''
-      const descLower = product.description_en?.toLowerCase() || ''
-
-      // Exact name match (highest score)
-      if (nameLower === queryLower) relevanceScore += 100
-      else if (nameLower.includes(queryLower)) relevanceScore += 50
-
-      // Brand match
-      if (brandLower === queryLower) relevanceScore += 80
-      else if (brandLower.includes(queryLower)) relevanceScore += 40
-
-      // Description match
-      if (descLower.includes(queryLower)) relevanceScore += 20
-
-      // Featured product boost
-      if (product.is_featured) relevanceScore += 10
-
-      // Stock availability boost
-      if (product.stock_quantity > 0) relevanceScore += 5
-
-      // Tag matches
-      if (product.tags) {
-        const tagMatches = product.tags.filter((tag: string) => 
-          tag.toLowerCase().includes(queryLower)
-        ).length
-        relevanceScore += tagMatches * 15
-      }
-
-      return {
-        ...product,
-        relevanceScore
-      }
-    })
-
-    // Apply global stock-priority sorting while preserving relevance-based sorting
-    const sortedProducts = sortProductsByStockPriority(scoredProducts, (a, b) => {
-      // Secondary sort by relevance score (descending)
-      return b.relevanceScore - a.relevanceScore
-    })
-
-    response.data.products = sortedProducts
-    response.data.meta.total = sortedProducts.length
-    response.data.meta.searchTime = Date.now() - startTime
+      const scored = (products || []).map((product: any) => {
+        let relevanceScore = 0
+        const nameLower = product.name_en?.toLowerCase() || ''
+        const brandLower = product.brand?.toLowerCase() || ''
+        const descLower = product.description_en?.toLowerCase() || ''
+        if (nameLower === queryLower) relevanceScore += 100
+        else if (nameLower.includes(queryLower)) relevanceScore += 50
+        if (brandLower === queryLower) relevanceScore += 80
+        else if (brandLower.includes(queryLower)) relevanceScore += 40
+        if (descLower.includes(queryLower)) relevanceScore += 20
+        if (product.is_featured) relevanceScore += 10
+        if (product.stock_quantity > 0) relevanceScore += 5
+        if (product.tags) {
+          const tagMatches = product.tags.filter((tag: string) => tag.toLowerCase().includes(queryLower)).length
+          relevanceScore += tagMatches * 15
+        }
+        return { ...product, relevanceScore }
+      })
+      // Stock-priority ordering, then textual relevance, then recency
+      scored.sort((a: any, b: any) => {
+        const stockCmp = Number(b.stock_quantity > 0) - Number(a.stock_quantity > 0)
+        if (stockCmp) return stockCmp
+        const relCmp = (b.relevanceScore || 0) - (a.relevanceScore || 0)
+        if (relCmp) return relCmp
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+      response.data.products = scored
+      response.data.meta.total = scored.length
+      response.data.meta.searchTime = Date.now() - startTime
+    }
 
     // Get search suggestions if requested (fallback implementation)
     if (includeSuggestions) {
@@ -216,10 +254,10 @@ export async function GET(request: NextRequest) {
           .or(`name_en.ilike.%${query}%,brand.ilike.%${query}%`)
           .limit(5)
 
-        const suggestions = []
+        const suggestions: any[] = []
         if (suggestionProducts) {
           // Add product name suggestions
-          suggestionProducts.forEach(product => {
+          suggestionProducts.forEach((product: any) => {
             if (product.name_en && product.name_en.toLowerCase().includes(query.toLowerCase())) {
               suggestions.push({
                 suggestion_text: product.name_en,
@@ -238,7 +276,7 @@ export async function GET(request: NextRequest) {
         }
 
         response.data.suggestions = suggestions.slice(0, 5)
-      } catch (err) {
+      } catch (err: any) {
         console.warn('⚠️ Suggestions fallback failed:', err)
         response.data.suggestions = []
       }
@@ -256,7 +294,7 @@ export async function GET(request: NextRequest) {
           .limit(5)
 
         response.data.history = history || []
-      } catch (err) {
+      } catch (err: any) {
         console.warn('⚠️ Search history fallback failed:', err)
         response.data.history = []
       }
@@ -264,6 +302,7 @@ export async function GET(request: NextRequest) {
 
     // Enhanced search behavior tracking (fire and forget)
     if (userId && query.length >= 2) {
+      const resultsCountForTracking = Array.isArray(response.data.products) ? response.data.products.length : 0
       // Track in search history table
       supabase
         .from('user_search_history')
@@ -271,13 +310,13 @@ export async function GET(request: NextRequest) {
           user_id: userId,
           search_query: query,
           search_category: category,
-          results_count: scoredProducts.length,
+          results_count: resultsCountForTracking,
           search_source: 'header',
           user_agent: request.headers.get('user-agent'),
           session_id: `session_${userId}_${Date.now()}`
         })
         .then(() => console.log('✅ Search tracked in history'))
-        .catch(err => console.warn('⚠️ Search history tracking failed:', err))
+        .catch((err: any) => console.warn('⚠️ Search history tracking failed:', err))
 
       // Also track in comprehensive behavior tracking
       supabase
@@ -289,16 +328,17 @@ export async function GET(request: NextRequest) {
           search_query: query,
           behavior_data: {
             category: category,
-            results_count: scoredProducts.length,
+            results_count: resultsCountForTracking,
             search_source: 'header',
             timestamp: new Date().toISOString()
           }
         })
         .then(() => console.log('✅ Search behavior tracked'))
-        .catch(err => console.warn('⚠️ Search behavior tracking failed:', err))
+        .catch((err: any) => console.warn('⚠️ Search behavior tracking failed:', err))
     }
 
-    console.log(`✅ Search completed: ${scoredProducts.length} results in ${response.data.meta.searchTime}ms`)
+    const totalCount = Array.isArray(response.data.products) ? response.data.products.length : 0
+    console.log(`✅ Search completed: ${totalCount} results in ${response.data.meta.searchTime}ms`)
 
     return NextResponse.json(response)
 
@@ -325,7 +365,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const supabase = createServiceRoleClient()
+    const supabase: any = createServiceRoleClient()
 
     // Track user behavior
     const behaviorData = {
