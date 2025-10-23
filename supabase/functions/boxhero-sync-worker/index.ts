@@ -64,6 +64,7 @@ serve(async (req) => {
     let totalProcessed = job.processed_items || 0
     let totalUpdated = job.updated_items || 0
     let totalSkipped = job.skipped_items || 0
+    let lastHasMore = true
 
     while (Date.now() - startTs < budgetMs) {
       const page = await fetchBoxHeroItemsPage(boxHeroToken, cursor, 100)
@@ -72,6 +73,7 @@ serve(async (req) => {
       if (!items || items.length === 0) {
         // no more items
         cursor = page.cursor || null
+        lastHasMore = !!page.has_more
         if (!page.has_more) break
       }
 
@@ -176,10 +178,12 @@ serve(async (req) => {
         })
         .eq('id', job.id)
 
+      lastHasMore = !!page.has_more
       if (!page.has_more) break
     }
 
-    const done = await fetchBoxHeroItemsPage(boxHeroToken, cursor, 1).then(p => !p.has_more).catch(() => false)
+    // If loop finished because there is no next page, mark completed. If we hit the time budget, leave as processing.
+    const done = lastHasMore === false
     await supabase
       .from('boxhero_sync_jobs')
       .update({ status: done ? 'completed' : 'processing' })
