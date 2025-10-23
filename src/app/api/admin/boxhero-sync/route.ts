@@ -5,6 +5,7 @@ import { SupabaseProductRepository } from '@/infrastructure/repositories/Supabas
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { withAdminAuth } from '@/lib/auth/admin-middleware';
+import { autoCategorizeProducts } from '@/lib/services/autoCategorize';
 
 // API token for BoxHero - loaded from environment variables
 const BOXHERO_API_TOKEN = process.env.BOXHERO_API_TOKEN;
@@ -109,20 +110,41 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
         });
 
         if (result.success) {
-          // Auto-categorize products after successful sync (fire-and-forget)
-          console.log('🤖 Scheduling auto-categorization after sync (non-blocking)...');
+          // Auto-categorize products after successful sync (awaited with service role)
+          console.log('🤖 Running auto-categorization after sync (awaited)...');
           try {
-            fetch(`${request.nextUrl.origin}/api/admin/auto-categorize-products`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dryRun: false })
-            }).catch(() => {});
-          } catch {}
+            const changedSkus = Array.isArray((result as any).data?.mappings)
+              ? (result as any).data.mappings
+                  .filter((m: any) => m && m.sku && m.action !== 'skip')
+                  .map((m: any) => m.sku)
+              : undefined;
 
-          return NextResponse.json({
-            success: true,
-            report: result.data,
-          });
+            const autoRes = await autoCategorizeProducts({
+              boxHeroToken: BOXHERO_API_TOKEN!,
+              targetSKUs: changedSkus && changedSkus.length > 0 ? changedSkus : undefined,
+              dryRun: false,
+            });
+
+            return NextResponse.json({
+              success: true,
+              report: {
+                ...result.data,
+                autoCategorization: autoRes.success ? autoRes.summary : { errorCount: 1, warning: 'Auto-categorization failed' },
+              },
+            });
+          } catch (autoCategorizeError) {
+            console.warn('⚠️ Auto-categorization error:', autoCategorizeError);
+            return NextResponse.json({
+              success: true,
+              report: {
+                ...result.data,
+                autoCategorization: {
+                  error: 'Auto-categorization failed',
+                  warning: 'Sync completed but auto-categorization encountered an error',
+                },
+              },
+            });
+          }
         } else {
           return NextResponse.json({
             success: false,
@@ -298,7 +320,7 @@ export const PATCH = withAdminAuth(async (request: NextRequest) => {
       avg_sync_duration: '00:00:00',
     };
 
-    const history = [];
+    const history: any[] = [];
 
     return NextResponse.json({
       success: true,

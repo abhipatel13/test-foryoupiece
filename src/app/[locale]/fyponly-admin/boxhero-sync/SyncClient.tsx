@@ -86,7 +86,7 @@ export default function SyncClientPage() {
       let hasMore = true;
 
       while (hasMore) {
-        const res = await fetch('/api/admin/boxhero/stock-chunk', {
+        const res: Response = await fetch('/api/admin/boxhero/stock-chunk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cursor, limit: 100 })
@@ -96,7 +96,7 @@ export default function SyncClientPage() {
           toast.error('Chunk sync failed');
           throw new Error(errText || 'Chunk sync failed');
         }
-        const data = await res.json();
+        const data: any = await res.json();
         totalProcessed += Number(data?.stats?.processed || 0);
         totalUpdated += Number(data?.stats?.itemsUpdated || 0);
         totalSkipped += Number(data?.stats?.itemsSkipped || 0);
