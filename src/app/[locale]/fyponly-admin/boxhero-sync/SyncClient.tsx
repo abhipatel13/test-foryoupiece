@@ -33,6 +33,9 @@ export default function SyncClientPage() {
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
   const queryClient = useQueryClient();
 
+  const [isChunkSyncing, setIsChunkSyncing] = useState(false);
+  const [chunkProgress, setChunkProgress] = useState({ processed: 0, updated: 0, skipped: 0, hasMore: false, cursor: null as string | null });
+
   const {
     isSyncing: isEnhancedSyncing,
     syncHistory,
@@ -70,6 +73,50 @@ export default function SyncClientPage() {
       setIsLoading(false);
     }
   };
+
+  const runChunkedStockSync = async () => {
+    try {
+      setIsChunkSyncing(true);
+      setChunkProgress({ processed: 0, updated: 0, skipped: 0, hasMore: false, cursor: null });
+
+      let cursor: string | null = null;
+      let totalProcessed = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await fetch('/api/admin/boxhero/stock-chunk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cursor, limit: 100 })
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          toast.error('Chunk sync failed');
+          throw new Error(errText || 'Chunk sync failed');
+        }
+        const data = await res.json();
+        totalProcessed += Number(data?.stats?.processed || 0);
+        totalUpdated += Number(data?.stats?.itemsUpdated || 0);
+        totalSkipped += Number(data?.stats?.itemsSkipped || 0);
+        cursor = data?.cursor || null;
+        hasMore = !!data?.hasMore;
+        setChunkProgress({ processed: totalProcessed, updated: totalUpdated, skipped: totalSkipped, hasMore, cursor });
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ queryKey: ['product'] });
+      await queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+      toast.success(`Chunked stock sync completed. Updated ${totalUpdated} items.`);
+    } catch (e) {
+      // no-op: toast already shown
+    } finally {
+      setIsChunkSyncing(false);
+    }
+  }
 
   const triggerSync = async () => {
     try {
@@ -199,10 +246,19 @@ export default function SyncClientPage() {
                     {isSyncing ? (<Loader2 className="h-4 w-4 animate-spin" />) : (<RefreshCw className="h-4 w-4" />)}
                     {isSyncing ? 'Syncing...' : 'Sync Now'}
                   </Button>
+                  <Button variant="secondary" onClick={runChunkedStockSync} disabled={isChunkSyncing} className="flex items-center gap-2">
+                    {isChunkSyncing ? (<Loader2 className="h-4 w-4 animate-spin" />) : (<RefreshCw className="h-4 w-4" />)}
+                    {isChunkSyncing ? 'Chunk Syncing...' : 'Chunked Stock Sync (Scalable)'}
+                  </Button>
                   <Button variant="outline" onClick={fetchSyncStatus} disabled={isLoading} className="flex items-center gap-2">
                     <Database className="h-4 w-4" />Refresh Status
                   </Button>
                 </div>
+                {isChunkSyncing || chunkProgress.processed > 0 ? (
+                  <div className="mt-3 text-sm text-muted-foreground">
+                    <p>Chunked sync progress: processed {chunkProgress.processed}, updated {chunkProgress.updated}, skipped {chunkProgress.skipped}{chunkProgress.hasMore ? '...' : ''}</p>
+                  </div>
+                ) : null}
                 {lastSyncResult && (
                   <div className="mt-4 p-4 rounded-lg border">
                     <div className="flex items-center gap-2 mb-2">

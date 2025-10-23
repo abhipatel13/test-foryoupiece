@@ -109,59 +109,20 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
         });
 
         if (result.success) {
-          // Auto-categorize products after successful sync
-          console.log('🤖 Running auto-categorization after sync...');
+          // Auto-categorize products after successful sync (fire-and-forget)
+          console.log('🤖 Scheduling auto-categorization after sync (non-blocking)...');
           try {
-            const autoCategorizeResponse = await fetch(`${request.nextUrl.origin}/api/admin/auto-categorize-products`, {
+            fetch(`${request.nextUrl.origin}/api/admin/auto-categorize-products`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                dryRun: false
-              })
-            });
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dryRun: false })
+            }).catch(() => {});
+          } catch {}
 
-            const autoCategorizeResult = await autoCategorizeResponse.json();
-
-            if (autoCategorizeResult.success) {
-              console.log(`✅ Auto-categorization completed: ${autoCategorizeResult.summary.updatedCount} products categorized`);
-
-              return NextResponse.json({
-                success: true,
-                report: {
-                  ...result.data,
-                  autoCategorization: autoCategorizeResult.summary
-                },
-              });
-            } else {
-              console.warn('⚠️ Auto-categorization failed:', autoCategorizeResult.error);
-
-              return NextResponse.json({
-                success: true,
-                report: {
-                  ...result.data,
-                  autoCategorization: {
-                    error: autoCategorizeResult.error,
-                    warning: 'Sync completed but auto-categorization failed'
-                  }
-                },
-              });
-            }
-          } catch (autoCategorizeError) {
-            console.warn('⚠️ Auto-categorization error:', autoCategorizeError);
-
-            return NextResponse.json({
-              success: true,
-              report: {
-                ...result.data,
-                autoCategorization: {
-                  error: 'Auto-categorization failed',
-                  warning: 'Sync completed but auto-categorization encountered an error'
-                }
-              },
-            });
-          }
+          return NextResponse.json({
+            success: true,
+            report: result.data,
+          });
         } else {
           return NextResponse.json({
             success: false,

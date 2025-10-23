@@ -5,6 +5,10 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "functions": {
+    "src/app/api/admin/boxhero-sync/route.ts": { "maxDuration": 60 },
+    "src/app/api/admin/auto-categorize-products/route.ts": { "maxDuration": 60 },
+    "src/app/api/admin/boxhero/sync/route.ts": { "maxDuration": 60 },
+    "src/app/api/admin/boxhero/stock-chunk/route.ts": { "maxDuration": 60 },
     "src/app/api/orders/create/route.ts": { "maxDuration": 45 },
     "src/app/api/homepage-data/route.ts": { "maxDuration": 45 },
     "src/app/api/recommendations/route.ts": { "maxDuration": 45 },
