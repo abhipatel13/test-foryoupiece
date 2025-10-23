@@ -22,6 +22,10 @@ function getFunctionsBaseUrlFromSupabaseUrl(supabaseUrl: string): string | null 
   }
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -242,14 +246,48 @@ async function fetchBoxHeroItemsPage(token: string, cursor: string | null, limit
   if (cursor) url.searchParams.set('cursor', cursor)
   url.searchParams.set('limit', String(limit))
 
+  await sleep(200)
   const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } })
+  if (res.status === 429) {
+    const reset = res.headers.get('X-Ratelimit-Reset')
+    let waitMs = 1000
+    if (reset) {
+      const n = parseInt(reset, 10)
+      if (Number.isFinite(n)) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const isEpoch = n > nowSec + 5
+        let seconds = isEpoch ? Math.max(0, n - nowSec) : n
+        seconds = Math.min(Math.max(seconds, 1), 5)
+        waitMs = seconds * 1000
+      }
+    }
+    await sleep(waitMs)
+    return fetchBoxHeroItemsPage(token, cursor, limit)
+  }
   if (!res.ok) throw new Error(`BoxHero items error: ${res.status}`)
   return res.json()
 }
 
 async function fetchBoxHeroLocations(token: string) {
   const url = new URL('https://rest.boxhero-app.com/v1/locations')
+  await sleep(200)
   const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } })
+  if (res.status === 429) {
+    const reset = res.headers.get('X-Ratelimit-Reset')
+    let waitMs = 1000
+    if (reset) {
+      const n = parseInt(reset, 10)
+      if (Number.isFinite(n)) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const isEpoch = n > nowSec + 5
+        let seconds = isEpoch ? Math.max(0, n - nowSec) : n
+        seconds = Math.min(Math.max(seconds, 1), 5)
+        waitMs = seconds * 1000
+      }
+    }
+    await sleep(waitMs)
+    return fetchBoxHeroLocations(token)
+  }
   if (!res.ok) return []
   const data = await res.json()
   return Array.isArray(data.items) ? data.items : []
