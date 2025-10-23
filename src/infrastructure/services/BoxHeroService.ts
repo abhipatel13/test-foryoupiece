@@ -115,10 +115,21 @@ export class BoxHeroService {
 
       // Handle rate limiting
       if (response.status === 429) {
-        const retryAfter = response.headers.get('X-Ratelimit-Reset');
-        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 1000;
-        
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        const resetHeader = response.headers.get('X-Ratelimit-Reset');
+        let waitMs = 1000;
+        if (resetHeader) {
+          const n = parseInt(resetHeader, 10);
+          if (Number.isFinite(n)) {
+            const nowSec = Math.floor(Date.now() / 1000);
+            // If header looks like epoch seconds, compute delta; otherwise treat as seconds
+            const isEpoch = n > nowSec + 5; // allow small skew
+            let seconds = isEpoch ? Math.max(0, n - nowSec) : n;
+            // Cap the backoff to avoid exceeding serverless time limits
+            seconds = Math.min(Math.max(seconds, 1), 5);
+            waitMs = seconds * 1000;
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, waitMs));
         return this.makeRequest<T>(endpoint, options);
       }
 
