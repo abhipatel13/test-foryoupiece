@@ -10,6 +10,18 @@ function json(res: any, status = 200) {
   return new Response(JSON.stringify(res), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+function getFunctionsBaseUrlFromSupabaseUrl(supabaseUrl: string): string | null {
+  try {
+    const u = new URL(supabaseUrl)
+    const host = u.hostname // e.g. abcdef.supabase.co
+    const ref = host.split('.')[0]
+    if (!ref) return null
+    return `https://${ref}.functions.supabase.co`
+  } catch {
+    return null
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -187,8 +199,23 @@ serve(async (req) => {
     const done = lastHasMore === false
     await supabase
       .from('boxhero_sync_jobs')
-      .update({ status: done ? 'completed' : 'processing' })
+      .update({ status: done ? 'completed' : 'processing', completed_at: done ? new Date().toISOString() : null })
       .eq('id', job.id)
+
+    // If not done, auto-chain another invocation to continue processing
+    if (!done) {
+      const base = getFunctionsBaseUrlFromSupabaseUrl(supabaseUrl)
+      if (base) {
+        const fnUrl = `${base}/boxhero-sync-worker`
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`
+        }
+        // Fire-and-forget best-effort; the next invocation will resume by job_id
+        fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: job.id }) }).catch(() => {})
+      }
+    }
 
     return json({ success: true, job_id: job.id, processed: totalProcessed, updated: totalUpdated, skipped: totalSkipped, done })
   } catch (e: any) {
