@@ -55,13 +55,6 @@ BoxHero API → Manual Sync → Supabase DB → Service Role Client → API Rout
 - Cross-tab session synchronization via BroadcastChannel API
 - Session validation uses `getUser()` not `getSession()` for security
 
-#### 3. State Management Pattern
-```typescript
-// All stores use SSR-safe wrappers to prevent hydration mismatches
-useSSRSafeUserStore()  // User authentication state
-useSSRSafeCartStore()  // Shopping cart with multi-tab sync
-```
-
 #### 4. API Route Security Pattern
 All admin routes follow this pattern:
 ```typescript
@@ -228,16 +221,6 @@ Troubleshooting checklist
 3) Dropdown shows while logged out? Verify `getSession()` check and that `hasSession === false` renders the Sign In UI.
 
 
-## Post-login reload loop guard (All providers) — Definitive
-- One-time hard reload is triggered on `INITIAL_SESSION` and `SIGNED_IN` with a cache-busting `?r=` parameter.
-- A pre-init guard runs on the next load to prevent loops:
-  - If `?r` exists: set a one-time `__postLoginReloadDone` guard and `sessionStorage['__postLoginReloadDone']='1'`, then remove `?r` via `history.replaceState`.
-  - Else if `sessionStorage['__postLoginReloadDone']=='1'`: set the guard and clear the key.
-- Applies equally to Google OAuth, Email/Password, and Telegram flows; do not bypass this guard.
-- All authenticated UI must be gated by `supabase.auth.getSession()` (not store-only checks).
-- Always call `/api/auth/ensure-profile` promptly after auth to guarantee a users row.
-- Telegram server-side hardening remains available behind `NEXT_PUBLIC_AUTH_USE_SERVER_TELEGRAM_LOGIN` (default OFF). Default OFF preserves legacy session_bridge + JSON handoff.
-- See also: `docs/AUTHENTICATION.md` (definitive, up-to-date reference).
 
 # BoxHero API Integration
 - Manual sync system with BoxHero API for inventory management, accessed via /en/fyponly-admin URL.
@@ -304,35 +287,6 @@ Troubleshooting checklist
 
 This section documents the exact behaviors relied on across the app. Do not modify these without an explicit plan, feature flag, and production soak.
 
-### Authentication System (Current)
-1) One‑time AuthProvider initialization (StrictMode-safe)
-- Location: src/lib/providers/auth-provider.tsx
-- Pattern: a module‑scope boolean guard `__AUTH_PROVIDER_INIT_DONE` plus a local `initializationRef` ensure the init effect runs once per tab. Do not add dependencies to the init effect; all logic changes belong in the auth state handler.
-- Purpose: Prevents duplicate client initialization, racey cleanup/re‑init, and cross‑tab churn.
-
-2) Post‑login hard reload with cache buster
-- On INITIAL_SESSION or SIGNED_IN: immediately set `user` + `userId`, unblock UI, and force a one‑time hard reload using `window.location.replace(redirect + '?r=' + Date.now())`.
-- Purpose: Guarantees fresh profile/points/tier/preferences and eliminates “Telegram User” placeholders without manual Ctrl+F5.
-
-3) Session restoration fallback chain
-- Order: `supabase.auth.getSession()` → if absent and error‑free, try `supabase.auth.getUser()` → if present, `supabase.auth.refreshSession()`.
-- Purpose: Maximizes session recovery across browsers (Firefox/Safari peculiarities) and avoids false sign‑outs.
-
-4) Cross‑tab synchronization via BroadcastChannel
-- Multi‑tab sync publishes AUTH_STATE_CHANGE, session‑validated, and expiration events. Cross‑tab sign‑out is guarded by `signOutInProgress` (local + window flag) to avoid “zombie” sessions.
-- Purpose: Consistent logout/refresh across tabs; prevents rehydration during logout.
-
-5) Ensure‑profile prefetch after successful auth
-- Immediately call `/api/auth/ensure-profile` post‑auth (and during certain bootstrap paths) before loading the profile to guarantee a users row exists for all providers (Google/Email/Telegram).
-- Purpose: Eliminates missing‑profile edge cases and placeholder names.
-
-6) Account dropdown gating by real Supabase session
-- All authenticated UI (e.g., account menu) must check `supabase.auth.getSession()` and render the authenticated state only when `session.access_token` exists; otherwise, render “Sign In”. Store‑only checks are forbidden.
-
-Notes & Guardrails
-- Keep the double‑init guard, cross‑tab sign‑out guard, and post‑login hard reload.
-- Middleware must respect Supabase cookie deletion semantics (preserve `maxAge: 0`/`expires`).
-- Performance logs and retries should not block auth resolution.
 
 ### Telegram Integration (Current)
 1) Two‑bot architecture
