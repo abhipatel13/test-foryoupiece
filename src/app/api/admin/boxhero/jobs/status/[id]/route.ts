@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
-export const GET = withAdminAuth(async (_req: NextRequest, _ctx: { user: any; adminUser: any }, { params }: { params: { id: string } }) => {
+export const GET = withAdminAuth(async (_req: NextRequest, _ctx: { user: any; adminUser: any }, { params }: { params: Promise<{ id: string }> }) => {
   try {
+    const { id } = await params
     const supabase = createServiceRoleClient()
     const { data, error } = await supabase
       .from('boxhero_sync_jobs')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error || !data) {

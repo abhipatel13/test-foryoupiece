@@ -151,7 +151,8 @@ export class CategoriesService {
         parent_id: null,
         image_url: null,
         is_active: true,
-        sort_order: cat.sort_order
+        sort_order: cat.sort_order,
+        source: 'boxhero'
       }));
 
       const { error } = await supabaseService
@@ -276,7 +277,8 @@ export class CategoriesService {
       const { data: currentCategories, error: fetchError } = await supabaseService
         .from('categories')
         .select('id, name_en, name_ja, slug, is_active')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .or('source.eq.boxhero,source.is.null');
 
       if (fetchError) {
         console.error('❌ Error fetching current categories:', fetchError);
@@ -289,7 +291,8 @@ export class CategoriesService {
       const { error } = await supabaseService
         .from('categories')
         .update({ is_active: false })
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .or('source.eq.boxhero,source.is.null');
 
       if (error) {
         console.error('❌ Error deactivating categories:', error);

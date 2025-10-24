@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BoxHeroService } from '@/infrastructure/services/BoxHeroService';
 import { BoxHeroSyncService } from '@/application/services/BoxHeroSyncService';
+import { BoxHeroSyncService as CategoriesSync } from '@/lib/boxhero-sync';
 import { SupabaseProductRepository } from '@/infrastructure/repositories/SupabaseProductRepository';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
@@ -100,6 +101,13 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
     const syncService = new BoxHeroSyncService(boxHeroService, productRepository);
 
     switch (action) {
+      case 'categories-sync': {
+        const res = await CategoriesSync.syncCategoriesComprehensive('admin_interface', true)
+        if (res.success) {
+          return NextResponse.json({ success: true, report: res })
+        }
+        return NextResponse.json({ success: false, error: res.error || 'Category sync failed' }, { status: 400 })
+      }
       case 'full-sync': {
         const result = await syncService.performSync({
           locationIds,
