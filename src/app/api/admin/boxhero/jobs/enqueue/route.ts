@@ -18,6 +18,14 @@ function extractProjectRef(url?: string | null) {
   }
 }
 
+function getInvokeTimeoutMs() {
+  const fromEnv = Number(process.env.FYP_WORKER_INVOKE_TIMEOUT_MS)
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return Math.floor(fromEnv)
+  // Dev: allow longer cold start
+  if (process.env.NODE_ENV !== 'production') return 12_000
+  return 6_000
+}
+
 function getFunctionsBaseUrl() {
   const override = (process.env.SUPABASE_FUNCTIONS_URL || '').trim()
   if (override) {
@@ -62,17 +70,30 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY as string,
       'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
     }
-    // Await initial invocation to avoid it being dropped by the platform tear-down
+    // Await initial invocation briefly to ensure dispatch; timeout is configurable
     const controller = new AbortController()
-    const t = setTimeout(() => controller.abort(), 6000)
+    const t = setTimeout(() => controller.abort(), getInvokeTimeoutMs())
     try {
-      const resp = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: data.id }), signal: controller.signal })
+      // Use a small budget for the first invoke so the function returns quickly but starts processing
+      const resp = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ job_id: data.id, budget_ms: 500 }), signal: controller.signal })
       if (!resp.ok) {
         const txt = await resp.text().catch(() => '')
         console.warn('boxhero-sync-worker initial invoke returned non-2xx', resp.status, txt)
+        // Mark job as failed to avoid indefinite queued state when worker env/secrets are missing
+        await supabase
+          .from('boxhero_sync_jobs')
+          .update({ status: 'failed', error: `initial invoke failed: ${resp.status} ${txt?.slice(0,300)}` })
+          .eq('id', data.id)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('boxhero-sync-worker initial invoke error', e)
+      // If the error is an AbortError (timeout), don't fail the job; worker may still start or a retry may succeed
+      if (e?.name !== 'AbortError') {
+        await supabase
+          .from('boxhero_sync_jobs')
+          .update({ status: 'failed', error: `initial invoke error: ${e?.message || 'unknown'}` })
+          .eq('id', data.id)
+      }
     } finally {
       clearTimeout(t)
     }
