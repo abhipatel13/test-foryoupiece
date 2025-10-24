@@ -36,6 +36,16 @@ export default function SyncClientPage() {
   const [isChunkSyncing, setIsChunkSyncing] = useState(false);
   const [chunkProgress, setChunkProgress] = useState({ processed: 0, updated: 0, skipped: 0, hasMore: false, cursor: null as string | null });
 
+  const [bgJob, setBgJob] = useState<{
+    id: string;
+    status: string;
+    processed: number;
+    updated: number;
+    skipped: number;
+    total: number;
+    error?: string | null;
+  } | null>(null)
+
   const {
     isSyncing: isEnhancedSyncing,
     syncHistory,
@@ -122,70 +132,93 @@ export default function SyncClientPage() {
     try {
       setIsSyncing(true);
       setLastSyncResult(null);
+      setBgJob(null);
 
-      const response = await fetch('/api/admin/boxhero-sync', {
+      // 1) Enqueue background job
+      const enqueueRes = await fetch('/api/admin/boxhero/jobs/enqueue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'full-sync',
-          triggeredBy: 'admin_interface',
-          dryRun: false,
-          updateExisting: true,
-          addNew: true,
-          syncStock: true
-        })
-      });
-
-      const result = await response.json();
-
-      const transformedResult = {
-        success: result.success,
-        categoriesSynced: result.data?.categoriesSynced,
-        totalItemsProcessed: result.data?.totalItemsProcessed,
-        productsUpdated: result.data?.productsUpdated || 0,
-        productsSkipped: result.data?.productsSkipped || 0,
-        productItemsProcessed: result.data?.productItemsProcessed || 0,
-        duration: result.data?.duration,
-        error: result.error,
-        timestamp: result.data?.timestamp || new Date().toISOString()
-      };
-
-      setLastSyncResult(transformedResult);
-
-      if (result.success) {
-        console.log('🗑️ Invalidating React Query cache after successful BoxHero sync');
-        await queryClient.invalidateQueries({ queryKey: ['products'] });
-        await queryClient.invalidateQueries({ queryKey: ['product'] });
-        await queryClient.invalidateQueries({ queryKey: ['categories'] });
-        await queryClient.invalidateQueries({ queryKey: ['inventory'] });
-        await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
-
-        // Broadcast same-tab and cross-tab update signals
-        if (typeof window !== 'undefined') {
-          const tables = ['products','categories']
-          window.dispatchEvent(new CustomEvent('fyp:admin:data-updated', { detail: { tables, reason: 'boxhero_sync' } }))
-          try {
-            if ('BroadcastChannel' in window) {
-              const ch = new BroadcastChannel('fyp-admin-updates')
-              ch.postMessage({ type: 'data-updated', tables, reason: 'boxhero_sync', ts: Date.now() })
-              ch.close()
-            }
-          } catch {}
-          try {
-            localStorage.setItem('fyp:admin:last-update', JSON.stringify({ tables, reason: 'boxhero_sync', ts: Date.now() }))
-          } catch {}
-        }
-
-        console.log('✅ React Query cache invalidated successfully');
-        toast.success('Sync completed successfully! Product data refreshed.');
-      } else {
-        toast.error('Sync failed: ' + (result.error || 'Unknown error'));
+        body: JSON.stringify({ triggeredBy: 'admin_interface' })
+      })
+      if (!enqueueRes.ok) {
+        const txt = await enqueueRes.text().catch(() => '')
+        throw new Error(txt || 'Failed to enqueue background sync job')
+      }
+      let enqueueJson: any = null
+      try { enqueueJson = await enqueueRes.json() } catch {
+        throw new Error('Failed to parse enqueue response')
+      }
+      if (!enqueueJson?.success || !enqueueJson?.job?.id) {
+        throw new Error(enqueueJson?.error || 'Enqueue did not return a job ID')
       }
 
-      await fetchSyncStatus();
+      const jobId: string = enqueueJson.job.id
+      toast.message('Sync started in background')
+
+      // 2) Poll job status until completed/failed/cancelled
+      const start = Date.now()
+      let attempts = 0
+      let done = false
+      while (!done) {
+        const statusRes = await fetch(`/api/admin/boxhero/jobs/status/${jobId}`)
+        if (statusRes.ok) {
+          let statusJson: any = {}
+          try { statusJson = await statusRes.json() } catch {}
+          const job = statusJson?.job
+          if (job) {
+            setBgJob({
+              id: job.id,
+              status: job.status,
+              processed: Number(job.processed_items || 0),
+              updated: Number(job.updated_items || 0),
+              skipped: Number(job.skipped_items || 0),
+              total: Number(job.total_items || 0),
+              error: job.error || null
+            })
+
+            if (job.status === 'completed') {
+              done = true
+              await queryClient.invalidateQueries({ queryKey: ['products'] })
+              await queryClient.invalidateQueries({ queryKey: ['product'] })
+              await queryClient.invalidateQueries({ queryKey: ['categories'] })
+              await queryClient.invalidateQueries({ queryKey: ['inventory'] })
+              await queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] })
+              if (typeof window !== 'undefined') {
+                const tables = ['products','categories']
+                window.dispatchEvent(new CustomEvent('fyp:admin:data-updated', { detail: { tables, reason: 'boxhero_sync' } }))
+                try {
+                  if ('BroadcastChannel' in window) {
+                    const ch = new BroadcastChannel('fyp-admin-updates')
+                    ch.postMessage({ type: 'data-updated', tables, reason: 'boxhero_sync', ts: Date.now() })
+                    ch.close()
+                  }
+                } catch {}
+                try { localStorage.setItem('fyp:admin:last-update', JSON.stringify({ tables, reason: 'boxhero_sync', ts: Date.now() })) } catch {}
+              }
+              toast.success('Sync completed successfully!')
+              setLastSyncResult({ success: true, timestamp: new Date().toISOString() } as any)
+              break
+            }
+            if (job.status === 'failed' || job.status === 'cancelled') {
+              done = true
+              toast.error('Sync failed: ' + (job.error || job.status))
+              setLastSyncResult({ success: false, error: job.error || job.status, timestamp: new Date().toISOString() } as any)
+              break
+            }
+          }
+        }
+        attempts++
+        await new Promise(r => setTimeout(r, Math.min(1000 + attempts * 250, 5000)))
+        if (Date.now() - start > 20 * 60 * 1000) { // 20 minutes safety cap
+          toast.error('Sync polling timed out')
+          break
+        }
+      }
+
+      await fetchSyncStatus()
     } catch (error) {
       console.error('Error triggering sync:', error);
-      setLastSyncResult({ success: false, error: 'Failed to trigger sync', timestamp: new Date().toISOString() } as any);
+      setLastSyncResult({ success: false, error: error instanceof Error ? error.message : 'Failed to trigger sync', timestamp: new Date().toISOString() } as any);
     } finally {
       setIsSyncing(false);
     }
@@ -257,6 +290,12 @@ export default function SyncClientPage() {
                 {isChunkSyncing || chunkProgress.processed > 0 ? (
                   <div className="mt-3 text-sm text-muted-foreground">
                     <p>Chunked sync progress: processed {chunkProgress.processed}, updated {chunkProgress.updated}, skipped {chunkProgress.skipped}{chunkProgress.hasMore ? '...' : ''}</p>
+                  </div>
+                ) : null}
+                {bgJob ? (
+                  <div className="mt-3 text-sm text-muted-foreground">
+                    <p>Background full sync: status {bgJob.status}, processed {bgJob.processed}, updated {bgJob.updated}, skipped {bgJob.skipped}{bgJob.total ? ` / ~${bgJob.total}` : ''}</p>
+                    {bgJob.error ? (<p className="text-red-600">Error: {bgJob.error}</p>) : null}
                   </div>
                 ) : null}
                 {lastSyncResult && (

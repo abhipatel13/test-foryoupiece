@@ -6,6 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+async function fetchBoxHeroCategories(token: string) {
+  const url = new URL('https://rest.boxhero-app.com/v1/categories')
+  await sleep(200)
+  const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } })
+  if (res.status === 429) {
+    const reset = res.headers.get('X-Ratelimit-Reset')
+    let waitMs = 1000
+    if (reset) {
+      const n = parseInt(reset, 10)
+      if (Number.isFinite(n)) {
+        const nowSec = Math.floor(Date.now() / 1000)
+        const isEpoch = n > nowSec + 5
+        let seconds = isEpoch ? Math.max(0, n - nowSec) : n
+        seconds = Math.min(Math.max(seconds, 1), 5)
+        waitMs = seconds * 1000
+      }
+    }
+    await sleep(waitMs)
+    return fetchBoxHeroCategories(token)
+  }
+  if (!res.ok) return []
+  const data = await res.json()
+  return Array.isArray(data.items) ? data.items : []
+}
+
 function json(res: any, status = 200) {
   return new Response(JSON.stringify(res), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
@@ -65,6 +90,50 @@ serve(async (req) => {
         .from('boxhero_sync_jobs')
         .update({ status: 'processing', started_at: new Date().toISOString() })
         .eq('id', job.id)
+    }
+
+    // categories sync on first run
+    if (!job.cursor && Number(job.processed_items || 0) === 0) {
+      try {
+        const categories = await fetchBoxHeroCategories(boxHeroToken)
+        const filtered = (Array.isArray(categories) ? categories : []).filter((c: any) => String(c?.name) !== 'Uncategorized')
+        const toUpsert = filtered.map((c: any, i: number) => ({
+          name_en: String(c.name),
+          name_ja: String(c.name),
+          slug: slugify(String(c.name)),
+          description_en: `${c.name} products from BoxHero inventory`,
+          description_ja: `${c.name} products from BoxHero inventory`,
+          parent_id: null,
+          is_active: true,
+          sort_order: i + 1,
+          source: 'boxhero',
+          updated_at: new Date().toISOString(),
+        }))
+        if (toUpsert.length > 0) {
+          // Upsert first; only after success, deactivate any categories not present in the new set
+          const { error: upErr } = await supabase
+            .from('categories')
+            .upsert(toUpsert, { onConflict: 'slug', ignoreDuplicates: false })
+          if (upErr) throw upErr
+
+          const newSlugs = new Set(toUpsert.map((c: any) => c.slug))
+          const { data: activeCats, error: selErr } = await supabase
+            .from('categories')
+            .select('id, slug, source')
+            .eq('is_active', true)
+            .or('source.eq.boxhero,source.is.null')
+          if (!selErr && Array.isArray(activeCats)) {
+            const idsToDeactivate = activeCats.filter((c: any) => !newSlugs.has(String(c.slug))).map((c: any) => c.id)
+            if (idsToDeactivate.length > 0) {
+              await supabase.from('categories').update({ is_active: false }).in('id', idsToDeactivate)
+            }
+          }
+        } else {
+          console.warn('categories sync: fetched empty set; skipping deactivation to avoid wiping categories')
+        }
+      } catch (e) {
+        console.warn('categories sync error', e)
+      }
     }
 
     // fetch locations once
@@ -253,6 +322,10 @@ serve(async (req) => {
     return json({ success: false, error: e?.message || 'Unknown error' }, 500)
   }
 })
+
+function slugify(name: string) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
 
 async function fetchBoxHeroItemsPage(token: string, cursor: string | null, limit: number) {
   const url = new URL('https://rest.boxhero-app.com/v1/items')
