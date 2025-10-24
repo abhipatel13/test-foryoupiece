@@ -86,6 +86,11 @@ export function SessionMonitor({
     if (isCheckingRef.current && !isRetry) return true
 
     isCheckingRef.current = true
+    // CRITICAL: 5-second timeout to prevent hanging (fast recovery)
+    const timeoutId = setTimeout(() => {
+      console.error('❌ Session validation timeout - resetting lock')
+      isCheckingRef.current = false
+    }, 5000)  // 5 seconds is reasonable for session validation
 
     try {
       console.log('🔍 Session monitor: Validating session...', {
@@ -140,6 +145,7 @@ export function SessionMonitor({
 
           // Broadcast validation success and return early (no server call needed)
           broadcast('SESSION_VALIDATED', { userId, timestamp: Date.now() })
+          clearTimeout(timeoutId)
           return true
         }
       } catch (e) {
@@ -149,6 +155,7 @@ export function SessionMonitor({
       // 2) Fallback to server validation only if client-side check is inconclusive
       // Defer the very first server validation slightly to avoid racing with auth initialization
       if (!isRetry && lastValidationTime === 0) {
+        clearTimeout(timeoutId)
         setTimeout(() => {
           // Mark as retry so we don't defer again
           validateSession(true)
@@ -180,6 +187,7 @@ export function SessionMonitor({
 
         // Sign out and clear all auth data
         await signOut()
+        clearTimeout(timeoutId)
         return false
       }
 
@@ -211,6 +219,7 @@ export function SessionMonitor({
       // Broadcast successful session validation to other tabs
       broadcast('SESSION_VALIDATED', { userId: data.userId, timestamp: Date.now() })
 
+      clearTimeout(timeoutId)
       return true
     } catch (error: any) {
       console.error('❌ Session monitor: Validation request failed:', error)
@@ -229,6 +238,7 @@ export function SessionMonitor({
 
         console.log(`🔄 Retrying session validation in ${backoffDelay}ms (attempt ${retryCountRef.current}/${maxRetries})`)
 
+        clearTimeout(timeoutId)
         setTimeout(() => {
           validateSession(true)
         }, backoffDelay)
@@ -236,11 +246,13 @@ export function SessionMonitor({
         console.error('❌ Max retry attempts reached, treating as session expired')
         broadcast('CACHE_INVALIDATE', { keys: ['session_expired'] })
         await signOut()
+        clearTimeout(timeoutId)
         return false
       }
 
       return true // Don't sign out on network errors during retry attempts
     } finally {
+      clearTimeout(timeoutId)
       isCheckingRef.current = false
     }
   }
