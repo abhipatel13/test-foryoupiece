@@ -2,10 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAdminAuth } from '@/lib/auth/admin-middleware'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
+function extractProjectRef(url?: string | null) {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    const host = u.hostname
+    const parts = host.split('.')
+    // standard host: <ref>.supabase.co
+    if (parts.length >= 3 && parts[1] === 'supabase' && parts[2] === 'co') {
+      return parts[0]
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 function getFunctionsBaseUrl() {
-  const supa = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const m = supa.match(/^https?:\/\/([a-z0-9-]+)\.supabase\.co/i)
-  const ref = m?.[1]
+  const override = (process.env.SUPABASE_FUNCTIONS_URL || '').trim()
+  if (override) {
+    return override.replace(/\/$/, '')
+  }
+  const ref =
+    extractProjectRef(process.env.SUPABASE_URL) ||
+    extractProjectRef(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+    (process.env.SUPABASE_PROJECT_REF || null)
   if (!ref) return null
   return `https://${ref}.functions.supabase.co`
 }
@@ -25,7 +46,15 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
     if (error || !data) return NextResponse.json({ success: false, error: error?.message || 'enqueue failed' }, { status: 500 })
 
     const base = getFunctionsBaseUrl()
-    if (!base) return NextResponse.json({ success: false, error: 'invalid functions base url' }, { status: 500 })
+    if (!base) {
+      console.warn('enqueue: invalid functions base url', {
+        hasSupabaseUrl: !!process.env.SUPABASE_URL,
+        hasPublicUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasProjectRef: !!process.env.SUPABASE_PROJECT_REF,
+        hasFunctionsUrl: !!process.env.SUPABASE_FUNCTIONS_URL,
+      })
+      return NextResponse.json({ success: false, error: 'invalid functions base url' }, { status: 500 })
+    }
 
     const fnUrl = `${base}/boxhero-sync-worker`
     const headers: Record<string, string> = {
