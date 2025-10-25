@@ -70,33 +70,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             useUserStore.getState().setUser(user)
             channel.postMessage({ type: 'SIGNED_IN' })
             
-            // Check if this is coming from a Google OAuth redirect (via URL params)
-            const urlParams = new URLSearchParams(window.location.search)
-            const fromGoogleAuth = urlParams.has('code') || window.location.pathname.includes('/auth/callback')
-            
-            // For Google OAuth, trigger a hard reload to ensure all data is fresh
-            if (fromGoogleAuth && !(window as any).__postLoginReloadDone) {
-              (window as any).__postLoginReloadDone = true
-              console.log('🔄 Google OAuth completed, reloading page for fresh data...')
-              // Small delay to ensure session is fully established
-              setTimeout(() => {
-                window.location.replace(window.location.pathname + '?r=' + Date.now())
-              }, 100)
-              return
-            }
-            
-            try {
-              const profile = await userQueries.getProfile(user.id)
-              // Race-condition safe check using the real store
-              if (useUserStore.getState().user?.id === user.id) {
-                useUserStore.getState().setProfile(profile)
-                useCartStore.getState().setUserId(user.id)
-                useCartStore.getState().forceLoadCartForUser(user?.id)
+            // Enhanced profile loading with retry logic and profile creation
+            const loadUserProfile = async (retries = 3) => {
+              try {
+                let profile = await userQueries.getProfile(user.id)
+                
+                // If profile doesn't exist (common with OAuth), create it
+                if (!profile && retries > 0) {
+                  console.log('🔧 Profile not found, creating for OAuth user:', user.id)
+                  
+                  try {
+                    // Call API to ensure profile exists
+                    const response = await fetch('/api/auth/ensure-profile', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        userId: user.id,
+                        email: user.email,
+                        metadata: user.user_metadata 
+                      })
+                    })
+                    
+                    if (response.ok) {
+                      // Retry fetching profile after creation
+                      await new Promise(resolve => setTimeout(resolve, 500)) // Small delay
+                      profile = await userQueries.getProfile(user.id)
+                    }
+                  } catch (createError) {
+                    console.error('Failed to create profile:', createError)
+                  }
+                }
+                
+                // If still no profile and retries left, try again
+                if (!profile && retries > 0) {
+                  console.log(`🔄 Retrying profile fetch (${retries} attempts left)`)
+                  setTimeout(() => loadUserProfile(retries - 1), 1000)
+                  return
+                }
+                
+                // Race-condition safe check using the real store
+                if (useUserStore.getState().user?.id === user.id) {
+                  useUserStore.getState().setProfile(profile)
+                  useCartStore.getState().setUserId(user.id)
+                  useCartStore.getState().forceLoadCartForUser(user?.id)
+                  
+                  console.log('✅ Profile loaded successfully:', { 
+                    hasProfile: !!profile, 
+                    points: profile?.points_balance 
+                  })
+                }
+              } catch (error) {
+                console.error('Failed to fetch profile:', error)
+                if (retries > 0) {
+                  console.log(`🔄 Retrying profile fetch due to error (${retries} attempts left)`)
+                  setTimeout(() => loadUserProfile(retries - 1), 1000)
+                } else {
+                  useUserStore.getState().setProfile(null)
+                }
               }
-            } catch (error) {
-              console.error('Failed to fetch profile:', error)
-              useUserStore.getState().setProfile(null)
             }
+            
+            // Start profile loading
+            loadUserProfile()
           }
           break;
         }

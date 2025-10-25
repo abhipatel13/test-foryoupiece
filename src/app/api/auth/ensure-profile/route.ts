@@ -9,6 +9,10 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Parse request body for additional metadata
+    const body = await request.json().catch(() => ({}))
+    const { metadata } = body
+    
     const supabase = await createClient()
     const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
     const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined
@@ -24,14 +28,40 @@ export async function POST(request: NextRequest) {
       throw new Error('Service role client unavailable')
     }
 
+    // Enhanced profile creation with Google OAuth metadata
+    const userMetadata = metadata || user.user_metadata || {}
+    
+    // Extract name from Google OAuth metadata
+    let firstName = userMetadata.first_name || null
+    let lastName = userMetadata.last_name || null
+    
+    // If no first/last name, try to split full_name from Google
+    if (!firstName && !lastName && userMetadata.full_name) {
+      const nameParts = userMetadata.full_name.split(' ')
+      firstName = nameParts[0] || null
+      lastName = nameParts.slice(1).join(' ') || null
+    }
+
     const baseProfile = {
       id: user.id,
       email: user.email ?? null,
-      first_name: (user.user_metadata as any)?.first_name ?? null,
-      last_name: (user.user_metadata as any)?.last_name ?? null,
-      telegram_username: (user.user_metadata as any)?.telegram_username ?? null,
-      preferred_language: 'en' as const
+      first_name: firstName,
+      last_name: lastName,
+      avatar_url: userMetadata.avatar_url || userMetadata.picture || null,
+      telegram_username: userMetadata.telegram_username ?? null,
+      preferred_language: 'en' as const,
+      points_balance: 1000, // Welcome points for new users
+      tier_level: 'Bronze',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
+
+    console.log('🔧 Creating/updating profile for user:', {
+      userId: user.id,
+      email: user.email,
+      provider: user.app_metadata?.provider,
+      hasMetadata: !!metadata
+    })
 
     // Upsert to ensure existence (safe for race conditions)
     const { error: upsertError } = await admin.from('users').upsert(baseProfile, { onConflict: 'id' })

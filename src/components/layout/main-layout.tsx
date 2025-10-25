@@ -4,6 +4,7 @@ import { Header } from './header'
 import { Footer } from './footer'
 import { SSRErrorBoundary } from '@/components/error-boundary/ssr-error-boundary'
 import dynamic from 'next/dynamic'
+import { useEffect } from 'react'
 
 // Dynamically import Toaster to avoid SSR issues with sonner
 const Toaster = dynamic(
