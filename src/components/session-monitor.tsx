@@ -128,19 +128,7 @@ export function SessionMonitor({
           console.log('✅ Supabase connection test successful')
         }
 
-        // Test 2: Auth endpoint test
-        try {
-          console.log('🔍 Session monitor: Testing Supabase Auth endpoint...')
-          const authTest = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}`
-            }
-          })
-          console.log('🔍 Session monitor: Auth endpoint status:', authTest.status)
-        } catch (authError) {
-          console.warn('⚠️ Auth endpoint test failed:', authError)
-        }
+        // Test 2: Skip auth endpoint test (not needed for session validation)
 
         // Test 3: Database connection test
         try {
@@ -309,7 +297,9 @@ export function SessionMonitor({
 
       const data = await response.json()
       console.log('🔍 Session monitor: Session validation data:', data)
-      const serverUserId = data?.userId ?? data?.session?.user?.id ?? data?.session?.user_id ?? null
+      
+      // Extract userId from multiple possible locations in the response
+      const serverUserId = data?.userId ?? data?.session?.userId ?? data?.session?.user?.id ?? null
       console.log('✅ Session monitor: Session valid for user (server):', serverUserId)
 
       // Reset retry count on successful validation

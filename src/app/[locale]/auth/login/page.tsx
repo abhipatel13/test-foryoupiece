@@ -376,12 +376,12 @@ function LoginPageContent() {
       let url = 
         process?.env?.NEXT_PUBLIC_SITE_URL ?? // Vercel Environment Variable
         process?.env?.NEXT_PUBLIC_VERCEL_URL ?? // Vercel System Variable
-        'http://localhost:3000/'
+        'http://localhost:3000'
       // Make sure to include `https://` when not localhost.
       url = url.includes('http') ? url : `https://${url}`
-      // Make sure to include a trailing `/`.
-      url = url.charAt(url.length - 1) === '/' ? url : `${url}/`
-      return `${url}en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+      // Remove trailing slash for proper URL construction
+      url = url.replace(/\/$/, '')
+      return `${url}/en/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
     }
 
     const { error } = await supabase.auth.signInWithOAuth({

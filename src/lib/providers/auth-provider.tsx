@@ -69,6 +69,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (user) {
             useUserStore.getState().setUser(user)
             channel.postMessage({ type: 'SIGNED_IN' })
+            
+            // Check if this is coming from a Google OAuth redirect (via URL params)
+            const urlParams = new URLSearchParams(window.location.search)
+            const fromGoogleAuth = urlParams.has('code') || window.location.pathname.includes('/auth/callback')
+            
+            // For Google OAuth, trigger a hard reload to ensure all data is fresh
+            if (fromGoogleAuth && !(window as any).__postLoginReloadDone) {
+              (window as any).__postLoginReloadDone = true
+              console.log('🔄 Google OAuth completed, reloading page for fresh data...')
+              // Small delay to ensure session is fully established
+              setTimeout(() => {
+                window.location.replace(window.location.pathname + '?r=' + Date.now())
+              }, 100)
+              return
+            }
+            
             try {
               const profile = await userQueries.getProfile(user.id)
               // Race-condition safe check using the real store

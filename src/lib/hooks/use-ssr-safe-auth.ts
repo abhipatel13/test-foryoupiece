@@ -130,7 +130,7 @@ export function useSSRSafeAuth() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/en/auth/callback`,
+        redirectTo: `${window.location.origin}/en/auth/callback?redirectTo=${encodeURIComponent(window.location.pathname)}`,
         queryParams: {
           access_type: 'offline',
           prompt: 'select_account',
