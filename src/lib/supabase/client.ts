@@ -90,7 +90,11 @@ class CrossBrowserStorage {
 
       // Check for session expiration
       if (data.expires_at) {
-        const expiresAt = new Date(data.expires_at).getTime()
+        // Supabase sessions often use seconds; handle both seconds and ms
+        const raw = data.expires_at
+        const expiresAt = typeof raw === 'number'
+          ? (raw > 10_000_000_000 ? raw : raw * 1000)
+          : new Date(raw).getTime()
         if (Date.now() > expiresAt) {
           console.warn('🔒 Session expired, removing from storage')
           return false
@@ -99,7 +103,10 @@ class CrossBrowserStorage {
 
       // Check for session age (8 hours maximum)
       if (data.created_at || data.issued_at) {
-        const createdAt = new Date(data.created_at || data.issued_at).getTime()
+        const rawCreated = data.created_at || data.issued_at
+        const createdAt = typeof rawCreated === 'number'
+          ? (rawCreated > 10_000_000_000 ? rawCreated : rawCreated * 1000)
+          : new Date(rawCreated).getTime()
         const sessionAge = Date.now() - createdAt
         const maxAge = 8 * 60 * 60 * 1000 // 8 hours
 

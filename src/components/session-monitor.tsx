@@ -309,19 +309,20 @@ export function SessionMonitor({
 
       const data = await response.json()
       console.log('🔍 Session monitor: Session validation data:', data)
-      console.log('✅ Session monitor: Session valid for user (server):', data.userId)
+      const serverUserId = data?.userId ?? data?.session?.user?.id ?? data?.session?.user_id ?? null
+      console.log('✅ Session monitor: Session valid for user (server):', serverUserId)
 
       // Reset retry count on successful validation
       retryCountRef.current = 0
       setLastValidationTime(Date.now())
       console.log('🔍 Session monitor: Resetting last validation time')
       // Only reload cart if it's been more than 5 minutes since last cart load
-      if (data.userId && user?.id === data.userId) {
+      if (serverUserId && user?.id === serverUserId) {
         const timeSinceLastCartLoad = Date.now() - lastCrossTabCartReloadRef.current
         if (timeSinceLastCartLoad > 300000) { // 5 minutes
           console.log('🛒 Session monitor: Cart needs refresh after server validation')
           try {
-            await forceLoadCartForUser(data.userId)
+            await forceLoadCartForUser(serverUserId)
             lastCrossTabCartReloadRef.current = Date.now()
             console.log('✅ Session monitor: Cart reloaded successfully after validation')
           } catch (cartError) {
@@ -334,7 +335,7 @@ export function SessionMonitor({
       }
 
       // Broadcast successful session validation to other tabs
-      broadcast('SESSION_VALIDATED', { userId: data.userId, timestamp: Date.now() })
+      broadcast('SESSION_VALIDATED', { userId: serverUserId, timestamp: Date.now() })
 
       clearTimeout(timeoutId)
       return true
