@@ -102,8 +102,103 @@ export function SessionMonitor({
       // 1) Fast client-side validation first
       const supabase = createClient()
       console.log('🔍 Session monitor: Supabase client:', supabase)
+      
+      // Test Supabase connection first
       try {
-        const { data: sessionData } = await supabase.auth.getSession()
+        console.log('🔍 Session monitor: Testing Supabase connection...')
+        console.log('🔍 Session monitor: Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+        console.log('🔍 Session monitor: Supabase Key (first 20 chars):', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20) + '...')
+        
+        // Test 1: Basic REST API connection
+        const connectionTest = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/`, {
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        console.log('🔍 Session monitor: Supabase connection test result:', connectionTest.status)
+        console.log('🔍 Session monitor: Response headers:', Object.fromEntries(connectionTest.headers.entries()))
+        
+        if (!connectionTest.ok) {
+          console.warn('⚠️ Supabase connection test failed:', connectionTest.status, connectionTest.statusText)
+          const errorText = await connectionTest.text().catch(() => 'Could not read error response')
+          console.warn('⚠️ Supabase error response:', errorText)
+        } else {
+          console.log('✅ Supabase connection test successful')
+        }
+
+        // Test 2: Auth endpoint test
+        try {
+          console.log('🔍 Session monitor: Testing Supabase Auth endpoint...')
+          const authTest = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}`
+            }
+          })
+          console.log('🔍 Session monitor: Auth endpoint status:', authTest.status)
+        } catch (authError) {
+          console.warn('⚠️ Auth endpoint test failed:', authError)
+        }
+
+        // Test 3: Database connection test
+        try {
+          console.log('🔍 Session monitor: Testing database connection...')
+          const dbTest = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/products?select=id&limit=1`, {
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+              'Content-Type': 'application/json'
+            }
+          })
+          console.log('🔍 Session monitor: Database test status:', dbTest.status)
+          if (dbTest.ok) {
+            const dbData = await dbTest.json()
+            console.log('🔍 Session monitor: Database test data:', dbData)
+          }
+        } catch (dbError) {
+          console.warn('⚠️ Database connection test failed:', dbError)
+        }
+
+        // Test 4: Environment variables check
+        console.log('🔍 Session monitor: Environment check:', {
+          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          urlValid: process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('supabase.co'),
+          keyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length,
+          nodeEnv: process.env.NODE_ENV
+        })
+
+        // Test 5: Network timing test
+        const startTime = Date.now()
+        const timingTest = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/`, {
+          headers: {
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          }
+        })
+        const endTime = Date.now()
+        console.log('🔍 Session monitor: Network timing:', {
+          responseTime: `${endTime - startTime}ms`,
+          status: timingTest.status
+        })
+
+      } catch (connectionError) {
+        console.warn('⚠️ Supabase connection test error:', connectionError)
+        console.warn('⚠️ Connection error details:', {
+          name: (connectionError as Error).name,
+          message: (connectionError as Error).message,
+          stack: (connectionError as Error).stack
+        })
+      }
+      
+      try {
+        // Add timeout to prevent hanging getSession() calls
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session validation timeout')), 5000)
+        )
+        
+        const { data: sessionData } = await Promise.race([sessionPromise, timeoutPromise])
         console.log('🔍 Session monitor: Session data:', sessionData) 
         const sess = sessionData?.session
         console.log('🔍 Session monitor: Session:', sess)
@@ -117,7 +212,13 @@ export function SessionMonitor({
           console.log('🔍 Session monitor: Time left:', timeLeft)
           // Only refresh tokens when they are close to expiry (<= 5 minutes)
           if (timeLeft <= 5 * 60 * 1000) {
-            const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession()
+            // Add timeout to prevent hanging refreshSession() calls
+            const refreshPromise = supabase.auth.refreshSession()
+            const refreshTimeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Token refresh timeout')), 5000)
+            )
+            
+            const { data: refreshed, error: refreshErr } = await Promise.race([refreshPromise, refreshTimeoutPromise])
             console.log('🔍 Session monitor: Refreshed session:', refreshed)
             console.log('🔍 Session monitor: Refresh error:', refreshErr)
             if (refreshErr || !refreshed?.session?.user) {

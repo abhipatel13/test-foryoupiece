@@ -207,7 +207,7 @@ export default function HomePage() {
       const maxWaitTimeout = setTimeout(() => {
         console.log('🚀 Maximum category wait time reached, ensuring display');
         // Categories should already be visible, this is just a safety net
-      }, 8000); // 8 seconds maximum wait
+      }, 10000); // 8 seconds maximum wait
 
       return () => clearTimeout(maxWaitTimeout);
     }
